@@ -12,7 +12,7 @@ export function MerchandiseSection() {
     <section className="merch page-container">
       <div className="merch__top">
         <div className="merch__gallery">
-          <ImagePlaceholder label="문화 체험 기념품 이미지" className="merch__gallery-ph" />
+          <img className="merch__gallery-img" src="/images/merchandise/cluster.png" alt="문화 체험 기념품" />
         </div>
 
         <div className="merch__copy">

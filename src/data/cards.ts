@@ -1,22 +1,17 @@
 /**
  * Card design catalogue.
  *
- * These entries are placeholders that mirror the mock-ups. Final card front /
- * back artwork will be delivered later — supply `front`/`back` image URLs and
- * the gallery renders them in place of the CSS placeholder.
+ * `front` = top slot image, `back` = bottom slot image in the design gallery.
+ * Images are the temporary "design front/back" set in public/images/cards/.
  */
 export type CardType = "honorary-korean" | "honorary-citizen" | "student" | "visitor";
 
 export interface CardDesign {
   id: string;
-  /** Human-readable design name (used on the review step). */
   name: string;
   cardType: CardType;
-  /** Card orientation drives how many are shown per slide. */
   orientation: "landscape" | "portrait";
-  /** Accent colour of the certificate strip. */
   accent: string;
-  /** Sample data shown on the placeholder card. */
   sample: {
     titleKo: string;
     titleEn: string;
@@ -28,7 +23,6 @@ export interface CardDesign {
     issuedAt: string;
     issuer: string;
   };
-  /** Name-reading ("한국이름풀이") shown beneath each card in the gallery. */
   reading: {
     nameKo: string;
     nameHanja?: string;
@@ -36,9 +30,15 @@ export interface CardDesign {
     meaning: string;
     poem: string[];
   };
+  /** Top-slot image */
   front?: string;
+  /** Bottom-slot image */
   back?: string;
 }
+
+// Provided image files (filenames contain spaces → URL-encoded).
+const df = (n: number) => `/images/cards/design%20front${n}.png`;
+const db = (n: number) => (n === 1 ? `/images/cards/design%20back%201.png` : `/images/cards/design%20back${n}.png`);
 
 const monkeyReading = {
   nameKo: "윤 은 재",
@@ -58,9 +58,9 @@ function makeSeries(
   accent: string,
   sample: CardDesign["sample"],
   reading: CardDesign["reading"],
-  count = 5,
+  slots: { front: string; back: string }[],
 ): CardDesign[] {
-  return Array.from({ length: count }, (_, i) => ({
+  return slots.map((imgs, i) => ({
     id: `${cardType}-${String(i + 1).padStart(2, "0")}`,
     name: `${sample.titleKo} ${String(i + 1).padStart(2, "0")}`,
     cardType,
@@ -68,9 +68,12 @@ function makeSeries(
     accent,
     sample,
     reading,
+    front: imgs.front,
+    back: imgs.back,
   }));
 }
 
+// 명예한국인증 — 3 columns: top row front1×3, bottom row back1×3.
 export const honoraryKoreanCards = makeSeries(
   "honorary-korean",
   "landscape",
@@ -87,8 +90,14 @@ export const honoraryKoreanCards = makeSeries(
     issuer: "발행처 대한민국 고용노동부",
   },
   monkeyReading,
+  [
+    { front: df(1), back: db(1) },
+    { front: df(1), back: db(1) },
+    { front: df(1), back: db(1) },
+  ],
 );
 
+// 명예시민증 — 3 columns: top row front2×3, bottom row back2×3.
 export const honoraryCitizenCards = makeSeries(
   "honorary-citizen",
   "landscape",
@@ -115,8 +124,14 @@ export const honoraryCitizenCards = makeSeries(
       "밝게 빛나는 부유하고 명예로운 인생을 산다.",
     ],
   },
+  [
+    { front: df(2), back: db(2) },
+    { front: df(2), back: db(2) },
+    { front: df(2), back: db(2) },
+  ],
 );
 
+// 학생증 — 2 columns. Top row [front3, back3], bottom row [front4, back4].
 export const studentCards = makeSeries(
   "student",
   "portrait",
@@ -143,8 +158,13 @@ export const studentCards = makeSeries(
       "기품과 성실을 가득 담아 세상을 부유하게 하고 있게 빛낸다.",
     ],
   },
+  [
+    { front: df(3), back: df(4) },
+    { front: db(3), back: db(4) },
+  ],
 );
 
+// 방문증 — 2 columns, front5/back5 alternating (교차).
 export const visitorCards = makeSeries(
   "visitor",
   "portrait",
@@ -171,6 +191,10 @@ export const visitorCards = makeSeries(
       "깊은 지혜로 모든 일이 밝고 그름을 따지고 조화로운 삶을 이룬다.",
     ],
   },
+  [
+    { front: df(5), back: db(5) },
+    { front: db(5), back: df(5) },
+  ],
 );
 
 export interface CardCategory {

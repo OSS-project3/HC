@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import clsx from "clsx";
 import "./Button.css";
 
-type Variant = "primary" | "outline" | "ghost";
+type Variant = "primary" | "outline" | "ghost" | "soft";
 
 interface CommonProps {
   variant?: Variant;

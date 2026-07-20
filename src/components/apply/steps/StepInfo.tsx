@@ -249,7 +249,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
       <p className="step__hint">* 필수 입력 항목</p>
 
       <div className="step__actions">
-        <Button variant="ghost" onClick={onPrev}>
+        <Button variant="soft" onClick={onPrev}>
           <ChevronLeft width={16} height={16} /> 이전
         </Button>
         <Button onClick={onNext}>

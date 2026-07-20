@@ -1,4 +1,5 @@
 import { HeroSection } from "../components/home/HeroSection";
+import { MainDesignsSection } from "../components/home/MainDesignsSection";
 import { ServiceCoreSection } from "../components/home/ServiceCoreSection";
 import { MerchandiseSection } from "../components/home/MerchandiseSection";
 import { ContactSection } from "../components/home/ContactSection";
@@ -13,6 +14,7 @@ export function HomePage() {
       <p className="home-tagline page-container">{companyInfo.tagline}</p>
 
       <HeroSection />
+      <MainDesignsSection />
       <ServiceCoreSection />
       <MerchandiseSection />
       <ContactSection />

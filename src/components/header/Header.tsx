@@ -1,15 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { Logo } from "../brand/Logo";
-import { mainNav, supportMenu } from "../../config/navigation";
+import { mainNav, adminNavItem, supportMenu, type NavItem } from "../../config/navigation";
+import { useAuth } from "../../features/auth/AuthContext";
 import { GlobeIcon, ChevronRight } from "../ui/icons";
 import "./Header.css";
 
 export function Header() {
   const location = useLocation();
-  const isHome = location.pathname === "/";
+  const { user, isAdmin, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Admin entry appears (before 고객지원) only when logged in as admin.
+  const navItems = useMemo<NavItem[]>(() => {
+    if (!isAdmin) return mainNav;
+    const items = [...mainNav];
+    const supportIdx = items.findIndex((i) => i.to === "/support");
+    items.splice(supportIdx < 0 ? items.length : supportIdx, 0, adminNavItem);
+    return items;
+  }, [isAdmin]);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -19,10 +29,11 @@ export function Header() {
   return (
     <header className="header">
       <div className="header__inner page-container">
-        <Logo withTree size={isHome ? "md" : "sm"} />
+        {/* Header size is identical on every page. */}
+        <Logo withTree size="sm" />
 
         <nav className="header__nav" aria-label="주요 메뉴">
-          {mainNav.map((item) =>
+          {navItems.map((item) =>
             item.to === "/support" ? (
               <SupportNavItem key={item.to} />
             ) : (
@@ -39,9 +50,18 @@ export function Header() {
 
         <div className="header__actions">
           <LanguageSelector />
-          <NavLink to="/login" className="header__login">
-            로그인
-          </NavLink>
+          {user ? (
+            <div className="header__account">
+              <span className="header__username">{user.name}님</span>
+              <button className="header__logout" onClick={logout}>
+                로그아웃
+              </button>
+            </div>
+          ) : (
+            <NavLink to="/login" className="header__login">
+              로그인
+            </NavLink>
+          )}
           <button
             className="header__burger"
             aria-label="메뉴 열기"
@@ -55,7 +75,7 @@ export function Header() {
         </div>
       </div>
 
-      <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} navItems={navItems} />
     </header>
   );
 }
@@ -68,8 +88,6 @@ function SupportNavItem() {
   const ref = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | undefined>(undefined);
 
-  // Hover intent: open immediately, close only after a short grace period so
-  // the dropdown doesn't vanish while the pointer travels toward it.
   const openNow = () => {
     window.clearTimeout(closeTimer.current);
     setOpen(true);
@@ -153,8 +171,17 @@ function LanguageSelector() {
   );
 }
 
-function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+function MobileDrawer({
+  open,
+  onClose,
+  navItems,
+}: {
+  open: boolean;
+  onClose: () => void;
+  navItems: NavItem[];
+}) {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [supportOpen, setSupportOpen] = useState(false);
 
   return (
@@ -162,7 +189,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
       <div className="drawer__backdrop" onClick={onClose} />
       <div className="drawer__panel">
         <nav aria-label="모바일 메뉴">
-          {mainNav.map((item) =>
+          {navItems.map((item) =>
             item.to === "/support" ? (
               <div key="support" className="drawer__group">
                 <button className="drawer__link drawer__accordion" onClick={() => setSupportOpen((v) => !v)}>
@@ -194,9 +221,21 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
               </NavLink>
             ),
           )}
-          <NavLink to="/login" className="drawer__link drawer__link--login" onClick={onClose}>
-            로그인
-          </NavLink>
+          {user ? (
+            <button
+              className="drawer__link drawer__link--login"
+              onClick={() => {
+                logout();
+                onClose();
+              }}
+            >
+              로그아웃 ({user.name}님)
+            </button>
+          ) : (
+            <NavLink to="/login" className="drawer__link drawer__link--login" onClick={onClose}>
+              로그인
+            </NavLink>
+          )}
         </nav>
       </div>
     </div>

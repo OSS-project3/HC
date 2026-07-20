@@ -72,19 +72,23 @@
 /* ---- Carousel ------------------------------------------------------------ */
 .carousel__track {
   display: grid;
-  gap: clamp(16px, 2.4vw, 30px);
+  gap: clamp(24px, 3vw, 50px);
 }
+/* Cards span the full content width — left/right cards sit at both ends. */
 .carousel__track--landscape {
   grid-template-columns: repeat(3, 1fr);
 }
 .carousel__track--portrait {
-  grid-template-columns: repeat(2, 1fr);
-  max-width: 760px;
-  margin-inline: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+}
+.carousel__track--portrait .carousel__slide {
+  width: min(46%, 360px);
 }
 .carousel__slide {
   display: grid;
-  gap: 16px;
+  gap: clamp(18px, 2vw, 28px);
   align-content: start;
 }
 

@@ -5,8 +5,8 @@ export interface NavItem {
 
 /**
  * Primary header / footer navigation.
- * "관리" (admin) is gated behind auth in production — see the note in the
- * requirements. It is listed here so the header can render it when allowed.
+ * "관리" (admin) is NOT part of the default nav — it is inserted into the header
+ * only when an admin is logged in (see Header + useAuth).
  */
 export const mainNav: NavItem[] = [
   { label: "회사 소개", to: "/company" },
@@ -15,12 +15,14 @@ export const mainNav: NavItem[] = [
   { label: "조회", to: "/lookup" },
   { label: "후기", to: "/reviews" },
   { label: "행사사업", to: "/events" },
-  { label: "관리", to: "/admin" },
   { label: "고객지원", to: "/support" },
 ];
 
-/** Footer omits "관리" (admin-only). */
-export const footerNav: NavItem[] = mainNav.filter((item) => item.to !== "/admin");
+/** Admin-only entry, shown in the header when logged in as admin. */
+export const adminNavItem: NavItem = { label: "관리", to: "/admin" };
+
+/** Footer navigation (never includes 관리). */
+export const footerNav: NavItem[] = mainNav;
 
 /**
  * Customer-support dropdown items. These are NOT separate pages — each one

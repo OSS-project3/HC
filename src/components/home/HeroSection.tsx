@@ -1,30 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { companyInfo } from "../../config/company";
 import { zodiacSigns } from "../../data/zodiac";
-import { honoraryKoreanCards, visitorCards, studentCards, honoraryCitizenCards } from "../../data/cards";
 import { ZodiacIcon } from "../brand/ZodiacIcon";
-import { SampleCard } from "../brand/SampleCard";
+import { Trigram } from "./Trigram";
 
-const AUTOPLAY_DELAY = 5000;
 const ZODIAC_DELAY = 3200;
 
-// The hero shows exactly TWO cards: one landscape slot and one portrait slot.
-// Each slot cycles through its own pool of designs (landscape advances on every
-// tick, portrait on every second tick — "가로형 두 번 바뀔 때 세로형 한 번").
-const landscapePool = [...honoraryKoreanCards, ...honoraryCitizenCards];
-const portraitPool = [...visitorCards, ...studentCards];
+// Temporary hero card images (provided in public/images/cards/).
+const HERO_LANDSCAPE = "/images/cards/main%20sec1%20ex1.png";
+const HERO_PORTRAIT = "/images/cards/main%20sec1%20ex2.png";
 
 export function HeroSection() {
-  const [tick, setTick] = useState(0);
   const [zodiacIndex, setZodiacIndex] = useState(0);
   const paused = useRef(false);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (!paused.current) setTick((t) => t + 1);
-    }, AUTOPLAY_DELAY);
-    return () => window.clearInterval(id);
-  }, []);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -32,9 +20,6 @@ export function HeroSection() {
     }, ZODIAC_DELAY);
     return () => window.clearInterval(id);
   }, []);
-
-  const landscape = landscapePool[tick % landscapePool.length];
-  const portrait = portraitPool[Math.floor(tick / 2) % portraitPool.length];
 
   const pauseHandlers = useMemo(
     () => ({
@@ -48,6 +33,15 @@ export function HeroSection() {
 
   return (
     <section className="hero">
+      {/* Low-priority background: 건곤감리 trigrams flush to the corners
+          (the top two overlap the header). */}
+      <div className="hero__bg" aria-hidden="true">
+        <Trigram name="건" className="hero__tri hero__tri--tl" />
+        <Trigram name="감" className="hero__tri hero__tri--tr" />
+        <Trigram name="리" className="hero__tri hero__tri--bl" />
+        <Trigram name="곤" className="hero__tri hero__tri--br" />
+      </div>
+
       <div className="hero__inner page-container">
         <div className="hero__copy">
           <p className="hero__eyebrow">한글 오행으로 만나는</p>
@@ -60,14 +54,10 @@ export function HeroSection() {
           <p className="hero__patent">특허 출원 번호 {companyInfo.patentNumber}</p>
         </div>
 
-        <div className="hero__stage" {...pauseHandlers}>
+        <div className="hero__stage">
           <div className="hero__cards" aria-label="카드 예시">
-            <div className="hero__card hero__card--landscape" key={`l-${landscape.id}`}>
-              <SampleCard design={landscape} />
-            </div>
-            <div className="hero__card hero__card--portrait" key={`p-${portrait.id}`}>
-              <SampleCard design={portrait} />
-            </div>
+            <img className="hero__card hero__card--landscape" src={HERO_LANDSCAPE} alt="명예한국인증 카드 예시" />
+            <img className="hero__card hero__card--portrait" src={HERO_PORTRAIT} alt="방문증 카드 예시" />
           </div>
         </div>
       </div>

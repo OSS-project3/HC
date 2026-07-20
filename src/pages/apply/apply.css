@@ -195,7 +195,8 @@
   display: grid;
   grid-template-columns: 1fr 240px;
   gap: 22px;
-  align-items: start;
+  /* Bottom-align items sharing a row so inputs line up neatly. */
+  align-items: end;
   margin-bottom: 30px;
 }
 .form-block__legend {
@@ -245,6 +246,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+  align-items: end;
 }
 .field__with-btn {
   display: flex;
@@ -259,11 +261,15 @@
   border: 1px solid var(--color-border-accent);
   border-radius: 5px;
   color: var(--color-text-secondary);
-  background: #fff;
+  background: transparent;
   font-size: 14px;
-  transition: border-color var(--ease), color var(--ease);
+  transition: background-color var(--ease), border-color var(--ease), color var(--ease);
 }
-.postal-btn:hover {
+/* Hover / click fills white. */
+.postal-btn:hover,
+.postal-btn:active,
+.postal-btn:focus-visible {
+  background: #fff;
   border-color: var(--color-primary);
   color: var(--color-primary);
 }

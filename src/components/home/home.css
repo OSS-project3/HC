@@ -1,5 +1,6 @@
 .home {
-  overflow-x: clip; /* guard against the floating hero art causing h-scroll */
+  /* NOTE: no overflow clipping here — it would crop the corner trigrams that
+     extend above the hero into the header. */
 }
 
 /* Tagline text under the header (home page only). */
@@ -16,7 +17,44 @@
 
 /* ======================= HERO ============================================= */
 .hero {
+  position: relative;
   padding-top: clamp(28px, 4vw, 56px) !important;
+}
+
+/* Background decoration layer — trigrams overlap the header (z above it),
+   very faint so they read as background. */
+.hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.hero__tri {
+  position: absolute;
+  width: clamp(42px, 4.2vw, 62px);
+  height: auto;
+  fill: var(--color-border-accent);
+  opacity: 0.32;
+}
+/* Flush to the four corners, fully visible (not clipped). Rotation happens
+   around each element's own centre so the trigram stays in place. */
+.hero__tri--tl {
+  top: -34px;
+  left: 6px;
+}
+.hero__tri--tr {
+  top: -34px;
+  right: 6px;
+  transform: rotate(90deg);
+}
+.hero__tri--bl {
+  bottom: 8px;
+  left: 6px;
+  transform: rotate(90deg);
+}
+.hero__tri--br {
+  bottom: 8px;
+  right: 6px;
 }
 .hero__inner {
   display: grid;
@@ -58,23 +96,27 @@
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: flex-start;
+  /* Bottom-align both cards to the 방문증 card's baseline. */
+  align-items: flex-end;
   justify-content: flex-end;
-  gap: clamp(12px, 2vw, 28px);
+  gap: clamp(14px, 2.2vw, 30px);
   padding-top: clamp(20px, 4vw, 48px);
 }
 
 /* Two cards: one landscape (명예한국인증), one portrait (방문증), offset down. */
 .hero__card {
   min-width: 0;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
   animation: card-float 6s ease-in-out infinite;
 }
 .hero__card--landscape {
-  width: clamp(200px, 26vw, 340px);
+  width: clamp(240px, 30vw, 400px);
 }
 .hero__card--portrait {
-  width: clamp(120px, 15vw, 200px);
-  margin-top: clamp(30px, 5vw, 64px);
+  width: clamp(150px, 18vw, 240px);
   animation-delay: 0.6s;
 }
 @keyframes card-float {
@@ -110,25 +152,193 @@
   border-radius: 50%;
 }
 
+/* ======================= 주요 디자인 ====================================== */
+.main-designs__head {
+  text-align: center;
+  margin-bottom: clamp(28px, 4vw, 48px);
+}
+.main-designs__title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--color-text-title);
+  font-size: clamp(22px, 2.6vw, 32px);
+}
+.main-designs__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+.main-designs__arrow {
+  display: inline-flex;
+  transition: transform var(--ease);
+}
+.main-designs__all:hover .main-designs__arrow {
+  transform: translateX(4px);
+}
+
+.main-designs__grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: clamp(20px, 3vw, 48px);
+  align-items: start;
+}
+.main-designs__divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--color-border-soft);
+}
+.design-group {
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+}
+.design-group__label {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: clamp(17px, 1.8vw, 22px);
+}
+.design-group__card--landscape {
+  width: min(100%, 480px);
+}
+.design-group__card--portrait {
+  width: min(100%, 270px);
+}
+.design-group__img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+}
+.design-group__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.design-chip {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-primary);
+  /* Navy outline */
+  border: 1px solid var(--color-primary);
+  border-radius: 6px;
+  padding: 12px 26px;
+  transition: background-color var(--ease), color var(--ease), border-color var(--ease);
+}
+.design-chip:hover {
+  background: color-mix(in srgb, var(--color-primary) 8%, #fff);
+}
+.design-chip--filled {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  border-color: var(--color-primary);
+}
+.design-chip--filled:hover {
+  background: var(--color-primary-hover);
+  color: var(--color-primary-foreground);
+}
+/* 방문증 신청: no outline, background slightly darker than the page. */
+.design-chip--soft {
+  border-color: transparent;
+  background: var(--color-surface-soft);
+  color: var(--color-text-secondary);
+}
+.design-chip--soft:hover {
+  background: color-mix(in srgb, var(--color-surface-soft) 78%, #000 6%);
+}
+
+@media (max-width: 860px) {
+  .main-designs__grid {
+    grid-template-columns: 1fr;
+  }
+  .main-designs__divider {
+    width: auto;
+    height: 1px;
+  }
+}
+
 /* ======================= SERVICE CORE ===================================== */
 .service-core__title {
   margin: 18px 0 16px;
-  max-width: 22ch;
+  /* Smaller + one line. */
+  font-size: clamp(17px, 2.1vw, 30px);
+  white-space: nowrap;
 }
 .service-core__lead {
-  max-width: 60ch;
+  /* One line (no wrap). */
+  max-width: none;
+  white-space: nowrap;
 }
 .service-core__windows {
   margin-top: clamp(30px, 4vw, 52px);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: clamp(18px, 3vw, 40px);
-  max-width: 940px;
-  margin-inline: auto;
+  gap: clamp(20px, 3vw, 44px);
+  /* Much wider — span the full content width. */
 }
-.window-slot {
+/* Traditional window with lattice shutters that open on hover. */
+.window {
+  position: relative;
+  display: block;
   width: 100%;
-  aspect-ratio: 1.35 / 1;
+  aspect-ratio: 1.62 / 1;
+  border: clamp(8px, 1vw, 12px) solid var(--color-border-accent);
+  border-radius: 6px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f3ece0, #eee3d2);
+  box-shadow: var(--shadow-card);
+}
+.window__label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 0;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: clamp(18px, 2.2vw, 30px);
+  color: var(--color-text-secondary);
+  padding: 20px;
+  text-align: center;
+}
+.window__shutter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  z-index: 1;
+  border: 3px solid var(--color-border-accent);
+  /* 창살 lattice: crossing brown lines over a soft hanji panel. */
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 22px, color-mix(in srgb, var(--color-border-accent) 62%, transparent) 22px 25px),
+    repeating-linear-gradient(90deg, transparent 0 22px, color-mix(in srgb, var(--color-border-accent) 62%, transparent) 22px 25px),
+    linear-gradient(180deg, #efe6d5, #e9ddc8);
+  transition: transform 520ms cubic-bezier(0.4, 0.1, 0.2, 1);
+  will-change: transform;
+}
+.window__shutter--left {
+  left: 0;
+  border-right-width: 1.5px;
+  box-shadow: inset -10px 0 16px rgb(90 60 25 / 8%);
+}
+.window__shutter--right {
+  right: 0;
+  border-left-width: 1.5px;
+  box-shadow: inset 10px 0 16px rgb(90 60 25 / 8%);
+}
+.window:hover .window__shutter--left,
+.window:focus-visible .window__shutter--left {
+  transform: translateX(-100%);
+}
+.window:hover .window__shutter--right,
+.window:focus-visible .window__shutter--right {
+  transform: translateX(100%);
 }
 
 /* ======================= MERCHANDISE ====================================== */
@@ -140,10 +350,14 @@
 }
 .merch__gallery {
   width: 100%;
+  display: flex;
+  justify-content: center;
 }
-.merch__gallery-ph {
-  aspect-ratio: 1.4 / 1;
-  max-width: 440px;
+.merch__gallery-img {
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  object-fit: contain;
 }
 .merch__item {
   display: grid;
@@ -311,15 +525,18 @@
 }
 .partners__grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: clamp(10px, 1.4vw, 20px);
+  grid-template-columns: repeat(8, 1fr);
+  /* Tighter spacing. */
+  gap: clamp(2px, 0.5vw, 8px);
 }
 .partners__cell {
   display: grid;
-  place-items: stretch;
-  border-radius: 8px;
-  height: 72px;
-  overflow: hidden;
+  place-items: center;
+  /* Transparent, no border, smaller. */
+  background: transparent;
+  border: none;
+  height: 56px;
+  padding: 6px 8px;
 }
 .partners__logo {
   width: 100%;
@@ -334,6 +551,17 @@
 }
 
 /* ======================= RESPONSIVE ======================================= */
+@media (max-width: 1080px) {
+  /* Allow the one-line title/lead to wrap again on narrower screens. */
+  .service-core__title,
+  .service-core__lead {
+    white-space: normal;
+  }
+  .partners__grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
 @media (max-width: 960px) {
   .hero__inner,
   .merch__top {

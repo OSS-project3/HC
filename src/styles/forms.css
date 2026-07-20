@@ -18,23 +18,26 @@
 .field__textarea {
   width: 100%;
   background: #fff;
-  border: 1px solid var(--color-border-accent);
+  border: 1px solid var(--color-border-soft);
   border-radius: 5px;
   padding: 12px 14px;
   font-size: 15px;
-  color: var(--color-text-secondary);
+  /* Typed text colour */
+  color: #4d453e;
   transition: border-color var(--ease), box-shadow var(--ease);
 }
+/* Placeholder / example text before input */
 .field__input::placeholder,
 .field__textarea::placeholder {
-  color: color-mix(in srgb, var(--color-text-muted) 75%, #fff);
+  color: #90767d;
 }
+/* Focused field: brown accent border (#BC996E) */
 .field__input:focus,
 .field__select:focus,
 .field__textarea:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-border-accent) 22%, transparent);
 }
 .field__textarea {
   resize: vertical;

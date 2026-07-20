@@ -59,19 +59,46 @@
   gap: clamp(10px, 1.2vw, 18px);
 }
 
-/* 로그인: same weight as menu, very slightly larger. */
+/* 로그인: compact button. */
 .header__login {
   font-family: var(--font-sans);
   font-weight: 500;
-  font-size: clamp(16px, 1.25vw, 19px);
+  font-size: clamp(13px, 1vw, 15px);
   color: var(--color-primary-foreground);
   background: var(--color-primary);
-  padding: 9px 18px;
+  padding: 7px 15px;
   border-radius: 6px;
   transition: background-color var(--ease);
   white-space: nowrap;
 }
 .header__login:hover {
+  background: var(--color-primary-hover);
+}
+
+/* Logged-in account chip + logout */
+.header__account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header__username {
+  font-size: clamp(13px, 1vw, 15px);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.header__logout {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: clamp(13px, 1vw, 15px);
+  color: var(--color-primary-foreground);
+  background: var(--color-primary);
+  padding: 7px 15px;
+  border-radius: 6px;
+  transition: background-color var(--ease);
+  white-space: nowrap;
+}
+.header__logout:hover {
   background: var(--color-primary-hover);
 }
 
@@ -257,6 +284,7 @@
 @media (max-width: 1080px) {
   .header__nav,
   .header__login,
+  .header__account,
   .lang {
     display: none;
   }

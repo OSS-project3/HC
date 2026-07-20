@@ -1,0 +1,109 @@
+.admin {
+  padding-block: clamp(40px, 6vw, 80px);
+  min-height: 60vh;
+}
+.admin__title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--color-text-title);
+  font-size: clamp(28px, 4vw, 44px);
+  margin: 12px 0 8px;
+}
+
+.admin__stats {
+  margin-top: clamp(24px, 4vw, 40px);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.admin__stat {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-panel);
+  padding: 22px 24px;
+  display: grid;
+  gap: 6px;
+}
+.admin__stat-value {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 30px;
+  color: var(--color-primary);
+}
+.admin__stat-label {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.admin__table-wrap {
+  margin-top: clamp(24px, 4vw, 40px);
+  overflow-x: auto;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+.admin__table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+.admin__table th,
+.admin__table td {
+  padding: 14px 18px;
+  text-align: left;
+  font-size: 14px;
+  border-bottom: 1px solid var(--color-border-soft);
+  white-space: nowrap;
+}
+.admin__table th {
+  background: color-mix(in srgb, var(--color-surface-soft) 40%, #fff);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+.admin__table tbody tr:last-child td {
+  border-bottom: none;
+}
+.admin__table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-surface-soft) 26%, transparent);
+}
+.admin__mono {
+  color: var(--color-text-secondary);
+}
+
+.admin__badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.admin__badge.is-submitted {
+  background: #e6ebf2;
+  color: #35506e;
+}
+.admin__badge.is-consulting {
+  background: #efe7d8;
+  color: #7a5c2e;
+}
+.admin__badge.is-pending {
+  background: #f6e6cf;
+  color: #8a5a1f;
+}
+.admin__badge.is-production {
+  background: #dce7dd;
+  color: #35603f;
+}
+.admin__badge.is-completed {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.admin__badge.is-cancelled {
+  background: #ecdcd8;
+  color: #8a3b2e;
+}
+
+@media (max-width: 720px) {
+  .admin__stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

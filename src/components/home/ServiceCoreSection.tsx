@@ -1,9 +1,6 @@
-import { ImagePlaceholder } from "../ui/ImagePlaceholder";
-
 /**
- * "서비스 핵심" — two traditional-window cards. The window artwork (closed/open
- * states) is delivered later, so each is a black-box placeholder that keeps the
- * label text. No fabricated window graphic.
+ * "서비스 핵심" — two traditional-window cards. The lattice shutters open on
+ * hover/focus to reveal the label, echoing the mock-up's 창문 style.
  */
 export function ServiceCoreSection() {
   return (
@@ -19,13 +16,19 @@ export function ServiceCoreSection() {
       </p>
 
       <div className="service-core__windows">
-        <div className="window-slot">
-          <ImagePlaceholder label="각종 한국 이름 풀이 (전통 창문 이미지)" />
-        </div>
-        <div className="window-slot">
-          <ImagePlaceholder label="한국 이름의 작명 원리 (전통 창문 이미지)" />
-        </div>
+        <WindowCard label="각종 한국 이름 풀이" />
+        <WindowCard label="한국 이름의 작명 원리" />
       </div>
     </section>
+  );
+}
+
+function WindowCard({ label }: { label: string }) {
+  return (
+    <button className="window" aria-label={`${label} — 열어보기`}>
+      <span className="window__label">{label}</span>
+      <span className="window__shutter window__shutter--left" aria-hidden="true" />
+      <span className="window__shutter window__shutter--right" aria-hidden="true" />
+    </button>
   );
 }

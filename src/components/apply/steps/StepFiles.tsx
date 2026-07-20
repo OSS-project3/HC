@@ -45,7 +45,7 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
       />
 
       <div className="step__actions">
-        <Button variant="ghost" onClick={onPrev}>
+        <Button variant="soft" onClick={onPrev}>
           <ChevronLeft width={16} height={16} /> 이전
         </Button>
         <Button onClick={onNext}>

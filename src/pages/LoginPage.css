@@ -1,29 +1,65 @@
-.login {
-  padding-block: clamp(48px, 8vw, 100px);
+.auth {
+  padding-block: clamp(40px, 7vw, 88px);
   min-height: 60vh;
   display: grid;
   place-items: center;
 }
-.login__card {
-  width: min(100%, 420px);
+.auth__card {
+  width: min(100%, 440px);
   background: var(--color-surface);
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-card);
   padding: clamp(28px, 4vw, 44px);
 }
-.login__title {
+.auth__title {
   font-family: var(--font-serif);
   font-weight: 700;
   color: var(--color-text-title);
   font-size: 28px;
 }
-.login__lead {
+.auth__lead {
   color: var(--color-text-muted);
   font-size: 14px;
   margin: 6px 0 24px;
 }
-.login__form {
+.auth__form {
   display: grid;
   gap: 16px;
+}
+
+.auth__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 18px;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+}
+.auth__divider::before,
+.auth__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border-soft);
+}
+
+.auth__demo {
+  display: grid;
+  gap: 10px;
+}
+
+.auth__switch {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.auth__switch a {
+  color: var(--color-primary);
+  font-weight: 600;
+  margin-left: 4px;
+}
+.auth__switch a:hover {
+  text-decoration: underline;
 }

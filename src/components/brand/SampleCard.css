@@ -16,6 +16,14 @@
   aspect-ratio: 1 / 1.28;
 }
 
+/* Real card images render at their natural ratio (no crop / distortion). */
+img.sample-card {
+  aspect-ratio: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
 /* Uploaded logo/seal previews positioned over the sample card (step 3). */
 .sample-card__overlays {
   position: absolute;
