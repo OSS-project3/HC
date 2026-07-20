@@ -1,0 +1,269 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--color-background) 92%, #ffffff);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-soft) 60%, transparent);
+}
+
+.header__inner {
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 2vw, 40px);
+  /* Generous top breathing room so the header never feels cramped under the
+     browser address bar (per the client's note). */
+  padding-top: 22px;
+  padding-bottom: 18px;
+}
+
+.header__nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 1.9vw, 34px);
+  margin-inline: auto;
+}
+
+/* 회사 소개 ~ 고객지원: identical size & weight. */
+.nav-item {
+  position: relative;
+  font-family: var(--font-sans);
+  font-size: clamp(15px, 1.15vw, 17px);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  padding: 6px 2px;
+  white-space: nowrap;
+  transition: color var(--ease);
+}
+.nav-item:hover {
+  color: var(--color-primary);
+}
+.nav-item--active {
+  color: var(--color-primary);
+}
+/* Active menu: navy underline. */
+.nav-item--active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -10px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-primary);
+}
+
+.header__actions {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.2vw, 18px);
+}
+
+/* 로그인: same weight as menu, very slightly larger. */
+.header__login {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: clamp(16px, 1.25vw, 19px);
+  color: var(--color-primary-foreground);
+  background: var(--color-primary);
+  padding: 9px 18px;
+  border-radius: 6px;
+  transition: background-color var(--ease);
+  white-space: nowrap;
+}
+.header__login:hover {
+  background: var(--color-primary-hover);
+}
+
+/* 한국어(언어 설정): slightly smaller than the menu and one step thinner. */
+.lang {
+  position: relative;
+}
+.lang__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: clamp(13px, 1vw, 15px);
+  font-weight: 300;
+  color: var(--color-text-secondary);
+}
+.lang__caret {
+  font-size: 11px;
+  margin-top: -2px;
+}
+.lang__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 6px;
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+  min-width: 120px;
+}
+.lang__option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+.lang__option:hover {
+  background: var(--color-surface-soft);
+}
+.lang__option--active {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+/* ---- Customer-support anchor dropdown ------------------------------------ */
+.support-menu {
+  position: relative;
+}
+.support-menu__panel {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  background: var(--color-primary);
+  border-radius: 8px;
+  padding: 8px 6px;
+  min-width: 156px;
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms ease;
+  z-index: 40;
+}
+/* Transparent bridge covering the gap so the pointer can travel from the menu
+   item into the panel without leaving the hover area. */
+.support-menu__panel::before {
+  content: "";
+  position: absolute;
+  top: -16px;
+  left: 0;
+  right: 0;
+  height: 18px;
+}
+.support-menu__panel--open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+.support-menu__item {
+  text-align: center;
+  color: var(--color-primary-foreground);
+  font-size: 15px;
+  /* Row spacing a touch wider than the mock-up, per the client. */
+  padding: 11px 16px;
+  border-radius: 5px;
+  transition: background-color var(--ease);
+}
+.support-menu__item:hover {
+  background: var(--color-primary-hover);
+}
+
+/* ---- Mobile ------------------------------------------------------------- */
+.header__burger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+}
+.header__burger span {
+  width: 22px;
+  height: 2px;
+  background: var(--color-text-secondary);
+  border-radius: 2px;
+}
+
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  visibility: hidden;
+}
+.drawer--open {
+  visibility: visible;
+}
+.drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(30 26 22 / 40%);
+  opacity: 0;
+  transition: opacity var(--ease);
+}
+.drawer--open .drawer__backdrop {
+  opacity: 1;
+}
+.drawer__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(82vw, 320px);
+  background: var(--color-background);
+  box-shadow: -8px 0 30px rgb(0 0 0 / 15%);
+  transform: translateX(100%);
+  transition: transform 220ms ease;
+  padding: 84px 22px 24px;
+  overflow-y: auto;
+}
+.drawer--open .drawer__panel {
+  transform: translateX(0);
+}
+.drawer__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 4px;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.drawer__link--login {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+.drawer__accordion {
+  text-align: left;
+}
+.drawer__chev {
+  transition: transform var(--ease);
+  color: var(--color-text-muted);
+}
+.drawer__chev--open {
+  transform: rotate(90deg);
+}
+.drawer__sub {
+  display: grid;
+  padding: 4px 0 8px 12px;
+}
+.drawer__sublink {
+  text-align: left;
+  padding: 10px 4px;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 1080px) {
+  .header__nav,
+  .header__login,
+  .lang {
+    display: none;
+  }
+  .header__burger {
+    display: flex;
+  }
+  .header__inner {
+    justify-content: space-between;
+  }
+}

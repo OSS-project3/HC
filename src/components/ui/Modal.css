@@ -1,0 +1,105 @@
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgb(30 26 22 / 45%);
+  display: grid;
+  place-items: center;
+  padding: clamp(16px, 4vw, 48px);
+  animation: modal-fade 160ms ease;
+}
+
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.modal__dialog {
+  position: relative;
+  background: #ffffff;
+  /* Corners: only very slightly rounded, per the client's note. */
+  border-radius: 6px;
+  width: min(100%, 640px);
+  max-height: min(82vh, 760px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 22%);
+  overflow: hidden;
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #ece7df;
+}
+.modal__title {
+  font-family: var(--font-serif);
+  font-size: clamp(17px, 2vw, 21px);
+  font-weight: 700;
+  color: #2a2a26;
+}
+.modal__close {
+  font-size: 16px;
+  color: #8a8377;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+}
+.modal__close:hover {
+  background: #f3efe8;
+  color: #3a3a34;
+}
+
+.modal__body {
+  padding: 22px 26px 28px;
+  overflow-y: auto;
+  color: #43423c;
+  font-size: 14.5px;
+  line-height: 1.85;
+}
+.modal__body p {
+  margin-bottom: 14px;
+}
+.modal__body p:last-child {
+  margin-bottom: 0;
+}
+
+/* Grey navigation arrows on the sides, like a common terms modal. */
+.modal__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 30px;
+  color: #b7b0a5;
+  width: 40px;
+  height: 40px;
+  z-index: 2;
+}
+.modal__nav:hover {
+  color: #7d766b;
+}
+.modal__nav--prev {
+  left: -4px;
+}
+.modal__nav--next {
+  right: -4px;
+}
+
+@media (max-width: 600px) {
+  .modal {
+    padding: 0;
+    place-items: end stretch;
+  }
+  .modal__dialog {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 12px 12px 0 0;
+  }
+  .modal__nav {
+    display: none;
+  }
+}

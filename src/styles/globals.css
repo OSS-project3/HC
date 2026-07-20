@@ -1,0 +1,80 @@
+@import "./fonts.css";
+@import "./tokens.css";
+@import "./reset.css";
+@import "./forms.css";
+
+body {
+  /*
+   * IMPORTANT: the grid / graph-paper pattern seen in the mock-ups is a
+   * design-tool artefact only. The real site uses a flat beige background —
+   * do NOT add a linear-gradient grid here.
+   */
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  font-family: var(--font-sans);
+  font-weight: 400;
+}
+
+/* ---- Fluid page container ------------------------------------------------ */
+.page-container {
+  width: min(100% - (var(--page-gutter) * 2), var(--page-max));
+  margin-inline: auto;
+}
+
+/* ---- Typography scale ---------------------------------------------------- */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--font-serif);
+  font-size: clamp(15px, 1.3vw, 19px);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+}
+.eyebrow::before {
+  content: "";
+  width: clamp(36px, 4vw, 60px);
+  height: 1.5px;
+  background: currentColor;
+}
+
+.section-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--color-text-title);
+  font-size: clamp(26px, 3vw, 40px);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  word-break: keep-all;
+}
+
+.section-lead {
+  color: var(--color-text-muted);
+  font-size: clamp(15px, 1.4vw, 18px);
+  line-height: 1.7;
+}
+
+/* ---- Motion preferences -------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

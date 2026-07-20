@@ -1,0 +1,38 @@
+/* Card slots only define SIZE / orientation — the visual is a black-box
+   placeholder (ImagePlaceholder) until the real card artwork is delivered. */
+.sample-card {
+  width: 100%;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.sample-card--landscape {
+  aspect-ratio: 1.58 / 1;
+}
+.sample-card--portrait {
+  aspect-ratio: 1 / 1.42;
+}
+.sample-card--reading {
+  aspect-ratio: 1 / 1.28;
+}
+
+/* Uploaded logo/seal previews positioned over the sample card (step 3). */
+.sample-card__overlays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.sample-card__ov {
+  position: absolute;
+  object-fit: contain;
+}
+.sample-card__ov--logo {
+  left: 10%;
+  bottom: 10%;
+  width: 22%;
+}
+.sample-card__ov--seal {
+  right: 12%;
+  bottom: 10%;
+  width: 18%;
+}

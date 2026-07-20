@@ -1,0 +1,126 @@
+.support__hero {
+  padding-block: clamp(40px, 6vw, 76px) clamp(20px, 3vw, 36px);
+}
+.support__title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--color-text-title);
+  font-size: clamp(28px, 4vw, 46px);
+  margin: 12px 0 10px;
+}
+
+.support__section {
+  padding-block: clamp(28px, 4vw, 48px);
+  /* Fixed header offset so anchored sections aren't hidden under it. */
+  scroll-margin-top: 120px;
+}
+.support__heading {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: clamp(20px, 2.4vw, 28px);
+  color: var(--color-text-title);
+  padding-left: 14px;
+  border-left: 4px solid var(--color-border-accent);
+  margin-bottom: 22px;
+}
+
+.notice-list {
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid var(--color-border-soft);
+}
+.notice-list__item {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  padding: 16px 6px;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.notice-list__date {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  width: 96px;
+  flex-shrink: 0;
+}
+.notice-list__title {
+  color: var(--color-text-secondary);
+}
+
+.faq {
+  display: grid;
+  gap: 10px;
+}
+.faq__item {
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.faq__q {
+  padding: 16px 20px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+}
+.faq__q::after {
+  content: "+";
+  position: absolute;
+  right: 20px;
+  color: var(--color-icon-accent);
+  font-size: 20px;
+}
+.faq__item[open] .faq__q::after {
+  content: "–";
+}
+.faq__a {
+  padding: 0 20px 18px;
+  color: var(--color-text-muted);
+  line-height: 1.8;
+}
+
+.support__story {
+  max-width: 64ch;
+}
+
+.support__contact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+.ccard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-panel);
+  padding: 24px;
+}
+.ccard__icon {
+  color: var(--color-icon-accent);
+  display: inline-flex;
+}
+.ccard__title {
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  margin: 12px 0 8px;
+}
+.ccard__line {
+  color: var(--color-text-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.support__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-primary);
+  font-weight: 500;
+  margin-top: 14px;
+}
+.support__link:hover {
+  text-decoration: underline;
+}
+.ccard__action {
+  margin-top: 4px;
+}

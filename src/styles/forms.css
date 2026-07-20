@@ -1,0 +1,87 @@
+/* Shared form controls used by login / lookup / application forms. */
+.field {
+  display: grid;
+  gap: 7px;
+}
+.field__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.field__label .req {
+  color: var(--color-icon-accent);
+  margin-left: 3px;
+}
+
+.field__input,
+.field__select,
+.field__textarea {
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--color-border-accent);
+  border-radius: 5px;
+  padding: 12px 14px;
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+.field__input::placeholder,
+.field__textarea::placeholder {
+  color: color-mix(in srgb, var(--color-text-muted) 75%, #fff);
+}
+.field__input:focus,
+.field__select:focus,
+.field__textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+.field__textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+.field-error {
+  color: #b3402f;
+  font-size: 13px;
+}
+.field__input--invalid {
+  border-color: #c8543f;
+}
+
+/* Checkbox / radio */
+.check {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14.5px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+.check input {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--color-text-secondary);
+}
+.radio input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+}

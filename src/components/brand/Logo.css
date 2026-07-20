@@ -1,0 +1,95 @@
+.logo {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0; /* never let the header squeeze / wrap the wordmark */
+}
+
+.logo__lockup {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+/* Symbol-mark placeholder (black box, roughly square). */
+.logo__mark {
+  width: 44px;
+  height: 40px;
+  flex-shrink: 0;
+  background: #111112;
+  border-radius: 5px;
+}
+.logo--sm .logo__mark {
+  width: 38px;
+  height: 34px;
+}
+
+.logo__words {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.08;
+}
+
+.logo__ko,
+.logo__en {
+  white-space: nowrap;
+}
+.logo__ko {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: clamp(18px, 1.7vw, 23px);
+  color: #435a70;
+  letter-spacing: -0.01em;
+}
+.logo--sm .logo__ko {
+  font-size: 18px;
+}
+
+.logo__en {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: clamp(9px, 0.9vw, 11px);
+  letter-spacing: 0.24em;
+  color: #8a7d6d;
+  margin-top: 3px;
+}
+.logo--sm .logo__en {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+}
+
+/* Tree placeholder (black box) — taller than wide, crown rising above the
+   letters. Roots align to the wordmark baseline. */
+.logo__tree {
+  width: 30px;
+  height: 50px;
+  flex-shrink: 0;
+  margin-left: 2px;
+  background: #111112;
+  border-radius: 5px;
+  align-self: flex-end;
+  transform: translateY(-4px);
+}
+.logo--sm .logo__tree {
+  width: 26px;
+  height: 40px;
+}
+
+.logo__tagline {
+  font-family: var(--font-sans);
+  font-size: clamp(11px, 1vw, 13px);
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+  padding-left: 4px;
+  position: relative;
+  white-space: nowrap;
+}
+.logo__tagline::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: -6px;
+  width: 56px;
+  height: 1px;
+  background: var(--color-border-soft);
+}

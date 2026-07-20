@@ -1,0 +1,191 @@
+.footer {
+  margin-top: clamp(60px, 8vw, 120px);
+  background: color-mix(in srgb, var(--color-surface-soft) 42%, var(--color-background));
+  border-top: 1px solid var(--color-border-soft);
+}
+
+.footer__inner {
+  padding-block: clamp(32px, 4vw, 52px);
+}
+
+/* Row 1 */
+.footer__top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.footer__menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(14px, 1.8vw, 30px);
+}
+.footer__menu-link {
+  font-size: clamp(14px, 1.1vw, 16px);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.footer__menu-link:hover {
+  color: var(--color-primary);
+}
+
+.footer__policies {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.footer__policy {
+  position: relative;
+  font-size: clamp(12px, 1vw, 14px);
+  color: var(--color-text-muted);
+  padding: 2px 0;
+}
+.footer__policy:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 11px;
+  background: var(--color-border-soft);
+}
+.footer__policy:hover {
+  color: var(--color-text-secondary);
+}
+
+/* Sitemap accordion — expands UPWARD from the footer. */
+.sitemap {
+  position: relative;
+}
+.sitemap__panel {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  min-width: 170px;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  padding: 6px;
+  display: grid;
+  box-shadow: var(--shadow-panel);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity var(--ease), transform var(--ease);
+}
+.sitemap__panel--open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.sitemap__link {
+  padding: 9px 12px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  border-radius: 5px;
+}
+.sitemap__link:hover {
+  background: color-mix(in srgb, var(--color-border-accent) 22%, transparent);
+  color: var(--color-primary);
+}
+
+/* Row 2 */
+.footer__main {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: clamp(18px, 3vw, 44px);
+  align-items: center;
+  padding-block: 26px;
+}
+.footer__info {
+  font-style: normal;
+  color: var(--color-text-muted);
+  font-size: clamp(12px, 1vw, 14px);
+  line-height: 1.9;
+  display: grid;
+  gap: 2px;
+}
+.footer__info p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+.footer__info i {
+  color: var(--color-border-soft);
+  font-style: normal;
+}
+
+/* SNS */
+.footer__social {
+  display: flex;
+  gap: 12px;
+}
+.social {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface-soft) 60%, #fff);
+  transition: color var(--ease), background-color var(--ease);
+  overflow: hidden;
+}
+.social__default,
+.social__hover {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  transition: opacity var(--ease);
+}
+.social__hover {
+  opacity: 0;
+}
+.social:hover .social__default,
+.social:focus-visible .social__default {
+  opacity: 0;
+}
+.social:hover .social__hover,
+.social:focus-visible .social__hover {
+  opacity: 1;
+}
+/* Pressed feedback: a translucent black layer laid over the icon. */
+.social::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 22%);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.social:active::after {
+  opacity: 1;
+}
+
+.footer__copyright {
+  color: var(--color-text-faint);
+  font-size: clamp(11px, 0.95vw, 13px);
+  text-align: right;
+  padding-top: 8px;
+}
+
+@media (max-width: 860px) {
+  .footer__main {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    text-align: left;
+  }
+  .footer__top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .footer__copyright {
+    text-align: left;
+  }
+}

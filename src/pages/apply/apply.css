@@ -1,0 +1,538 @@
+.apply {
+  /* Grow naturally with content; keep footer from riding up on short steps. */
+  min-height: calc(100vh - var(--header-height));
+  padding-block: clamp(32px, 5vw, 64px);
+}
+.apply__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: clamp(28px, 4vw, 64px);
+  align-items: start;
+}
+.apply__title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--color-text-title);
+  font-size: clamp(26px, 3.4vw, 42px);
+  margin-bottom: clamp(24px, 3vw, 38px);
+}
+
+/* ---- Stepper ------------------------------------------------------------- */
+.stepper {
+  display: flex;
+  gap: 6px;
+  margin-bottom: clamp(28px, 4vw, 48px);
+}
+.stepper__item {
+  flex: 1;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  position: relative;
+  text-align: center;
+}
+.stepper__item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 17px;
+  left: calc(50% + 20px);
+  right: calc(-50% + 20px);
+  height: 2px;
+  background: var(--color-border-soft);
+}
+.stepper__dot {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid var(--color-border-soft);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 15px;
+  position: relative;
+  z-index: 1;
+}
+.stepper__label {
+  font-size: clamp(12px, 1.1vw, 14px);
+  color: var(--color-text-muted);
+}
+.stepper__item--active .stepper__dot,
+.stepper__item--done .stepper__dot {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.stepper__item--active .stepper__label {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.stepper__item--done::after {
+  background: var(--color-primary);
+}
+
+/* ---- Step shell ---------------------------------------------------------- */
+.step__heading {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--color-text-title);
+  font-size: clamp(20px, 2.2vw, 26px);
+  margin-bottom: 8px;
+}
+.step__desc {
+  color: var(--color-text-muted);
+  margin-bottom: 26px;
+}
+.step__hint {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin-top: 18px;
+}
+.step__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: clamp(40px, 7vh, 88px);
+}
+.step__actions--end {
+  justify-content: flex-end;
+}
+
+/* ---- Step 1: type cards -------------------------------------------------- */
+.type-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.type-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 26px 24px;
+  background: color-mix(in srgb, var(--color-surface-soft) 24%, #fff);
+  border: 1.5px solid var(--color-border-soft);
+  border-radius: 8px;
+  text-align: left;
+  transition: border-color var(--ease), background-color var(--ease);
+}
+.type-card:hover {
+  border-color: var(--color-border-accent);
+}
+.type-card--selected {
+  border-color: var(--color-border-accent);
+  border-width: 2px;
+  background: color-mix(in srgb, var(--color-border-accent) 8%, #fff);
+}
+.type-card__check {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-border-accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+.type-card__icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-surface-soft) 60%, #fff);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+.type-card__label {
+  font-size: clamp(16px, 1.5vw, 20px);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  flex: 1;
+}
+.type-card__arrow {
+  color: var(--color-text-muted);
+}
+
+/* ---- Notice ------------------------------------------------------------- */
+.notice {
+  margin-top: 30px;
+  background: color-mix(in srgb, var(--color-surface-soft) 26%, transparent);
+  border-radius: 8px;
+  padding: 22px 24px;
+}
+.notice__title {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+}
+.notice__list {
+  display: grid;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.notice__list li {
+  padding-left: 14px;
+  position: relative;
+}
+.notice__list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--color-border-accent);
+}
+.notice__agree {
+  margin-top: 18px;
+}
+
+/* ---- Step 2: info form --------------------------------------------------- */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 22px;
+  align-items: start;
+  margin-bottom: 30px;
+}
+.form-block__legend {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+}
+.field--quantity .field__with-suffix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.field__with-suffix .field__input {
+  flex: 1;
+}
+.field__suffix {
+  color: var(--color-text-muted);
+}
+
+.info-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(24px, 4vw, 48px);
+}
+.info-columns--two {
+  grid-template-columns: 1fr 1fr;
+}
+.info-col {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+.info-col__title {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: 16px;
+}
+.info-col__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.field__with-btn {
+  display: flex;
+  gap: 8px;
+}
+.field__with-btn .field__input {
+  flex: 1;
+}
+.postal-btn {
+  white-space: nowrap;
+  padding: 0 16px;
+  border: 1px solid var(--color-border-accent);
+  border-radius: 5px;
+  color: var(--color-text-secondary);
+  background: #fff;
+  font-size: 14px;
+  transition: border-color var(--ease), color var(--ease);
+}
+.postal-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* ---- Step 3: uploads ----------------------------------------------------- */
+.upload-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin-bottom: 26px;
+}
+.upload__label {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 10px;
+}
+.upload__box {
+  border: 1.5px solid var(--color-border-accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-surface-soft) 16%, #fff);
+  min-height: 190px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color var(--ease), background-color var(--ease);
+  padding: 20px;
+}
+.upload__box--archive {
+  min-height: 120px;
+}
+.upload__box:hover,
+.upload__box--drag {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 5%, #fff);
+}
+.upload__empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+.upload__icon {
+  color: var(--color-border-accent);
+}
+.upload__cta {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.upload__hint {
+  font-size: 12.5px;
+}
+.upload__zip {
+  display: inline-grid;
+  place-items: center;
+  padding: 6px 10px;
+  border: 1.5px solid var(--color-border-accent);
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--color-icon-accent);
+}
+.upload__filled {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.upload__preview {
+  max-width: 130px;
+  max-height: 110px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.upload__filename {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+.upload__filesize {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.upload__controls {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+}
+.upload__controls button {
+  font-size: 13px;
+  color: var(--color-primary);
+}
+.upload__controls button:hover {
+  text-decoration: underline;
+}
+
+/* ---- Step 4: review ------------------------------------------------------ */
+.review {
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-surface-soft) 18%, #fff);
+  padding: 22px 24px;
+  margin-bottom: 16px;
+}
+.review__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.review__title {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: 17px;
+}
+.review__edit {
+  font-size: 13px;
+  color: var(--color-primary);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 5px;
+  padding: 5px 14px;
+  transition: border-color var(--ease);
+}
+.review__edit:hover {
+  border-color: var(--color-primary);
+}
+.review__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px 22px;
+}
+.review__item dt {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+.review__item dd {
+  color: var(--color-text-secondary);
+  font-size: 15px;
+}
+.review__item--file {
+  grid-column: 1 / -1;
+}
+.review__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.review__thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+/* ---- Step 5: complete / deposit ------------------------------------------ */
+.complete__number {
+  color: var(--color-text-secondary);
+  margin-bottom: 24px;
+}
+.deposit {
+  margin-bottom: 24px;
+}
+.deposit__title {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+}
+.deposit__table {
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  max-width: 520px;
+}
+.deposit__row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.deposit__row:last-child {
+  border-bottom: none;
+}
+.deposit__key {
+  background: color-mix(in srgb, var(--color-surface-soft) 40%, #fff);
+  padding: 14px 18px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.deposit__val {
+  padding: 14px 18px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+.deposit__val--account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.deposit__copy {
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+  border-radius: 5px;
+  padding: 5px 14px;
+  font-size: 13px;
+  transition: background-color var(--ease), color var(--ease);
+}
+.deposit__copy:hover {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.complete__depositor {
+  max-width: 520px;
+  margin-bottom: 24px;
+}
+
+/* ---- Preview panel ------------------------------------------------------- */
+.apply-preview {
+  position: sticky;
+  top: calc(var(--header-height) + 16px);
+  border-left: 1px solid var(--color-border-soft);
+  padding-left: clamp(20px, 3vw, 40px);
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+}
+.apply-preview__note-top {
+  justify-self: start;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.apply-preview__card {
+  width: min(100%, 300px);
+}
+.apply-preview__caption {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+
+/* ---- Responsive ---------------------------------------------------------- */
+@media (max-width: 960px) {
+  .apply__inner {
+    grid-template-columns: 1fr;
+  }
+  .apply-preview {
+    position: static;
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--color-border-soft);
+    padding-top: 28px;
+  }
+  .info-columns--two,
+  .form-grid,
+  .upload-row,
+  .type-cards {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .stepper__label {
+    display: none;
+  }
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+  .step__actions .btn {
+    flex: 1;
+  }
+}
