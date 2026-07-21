@@ -12,7 +12,8 @@
   padding-top: clamp(6px, 1vw, 12px);
   padding-bottom: clamp(2px, 0.6vw, 6px);
   font-size: clamp(13px, 1.2vw, 16px);
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
+  font-weight: 500;
   letter-spacing: 0.02em;
 }
 .home-tagline::before {
@@ -31,6 +32,8 @@
 .hero {
   position: relative;
   padding-top: clamp(28px, 4vw, 56px) !important;
+  /* Tighter gap down to the 주요 디자인 section below. */
+  padding-bottom: clamp(14px, 1.8vw, 30px) !important;
   /* Clip only the horizontal axis so trigrams that tuck past the side edges on
      narrow screens never add page scroll; vertical stays visible so the top
      trigrams can still overlap up into the header. */
@@ -39,13 +42,17 @@
      --tri-gap grows with the viewport (bigger clearance on wide screens, tighter
      as it narrows, never zero). --tri-edge is the single left/right COLUMN both
      the top and bottom marks share, parked just outside the header content. */
-  --tri-w: clamp(40px, 3.6vw, 60px);
+  --tri-w: clamp(48px, 4.4vw, 74px);
   --tri-gap: clamp(6px, 1.6vw, 28px);
-  --tri-edge: calc((100vw - min(100vw - 140px, 1440px)) / 2 - var(--tri-gap) - var(--tri-w));
+  --tri-edge: calc((100vw - min(100vw - 168px, 1440px)) / 2 - var(--tri-gap) - var(--tri-w));
   --zodiac-edge: calc((100vw - min(100vw - 40px, 1600px)) / 2);
   /* A 90°-rotated mark's visual edge sits ~0.154·width inside its layout box;
      shift the rotated ones by this so each pair's visual edges line up. */
   --tri-rot-shift: calc(var(--tri-w) * 0.154);
+  /* Distance from the inner's bottom down to the TOP edge of the zodiac band
+     (= the band's margin-top + the band::before top inset). The scenery and
+     세종 extend down by this so they meet the band edge exactly. */
+  --band-gap: calc(clamp(30px, 5vw, 64px) + clamp(30px, 3.6vw, 56px));
 }
 
 /* Background decoration layer — trigrams overlap the header (z above it),
@@ -63,7 +70,7 @@
   width: var(--tri-w);
   height: auto;
   fill: var(--color-border-accent);
-  opacity: 0.32;
+  opacity: 0.42;
   pointer-events: none;
   z-index: 0;
 }
@@ -114,10 +121,58 @@
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: clamp(24px, 4vw, 56px);
   align-items: center;
+  /* Own stacking context so the scenery layers below sit behind the copy /
+     cards but above the page background. */
+  position: relative;
+  z-index: 0;
+}
+/* Full-bleed scenery filling the hero ABOVE the zodiac (the inner's own box
+   ends above the animal band): a faint 한글 letter texture (::before) softened
+   by a light shade (::after). Extends up behind the tagline / header padding. */
+.hero__inner::before,
+.hero__inner::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  /* Both reach down to meet the TOP edge of the zodiac band exactly. */
+  bottom: calc(-1 * var(--band-gap));
+  pointer-events: none;
+}
+.hero__inner::before {
+  z-index: -3;
+  /* Reaches up behind the transparent header. Smaller letter texture, tiled. */
+  top: -200px;
+  background: url("/images/background/main-bg-letter.png") center top / 40% auto repeat;
+  opacity: 0.1;
+}
+.hero__inner::after {
+  z-index: -2;
+  /* Full-width light wash that begins flush at the very top of the header. */
+  top: calc(-125px - clamp(28px, 4vw, 56px));
+  background: url("/images/background/main-bg-shade.png") center top / 100% auto no-repeat;
+  opacity: 0.55;
+}
+/* 세종대왕 — behind the copy / cards, left of centre. The source PNG has ~144px
+   (12.8%) of transparent padding below the figure, so drop the box by that
+   fraction of its width to seat the figure exactly on the zodiac band top. */
+.hero__sejong {
+  --sejong-w: clamp(320px, 38vw, 600px);
+  position: absolute;
+  z-index: -1;
+  bottom: calc(-1 * (var(--band-gap) + var(--sejong-w) * 0.092));
+  left: 37%;
+  transform: translateX(-50%);
+  width: var(--sejong-w);
+  aspect-ratio: 1560 / 1122;
+  background: url("/images/background/sejong.png") center bottom / contain no-repeat;
+  opacity: 0.5;
+  pointer-events: none;
 }
 .hero__eyebrow {
   font-family: var(--font-serif);
-  font-size: clamp(24px, 2.8vw, 38px);
+  font-size: clamp(21px, 2.4vw, 33px);
   color: var(--color-text-secondary);
   margin-bottom: 16px;
 }
@@ -125,7 +180,7 @@
   font-family: var(--font-serif);
   font-weight: 700;
   color: var(--color-text-title);
-  font-size: clamp(28px, 4vw, 54px);
+  font-size: clamp(25px, 3.5vw, 47px);
   /* Wider spacing between the two title lines. */
   line-height: 1.42;
   letter-spacing: -0.015em;
@@ -190,8 +245,23 @@
    stretched edge-to-edge inside a band a touch wider than the main content. */
 .hero__zodiac {
   margin-top: clamp(30px, 5vw, 64px);
-  /* No solid fill — the page gradient carries through to here. */
   padding-block: clamp(16px, 2.4vw, 34px);
+  position: relative;
+  z-index: 0;
+}
+/* Deeper beige band that covers only the animal row — its top/bottom edges cut
+   through the MIDDLE of the top / bottom labels so each label straddles the
+   band (half on this band, half on the hero above / section below). */
+.hero__zodiac::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  top: clamp(30px, 3.6vw, 56px);
+  bottom: clamp(30px, 3.6vw, 56px);
+  background: #ebdfce;
 }
 /* Slightly wider than .page-container (1440) so the row hugs the gutters like
    the mock-up; still centred and responsive. */
@@ -246,6 +316,10 @@
 }
 
 /* ======================= 주요 디자인 ====================================== */
+/* Reduced top padding — tighter to the zodiac section above. */
+.main-designs {
+  padding-top: clamp(24px, 3vw, 44px) !important;
+}
 .main-designs__head {
   text-align: center;
   margin-bottom: clamp(28px, 4vw, 48px);

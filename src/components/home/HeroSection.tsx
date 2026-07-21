@@ -43,6 +43,8 @@ export function HeroSection() {
       </div>
 
       <div className="hero__inner page-container">
+        {/* 세종대왕 line-art, bottom-anchored behind the copy / cards. */}
+        <div className="hero__sejong" aria-hidden="true" />
         <div className="hero__copy">
           <p className="hero__eyebrow">한글 오행으로 만나는</p>
           <h1 className="hero__title">

@@ -1,4 +1,4 @@
-/* Brand logo lockup: symbol mark, wordmark, 이팝나무 tree, and the home tagline. */
+/* Brand logo lockup: symbol mark, wordmark, and 이팝나무 tree. */
 .logo {
   display: inline-flex;
   flex-direction: column;
@@ -12,13 +12,12 @@
   gap: 10px;
 }
 
-/* Symbol-mark placeholder (black box, square — matches the delivered mark). */
+/* Symbol mark (delivered art, ~square). */
 .logo__mark {
   width: 46px;
   height: 46px;
   flex-shrink: 0;
-  background: #111112;
-  border-radius: 5px;
+  background: url("/images/logo/logo.png") center / contain no-repeat;
 }
 .logo--sm .logo__mark {
   width: 42px;
@@ -59,19 +58,18 @@
   letter-spacing: 0.18em;
 }
 
-/* Tree placeholder (black box) — roughly square like the delivered 이팝나무
-   art, its crown rising a touch above the mark. Bottom aligns to the wordmark. */
+/* 이팝나무 tree (delivered art, landscape ~1.4:1). Crown rises a touch above the
+   mark; bottom aligns to the wordmark baseline. */
 .logo__tree {
-  width: 50px;
-  height: 50px;
+  width: 66px;
+  height: 47px;
   flex-shrink: 0;
   margin-left: 4px;
-  background: #111112;
-  border-radius: 5px;
+  background: url("/images/logo/tree-logo.png") center bottom / contain no-repeat;
   align-self: flex-end;
   transform: translateY(-2px);
 }
 .logo--sm .logo__tree {
-  width: 46px;
-  height: 46px;
+  width: 60px;
+  height: 43px;
 }

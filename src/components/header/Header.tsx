@@ -12,6 +12,15 @@ export function Header() {
   const location = useLocation();
   const { user, isAdmin, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Transparent at the very top; gains a backdrop once the page is scrolled so
+  // the header stays legible over content passing underneath.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Admin entry appears (before 고객지원) only when logged in as admin.
   const navItems = useMemo<NavItem[]>(() => {
@@ -29,7 +38,7 @@ export function Header() {
 
   return (
     <>
-      <header className="header">
+      <header className={clsx("header", scrolled && "header--scrolled")}>
         <div className="header__inner">
         <Logo withTree size="sm" />
 
