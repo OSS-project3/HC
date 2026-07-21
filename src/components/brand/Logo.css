@@ -11,17 +11,17 @@
   gap: 10px;
 }
 
-/* Symbol-mark placeholder (black box, roughly square). */
+/* Symbol-mark placeholder (black box, square — matches the delivered mark). */
 .logo__mark {
-  width: 44px;
-  height: 40px;
+  width: 46px;
+  height: 46px;
   flex-shrink: 0;
   background: #111112;
   border-radius: 5px;
 }
 .logo--sm .logo__mark {
-  width: 38px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
 }
 
 .logo__words {
@@ -58,21 +58,21 @@
   letter-spacing: 0.18em;
 }
 
-/* Tree placeholder (black box) — taller than wide, crown rising above the
-   letters. Roots align to the wordmark baseline. */
+/* Tree placeholder (black box) — roughly square like the delivered 이팝나무
+   art, its crown rising a touch above the mark. Bottom aligns to the wordmark. */
 .logo__tree {
-  width: 30px;
+  width: 50px;
   height: 50px;
   flex-shrink: 0;
-  margin-left: 2px;
+  margin-left: 4px;
   background: #111112;
   border-radius: 5px;
   align-self: flex-end;
-  transform: translateY(-4px);
+  transform: translateY(-2px);
 }
 .logo--sm .logo__tree {
-  width: 26px;
-  height: 40px;
+  width: 46px;
+  height: 46px;
 }
 
 .logo__tagline {

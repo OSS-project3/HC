@@ -27,8 +27,9 @@ export function Header() {
   }, [location.pathname]);
 
   return (
-    <header className="header">
-      <div className="header__inner page-container">
+    <>
+      <header className="header">
+        <div className="header__inner page-container">
         {/* Header size is identical on every page. */}
         <Logo withTree size="sm" />
 
@@ -73,10 +74,11 @@ export function Header() {
             <span />
           </button>
         </div>
-      </div>
+        </div>
+      </header>
 
       <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} navItems={navItems} />
-    </header>
+    </>
   );
 }
 

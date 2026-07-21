@@ -215,6 +215,9 @@
   inset: 0;
   z-index: 60;
   visibility: hidden;
+  /* Clip the off-canvas panel (translated fully to the right) so it never adds
+     horizontal page scroll. */
+  overflow: hidden;
 }
 .drawer--open {
   visibility: visible;
@@ -233,7 +236,8 @@
   position: absolute;
   top: 0;
   right: 0;
-  height: 100%;
+  bottom: 0;
+  height: auto;
   width: min(82vw, 320px);
   background: var(--color-background);
   box-shadow: -8px 0 30px rgb(0 0 0 / 15%);

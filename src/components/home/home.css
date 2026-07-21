@@ -3,12 +3,22 @@
      extend above the hero into the header. */
 }
 
-/* Tagline text under the header (home page only). */
+/* Tagline text under the header (home page only), led by a long rule. */
 .home-tagline {
   padding-top: clamp(14px, 2vw, 22px);
   font-size: clamp(13px, 1.2vw, 16px);
   color: var(--color-text-muted);
   letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 1.4vw, 20px);
+}
+.home-tagline::before {
+  content: "";
+  flex: none;
+  width: clamp(44px, 4.4vw, 84px);
+  height: 1.5px;
+  background: var(--color-border-accent);
 }
 
 .home > section {
@@ -19,6 +29,10 @@
 .hero {
   position: relative;
   padding-top: clamp(28px, 4vw, 56px) !important;
+  /* Clip only the horizontal axis so trigrams that tuck past the side edges on
+     narrow screens never add page scroll; vertical stays visible so the top
+     trigrams can still overlap up into the header. */
+  overflow-x: clip;
 }
 
 /* Background decoration layer — trigrams overlap the header (z above it),
@@ -29,32 +43,41 @@
   z-index: 60;
   pointer-events: none;
 }
+/* All four are the SAME size and SAME colour; each is the same mark rotated 90°
+   further, so they read as one shape spun around the hero. */
 .hero__tri {
   position: absolute;
-  width: clamp(42px, 4.2vw, 62px);
+  width: clamp(46px, 4.6vw, 78px);
   height: auto;
   fill: var(--color-border-accent);
   opacity: 0.32;
+  pointer-events: none;
 }
-/* Flush to the four corners, fully visible (not clipped). Rotation happens
-   around each element's own centre so the trigram stays in place. */
+/* Top pair overlap the header, tucked into the gutter just OUTSIDE the content
+   column — never over the logo or the header actions. On narrow viewports the
+   gutter vanishes and they slide off the edge. */
 .hero__tri--tl {
-  top: -34px;
-  left: 6px;
+  top: -58px;
+  left: calc((100vw - min(100vw - 40px, 1440px)) / 2 - 90px);
 }
 .hero__tri--tr {
-  top: -34px;
-  right: 6px;
+  top: -58px;
+  right: calc((100vw - min(100vw - 40px, 1440px)) / 2 - 90px);
   transform: rotate(90deg);
 }
-.hero__tri--bl {
-  bottom: 8px;
-  left: 6px;
-  transform: rotate(90deg);
+/* Bottom pair — anchored to the zodiac container, lifted to sit just above the
+   first / last animal. */
+.hero__ztri {
+  top: 0;
+  z-index: 0;
 }
-.hero__tri--br {
-  bottom: 8px;
-  right: 6px;
+.hero__ztri--l {
+  left: 0;
+  transform: translateY(calc(-100% - 2px)) rotate(270deg);
+}
+.hero__ztri--r {
+  right: 0;
+  transform: translateY(calc(-100% - 2px)) rotate(180deg);
 }
 .hero__inner {
   display: grid;
@@ -64,27 +87,30 @@
 }
 .hero__eyebrow {
   font-family: var(--font-serif);
-  font-size: clamp(18px, 2vw, 26px);
+  font-size: clamp(24px, 2.8vw, 38px);
   color: var(--color-text-secondary);
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 .hero__title {
   font-family: var(--font-serif);
   font-weight: 700;
   color: var(--color-text-title);
-  font-size: clamp(28px, 4.2vw, 56px);
-  line-height: 1.2;
+  font-size: clamp(28px, 4vw, 54px);
+  /* Wider spacing between the two title lines. */
+  line-height: 1.42;
   letter-spacing: -0.015em;
   word-break: keep-all;
 }
+/* Lead + patent: identical type size; tight to each other but pushed further
+   down from the title above. */
 .hero__lead {
-  margin-top: 22px;
-  font-size: clamp(15px, 1.5vw, 19px);
+  margin-top: clamp(30px, 3.4vw, 46px);
+  font-size: clamp(14px, 1.3vw, 18px);
   color: var(--color-text-secondary);
 }
 .hero__patent {
-  margin-top: 6px;
-  font-size: clamp(12px, 1.1vw, 14px);
+  margin-top: 3px;
+  font-size: clamp(14px, 1.3vw, 18px);
   color: var(--color-text-muted);
 }
 
@@ -113,10 +139,10 @@
   animation: card-float 6s ease-in-out infinite;
 }
 .hero__card--landscape {
-  width: clamp(240px, 30vw, 400px);
+  width: clamp(230px, 28vw, 385px);
 }
 .hero__card--portrait {
-  width: clamp(150px, 18vw, 240px);
+  width: clamp(140px, 16.5vw, 225px);
   animation-delay: 0.6s;
 }
 @keyframes card-float {
@@ -129,27 +155,68 @@
   }
 }
 
+/* Full-bleed zodiac band. The label sits top-right; a larger echo sits
+   bottom-left. The 12 signs stretch edge-to-edge inside the page container so
+   the first/last animals hug the gutters and every gap stays equal, at any
+   screen ratio. */
+/* Full-bleed zodiac band. The label sits top-right; a larger echo sits
+   bottom-left. The 12 signs stretch edge-to-edge inside a band that is a touch
+   wider than the main content, matching the mock-up. */
 .hero__zodiac {
   margin-top: clamp(30px, 5vw, 64px);
+  background: var(--color-surface-cream);
+  padding-block: clamp(16px, 2.4vw, 34px);
+}
+/* Slightly wider than .page-container (1440) so the row hugs the gutters like
+   the mock-up; still centred and responsive. */
+.hero__zodiac-inner {
+  position: relative;
+  width: min(100% - (var(--page-gutter) * 2), 1600px);
+  margin-inline: auto;
 }
 .hero__zodiac-label {
-  text-align: center;
   font-family: var(--font-serif);
   letter-spacing: 0.34em;
-  font-size: clamp(15px, 1.8vw, 24px);
+  text-transform: uppercase;
   color: var(--color-brown);
   opacity: 0.7;
-  margin-bottom: 18px;
+  white-space: nowrap;
 }
+/* Top and bottom labels share the SAME type size. */
+.hero__zodiac-label--top {
+  text-align: right;
+  font-size: clamp(15px, 1.85vw, 28px);
+  margin-bottom: clamp(6px, 1vw, 14px);
+}
+.hero__zodiac-label--bottom {
+  text-align: left;
+  font-size: clamp(15px, 1.85vw, 28px);
+  margin-top: clamp(6px, 1vw, 14px);
+}
+/* Each sign occupies a fixed FRACTION of the band width, so the sign-to-gap
+   ratio is identical at every screen size. space-between pins the first/last
+   sign to the gutters and shares the remaining space as equal gaps. */
 .hero__zodiac-row {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: clamp(4px, 1vw, 16px);
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: center;
+}
+.hero__zodiac-item {
+  flex: 0 0 7.4%;
 }
 .hero__zodiac-btn {
-  padding: 6px;
-  border-radius: 50%;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border-radius: 8px;
+}
+.hero__zodiac-btn img,
+.hero__zodiac-btn > span {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
 }
 
 /* ======================= 주요 디자인 ====================================== */
@@ -203,10 +270,10 @@
   font-size: clamp(17px, 1.8vw, 22px);
 }
 .design-group__card--landscape {
-  width: min(100%, 480px);
+  width: min(100%, 420px);
 }
 .design-group__card--portrait {
-  width: min(100%, 270px);
+  width: min(100%, 232px);
 }
 .design-group__img {
   width: 100%;
@@ -217,18 +284,19 @@
 }
 .design-group__buttons {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
 }
 .design-chip {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--color-primary);
-  /* Navy outline */
-  border: 1px solid var(--color-primary);
+  white-space: nowrap;
+  /* Navy outline — a touch heavier / darker. */
+  border: 1.5px solid color-mix(in srgb, var(--color-primary) 100%, #000 14%);
   border-radius: 6px;
-  padding: 12px 26px;
+  padding: 10px 18px;
   transition: background-color var(--ease), color var(--ease), border-color var(--ease);
 }
 .design-chip:hover {
@@ -261,6 +329,10 @@
     width: auto;
     height: 1px;
   }
+  /* One row on desktop; allow wrapping only when the column gets narrow. */
+  .design-group__buttons {
+    flex-wrap: wrap;
+  }
 }
 
 /* ======================= SERVICE CORE ===================================== */
@@ -287,25 +359,27 @@
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 1.62 / 1;
+  aspect-ratio: 1.82 / 1;
   border: clamp(8px, 1vw, 12px) solid var(--color-border-accent);
   border-radius: 6px;
   overflow: hidden;
   background: linear-gradient(180deg, #f3ece0, #eee3d2);
   box-shadow: var(--shadow-card);
 }
+/* Label stays centred and visible on top of the panel, matching the mock-up. */
 .window__label {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  z-index: 0;
+  z-index: 2;
   font-family: var(--font-serif);
   font-weight: 700;
   font-size: clamp(18px, 2.2vw, 30px);
-  color: var(--color-text-secondary);
+  color: var(--color-text-title);
   padding: 20px;
   text-align: center;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 70%);
 }
 .window__shutter {
   position: absolute;

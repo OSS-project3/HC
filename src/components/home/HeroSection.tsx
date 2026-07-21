@@ -33,13 +33,12 @@ export function HeroSection() {
 
   return (
     <section className="hero">
-      {/* Low-priority background: 건곤감리 trigrams flush to the corners
-          (the top two overlap the header). */}
+      {/* 건곤감리 — same mark, same colour, each rotated 90° further. The top
+          pair overlap into the header, sitting in the gutter beside the logo /
+          actions; the bottom pair sit just above the zodiac animals (below). */}
       <div className="hero__bg" aria-hidden="true">
         <Trigram name="건" className="hero__tri hero__tri--tl" />
-        <Trigram name="감" className="hero__tri hero__tri--tr" />
-        <Trigram name="리" className="hero__tri hero__tri--bl" />
-        <Trigram name="곤" className="hero__tri hero__tri--br" />
+        <Trigram name="건" className="hero__tri hero__tri--tr" />
       </div>
 
       <div className="hero__inner page-container">
@@ -63,21 +62,26 @@ export function HeroSection() {
       </div>
 
       <div className="hero__zodiac" {...pauseHandlers}>
-        <p className="hero__zodiac-label">KOREAN ZODIAC SIGNS</p>
-        <ul className="hero__zodiac-row">
-          {zodiacSigns.map((sign, i) => (
-            <li key={sign.id}>
-              <button
-                className="hero__zodiac-btn"
-                onClick={() => setZodiacIndex(i)}
-                aria-pressed={i === zodiacIndex}
-                aria-label={`${sign.nameKo} (${sign.nameEn})`}
-              >
-                <ZodiacIcon sign={sign} size={72} highlighted={i === zodiacIndex} />
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="hero__zodiac-inner page-container">
+          <Trigram name="건" className="hero__tri hero__ztri hero__ztri--l" />
+          <Trigram name="건" className="hero__tri hero__ztri hero__ztri--r" />
+          <p className="hero__zodiac-label hero__zodiac-label--top">KOREAN ZODIAC SIGNS</p>
+          <ul className="hero__zodiac-row">
+            {zodiacSigns.map((sign, i) => (
+              <li key={sign.id} className="hero__zodiac-item">
+                <button
+                  className="hero__zodiac-btn"
+                  onClick={() => setZodiacIndex(i)}
+                  aria-pressed={i === zodiacIndex}
+                  aria-label={`${sign.nameKo} (${sign.nameEn})`}
+                >
+                  <ZodiacIcon sign={sign} size={72} highlighted={i === zodiacIndex} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="hero__zodiac-label hero__zodiac-label--bottom">KOREAN ZODIAC SIGNS</p>
+        </div>
       </div>
     </section>
   );
