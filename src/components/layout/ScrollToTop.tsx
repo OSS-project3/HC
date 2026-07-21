@@ -1,3 +1,4 @@
+// Scrolls the window to the top on every route change.
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 

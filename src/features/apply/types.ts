@@ -1,3 +1,4 @@
+// Type definitions for the multi-step application draft.
 import type { CardType } from "../../data/cards";
 
 export type ApplicantType = "personal" | "organization";

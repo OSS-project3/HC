@@ -1,3 +1,4 @@
+/* Support page styles. */
 .support__hero {
   padding-block: clamp(40px, 6vw, 76px) clamp(20px, 3vw, 36px);
 }

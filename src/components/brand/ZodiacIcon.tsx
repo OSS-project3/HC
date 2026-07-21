@@ -1,3 +1,4 @@
+// Renders one zodiac sign as its delivered image (or a black-box placeholder).
 import type { ZodiacSign } from "../../data/zodiac";
 import { ImagePlaceholder } from "../ui/ImagePlaceholder";
 

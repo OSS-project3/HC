@@ -1,3 +1,4 @@
+// Customer-support page with anchor-scrolled sections.
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { companyInfo } from "../config/company";

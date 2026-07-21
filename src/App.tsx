@@ -1,3 +1,4 @@
+// Root component: route table mapping URLs to pages.
 import { Route, Routes } from "react-router-dom";
 import { PublicLayout } from "./components/layout/PublicLayout";
 import { ScrollToTop } from "./components/layout/ScrollToTop";

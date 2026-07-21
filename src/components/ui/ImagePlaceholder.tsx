@@ -1,3 +1,4 @@
+// Black-box placeholder standing in for not-yet-delivered images.
 import clsx from "clsx";
 import type { CSSProperties } from "react";
 import "./ImagePlaceholder.css";

@@ -1,17 +1,19 @@
+/* Home page styles: hero (건곤감리 trigrams, zodiac band), 주요 디자인, 서비스 핵심. */
 .home {
   /* NOTE: no overflow clipping here — it would crop the corner trigrams that
      extend above the hero into the header. */
 }
 
-/* Tagline text under the header (home page only), led by a long rule. */
+/* Tagline strip: flush under the header, led by a horizontal rule. */
 .home-tagline {
-  padding-top: clamp(14px, 2vw, 22px);
-  font-size: clamp(13px, 1.2vw, 16px);
-  color: var(--color-text-muted);
-  letter-spacing: 0.02em;
   display: flex;
   align-items: center;
   gap: clamp(12px, 1.4vw, 20px);
+  padding-top: clamp(6px, 1vw, 12px);
+  padding-bottom: clamp(2px, 0.6vw, 6px);
+  font-size: clamp(13px, 1.2vw, 16px);
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
 }
 .home-tagline::before {
   content: "";
@@ -33,6 +35,17 @@
      narrow screens never add page scroll; vertical stays visible so the top
      trigrams can still overlap up into the header. */
   overflow-x: clip;
+  /* Shared geometry for the 건곤감리 marks:
+     --tri-gap grows with the viewport (bigger clearance on wide screens, tighter
+     as it narrows, never zero). --tri-edge is the single left/right COLUMN both
+     the top and bottom marks share, parked just outside the header content. */
+  --tri-w: clamp(40px, 3.6vw, 60px);
+  --tri-gap: clamp(6px, 1.6vw, 28px);
+  --tri-edge: calc((100vw - min(100vw - 140px, 1440px)) / 2 - var(--tri-gap) - var(--tri-w));
+  --zodiac-edge: calc((100vw - min(100vw - 40px, 1600px)) / 2);
+  /* A 90°-rotated mark's visual edge sits ~0.154·width inside its layout box;
+     shift the rotated ones by this so each pair's visual edges line up. */
+  --tri-rot-shift: calc(var(--tri-w) * 0.154);
 }
 
 /* Background decoration layer — trigrams overlap the header (z above it),
@@ -47,37 +60,54 @@
    further, so they read as one shape spun around the hero. */
 .hero__tri {
   position: absolute;
-  width: clamp(46px, 4.6vw, 78px);
+  width: var(--tri-w);
   height: auto;
   fill: var(--color-border-accent);
   opacity: 0.32;
   pointer-events: none;
-}
-/* Top pair overlap the header, tucked into the gutter just OUTSIDE the content
-   column — never over the logo or the header actions. On narrow viewports the
-   gutter vanishes and they slide off the edge. */
-.hero__tri--tl {
-  top: -58px;
-  left: calc((100vw - min(100vw - 40px, 1440px)) / 2 - 90px);
-}
-.hero__tri--tr {
-  top: -58px;
-  right: calc((100vw - min(100vw - 40px, 1440px)) / 2 - 90px);
-  transform: rotate(90deg);
-}
-/* Bottom pair — anchored to the zodiac container, lifted to sit just above the
-   first / last animal. */
-.hero__ztri {
-  top: 0;
   z-index: 0;
 }
+/* Horizontal anchor for ALL four = the zodiac (1600) container edge, so the top
+   and bottom marks line up in one vertical column on each side — level with the
+   first / last animal and clear of the narrower logo / header actions. */
+/* Level with the logo top, on the shared --tri-edge column just outside the
+   header content — so a top mark and the bottom mark below it stay left/right
+   aligned, with a viewport-scaled gap from the logo / actions (never overlaps). */
+.hero__tri--tl {
+  /* 건 ☰ — horizontal. */
+  top: -101px;
+  left: var(--tri-edge);
+}
+.hero__tri--tr {
+  /* 감 ☵ — vertical (rotated), shifted so its visual edge matches 곤 below. */
+  top: -101px;
+  right: calc(var(--tri-edge) - var(--tri-rot-shift));
+  transform: rotate(90deg);
+}
+/* Bottom pair sit above the zodiac band, sharing one bottom line; the right one
+   tucks right on top of the top-right label (touching, not overlapping). */
+.hero__ztri {
+  top: 0;
+}
+/* Same --tri-edge column as the top marks (converted to be relative to the
+   zodiac container), so each left/right pair is vertically aligned. */
 .hero__ztri--l {
-  left: 0;
-  transform: translateY(calc(-100% - 2px)) rotate(270deg);
+  /* 리 ☲ — vertical (rotated), shifted so its visual edge matches 건 above. */
+  left: calc(var(--tri-edge) - var(--zodiac-edge) - var(--tri-rot-shift));
+  transform: translateY(calc(-100% - 15px)) rotate(90deg);
 }
 .hero__ztri--r {
-  right: 0;
-  transform: translateY(calc(-100% - 2px)) rotate(180deg);
+  /* 곤 ☷ — horizontal, just above the label. */
+  right: calc(var(--tri-edge) - var(--zodiac-edge));
+  transform: translateY(calc(-100% - 4px));
+}
+/* Hidden once the header collapses to the hamburger (≤1080px); above that the
+   reserved header gutters keep room for them. The bottom pair stay everywhere. */
+@media (max-width: 1080px) {
+  .hero__tri--tl,
+  .hero__tri--tr {
+    display: none;
+  }
 }
 .hero__inner {
   display: grid;
@@ -111,7 +141,8 @@
 .hero__patent {
   margin-top: 3px;
   font-size: clamp(14px, 1.3vw, 18px);
-  color: var(--color-text-muted);
+  /* Same colour as the lead line above. */
+  color: var(--color-text-secondary);
 }
 
 .hero__stage {
@@ -155,16 +186,11 @@
   }
 }
 
-/* Full-bleed zodiac band. The label sits top-right; a larger echo sits
-   bottom-left. The 12 signs stretch edge-to-edge inside the page container so
-   the first/last animals hug the gutters and every gap stays equal, at any
-   screen ratio. */
-/* Full-bleed zodiac band. The label sits top-right; a larger echo sits
-   bottom-left. The 12 signs stretch edge-to-edge inside a band that is a touch
-   wider than the main content, matching the mock-up. */
+/* Zodiac band: top-right label, larger bottom-left echo, and the 12 signs
+   stretched edge-to-edge inside a band a touch wider than the main content. */
 .hero__zodiac {
   margin-top: clamp(30px, 5vw, 64px);
-  background: var(--color-surface-cream);
+  /* No solid fill — the page gradient carries through to here. */
   padding-block: clamp(16px, 2.4vw, 34px);
 }
 /* Slightly wider than .page-container (1440) so the row hugs the gutters like
@@ -236,7 +262,7 @@
   gap: 7px;
   margin-top: 8px;
   color: var(--color-primary);
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 500;
 }
 .main-designs__arrow {

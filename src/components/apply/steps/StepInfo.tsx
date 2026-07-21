@@ -1,3 +1,4 @@
+// Apply step: applicant & recipient information form.
 import type { ApplicationDraft, IssuanceMethod, ApplicantInfo, RecipientInfo } from "../../../features/apply/types";
 import { Button } from "../../ui/Button";
 import { ChevronLeft, ChevronRight } from "../../ui/icons";

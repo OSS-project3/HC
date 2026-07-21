@@ -1,3 +1,4 @@
+// Admin page: application records table (admin-only, redirects otherwise).
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 import { adminApplications, adminStats, adminStatusLabels } from "../data/adminMock";

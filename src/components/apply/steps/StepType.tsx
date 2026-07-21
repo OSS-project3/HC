@@ -1,3 +1,4 @@
+// Apply step: choose card type and issuance method.
 import clsx from "clsx";
 import type { ApplicantType, ApplicationDraft } from "../../../features/apply/types";
 import { PersonIcon, GroupIcon, CheckIcon, ChevronRight } from "../../ui/icons";

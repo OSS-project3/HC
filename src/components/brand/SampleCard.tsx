@@ -1,3 +1,4 @@
+// Sample ID-card slot — sizes/orients a black-box placeholder until real art arrives.
 import type { CardDesign } from "../../data/cards";
 import { ImagePlaceholder } from "../ui/ImagePlaceholder";
 import "./SampleCard.css";

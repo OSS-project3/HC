@@ -8,6 +8,7 @@
 :root {
   /* Surfaces */
   --color-background: #f2e9df;      /* page background, contact section base */
+  --color-bg-top: #f8f3ec;          /* lighter top of the header→zodiac gradient */
   --color-surface: #f5f1ea;         /* card / panel surface */
   --color-surface-soft: #e5d8cd;    /* soft card bg, dividers, inactive */
   --color-surface-cream: #f0e9e0;   /* lightest cream */

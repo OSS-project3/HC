@@ -1,3 +1,4 @@
+// Home '한글은 문화다' section: cultural-experience merchandise.
 import { merchFeatures } from "../../data/merchandise";
 import { CheckCircleIcon } from "../ui/icons";
 import { ImagePlaceholder } from "../ui/ImagePlaceholder";

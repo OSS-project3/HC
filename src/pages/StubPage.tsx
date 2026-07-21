@@ -1,3 +1,4 @@
+// Generic placeholder page for routes not yet built out.
 import "./StubPage.css";
 
 interface StubPageProps {

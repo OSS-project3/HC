@@ -1,3 +1,4 @@
+// Site header: logo (+home-only tagline), primary nav, language/login actions, and the mobile drawer.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import clsx from "clsx";
@@ -29,8 +30,7 @@ export function Header() {
   return (
     <>
       <header className="header">
-        <div className="header__inner page-container">
-        {/* Header size is identical on every page. */}
+        <div className="header__inner">
         <Logo withTree size="sm" />
 
         <nav className="header__nav" aria-label="주요 메뉴">

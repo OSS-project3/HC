@@ -1,3 +1,4 @@
+/* Application (apply) flow styles. */
 .apply {
   /* Grow naturally with content; keep footer from riding up on short steps. */
   min-height: calc(100vh - var(--header-height));

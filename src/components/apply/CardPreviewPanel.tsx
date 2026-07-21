@@ -1,3 +1,4 @@
+// Apply flow: live preview panel for the selected card design.
 import type { CardDesign } from "../../data/cards";
 import { SampleCard } from "../brand/SampleCard";
 

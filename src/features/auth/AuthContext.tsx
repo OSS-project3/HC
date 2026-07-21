@@ -1,3 +1,4 @@
+// Auth context/provider: mock login, logout, and current-user state.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 export type Role = "user" | "admin";

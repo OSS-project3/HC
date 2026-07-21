@@ -1,3 +1,4 @@
+// Design page: full card-design gallery by type.
 import { Link } from "react-router-dom";
 import { cardCategories } from "../data/cards";
 import { CardCarousel } from "../components/gallery/CardCarousel";

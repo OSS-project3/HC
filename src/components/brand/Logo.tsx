@@ -1,3 +1,4 @@
+// Brand logo lockup: symbol mark, wordmark, 이팝나무 tree, and optional home tagline.
 import { Link } from "react-router-dom";
 import { companyInfo } from "../../config/company";
 import "./Logo.css";
@@ -5,8 +6,6 @@ import "./Logo.css";
 interface LogoProps {
   /** Show the "이팝나무" tree slot beside the wordmark (header uses it). */
   withTree?: boolean;
-  /** Show the "한글 오행 기반 한국 이름 추천" tagline beneath (home header). */
-  withTagline?: boolean;
   size?: "sm" | "md";
 }
 
@@ -15,7 +14,7 @@ interface LogoProps {
  * deliver (ideally the whole lockup as one SVG/PNG). Until then those slots are
  * black-box placeholders; only the wordmark text is real content.
  */
-export function Logo({ withTree = false, withTagline = false, size = "md" }: LogoProps) {
+export function Logo({ withTree = false, size = "md" }: LogoProps) {
   return (
     <Link to="/" className={`logo logo--${size}`} aria-label={companyInfo.nameKo}>
       <span className="logo__lockup">
@@ -26,7 +25,6 @@ export function Logo({ withTree = false, withTagline = false, size = "md" }: Log
         </span>
         {withTree && <span className="logo__tree" role="img" aria-label="이팝나무 — 이미지 추가 필요" />}
       </span>
-      {withTagline && <span className="logo__tagline">{companyInfo.tagline}</span>}
     </Link>
   );
 }

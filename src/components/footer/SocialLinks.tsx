@@ -1,3 +1,4 @@
+// Footer social-media icon links.
 import { socialLinks } from "../../data/social";
 import { InstagramIcon, FacebookIcon, YoutubeIcon } from "../ui/icons";
 

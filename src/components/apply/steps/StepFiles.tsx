@@ -1,3 +1,4 @@
+// Apply step: photo / document upload.
 import type { ApplicationDraft } from "../../../features/apply/types";
 import { Button } from "../../ui/Button";
 import { ChevronLeft, ChevronRight } from "../../ui/icons";

@@ -1,3 +1,4 @@
+// Card-design carousel used on the design page.
 import { useEffect, useState } from "react";
 import type { CardDesign } from "../../data/cards";
 import { SampleCard } from "../brand/SampleCard";

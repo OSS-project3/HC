@@ -1,3 +1,4 @@
+// Hero section: headline, sample cards, 건곤감리 corner trigrams, and the rotating 12-sign zodiac band.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { companyInfo } from "../../config/company";
 import { zodiacSigns } from "../../data/zodiac";
@@ -38,7 +39,7 @@ export function HeroSection() {
           actions; the bottom pair sit just above the zodiac animals (below). */}
       <div className="hero__bg" aria-hidden="true">
         <Trigram name="건" className="hero__tri hero__tri--tl" />
-        <Trigram name="건" className="hero__tri hero__tri--tr" />
+        <Trigram name="감" className="hero__tri hero__tri--tr" />
       </div>
 
       <div className="hero__inner page-container">
@@ -62,9 +63,9 @@ export function HeroSection() {
       </div>
 
       <div className="hero__zodiac" {...pauseHandlers}>
-        <div className="hero__zodiac-inner page-container">
-          <Trigram name="건" className="hero__tri hero__ztri hero__ztri--l" />
-          <Trigram name="건" className="hero__tri hero__ztri hero__ztri--r" />
+        <div className="hero__zodiac-inner">
+          <Trigram name="리" className="hero__tri hero__ztri hero__ztri--l" />
+          <Trigram name="곤" className="hero__tri hero__ztri hero__ztri--r" />
           <p className="hero__zodiac-label hero__zodiac-label--top">KOREAN ZODIAC SIGNS</p>
           <ul className="hero__zodiac-row">
             {zodiacSigns.map((sign, i) => (

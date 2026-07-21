@@ -1,3 +1,4 @@
+/* Site footer styles. */
 .footer {
   margin-top: clamp(60px, 8vw, 120px);
   background: color-mix(in srgb, var(--color-surface-soft) 42%, var(--color-background));

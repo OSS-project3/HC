@@ -1,3 +1,4 @@
+// Accessible modal dialog with backdrop, focus trap, and Esc-to-close.
 import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import "./Modal.css";

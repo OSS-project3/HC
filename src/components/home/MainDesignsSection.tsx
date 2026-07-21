@@ -1,3 +1,4 @@
+// Home '주요 디자인' section: card previews with per-type 신청 buttons.
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "../ui/icons";
 

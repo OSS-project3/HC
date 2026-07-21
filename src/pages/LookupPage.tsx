@@ -1,3 +1,4 @@
+// Application lookup / status-check page.
 import { useState } from "react";
 import { Button } from "../components/ui/Button";
 import "./LookupPage.css";

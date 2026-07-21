@@ -1,3 +1,4 @@
+// App entry point: mounts the React root with router, auth, and toast providers.
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";

@@ -1,3 +1,4 @@
+/* Brand logo lockup: symbol mark, wordmark, 이팝나무 tree, and the home tagline. */
 .logo {
   display: inline-flex;
   flex-direction: column;
@@ -73,23 +74,4 @@
 .logo--sm .logo__tree {
   width: 46px;
   height: 46px;
-}
-
-.logo__tagline {
-  font-family: var(--font-sans);
-  font-size: clamp(11px, 1vw, 13px);
-  color: var(--color-text-muted);
-  letter-spacing: 0.02em;
-  padding-left: 4px;
-  position: relative;
-  white-space: nowrap;
-}
-.logo__tagline::before {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: -6px;
-  width: 56px;
-  height: 1px;
-  background: var(--color-border-soft);
 }

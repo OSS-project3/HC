@@ -1,3 +1,4 @@
+// Apply flow: drag-and-drop / click file upload box.
 import { useRef, useState } from "react";
 import clsx from "clsx";
 import type { UploadFileInfo } from "../../features/apply/types";

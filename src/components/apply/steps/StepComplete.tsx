@@ -1,3 +1,4 @@
+// Apply step: submission-complete confirmation screen.
 import { useNavigate } from "react-router-dom";
 import type { ApplicationDraft } from "../../../features/apply/types";
 import { bankInfo } from "../../../config/company";

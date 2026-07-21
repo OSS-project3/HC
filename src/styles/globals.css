@@ -1,3 +1,4 @@
+/* Global styles: font imports, base element rules, and .page-container layout. */
 @import "./fonts.css";
 @import "./tokens.css";
 @import "./reset.css";
@@ -5,11 +6,12 @@
 
 body {
   /*
-   * IMPORTANT: the grid / graph-paper pattern seen in the mock-ups is a
-   * design-tool artefact only. The real site uses a flat beige background —
-   * do NOT add a linear-gradient grid here.
+   * NOTE: the grid / graph-paper pattern in the mock-ups is a design-tool
+   * artefact — do NOT reproduce it. This is only a soft vertical wash that runs
+   * from the header down through the zodiac band, then settles to the flat base.
    */
-  background: var(--color-background);
+  background: linear-gradient(180deg, var(--color-bg-top) 0, var(--color-background) 1040px) no-repeat,
+    var(--color-background);
   color: var(--color-text-secondary);
   font-family: var(--font-sans);
   font-weight: 400;

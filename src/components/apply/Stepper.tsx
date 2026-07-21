@@ -1,3 +1,4 @@
+// Apply flow: horizontal step progress indicator.
 import clsx from "clsx";
 import { STEP_LABELS } from "../../features/apply/types";
 

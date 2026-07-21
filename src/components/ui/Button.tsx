@@ -1,3 +1,4 @@
+// Reusable button component with style variants.
 import { forwardRef } from "react";
 import type { ButtonHTMLAttributes } from "react";
 import { Link } from "react-router-dom";

@@ -1,3 +1,4 @@
+// Navigation config: main menu items, admin entry, and support submenu.
 export interface NavItem {
   label: string;
   to: string;

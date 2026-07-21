@@ -1,3 +1,4 @@
+/* Design page styles. */
 .design__hero {
   padding-block: clamp(40px, 6vw, 76px) clamp(18px, 3vw, 30px);
 }

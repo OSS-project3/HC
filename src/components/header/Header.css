@@ -1,20 +1,32 @@
+/* Site header, dropdowns, and off-canvas mobile drawer styles. */
 .header {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: color-mix(in srgb, var(--color-background) 92%, #ffffff);
-  backdrop-filter: blur(6px);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-soft) 60%, transparent);
+  /* No border and a top-of-gradient fill, so the header blends seamlessly into
+     the page wash below while staying legible once it sticks over content. */
+  background: var(--color-bg-top);
 }
 
 .header__inner {
   display: flex;
-  align-items: center;
+  /* Nav + actions align to the TOP of the logo. */
+  align-items: flex-start;
   gap: clamp(16px, 2vw, 40px);
+  /* Reserve wider side gutters than the page container so the corner 건곤감리
+     always have room to sit beside the logo / actions (never overlapping). */
+  width: min(100% - 140px, 1440px);
+  margin-inline: auto;
   /* Generous top breathing room so the header never feels cramped under the
      browser address bar (per the client's note). */
   padding-top: 22px;
   padding-bottom: 18px;
+}
+/* On the mobile (hamburger) layout the reserved gutters aren't needed. */
+@media (max-width: 1080px) {
+  .header__inner {
+    width: min(100% - (var(--page-gutter) * 2), 1440px);
+  }
 }
 
 .header__nav {

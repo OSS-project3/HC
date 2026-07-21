@@ -1,3 +1,4 @@
+// Home '상담 문의' section: phone / email / 1:1 / KakaoTalk contact channels.
 import { useNavigate } from "react-router-dom";
 import { companyInfo } from "../../config/company";
 import { PhoneIcon, MailIcon, DocIcon, ChatIcon, ChevronRight, ArrowUpRight } from "../ui/icons";

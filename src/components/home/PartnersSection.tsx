@@ -1,3 +1,4 @@
+// Home partner-organizations logo grid.
 import { partners } from "../../data/partners";
 import { ImagePlaceholder } from "../ui/ImagePlaceholder";
 

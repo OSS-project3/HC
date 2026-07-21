@@ -1,3 +1,4 @@
+// Application page: orchestrates the multi-step create flow.
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";

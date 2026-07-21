@@ -1,3 +1,4 @@
+// Apply step: review all entries before submitting.
 import type { ApplicationDraft } from "../../../features/apply/types";
 import type { CardDesign } from "../../../data/cards";
 import { cardTypeLabels } from "../../../data/cards";

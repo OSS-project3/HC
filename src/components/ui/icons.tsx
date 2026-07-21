@@ -1,3 +1,4 @@
+// Shared inline SVG icon components.
 import type { SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement>;

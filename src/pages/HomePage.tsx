@@ -1,3 +1,4 @@
+// Home page: composes hero, 주요 디자인, 서비스 핵심, merchandise, contact, and partners sections.
 import { HeroSection } from "../components/home/HeroSection";
 import { MainDesignsSection } from "../components/home/MainDesignsSection";
 import { ServiceCoreSection } from "../components/home/ServiceCoreSection";
@@ -10,7 +11,7 @@ import "../components/home/home.css";
 export function HomePage() {
   return (
     <div className="home">
-      {/* Tagline text under the header (home page only). */}
+      {/* Tagline: its own strip flush under the header (not part of the header). */}
       <p className="home-tagline page-container">{companyInfo.tagline}</p>
 
       <HeroSection />
