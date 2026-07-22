@@ -9,11 +9,32 @@
   font-size: clamp(30px, 4.4vw, 52px);
   margin: 10px 0 8px;
 }
+/* Lead line "한국의 결을 따라…" in brand navy, with a long rule beneath it. */
+.design__lead {
+  color: var(--color-primary);
+}
+.design__lead-line {
+  height: 1px;
+  background: var(--color-border-soft);
+  margin-top: clamp(16px, 2.4vw, 26px);
+}
 
 .design__cat {
+  /* Horizontal gap between cards — also feeds the inner-width maths below. */
+  --card-gap: 24px;
   padding-block: clamp(30px, 5vw, 60px);
   scroll-margin-top: 120px;
 }
+/* Inner block sizes to the (reduced) card group so the title, rule and footer
+   all line up with the cards' outer left/right edges. */
+.design__cat-inner {
+  margin-inline: auto;
+  /* Every category — including the portrait ones (학생증·방문증) — spans the
+     landscape card width so the title rule and pager line up across all
+     sections. */
+  max-width: calc(380px * 3 + var(--card-gap) * 2);
+}
+
 .design__cat-head {
   display: flex;
   align-items: baseline;
@@ -21,30 +42,64 @@
 }
 .design__cat-title {
   font-family: var(--font-serif);
-  font-weight: 700;
+  font-weight: 300;
   color: var(--color-text-title);
   font-size: clamp(22px, 2.8vw, 34px);
 }
-.design__view-all {
-  display: inline-flex;
+
+/* Rule below the category title with the pager pinned to its right. */
+.design__cat-bar {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--color-primary);
-  font-size: 14px;
-  font-weight: 500;
+  gap: 20px;
+  margin: 16px 0 clamp(24px, 3vw, 40px);
 }
-/* Hover: text stays put, only the arrow nudges right (colour unchanged). */
-.design__view-arrow {
-  display: inline-flex;
-  transition: transform var(--ease);
-}
-.design__view-all:hover .design__view-arrow {
-  transform: translateX(4px);
-}
-.design__divider {
+.design__cat-line {
+  flex: 1;
   height: 1px;
   background: var(--color-border-soft);
-  margin: 16px 0 clamp(24px, 3vw, 40px);
+}
+.design__pager {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
+.design__pager-arrow {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  transition: color var(--ease), background-color var(--ease);
+}
+.design__pager-arrow:hover:not(:disabled) {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-surface-soft) 55%, transparent);
+}
+.design__pager-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.design__pager-count {
+  font-family: var(--font-serif);
+  font-size: clamp(15px, 1.5vw, 19px);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.design__pager-count b {
+  font-weight: inherit;
+  color: var(--color-text-secondary);
+}
+.design__pager-count i,
+.design__pager-count em {
+  font-style: normal;
+  color: var(--color-text-muted);
+}
+.design__pager-count i {
+  margin: 0 6px;
+  opacity: 0.7;
 }
 
 .design__cat-foot {
@@ -71,21 +126,23 @@
 }
 
 /* ---- Carousel ------------------------------------------------------------ */
+/* Cards fill the inner width in even columns; the inner width is sized so the
+   columns land at ~380px (landscape) / ~320px (portrait) with a tight gap. */
 .carousel__track {
   display: grid;
-  gap: clamp(24px, 3vw, 50px);
+  gap: var(--card-gap);
 }
-/* Cards span the full content width — left/right cards sit at both ends. */
 .carousel__track--landscape {
   grid-template-columns: repeat(3, 1fr);
 }
+/* Portrait: front + reading pairs flow across the row (front1·reading1·front2·
+   reading2) so the section fills the same wide width as the ID cards above. */
 .carousel__track--portrait {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: start;
 }
 .carousel__track--portrait .carousel__slide {
-  width: min(46%, 360px);
+  display: contents;
 }
 .carousel__slide {
   display: grid;
@@ -93,58 +150,73 @@
   align-content: start;
 }
 
-.carousel__pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  margin-top: clamp(22px, 3vw, 36px);
-}
-.carousel__arrow {
+/* 학생증: a wide landscape pair over a portrait quartet. */
+.carousel--student {
   display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  color: var(--color-text-secondary);
-  transition: color var(--ease), background-color var(--ease);
+  gap: clamp(26px, 3.4vw, 48px);
 }
-.carousel__arrow:hover:not(:disabled) {
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-surface-soft) 55%, transparent);
+.carousel__row {
+  display: grid;
+  gap: var(--card-gap);
+  align-items: start;
 }
-.carousel__arrow:disabled {
-  opacity: 0.35;
-  cursor: default;
+.carousel__row--wide {
+  /* 가로 두 장은 크기를 더 줄이고(최대 360px) 간격도 좁혀 가운데로 모음. */
+  grid-template-columns: repeat(2, minmax(0, 360px));
+  justify-content: center;
+  gap: clamp(18px, 2.4vw, 36px);
 }
-.carousel__count {
-  font-family: var(--font-serif);
-  font-size: clamp(16px, 1.6vw, 20px);
-  letter-spacing: 0.14em;
-  color: var(--color-text-muted);
-}
-.carousel__count i {
-  font-style: normal;
-  margin: 0 4px;
-  opacity: 0.7;
+.carousel__row--narrow {
+  /* 세로 네 장은 크기를 줄이고(최대 220px) 남는 공간을 간격으로 벌려,
+     양 끝 카드는 전체 너비 좌우 끝에 그대로 유지. */
+  grid-template-columns: repeat(4, minmax(0, 220px));
+  justify-content: space-between;
 }
 
-@media (max-width: 1200px) {
+/* Card + colour-overlay wrapper (overlay driven by the active page). */
+.carousel__frame {
+  position: relative;
+  display: block;
+}
+.carousel__tint {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-card);
+  pointer-events: none;
+  transition: background var(--ease);
+}
+
+@media (max-width: 900px) {
+  .design__cat-inner {
+    max-width: calc(380px * 2 + var(--card-gap));
+  }
   .carousel__track--landscape {
     grid-template-columns: repeat(2, 1fr);
   }
-}
-@media (max-width: 900px) {
+  /* Pairs stack: one slot (front | reading) per row. */
   .carousel__track--portrait {
-    grid-template-columns: 1fr;
-    max-width: 340px;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .carousel__row--narrow {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
-@media (max-width: 768px) {
+@media (max-width: 620px) {
+  .design__cat-inner {
+    max-width: 420px;
+  }
   .carousel__track--landscape {
     grid-template-columns: 1fr;
-    max-width: 420px;
-    margin-inline: auto;
+  }
+  .carousel__track--portrait {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .carousel__row--wide {
+    grid-template-columns: 1fr;
+    gap: var(--card-gap);
+  }
+  .carousel__row--narrow {
+    grid-template-columns: repeat(2, 1fr);
   }
   .design__cat-foot {
     justify-content: space-between;

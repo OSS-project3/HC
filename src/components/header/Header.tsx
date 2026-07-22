@@ -10,6 +10,7 @@ import "./Header.css";
 
 export function Header() {
   const location = useLocation();
+  const isHome = location.pathname === "/";
   const { user, isAdmin, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   // Transparent at the very top; gains a backdrop once the page is scrolled so
@@ -40,7 +41,7 @@ export function Header() {
     <>
       <header className={clsx("header", scrolled && "header--scrolled")}>
         <div className="header__inner">
-        <Logo withTree size="sm" />
+        <Logo withTree={isHome} size="sm" />
 
         <nav className="header__nav" aria-label="주요 메뉴">
           {navItems.map((item) =>

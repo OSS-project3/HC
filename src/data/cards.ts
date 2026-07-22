@@ -159,8 +159,9 @@ export const studentCards = makeSeries(
     ],
   },
   [
-    { front: df(3), back: df(4) },
-    { front: db(3), back: db(4) },
+    // 디자인별로 묶음: 1번은 가로(명예시민증+이름풀이), 2번은 세로(방문증+이름풀이).
+    { front: df(3), back: db(3) }, // 이소연 — 가로 한 쌍
+    { front: df(4), back: db(4) }, // 정재이 — 세로 한 쌍
   ],
 );
 
