@@ -95,6 +95,12 @@ export function Footer() {
         </div>
 
         <p className="footer__copyright">{companyInfo.copyright}</p>
+
+        <p className="footer__font-license">
+          본 사이트는 ‘은평구’에서 2025년 작성하여 공공누리 제1유형(출처표시)으로 개방한 ‘은평사가독서체’를
+          이용하였으며, 해당 저작물은 ‘공유마당, gongu.copyright.or.kr’에서 무료로 내려받으실 수 있습니다.
+          {" "}OFL: 폰트 파일의 수정·복제·배포 및 유료 판매 모두 금지.
+        </p>
       </div>
 
       <Modal

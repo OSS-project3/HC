@@ -117,7 +117,7 @@
   align-items: center;
 }
 .footer__info i {
-  color: var(--color-border-soft);
+  color: var(--color-text-muted);
   font-style: normal;
 }
 
@@ -133,9 +133,11 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-surface-soft) 60%, #fff);
-  transition: color var(--ease), background-color var(--ease);
+  /* Outline circle in muted grey; the glyph inside in the brand brown. */
+  border: 1.5px solid var(--color-text-muted);
+  color: var(--color-wordmark);
+  background: transparent;
+  transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   overflow: hidden;
 }
 .social__default,
@@ -170,10 +172,20 @@
 }
 
 .footer__copyright {
-  color: var(--color-text-faint);
+  color: var(--color-text-muted);
   font-size: clamp(11px, 0.95vw, 13px);
   text-align: right;
   padding-top: 8px;
+}
+
+/* Font-license attribution (공공누리 제1유형 · 출처표시). Kept small and muted. */
+.footer__font-license {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-soft);
+  margin-top: 14px;
 }
 
 @media (max-width: 860px) {

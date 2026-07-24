@@ -69,8 +69,9 @@
   position: absolute;
   width: var(--tri-w);
   height: auto;
-  fill: var(--color-border-accent);
-  opacity: 0.42;
+  /* Same ink as the 세종대왕 line-art, kept very faint. */
+  fill: var(--color-sejong-ink);
+  opacity: 0.26;
   pointer-events: none;
   z-index: 0;
 }
@@ -172,14 +173,19 @@
 }
 .hero__eyebrow {
   font-family: var(--font-serif);
+  font-weight: 600;
   font-size: clamp(21px, 2.4vw, 33px);
-  color: var(--color-text-secondary);
   margin-bottom: 16px;
+  /* Outlined text: transparent fill inside, coloured stroke only. */
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px var(--color-title-accent);
+  text-stroke: 1px var(--color-title-accent);
 }
 .hero__title {
   font-family: var(--font-serif);
   font-weight: 700;
-  color: var(--color-text-title);
+  color: var(--color-title-accent);
   font-size: clamp(25px, 3.5vw, 47px);
   /* Wider spacing between the two title lines. */
   line-height: 1.42;
@@ -188,13 +194,16 @@
 }
 /* Lead + patent: identical type size; tight to each other but pushed further
    down from the title above. */
+/* Lead + patent stay on Pretendard (not the 은평사가독서체 display face). */
 .hero__lead {
   margin-top: clamp(30px, 3.4vw, 46px);
+  font-family: var(--font-sans);
   font-size: clamp(14px, 1.3vw, 18px);
   color: var(--color-text-secondary);
 }
 .hero__patent {
   margin-top: 3px;
+  font-family: var(--font-sans);
   font-size: clamp(14px, 1.3vw, 18px);
   /* Same colour as the lead line above. */
   color: var(--color-text-secondary);
@@ -221,7 +230,8 @@
   height: auto;
   display: block;
   border-radius: 8px;
-  box-shadow: var(--shadow-card);
+  /* Soft drop shadow underneath so each card reads as "floating". */
+  box-shadow: 0 20px 30px -12px rgb(74 58 38 / 30%);
   animation: card-float 6s ease-in-out infinite;
 }
 .hero__card--landscape {
@@ -261,7 +271,7 @@
   width: 100vw;
   top: clamp(30px, 3.6vw, 56px);
   bottom: clamp(30px, 3.6vw, 56px);
-  background: #ebdfce;
+  background: var(--color-background);
 }
 /* Slightly wider than .page-container (1440) so the row hugs the gutters like
    the mock-up; still centred and responsive. */
@@ -271,22 +281,22 @@
   margin-inline: auto;
 }
 .hero__zodiac-label {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
+  font-weight: 500;
   letter-spacing: 0.34em;
   text-transform: uppercase;
-  color: var(--color-brown);
-  opacity: 0.7;
+  color: var(--color-icon-accent);
   white-space: nowrap;
 }
 /* Top and bottom labels share the SAME type size. */
 .hero__zodiac-label--top {
   text-align: right;
-  font-size: clamp(15px, 1.85vw, 28px);
+  font-size: clamp(14px, 1.7vw, 26px);
   margin-bottom: clamp(6px, 1vw, 14px);
 }
 .hero__zodiac-label--bottom {
   text-align: left;
-  font-size: clamp(15px, 1.85vw, 28px);
+  font-size: clamp(14px, 1.7vw, 26px);
   margin-top: clamp(6px, 1vw, 14px);
 }
 /* Each sign occupies a fixed FRACTION of the band width, so the sign-to-gap

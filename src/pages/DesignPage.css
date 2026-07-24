@@ -161,10 +161,10 @@
   align-items: start;
 }
 .carousel__row--wide {
-  /* 가로 두 장은 크기를 더 줄이고(최대 360px) 간격도 좁혀 가운데로 모음. */
+  /* 가로 두 장은 크기를 더 줄이고(최대 360px) 두 장 사이 간격은 조금 더 넓혀 가운데로 모음. */
   grid-template-columns: repeat(2, minmax(0, 360px));
   justify-content: center;
-  gap: clamp(18px, 2.4vw, 36px);
+  gap: clamp(28px, 3.6vw, 56px);
 }
 .carousel__row--narrow {
   /* 세로 네 장은 크기를 줄이고(최대 220px) 남는 공간을 간격으로 벌려,

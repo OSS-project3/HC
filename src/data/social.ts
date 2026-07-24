@@ -11,13 +11,9 @@ export interface SocialLink {
   enabled: boolean;
 }
 
+// Display order: Facebook → Instagram → YouTube.
 export const socialLinks: SocialLink[] = [
-  {
-    type: "instagram",
-    label: "Instagram",
-    href: "https://www.instagram.com/",
-    enabled: true,
-  },
-  { type: "facebook", label: "Facebook", href: "#", enabled: false },
-  { type: "youtube", label: "YouTube", href: "#", enabled: false },
+  { type: "facebook", label: "Facebook", href: "https://www.facebook.com/", enabled: true },
+  { type: "instagram", label: "Instagram", href: "https://www.instagram.com/", enabled: true },
+  { type: "youtube", label: "YouTube", href: "https://www.youtube.com/", enabled: true },
 ];

@@ -53,3 +53,17 @@
   font-weight: 900;
   font-display: swap;
 }
+
+/* 은평사가독서체 — brand / display headings (공공누리 제1유형, 출처표시). */
+@font-face {
+  font-family: "EunpyeongSagaDokseo";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2507-1@1.0/EunpyeongSagaDogseoText-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "EunpyeongSagaDokseo";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2507-1@1.0/EunpyeongSagaDogseoTitle-Regular.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}

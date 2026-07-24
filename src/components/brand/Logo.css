@@ -38,24 +38,26 @@
   font-family: var(--font-serif);
   font-weight: 700;
   font-size: clamp(18px, 1.7vw, 23px);
-  color: #435a70;
+  color: var(--color-wordmark);
   letter-spacing: -0.01em;
 }
 .logo--sm .logo__ko {
   font-size: 18px;
 }
 
+/* HANGUL & SEJONG: same ink as the 한글 wordmark, a touch larger, and its
+   tracking is tuned so the line spans roughly the same width as the 한글 line. */
 .logo__en {
   font-family: var(--font-sans);
   font-weight: 500;
-  font-size: clamp(9px, 0.9vw, 11px);
-  letter-spacing: 0.24em;
-  color: #8a7d6d;
+  font-size: clamp(10px, 1.05vw, 13px);
+  letter-spacing: 0.3em;
+  color: var(--color-wordmark);
   margin-top: 3px;
 }
 .logo--sm .logo__en {
-  font-size: 9px;
-  letter-spacing: 0.18em;
+  font-size: 10.5px;
+  letter-spacing: 0.3em;
 }
 
 /* 이팝나무 tree (delivered art, landscape ~1.4:1). Crown rises a touch above the

@@ -77,11 +77,11 @@
   gap: clamp(10px, 1.2vw, 18px);
 }
 
-/* 로그인: compact button. */
+/* 로그인: same weight as the nav menu, a touch larger in size. */
 .header__login {
   font-family: var(--font-sans);
   font-weight: 500;
-  font-size: clamp(13px, 1vw, 15px);
+  font-size: clamp(16px, 1.2vw, 18px);
   color: var(--color-primary-foreground);
   background: var(--color-primary);
   padding: 7px 15px;
@@ -128,8 +128,9 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: clamp(13px, 1vw, 15px);
-  font-weight: 300;
+  /* A touch smaller than the nav menu, one weight step lighter (500 → 400). */
+  font-size: clamp(14px, 1.05vw, 16px);
+  font-weight: 400;
   color: var(--color-text-secondary);
 }
 .lang__caret {

@@ -503,8 +503,25 @@
   font-size: 12px;
   color: var(--color-text-muted);
 }
+/* Two sample cards sit side by side in a single row. */
+.apply-preview__row {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
 .apply-preview__card {
-  width: min(100%, 300px);
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 168px;
+}
+.apply-preview__img {
+  width: 100%;
+  height: auto;
+  display: block;
+  /* Transparent PNG — no box/shadow behind it. */
+  background: transparent;
 }
 .apply-preview__caption {
   text-align: center;

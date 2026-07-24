@@ -33,6 +33,9 @@
   /* Accents */
   --color-icon-accent: #91683f;     /* check icons, accent icons (brown) */
   --color-brown: #8a6945;
+  --color-sejong-ink: #5d4533;      /* 세종대왕 line-art ink — 건곤감리 marks */
+  --color-wordmark: #5d4533;        /* 한글과 세종 wordmark, footer 사명, SNS glyphs */
+  --color-title-accent: #8f6943;    /* 히어로 타이틀 + 아이브로 외곽선 */
 
   /* Layout */
   --page-max: 1440px;
@@ -50,9 +53,9 @@
   /* Typography — Pretendard site-wide. */
   --font-sans: "Pretendard", system-ui, -apple-system, "Apple SD Gothic Neo",
     "Malgun Gothic", sans-serif;
-  /* Display headings share the same family (kept as a token for easy future
-     swap to a serif/display face if the client provides one). */
-  --font-serif: var(--font-sans);
+  /* Display / brand headings — 은평사가독서체 calligraphy face (falls back to
+     Pretendard). Body copy stays on --font-sans. */
+  --font-serif: "EunpyeongSagaDokseo", var(--font-sans);
 
   --ease: 180ms ease;
 }
