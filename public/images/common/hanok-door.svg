@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 660">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3ead9"/>
+      <stop offset="1" stop-color="#e8dbc4"/>
+    </linearGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency=".75" numOctaves="2" seed="8"/>
+      <feColorMatrix values="0 0 0 0 .55 0 0 0 0 .43 0 0 0 0 .3 0 0 0 .055 0"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="660" fill="url(#paper)"/>
+  <rect width="1200" height="660" filter="url(#grain)" opacity=".55"/>
+  <g fill="#bc996e">
+    <rect x="0" y="0" width="1200" height="22"/>
+    <rect x="0" y="638" width="1200" height="22"/>
+    <rect x="0" y="0" width="22" height="660"/>
+    <rect x="1178" y="0" width="22" height="660"/>
+    <rect x="588" y="0" width="24" height="660"/>
+    <rect x="0" y="126" width="1200" height="12"/>
+    <rect x="0" y="258" width="1200" height="12"/>
+    <rect x="0" y="390" width="1200" height="12"/>
+    <rect x="0" y="522" width="1200" height="12"/>
+    <rect x="140" y="0" width="12" height="660"/>
+    <rect x="286" y="0" width="12" height="660"/>
+    <rect x="432" y="0" width="12" height="660"/>
+    <rect x="756" y="0" width="12" height="660"/>
+    <rect x="902" y="0" width="12" height="660"/>
+    <rect x="1048" y="0" width="12" height="660"/>
+  </g>
+  <g fill="none" stroke="#bc996e" stroke-width="8" opacity=".82">
+    <path d="M22 22 588 638M588 22 22 638"/>
+    <path d="M612 22 1178 638M1178 22 612 638"/>
+  </g>
+</svg>

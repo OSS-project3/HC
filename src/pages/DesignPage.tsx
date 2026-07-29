@@ -34,7 +34,14 @@ function DesignCategory({ cat }: { cat: CardCategory }) {
   const firstId = cat.cards[0]?.id ?? "";
 
   return (
-    <section className={clsx("design__cat page-container", `design__cat--${orientation}`)} id={cat.cardType}>
+    <section
+      className={clsx(
+        "design__cat page-container",
+        `design__cat--${orientation}`,
+        `design__cat--${cat.cardType}`,
+      )}
+      id={cat.cardType}
+    >
       {/* Inner wrapper sizes to the (reduced) card group so the title, rule and
           footer all align to the cards' left/right edges. */}
       <div className="design__cat-inner">

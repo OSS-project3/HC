@@ -5,12 +5,8 @@
 @import "./forms.css";
 
 body {
-  /*
-   * NOTE: the grid / graph-paper pattern in the mock-ups is a design-tool
-   * artefact — do NOT reproduce it. This is only a soft vertical wash that runs
-   * from the header down through the zodiac band, then settles to the flat base.
-   */
-  background: linear-gradient(180deg, var(--color-bg-top) 0, var(--color-background) 1040px) no-repeat,
+  background:
+    linear-gradient(180deg, var(--color-bg-top) 0, var(--color-background) 1040px) no-repeat,
     var(--color-background);
   color: var(--color-text-secondary);
   font-family: var(--font-sans);

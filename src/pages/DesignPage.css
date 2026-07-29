@@ -104,7 +104,7 @@
 
 .design__cat-foot {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-end;
   gap: 18px;
   margin-top: clamp(20px, 3vw, 34px);
@@ -112,6 +112,7 @@
 .design__note {
   color: var(--color-text-muted);
   font-size: 13px;
+  line-height: 1;
 }
 .design__apply-btn {
   background: var(--color-primary);
@@ -123,6 +124,7 @@
 }
 .design__apply-btn:hover {
   background: var(--color-primary-hover);
+  color: var(--color-primary-foreground);
 }
 
 /* ---- Carousel ------------------------------------------------------------ */
@@ -134,6 +136,13 @@
 }
 .carousel__track--landscape {
   grid-template-columns: repeat(3, 1fr);
+}
+/* 명예 한국인증·명예 시민증: keep the section's outer alignment while making
+   each card slightly smaller and redistributing the freed width as spacing. */
+.design__cat--honorary-korean .carousel__track--landscape,
+.design__cat--honorary-citizen .carousel__track--landscape {
+  grid-template-columns: repeat(3, minmax(0, 350px));
+  justify-content: space-between;
 }
 /* Portrait: front + reading pairs flow across the row (front1·reading1·front2·
    reading2) so the section fills the same wide width as the ID cards above. */
@@ -193,6 +202,10 @@
   .carousel__track--landscape {
     grid-template-columns: repeat(2, 1fr);
   }
+  .design__cat--honorary-korean .carousel__track--landscape,
+  .design__cat--honorary-citizen .carousel__track--landscape {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   /* Pairs stack: one slot (front | reading) per row. */
   .carousel__track--portrait {
     grid-template-columns: repeat(2, 1fr);
@@ -206,6 +219,10 @@
     max-width: 420px;
   }
   .carousel__track--landscape {
+    grid-template-columns: 1fr;
+  }
+  .design__cat--honorary-korean .carousel__track--landscape,
+  .design__cat--honorary-citizen .carousel__track--landscape {
     grid-template-columns: 1fr;
   }
   .carousel__track--portrait {
