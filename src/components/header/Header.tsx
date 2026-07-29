@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { Logo } from "../brand/Logo";
-import { mainNav, adminNavItem, supportMenu, type NavItem } from "../../config/navigation";
+import { mainNav, adminNavItem, supportMenu, designMenu, applyMenu, type NavItem } from "../../config/navigation";
 import { useAuth } from "../../features/auth/AuthContext";
 import { GlobeIcon, ChevronRight } from "../ui/icons";
 import "./Header.css";
@@ -45,7 +45,11 @@ export function Header() {
 
         <nav className="header__nav" aria-label="주요 메뉴">
           {navItems.map((item) =>
-            item.to === "/support" ? (
+            item.to === "/design" ? (
+              <DesignNavItem key={item.to} />
+            ) : item.to === "/apply" ? (
+              <ApplyNavItem key={item.to} />
+            ) : item.to === "/support" ? (
               <SupportNavItem key={item.to} />
             ) : (
               <NavLink
@@ -89,6 +93,116 @@ export function Header() {
 
       <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} navItems={navItems} />
     </>
+  );
+}
+
+function ApplyNavItem() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | undefined>(undefined);
+
+  const openNow = () => {
+    window.clearTimeout(closeTimer.current);
+    setOpen(true);
+  };
+  const closeSoon = () => {
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 260);
+  };
+
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
+  return (
+    <div
+      className="support-menu"
+      ref={ref}
+      onMouseEnter={openNow}
+      onMouseLeave={closeSoon}
+      onFocus={openNow}
+      onBlur={(e) => {
+        if (!ref.current?.contains(e.relatedTarget as Node)) closeSoon();
+      }}
+    >
+      <NavLink
+        to="/apply/honorary-korean"
+        className={() => clsx("nav-item", pathname.startsWith("/apply") && "nav-item--active")}
+        aria-haspopup="true"
+        aria-expanded={open}
+      >
+        제작 신청
+      </NavLink>
+      <div className={clsx("support-menu__panel", open && "support-menu__panel--open")} role="menu">
+        {applyMenu.map((item) => (
+          <button
+            key={item.to}
+            role="menuitem"
+            className="support-menu__item"
+            onClick={() => {
+              window.clearTimeout(closeTimer.current);
+              setOpen(false);
+              navigate(item.to);
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DesignNavItem() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | undefined>(undefined);
+
+  const openNow = () => {
+    window.clearTimeout(closeTimer.current);
+    setOpen(true);
+  };
+  const closeSoon = () => {
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 260);
+  };
+
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
+  const go = (id: string) => {
+    window.clearTimeout(closeTimer.current);
+    setOpen(false);
+    navigate(`/design#${id}`);
+  };
+
+  return (
+    <div
+      className="support-menu"
+      ref={ref}
+      onMouseEnter={openNow}
+      onMouseLeave={closeSoon}
+      onFocus={openNow}
+      onBlur={(e) => {
+        if (!ref.current?.contains(e.relatedTarget as Node)) closeSoon();
+      }}
+    >
+      <NavLink
+        to="/design"
+        className={({ isActive }) => clsx("nav-item", isActive && "nav-item--active")}
+        aria-haspopup="true"
+        aria-expanded={open}
+      >
+        디자인
+      </NavLink>
+      <div className={clsx("support-menu__panel", open && "support-menu__panel--open")} role="menu">
+        {designMenu.map((item) => (
+          <button key={item.id} role="menuitem" className="support-menu__item" onClick={() => go(item.id)}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -195,6 +309,8 @@ function MobileDrawer({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [supportOpen, setSupportOpen] = useState(false);
+  const [designOpen, setDesignOpen] = useState(false);
+  const [applyOpen, setApplyOpen] = useState(false);
 
   return (
     <div className={clsx("drawer", open && "drawer--open")} aria-hidden={!open}>
@@ -202,7 +318,57 @@ function MobileDrawer({
       <div className="drawer__panel">
         <nav aria-label="모바일 메뉴">
           {navItems.map((item) =>
-            item.to === "/support" ? (
+            item.to === "/design" ? (
+              <div key="design" className="drawer__group">
+                <button className="drawer__link drawer__accordion" onClick={() => setDesignOpen((v) => !v)}>
+                  디자인
+                  <span className={clsx("drawer__chev", designOpen && "drawer__chev--open")}>
+                    <ChevronRight width={16} height={16} />
+                  </span>
+                </button>
+                {designOpen && (
+                  <div className="drawer__sub">
+                    {designMenu.map((s) => (
+                      <button
+                        key={s.id}
+                        className="drawer__sublink"
+                        onClick={() => {
+                          onClose();
+                          navigate(`/design#${s.id}`);
+                        }}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : item.to === "/apply" ? (
+              <div key="apply" className="drawer__group">
+                <button className="drawer__link drawer__accordion" onClick={() => setApplyOpen((v) => !v)}>
+                  제작 신청
+                  <span className={clsx("drawer__chev", applyOpen && "drawer__chev--open")}>
+                    <ChevronRight width={16} height={16} />
+                  </span>
+                </button>
+                {applyOpen && (
+                  <div className="drawer__sub">
+                    {applyMenu.map((s) => (
+                      <button
+                        key={s.to}
+                        className="drawer__sublink"
+                        onClick={() => {
+                          onClose();
+                          navigate(s.to);
+                        }}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : item.to === "/support" ? (
               <div key="support" className="drawer__group">
                 <button className="drawer__link drawer__accordion" onClick={() => setSupportOpen((v) => !v)}>
                   고객지원

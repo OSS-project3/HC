@@ -2,7 +2,7 @@
 .apply {
   /* Grow naturally with content; keep footer from riding up on short steps. */
   min-height: calc(100vh - var(--header-height));
-  padding-block: clamp(32px, 5vw, 64px);
+  padding-bottom: clamp(32px, 5vw, 64px);
 }
 .apply__inner {
   display: grid;
@@ -11,11 +11,7 @@
   align-items: start;
 }
 .apply__title {
-  font-family: var(--font-serif);
-  font-weight: 700;
-  color: var(--color-text-title);
-  font-size: clamp(26px, 3.4vw, 42px);
-  margin-bottom: clamp(24px, 3vw, 38px);
+  margin: 10px 0 8px;
 }
 
 /* ---- Stepper ------------------------------------------------------------- */
@@ -200,11 +196,58 @@
   align-items: end;
   margin-bottom: 30px;
 }
+.form-block {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
 .form-block__legend {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--color-text-secondary);
-  margin-bottom: 12px;
+  margin-bottom: 18px;
+}
+.form-block .radio-row {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+}
+.form-block .radio {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 9px;
+  font-size: 16px;
+}
+.form-block .radio input {
+  appearance: none;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.form-block .radio input::before {
+  content: "";
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid var(--color-text-secondary);
+}
+.form-block .radio input:checked::after {
+  content: "✓";
+  position: absolute;
+  left: 3px;
+  bottom: 0;
+  color: var(--color-primary);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
 }
 .field--quantity .field__with-suffix {
   display: flex;
@@ -233,8 +276,48 @@
 }
 .info-col__title {
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: var(--color-wordmark);
   font-size: 16px;
+}
+.apply .field__label,
+.apply .form-block__legend {
+  color: var(--color-wordmark);
+}
+.apply .field__label .req,
+.apply .req {
+  color: var(--color-primary);
+}
+.apply .field__input,
+.apply .field__select,
+.apply .field__textarea {
+  padding: 8px 12px;
+  color: var(--color-text-secondary);
+}
+.apply .field__input::placeholder,
+.apply .field__textarea::placeholder {
+  color: var(--color-text-muted);
+}
+.apply .field__input:focus,
+.apply .field__select:focus,
+.apply .field__textarea:focus {
+  border-color: var(--color-border-accent);
+}
+.info-col__notice {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  padding-left: 12px;
+  position: relative;
+}
+.info-col__notice::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--color-border-accent);
+}
+.birth-time-check {
+  margin-top: -2px;
+  font-size: 13px;
 }
 .info-col__head {
   display: flex;

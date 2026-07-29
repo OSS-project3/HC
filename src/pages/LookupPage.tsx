@@ -3,8 +3,6 @@ import { useState } from "react";
 import { Button } from "../components/ui/Button";
 import "./LookupPage.css";
 
-type Method = "card" | "application";
-
 /** Normalise a phone number to digits only, matching the DB storage rule. */
 function normalizePhone(phone: string) {
   return phone.replace(/\D/g, "");
@@ -26,16 +24,15 @@ const statusLabels: Record<string, string> = {
 };
 
 export function LookupPage() {
-  const [method, setMethod] = useState<Method>("card");
-  const [keyValue, setKeyValue] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [result, setResult] = useState<LookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!keyValue.trim() || normalizePhone(phone).length < 9) {
+    if (normalizePhone(phone).length < 9 || !email.trim().includes("@")) {
       setError("조회 정보를 정확히 입력해 주세요.");
       setResult(null);
       return;
@@ -53,50 +50,18 @@ export function LookupPage() {
 
   return (
     <section className="lookup page-container">
-      <p className="eyebrow">조회</p>
-      <h1 className="lookup__title">신청 조회</h1>
-      <p className="section-lead">
-        개인정보 보호를 위해 <strong>번호와 연락처를 함께</strong> 입력해야 조회할 수 있습니다.
-      </p>
+      <header className="subpage-hero lookup__hero">
+        <p className="eyebrow">조회</p>
+        <h1 className="subpage-hero__title">신청 조회</h1>
+        <p className="section-lead">
+          입력하신 <strong>전화번호와 이메일</strong>로 신청 내역을 조회할 수 있습니다.
+        </p>
+      </header>
 
       <form className="lookup__form" onSubmit={submit}>
-        <div className="lookup__methods" role="radiogroup" aria-label="조회 기준">
-          <label className="radio">
-            <input
-              type="radio"
-              name="method"
-              checked={method === "card"}
-              onChange={() => setMethod("card")}
-            />
-            카드번호로 조회
-          </label>
-          <label className="radio">
-            <input
-              type="radio"
-              name="method"
-              checked={method === "application"}
-              onChange={() => setMethod("application")}
-            />
-            신청번호로 조회
-          </label>
-        </div>
-
         <label className="field">
           <span className="field__label">
-            {method === "card" ? "카드번호" : "신청번호"}
-            <span className="req">*</span>
-          </span>
-          <input
-            className="field__input"
-            value={keyValue}
-            onChange={(e) => setKeyValue(e.target.value)}
-            placeholder={method === "card" ? "HN-KR-2609-1188" : "APP-2026-000123"}
-          />
-        </label>
-
-        <label className="field">
-          <span className="field__label">
-            연락처<span className="req">*</span>
+            전화번호<span className="req">*</span>
           </span>
           <input
             className="field__input"
@@ -107,13 +72,26 @@ export function LookupPage() {
           />
         </label>
 
+        <label className="field">
+          <span className="field__label">
+            이메일<span className="req">*</span>
+          </span>
+          <input
+            className="field__input"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="hong@example.com"
+          />
+        </label>
+
         {error && <p className="field-error">{error}</p>}
 
         <Button type="submit" block>
           조회하기
         </Button>
         <p className="lookup__note">
-          전화번호 단독 조회는 지원하지 않습니다. 조회가 반복 실패하면 잠시 후 다시 시도해 주세요.
+          전화번호와 이메일이 신청 정보와 모두 일치해야 조회할 수 있습니다.
         </p>
       </form>
 

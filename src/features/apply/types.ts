@@ -6,6 +6,13 @@ export type IssuanceMethod = "mobile" | "mobile_and_physical";
 
 export interface ApplicantInfo {
   name: string;
+  englishName?: string;
+  nationality?: string;
+  birthPlace?: string;
+  birthDate?: string;
+  birthTime?: string;
+  birthTimeUnknown?: boolean;
+  gender?: "male" | "female" | "";
   organizationName?: string;
   department?: string;
   phone: string;
@@ -45,6 +52,7 @@ export interface ApplicationDraft {
   logoFile?: UploadFileInfo;
   sealFile?: UploadFileInfo;
   archiveFile?: UploadFileInfo;
+  faceFile?: UploadFileInfo;
 
   consultationConfirmed: boolean;
   depositorName: string;
@@ -52,6 +60,13 @@ export interface ApplicationDraft {
 
 export const emptyApplicant: ApplicantInfo = {
   name: "",
+  englishName: "",
+  nationality: "",
+  birthPlace: "",
+  birthDate: "",
+  birthTime: "",
+  birthTimeUnknown: false,
+  gender: "",
   organizationName: "",
   department: "",
   phone: "",

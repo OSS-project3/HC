@@ -1,8 +1,8 @@
 // Application page: orchestrates the multi-step create flow.
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";
-import { findCardDesign, honoraryKoreanCards, cardTypeLabels } from "../../data/cards";
+import { findCardDesign, honoraryKoreanCards, visitorCards, cardTypeLabels } from "../../data/cards";
 import { Stepper } from "../../components/apply/Stepper";
 import { CardPreviewPanel } from "../../components/apply/CardPreviewPanel";
 import { StepType } from "../../components/apply/steps/StepType";
@@ -14,11 +14,22 @@ import "./apply.css";
 
 export function ApplyPage() {
   const [params] = useSearchParams();
-  const designId = params.get("designId");
+  const { pathname } = useLocation();
+  const routeDesignId = pathname.endsWith("/visitor")
+    ? visitorCards[0]?.id
+    : pathname.endsWith("/honorary-korean")
+      ? honoraryKoreanCards[0]?.id
+      : undefined;
+  const designId = params.get("designId") ?? routeDesignId;
   const { draft, update, clear } = useApplicationDraft();
 
   const [step, setStep] = useState(0);
   const [applicationNumber, setApplicationNumber] = useState("");
+
+  useEffect(() => {
+    setStep(0);
+    setApplicationNumber("");
+  }, [pathname]);
 
   // The selected design is carried through the URL so it survives refresh.
   const design = useMemo(() => findCardDesign(designId) ?? honoraryKoreanCards[0], [designId]);
@@ -51,9 +62,12 @@ export function ApplyPage() {
 
   return (
     <div className="apply">
+      <header className="apply__page-head subpage-hero page-container">
+        <p className="eyebrow">제작 신청</p>
+        <h1 className="apply__title subpage-hero__title">{title}</h1>
+      </header>
       <div className="apply__inner page-container">
         <div className="apply__main">
-          <h1 className="apply__title">{title}</h1>
           <Stepper current={step} />
 
           <div className="apply__step">

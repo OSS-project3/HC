@@ -53,6 +53,27 @@ body {
   line-height: 1.7;
 }
 
+/* Shared top treatment for every routed subpage. */
+.subpage-hero {
+  padding-block: clamp(40px, 6vw, 76px) clamp(20px, 3vw, 36px);
+  text-align: left;
+}
+.subpage-hero .eyebrow {
+  justify-content: flex-start;
+}
+.subpage-hero .section-lead {
+  max-width: 720px;
+  margin-right: auto;
+}
+.subpage-hero__title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--color-text-title);
+  font-size: clamp(26px, 3.2vw, 38px);
+  line-height: 1.25;
+  margin: 10px 0 8px;
+}
+
 /* ---- Motion preferences -------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -14,9 +14,11 @@ interface StubPageProps {
 export function StubPage({ title, note }: StubPageProps) {
   return (
     <section className="stub page-container">
-      <p className="eyebrow">HANGUL &amp; SEJONG</p>
-      <h1 className="stub__title">{title}</h1>
-      <p className="stub__note">{note}</p>
+      <header className="subpage-hero">
+        <p className="eyebrow">HANGUL &amp; SEJONG</p>
+        <h1 className="stub__title subpage-hero__title">{title}</h1>
+        <p className="stub__note">{note}</p>
+      </header>
       <div className="stub__frame" aria-hidden="true">
         준비 중
       </div>

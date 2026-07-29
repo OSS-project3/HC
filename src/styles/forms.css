@@ -29,7 +29,7 @@
 /* Placeholder / example text before input */
 .field__input::placeholder,
 .field__textarea::placeholder {
-  color: #90767d;
+  color: var(--color-text-muted);
 }
 /* Focused field: brown accent border (#BC996E) */
 .field__input:focus,
