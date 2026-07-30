@@ -11,8 +11,8 @@ interface StepInfoProps {
 }
 
 export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
-  const isOrg = draft.applicantType === "organization";
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
+  const isVisitor = draft.cardType === "visitor";
 
   const setApplicant = (patch: Partial<ApplicantInfo>) =>
     update({ applicant: { ...draft.applicant, ...patch } });
@@ -36,7 +36,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
       // Copy applicant → recipient (only the shared identity fields).
       setRecipient({
         sameAsApplicant: true,
-        name: draft.applicant.name,
+        name: isVisitor ? draft.applicant.englishName ?? "" : draft.applicant.name,
         phone: draft.applicant.phone,
         organizationName: draft.applicant.organizationName,
         department: draft.applicant.department,
@@ -94,63 +94,150 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
         {/* Applicant */}
         <section className="info-col">
           <h3 className="info-col__title">신청인 정보</h3>
-          <div className="field">
-            <span className="field__label">
-              이름<span className="req">*</span>
-            </span>
-            <input
-              className="field__input"
-              value={draft.applicant.name}
-              onChange={(e) => setApplicant({ name: e.target.value })}
-              placeholder="홍 길 동"
-            />
-          </div>
-          {isOrg && (
-            <div className="field-row">
+          {isVisitor ? (
+            <>
               <label className="field">
                 <span className="field__label">
-                  법인 단체명<span className="req">*</span>
+                  영문 이름<span className="req">*</span>
                 </span>
                 <input
                   className="field__input"
-                  value={draft.applicant.organizationName ?? ""}
-                  onChange={(e) => setApplicant({ organizationName: e.target.value })}
+                  value={draft.applicant.englishName ?? ""}
+                  onChange={(e) => setApplicant({ englishName: e.target.value })}
+                  placeholder="HONG GIL DONG"
+                />
+              </label>
+              <div className="field-row">
+                <label className="field">
+                  <span className="field__label">
+                    국적<span className="req">*</span>
+                  </span>
+                  <input
+                    className="field__input"
+                    value={draft.applicant.nationality ?? ""}
+                    onChange={(e) => setApplicant({ nationality: e.target.value })}
+                    placeholder="대한민국"
+                  />
+                </label>
+                <label className="field">
+                  <span className="field__label">
+                    출생지역<span className="req">*</span>
+                  </span>
+                  <input
+                    className="field__input"
+                    value={draft.applicant.birthPlace ?? ""}
+                    onChange={(e) => setApplicant({ birthPlace: e.target.value })}
+                    placeholder="서울"
+                  />
+                </label>
+              </div>
+              <div className="field-row">
+                <label className="field">
+                  <span className="field__label">
+                    생년월일<span className="req">*</span>
+                  </span>
+                  <input
+                    className="field__input"
+                    type="date"
+                    value={draft.applicant.birthDate ?? ""}
+                    onChange={(e) => setApplicant({ birthDate: e.target.value })}
+                  />
+                </label>
+                <div className="field">
+                  <span className="field__label">출생시간</span>
+                  <input
+                    className="field__input"
+                    type="time"
+                    value={draft.applicant.birthTime ?? ""}
+                    disabled={draft.applicant.birthTimeUnknown}
+                    onChange={(e) => setApplicant({ birthTime: e.target.value })}
+                  />
+                  <label className="check birth-time-check">
+                    <input
+                      type="checkbox"
+                      checked={draft.applicant.birthTimeUnknown ?? false}
+                      onChange={(e) =>
+                        setApplicant({
+                          birthTimeUnknown: e.target.checked,
+                          birthTime: e.target.checked ? "" : draft.applicant.birthTime,
+                        })
+                      }
+                    />
+                    <span>출생시간을 모릅니다</span>
+                  </label>
+                </div>
+              </div>
+              <label className="field">
+                <span className="field__label">
+                  성별<span className="req">*</span>
+                </span>
+                <select
+                  className="field__select"
+                  value={draft.applicant.gender ?? ""}
+                  onChange={(e) =>
+                    setApplicant({ gender: e.target.value as "male" | "female" | "" })
+                  }
+                >
+                  <option value="">성별을 선택해 주세요</option>
+                  <option value="male">남성</option>
+                  <option value="female">여성</option>
+                </select>
+              </label>
+              <label className="field">
+                <span className="field__label">
+                  전화번호<span className="req">*</span>
+                </span>
+                <input
+                  className="field__input"
+                  inputMode="tel"
+                  value={draft.applicant.phone}
+                  onChange={(e) => setApplicant({ phone: e.target.value })}
+                  placeholder="010-1234-5678"
+                />
+              </label>
+            </>
+          ) : (
+            <>
+              <div className="field">
+                <span className="field__label">
+                  이름<span className="req">*</span>
+                </span>
+                <input
+                  className="field__input"
+                  value={draft.applicant.name}
+                  onChange={(e) => setApplicant({ name: e.target.value })}
+                  placeholder="홍 길 동"
+                />
+              </div>
+              <label className="field">
+                <span className="field__label">
+                  연락처<span className="req">*</span>
+                </span>
+                <input
+                  className="field__input"
+                  inputMode="tel"
+                  value={draft.applicant.phone}
+                  onChange={(e) => setApplicant({ phone: e.target.value })}
+                  placeholder="010-1234-5678"
                 />
               </label>
               <label className="field">
-                <span className="field__label">부서명</span>
+                <span className="field__label">
+                  이메일<span className="req">*</span>
+                </span>
                 <input
                   className="field__input"
-                  value={draft.applicant.department ?? ""}
-                  onChange={(e) => setApplicant({ department: e.target.value })}
+                  type="email"
+                  value={draft.applicant.email}
+                  onChange={(e) => setApplicant({ email: e.target.value })}
+                  placeholder="hong@example.com"
                 />
               </label>
-            </div>
+              <p className="info-col__notice">
+                입력하신 연락처와 이메일로 발급된 모바일 카드를 조회할 수 있습니다.
+              </p>
+            </>
           )}
-          <label className="field">
-            <span className="field__label">
-              연락처<span className="req">*</span>
-            </span>
-            <input
-              className="field__input"
-              inputMode="tel"
-              value={draft.applicant.phone}
-              onChange={(e) => setApplicant({ phone: e.target.value })}
-              placeholder="010-1234-5678"
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">
-              이메일<span className="req">*</span>
-            </span>
-            <input
-              className="field__input"
-              type="email"
-              value={draft.applicant.email}
-              onChange={(e) => setApplicant({ email: e.target.value })}
-              placeholder="hong@example.com"
-            />
-          </label>
         </section>
 
         {/* Recipient — only for physical issuance. */}
@@ -177,25 +264,6 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                 onChange={(e) => setRecipient({ name: e.target.value })}
               />
             </label>
-            <div className="field-row">
-              <label className="field">
-                {/* Optional per the client — never required. */}
-                <span className="field__label">법인 단체명</span>
-                <input
-                  className="field__input"
-                  value={draft.recipient.organizationName ?? ""}
-                  onChange={(e) => setRecipient({ organizationName: e.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span className="field__label">부서명</span>
-                <input
-                  className="field__input"
-                  value={draft.recipient.department ?? ""}
-                  onChange={(e) => setRecipient({ department: e.target.value })}
-                />
-              </label>
-            </div>
             <label className="field">
               <span className="field__label">
                 연락처<span className="req">*</span>

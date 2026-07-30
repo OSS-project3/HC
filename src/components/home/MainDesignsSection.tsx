@@ -1,6 +1,5 @@
 // Home '주요 디자인' section: card previews with per-type 신청 buttons.
 import { Link } from "react-router-dom";
-import { ArrowUpRight } from "../ui/icons";
 
 // Temporary preview card images (public/images/cards/).
 const SEC2_LANDSCAPE = "/images/cards/main%20sec2%20ex1.png";
@@ -17,9 +16,7 @@ export function MainDesignsSection() {
         <h2 className="main-designs__title">주요 디자인</h2>
         <Link className="main-designs__all" to="/design">
           전체 보기
-          <span className="main-designs__arrow" aria-hidden="true">
-            <ArrowUpRight width={16} height={16} />
-          </span>
+          <span className="main-designs__arrow" aria-hidden="true">-&gt;</span>
         </Link>
       </div>
 

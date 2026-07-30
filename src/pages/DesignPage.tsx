@@ -1,6 +1,6 @@
 // Design page: full card-design gallery by type.
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { cardCategories, type CardCategory } from "../data/cards";
 import { CardCarousel } from "../components/gallery/CardCarousel";
@@ -10,9 +10,20 @@ import "./DesignPage.css";
 const TOTAL_PAGES = 5;
 
 export function DesignPage() {
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    const id = hash.slice(1);
+    if (!id) return;
+    requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [hash]);
+
   return (
     <div className="design">
-      <header className="design__hero page-container">
+      <header className="design__hero subpage-hero page-container">
+        <p className="eyebrow">디자인</p>
         <h1 className="design__title">카드 디자인</h1>
         <p className="section-lead design__lead">한국의 결을 따라 전통과 현재를 담다</p>
         <div className="design__lead-line" />
@@ -34,7 +45,14 @@ function DesignCategory({ cat }: { cat: CardCategory }) {
   const firstId = cat.cards[0]?.id ?? "";
 
   return (
-    <section className={clsx("design__cat page-container", `design__cat--${orientation}`)} id={cat.cardType}>
+    <section
+      className={clsx(
+        "design__cat page-container",
+        `design__cat--${orientation}`,
+        `design__cat--${cat.cardType}`,
+      )}
+      id={cat.cardType}
+    >
       {/* Inner wrapper sizes to the (reduced) card group so the title, rule and
           footer all align to the cards' left/right edges. */}
       <div className="design__cat-inner">

@@ -17,6 +17,7 @@ const dash = "—";
 
 export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepReviewProps) {
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
+  const isVisitor = draft.cardType === "visitor";
   const issuanceLabel = isPhysical ? "모바일 + 실물 발급" : "모바일 발급";
   const typeLabel = draft.applicantType === "organization" ? "법인 단체 신청" : "개인 신청";
   const cardLabel = design ? cardTypeLabels[design.cardType] : draft.cardType ? cardTypeLabels[draft.cardType] : dash;
@@ -35,13 +36,27 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
       </ReviewSection>
 
       <ReviewSection title="신청인 정보" onEdit={() => onEdit(1)}>
-        <Item label="이름" value={draft.applicant.name || dash} />
-        <Item label="연락처" value={draft.applicant.phone || dash} />
-        <Item label="이메일" value={draft.applicant.email || dash} />
-        {draft.applicantType === "organization" && (
+        {isVisitor ? (
           <>
-            <Item label="법인 단체명" value={draft.applicant.organizationName || dash} />
-            <Item label="부서명" value={draft.applicant.department || dash} />
+            <Item label="영문 이름" value={draft.applicant.englishName || dash} />
+            <Item label="국적" value={draft.applicant.nationality || dash} />
+            <Item label="출생지역" value={draft.applicant.birthPlace || dash} />
+            <Item label="생년월일" value={draft.applicant.birthDate || dash} />
+            <Item
+              label="출생시간"
+              value={draft.applicant.birthTimeUnknown ? "모름" : draft.applicant.birthTime || dash}
+            />
+            <Item
+              label="성별"
+              value={draft.applicant.gender === "male" ? "남성" : draft.applicant.gender === "female" ? "여성" : dash}
+            />
+            <Item label="전화번호" value={draft.applicant.phone || dash} />
+          </>
+        ) : (
+          <>
+            <Item label="이름" value={draft.applicant.name || dash} />
+            <Item label="연락처" value={draft.applicant.phone || dash} />
+            <Item label="이메일" value={draft.applicant.email || dash} />
           </>
         )}
       </ReviewSection>
@@ -63,9 +78,15 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
       )}
 
       <ReviewSection title="등록한 이미지 / 파일" onEdit={() => onEdit(2)}>
-        <FileItem label="로고 이미지" name={draft.logoFile?.name} preview={draft.logoFile?.previewUrl} />
-        <FileItem label="직인 이미지" name={draft.sealFile?.name} preview={draft.sealFile?.previewUrl} />
-        <FileItem label="제출 파일" name={draft.archiveFile?.name} />
+        {isVisitor ? (
+          <FileItem label="본인 얼굴 사진" name={draft.faceFile?.name} preview={draft.faceFile?.previewUrl} />
+        ) : (
+          <>
+            <FileItem label="로고 이미지" name={draft.logoFile?.name} preview={draft.logoFile?.previewUrl} />
+            <FileItem label="직인 이미지" name={draft.sealFile?.name} preview={draft.sealFile?.previewUrl} />
+            <FileItem label="제출 파일" name={draft.archiveFile?.name} />
+          </>
+        )}
       </ReviewSection>
 
       <div className="step__actions">

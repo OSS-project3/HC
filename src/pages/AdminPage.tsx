@@ -21,9 +21,9 @@ export function AdminPage() {
 
   return (
     <section className="admin page-container">
-      <header className="admin__head">
+      <header className="admin__head subpage-hero">
         <p className="eyebrow">관리</p>
-        <h1 className="admin__title">신청 관리</h1>
+        <h1 className="admin__title subpage-hero__title">신청 관리</h1>
         <p className="section-lead">제작 신청 현황을 확인하고 상태를 관리합니다. (데모 데이터)</p>
       </header>
 

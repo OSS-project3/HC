@@ -40,3 +40,17 @@ export const supportMenu: SupportMenuItem[] = [
   { label: "제작 이야기", id: "story" },
   { label: "상담 문의", id: "contact" },
 ];
+
+/** Card-category anchors shown below the 디자인 header item. */
+export const designMenu: SupportMenuItem[] = [
+  { label: "명예한국인증", id: "honorary-korean" },
+  { label: "명예시민증", id: "honorary-citizen" },
+  { label: "학생증", id: "student" },
+  { label: "방문증", id: "visitor" },
+];
+
+/** Separate application flows sharing the same visual shell. */
+export const applyMenu: NavItem[] = [
+  { label: "명예한국인증", to: "/apply/honorary-korean" },
+  { label: "방문증", to: "/apply/visitor" },
+];

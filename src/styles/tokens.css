@@ -7,9 +7,10 @@
  */
 :root {
   /* Surfaces */
-  --color-background: #f2e9df;      /* page background, contact section base */
+  --color-background: #f5f1ea;      /* flat page background */
   --color-bg-top: #f8f3ec;          /* lighter top of the header→zodiac gradient */
   --color-surface: #f5f1ea;         /* card / panel surface */
+  --color-warm-beige: #f2e9df;      /* explicitly beige sections / controls */
   --color-surface-soft: #e5d8cd;    /* soft card bg, dividers, inactive */
   --color-surface-cream: #f0e9e0;   /* lightest cream */
   --color-surface-beige: #e3d9ce;   /* secondary beige */
@@ -24,11 +25,14 @@
   --color-text-secondary: #4d453e;  /* sub-headings, footer menu */
   --color-text-muted: #90867d;      /* body copy, page numbers, inactive */
   --color-text-faint: #8e877e;      /* faintest grey */
+  --color-text-subtitle: #8e837b;   /* home-section supporting copy */
 
   /* Brand navy */
   --color-primary: #263d5b;         /* buttons, links, active menu */
   --color-primary-hover: #324a66;   /* button / dropdown hover */
   --color-primary-foreground: #f7f0e9; /* text on navy (cream) */
+  --color-button-navy: #2b3c59;     /* main-design action buttons */
+  --color-button-navy-hover: #263d58;
 
   /* Accents */
   --color-icon-accent: #91683f;     /* check icons, accent icons (brown) */

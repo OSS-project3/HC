@@ -25,7 +25,7 @@ export function useApplicationDraft() {
   useEffect(() => {
     try {
       // Strip non-serialisable preview URLs before persisting.
-      const { logoFile, sealFile, archiveFile, ...rest } = draft;
+      const { logoFile, sealFile, archiveFile, faceFile, ...rest } = draft;
       sessionStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -33,6 +33,7 @@ export function useApplicationDraft() {
           logoFile: logoFile ? { name: logoFile.name, size: logoFile.size } : undefined,
           sealFile: sealFile ? { name: sealFile.name, size: sealFile.size } : undefined,
           archiveFile: archiveFile ? { name: archiveFile.name, size: archiveFile.size } : undefined,
+          faceFile: faceFile ? { name: faceFile.name, size: faceFile.size } : undefined,
         }),
       );
     } catch {
