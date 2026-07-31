@@ -10,7 +10,7 @@
 
 ### 목적
 기존 백엔드(`backend/honor-citizen`)에 이미 구현되어 있던 OAuth/JWT 인프라를 실제로 검증하고,
-새로 확정된 설계(`DB.md`/`API-명세.md`)에 맞춰 User 도메인 CRUD(조회/수정/탈퇴)를 신규 구현했다.
+새로 확정된 설계(`DB.md`/`docs/api/README.md`)에 맞춰 User 도메인 CRUD(조회/수정/탈퇴)를 신규 구현했다.
 
 ### 테스트 환경
 | 항목 | 값 |
@@ -379,4 +379,4 @@ DB (처리 후):
 
 **알려진 out-of-scope 이슈**: `ApplicationControllerTest`의 기존 테스트 6개는 옛 "사주" 도메인 잔재로 인해 여전히 실패 중 — Application 도메인 재설계·재구현 시 같이 정리 예정.
 
-**다음 단계**: `DB.md`/`API-명세.md` 기준 Application 도메인(개인/단체 신청, 카드 1장=1명 원칙) 백엔드 구현.
+**다음 단계**: `docs/specs/application/requirements.md`/`data-model.md`/`api.md` 기준 Application 도메인(개인/단체 신청, 카드 1장=1명 원칙) 백엔드 구현.
