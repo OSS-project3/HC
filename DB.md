@@ -39,11 +39,31 @@
 | provider_id | VARCHAR(255) | UNIQUE, NOT NULL | OAuth ID |
 | role | ENUM | NOT NULL | USER, ADMIN |
 | name | VARCHAR(100) | NOT NULL | 이름 |
-| phone | VARCHAR(20) | NULL | ✅ 2026-07-29 정정: NOT NULL → **NULL 허용으로 변경.** OAuth(Google/Naver)는 전화번호를 제공하지 않고, 실제 연락처는 신청 시점마다 `Applicant.phone`에서 받으므로 계정 가입 단계에서 강제할 필요 없음 (API-명세.md User 도메인 검토 중 확정) |
+| phone | VARCHAR(20) | NULL | ✅ 2026-07-31 정정: 기존 코드(`User.java`)엔 이 컬럼 자체가 없었음 — "NOT NULL 제약을 완화"한 게 아니라 **새로 추가하는 컬럼**임(표현 정정). OAuth(Google/Naver)는 전화번호를 제공하지 않고, 실제 연락처는 신청 시점마다 `Applicant.phone`에서 받으므로 계정 가입 단계에서 강제할 필요 없음 |
 | address | VARCHAR(255) | NULL | 주소 |
+| terms_agreed | BOOLEAN | NOT NULL DEFAULT FALSE | ✅ 2026-07-31 신규 확정: 약관동의 여부. **기존 코드에 이미 있던 개념 — 유지하기로 확정.** 신규 가입 시 `/terms`로 리다이렉트되어 동의받는 흐름 그대로 유지 |
+| privacy_agreed | BOOLEAN | NOT NULL DEFAULT FALSE | 개인정보 처리 동의 |
+| image_upload_agreed | BOOLEAN | NOT NULL DEFAULT FALSE | 이미지 업로드 동의 |
+| shipping_agreed | BOOLEAN | NOT NULL DEFAULT FALSE | 배송 안내 동의 |
+| terms_agreed_at | DATETIME | NULL | 약관 동의 일시 |
 | created_at | DATETIME | NOT NULL | 가입일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
 | last_login_at | DATETIME | NULL | 마지막 로그인 |
+| status | ENUM | NOT NULL DEFAULT ACTIVE | ✅ 2026-07-31 신규 확정: `ACTIVE`, `WITHDRAWN`. 회원탈퇴(소프트) 처리 시 `WITHDRAWN`으로 전환 |
+| withdrawal_requested_at | DATETIME | NULL | ✅ 2026-07-31 신규 확정: 탈퇴(소프트 삭제) 요청 시각 — 유예기간(7일) 계산 기준 |
+| anonymized_at | DATETIME | NULL | ✅ 2026-07-31 신규 확정: 완전탈퇴(익명화) 처리 시각. NULL이면 아직 유예기간 내(복구 가능), 값이 있으면 되돌릴 수 없음 |
+
+> ✅ 2026-07-31 확정(회원탈퇴 정책): **소프트 삭제 → 완전탈퇴 2단계 유예기간 방식.** 사용자 액션은 "탈퇴하기" 하나뿐.
+> ```
+> 사용자가 탈퇴 요청
+>    ↓
+> status=WITHDRAWN, withdrawal_requested_at=NOW (소프트 삭제) + 세션 즉시 무효화
+>    │  (유예기간 7일 이내 재로그인 시 자동 복구: status=ACTIVE, withdrawal_requested_at=NULL)
+>    ▼ (7일 경과, 재로그인 없음)
+> 스케줄러가 email/name/oauth_id/oauth_provider(+phone/address) 스크램블 처리, anonymized_at=NOW
+> ```
+> - **완전탈퇴 시 `User` row 자체는 삭제하지 않고 PII만 익명화** — `Application`/`Payment` 등 연관 이력은 `user_id` FK 그대로 보존(운영/법적 목적). 신청 이력이 있어도 탈퇴 자체는 항상 허용.
+> - `oauth_id`/`oauth_provider`도 스크램블 대상이라, 완전탈퇴 이후 같은 구글/네이버 계정으로 재로그인하면 이 row가 복구되는 게 아니라 **새 User row가 생성**됨(의도된 동작 — 계정 연결고리를 끊는 게 "완전"탈퇴의 의미).
 
 ---
 
@@ -56,7 +76,7 @@
 | id | BIGINT | PK | 신청 ID |
 | application_number | VARCHAR(20) | NOT NULL, UNIQUE | ✅ 2026-07-25 확인: 서버 생성 신청번호(예: `APP-2026-XXXXXX`). 사용자가 신청 조회·고객센터 문의 시 사용하는 식별자 |
 | user_id | BIGINT | FK → User | 신청한 회원 |
-| card_type_id | BIGINT | FK → CardType | 카드 종류 |
+| card_type_id | BIGINT | FK → CardType, NOT NULL | 카드 종류. ✅ 2026-07-31 명시: **신청 생성 API에서 사용자가 직접 선택해서 보내는 값**(4종 중 1개) — `card_design_id`가 사용자 입력에서 빠지면서, 이 컬럼이 신청 생성 요청에 실리는 유일한 "카드 관련" 식별자가 됨 |
 | application_type | ENUM | NOT NULL | INDIVIDUAL, GROUP |
 | status | ENUM | NOT NULL | ✅ 2026-07-31 재정정: `PAYMENT_PENDING, RECEIVED, REVIEWING, PHOTO_REJECTED, NAME_EDITING, PRODUCING, COMPLETED, CANCELLED` — 사진 승인과 작명 완료는 별개 문제라 `NAME_EDITING` 상태 신규 추가 (Admin 도메인 설계 중 확정, 아래 참고) |
 | payment_status | ENUM | NOT NULL | WAITING, CONFIRMED |
@@ -64,9 +84,9 @@
 | total_quantity | INT | NOT NULL | 신청 인원 수 |
 | total_price | DECIMAL(10,2) | NOT NULL | 총 결제 금액 |
 | issue_type | ENUM | NOT NULL | MOBILE, MOBILE_AND_PHYSICAL — ✅ 2026-07-25 확인: Application 테이블에 반드시 있어야 함 (누락이었음) |
-| card_design_id | BIGINT | FK → CardDesign | ✅ 2026-07-25 확인: Application 컬럼으로 확정. 신청 1건당 디자인 1개 선택 |
-| logo_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 업로드한 로고 |
-| seal_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 업로드한 직인 |
+| card_design_id | BIGINT | FK → CardDesign, NULL | ⚠️ 2026-07-31 재정정: **"신청 1건당 디자인 1개 선택"은 취소 — 사용자가 고르지 않음.** 신청 생성 시점엔 항상 `NULL`, **관리자가 신청 검토 과정에서 배정**(정확한 배정 시점은 Admin API 설계 시 확정, [TBD]). `시안.zip` 확인 결과 디자인이 발행 지자체별로 나뉘는 행정적 값이라 사용자가 미학적으로 고를 성격이 아님(`APPLICATION-사용자명세.md` 6절) |
+| logo_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 업로드한 로고. ⚠️ 2026-07-31 조건 추가: 기존엔 "GROUP 전용"이었으나, **카드종류=학생증(학교로고)이면 개인/단체 무관하게 사용** — 그 외 카드종류는 기존대로 GROUP만 |
+| seal_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 업로드한 직인. 조건은 `logo_file_id`와 동일(학생증=학교직인, 개인/단체 무관) |
 | submit_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 제출한 ZIP(엑셀+사진) |
 | photo_reject_reason | VARCHAR(500) | NULL | ✅ 2026-07-31 신규 확정: 관리자가 사진 반려 시 입력하는 사유. `status=PHOTO_REJECTED`일 때 사용자에게 노출(`/lookup` 조회 결과) |
 
@@ -150,9 +170,14 @@
 | address | VARCHAR(255) | NULL | 카드에 인쇄되는 주소 |
 | birth_date | DATE | NOT NULL | 십이간지(캐릭터) 계산용. ✅ 2026-07-25 확인: 개인 신청도 필수 — 개인 신청 폼(`StepInfo.tsx`)에 생년월일 입력란 추가 필요 (프론트 미구현, 별도 작업 필요) |
 | nationality | VARCHAR(10) | NOT NULL | ✅ 2026-07-31 신규 확정: 국적(ISO 3166-1 alpha-2). 사주(만세력) 작명 도구 입력값 — 개인 신청 폼에 입력란 추가 필요(프론트 미구현) |
-| birth_time | TIME | NOT NULL | ✅ 2026-07-31 신규 확정: 출생 시각. 사주 작명 도구 입력값 — 개인 신청 폼에 입력란 추가 필요(프론트 미구현) |
-| birth_region | VARCHAR(200) | NOT NULL | ✅ 2026-07-31 신규 확정: 출생 지역. 사주 작명 도구 입력값 — 개인 신청 폼에 입력란 추가 필요(프론트 미구현) |
+| birth_time | TIME | NULL | ⚠️ 2026-07-31 재정정: NOT NULL이었던 걸 **NULL로 변경.** "출생시간을 모릅니다" 체크 시 미입력 가능(사용자 명세 확정) |
+| birth_region | VARCHAR(200) | NULL | ⚠️ 2026-07-31 재정정: NOT NULL이었던 걸 **NULL로 변경(선택 입력)** — `APPLICATION-사용자명세.md` 2-1절 확정 |
 | gender | ENUM | NOT NULL | ✅ 2026-07-31 신규 확정: 성별(MALE, FEMALE). 사주 작명 도구 입력값 — 개인 신청 폼에 입력란 추가 필요(프론트 미구현) |
+| entry_date | DATE | NULL | ✅ 2026-07-31 신규 확정: 한국 입국날짜. 선택 입력. 단체 신청 시 엑셀의 "공통 입국날짜"(상단 셀) + "개별입국날짜"(행별, 예외자만) 2단 해석을 거친 **최종값만 저장** — "공통값" 자체는 별도 컬럼으로 안 둠(`APPLICATION-사용자명세.md` 2-3절) |
+| email | VARCHAR(255) | NULL | ✅ 2026-07-31 신규 확정: 신청자 개인 이메일. **개인 신청은 항상 NULL**(로그인 계정=`Applicant.email`로 대체, 중복 저장 안 함) — **단체 신청에서만 엑셀 행별로 채워짐** |
+| phone | VARCHAR(20) | NULL | ✅ 2026-07-31 신규 확정: 신청자 개인 연락처. email과 동일 원칙 — 개인 신청은 NULL, 단체 신청만 엑셀 행별로 채움 |
+| student_id | VARCHAR(50) | NULL | ✅ 2026-07-31 신규 확정: 학번. **카드종류=학생증일 때만 사용**(그 외 카드종류는 NULL) |
+| department | VARCHAR(100) | NULL | ✅ 2026-07-31 신규 확정: 학과. 카드종류=학생증 전용. ⚠️ `Applicant`/`Receiver`의 `department`(부서명, 법인용)와는 다른 테이블의 다른 개념 — 이름만 같음, 혼동 주의 |
 | issue_date | DATE | NULL | 카드 발급일자 — 발급 시점에 채워짐 |
 | card_number | VARCHAR(30) | NULL, UNIQUE | 카드 발급 후 채워짐 (Application이 아니라 여기로 확정). ✅ 2026-07-31 확인: 형식 `ROK-XXXXX-XXXX`(5자리-4자리) — `시안.zip` 실물 카드번호 확인. 채번 로직(순차/무작위)은 미확정 |
 | card_front_path | VARCHAR(500) | NULL | ✅ 2026-07-31 신규 확정: 카드 발급(`PRODUCING`) 시 생성되는 **앞면 합성 결과 이미지** 경로. 사용자 다운로드용 |
@@ -163,6 +188,7 @@
 > ✅ 2026-07-25 확인: `Applicant`/`Receiver`는 `ApplicationMember`와 직접 연결하지 않음 — 신청인/수령인은 Application에 속하는 정보이고, 서로 다른 사람일 수 있음(2.2/2.3절 참고).
 > ✅ 2026-07-25 확인: **개인 신청 폼(`StepInfo.tsx`/`StepFiles.tsx`)에 사진 업로드 입력란 추가 확정.** 개인 신청도 카드용 사진이 필요함 — `birth_date`와 마찬가지로 프론트 미구현, 별도 작업 필요 (이번 문서 정리 범위에서는 코드 수정 안 함, 항목만 기록).
 > ✅ 2026-07-31 확정: **사주(만세력) 작명 도구는 URL 링크아웃일 뿐, 실제 이름은 관리자가 우리 시스템에 직접 입력.** `nationality`/`birth_time`/`birth_region`/`gender`는 그 도구에 참고용으로 넣는 입력값이고, 실제 작명 결과(`name`/`chinese_name`/`name_meaning`/`name_interpretation`)는 관리자가 수동 입력 폼으로 저장 — 백엔드가 그 도구를 API로 호출하지 않음.
+> ✅ 2026-07-31 확정: **신청조회(lookup) 시 카드번호로 조회하는 경우, 본인인증은 `Applicant`가 아니라 그 카드의 실제 소유자인 `ApplicationMember.email`/`phone`과 대조한다.** 개인 신청은 이 두 컬럼이 NULL이므로 자연히 `Applicant` 쪽을 참조하게 됨. 전화번호 인증/이메일 인증 조합(둘 다 필수 vs 하나만)은 API 설계 시 확정([TBD], `API-명세.md` 참고).
 
 ### 2.5 Payment (결제)
 
@@ -214,12 +240,15 @@
 | 필드 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGINT | PK | 카드 종류 ID |
-| name | VARCHAR(100) | NOT NULL, UNIQUE | 카드 종류명 |
+| code | ENUM | NOT NULL, UNIQUE | ✅ 2026-07-31 신규 추가: `HONOR_KOREAN`, `HONOR_CITIZEN`, `VISITOR`, `STUDENT`. `name`은 관리자가 자유롭게 수정 가능한 표시용 문자열이라, 학생증 전용 필드(학번/학과/학교로고/학교직인) 노출 여부 같은 **비즈니스 로직이 문자열 이름 매칭에 기대면 안 됨** — 코드값으로 판별 |
+| name | VARCHAR(100) | NOT NULL, UNIQUE | 카드 종류명(표시용) |
 | description | TEXT | NULL | 카드 설명 |
 | price | DECIMAL(10,2) | NOT NULL | 기본 발급 가격 |
 | is_active | BOOLEAN | NOT NULL DEFAULT TRUE | 신청 가능 여부 |
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
+
+> ✅ 2026-07-31 확정: 학생증(`code=STUDENT`) 전용 처리(학번/학과/학교로고/학교직인 필드 노출, `Application.logo_file_id`/`seal_file_id`를 개인 신청에도 적용 등)는 전부 이 `code` 값으로 분기.
 
 ### 4.2 CardDesign
 
@@ -259,6 +288,12 @@
 | ADDRESS | address |
 | ISSUE_DATE | issue_date |
 | CHARACTER | birth_date → 십이간지 계산(6절 참고) |
+| STUDENT_ID | student_id (✅ 2026-07-31 신규 — `CardType.code=STUDENT`일 때만 사용) |
+| DEPARTMENT | department (✅ 2026-07-31 신규 — `CardType.code=STUDENT`일 때만 사용) |
+| SCHOOL_LOGO | 값 아님 — `Application.logo_file_id` (✅ 2026-07-31 신규, `CardType.code=STUDENT` 전용. 개인/단체 학생증 모두 적용) |
+| SCHOOL_SEAL | 값 아님 — `Application.seal_file_id` (동일 조건) |
+
+> ✅ 2026-07-31 확정: 위 4개(`STUDENT_ID`/`DEPARTMENT`/`SCHOOL_LOGO`/`SCHOOL_SEAL`)는 **학생증 전용 필드셋** — `CardType.code=STUDENT`일 때만 config에서 활성화, 나머지 3종 카드에서는 이 4개 필드 자체가 없음. 좌표 config도 학생증만 별도 버전 필요.
 
 **뒷면(back, "이름풀이") — 동적 합성 필드**
 
@@ -328,6 +363,9 @@
 | ❌ 발행처 | `CardDesign`의 고정 이미지 (Application 쪽 데이터 아님) |
 | ❌ 발행처 로고 | `CardDesign`의 고정 이미지 |
 | ❌ 직인 | `Application.logo/seal` 또는 `CardDesign`에서 렌더링 시 합성 |
+| 학번 (학생증 전용) | `ApplicationMember.student_id` — ✅ 2026-07-31 신규 |
+| 학과 (학생증 전용) | `ApplicationMember.department` — ✅ 2026-07-31 신규 |
+| 학교 로고/직인 (학생증 전용) | `Application.logo_file_id`/`seal_file_id` — ✅ 2026-07-31 신규, 개인/단체 무관 |
 
 > ✅ 2026-07-25 확인: 캐릭터(띠)는 **저장 컬럼을 두지 않음** — `birth_date`에서 렌더링 시점에 계산되는 파생값. (`character_image_file_id` 같은 FK 컬럼 제거)
 > 참고로 백엔드에 이미 있는 `infra/card/ZodiacCalculator.java`(생년도 → 띠 키 계산)가 이 계산 로직과 같은 역할 — 재사용 가능해 보임.
@@ -345,7 +383,7 @@
 | `issue_type` | **Application 테이블에 있어야 함.** 정규화 과정에서 빠졌던 것으로 확인, 위 2.1절에 반영함 |
 | 사주 기반 작명(한자이름/이름풀이/캐릭터) | `KoreanName`과 유사한 개념으로, **관리자가 신청 후 별도로 채워주는 절차.** 사용자가 신청 폼에서 직접 입력하지 않음. **다만 이 관리자 작명 화면은 `AdminPage.tsx`에 아직 전혀 구현되어 있지 않음** — 확인된 미구현 상태, 추후 신규 작업 필요 |
 | 사주 작명 프로그램 (2026-07-25, 솔하 공유) | 솔하 님이 별도 웹앱 제작 완료 (trycloudflare 임시 터널). `saju-input-data.xlsx`(영문이름/국적/생년월일/출생시각/출생지역/성별 — `APPLICATION.md`의 사주 입력 필드와 동일) 업로드 → 이름 후보 목록 표시 → 선택. **이미지(카드) 기능은 카드 데이터 나오면 추가 예정.** 자동화 아님 — 관리자가 후보 중 직접 선택하는 방식. **`AdminPage.tsx`와의 연동 방식(수동 참고 / API 연동)은 2026-07-25 기준 보류 — 추후 사장님/솔하 님과 논의 후 결정** |
-| `card_design_id` 소속 | **Application 컬럼으로 확정.** 신청 1건당 디자인 1개 선택 (제작신청 페이지 검토 중 확인) |
+| `card_design_id` 소속 | **Application 컬럼으로 확정.** ⚠️ 2026-07-31 재정정: "신청 1건당 디자인 1개 선택"은 취소 — **사용자가 아니라 관리자가 배정**(생성 시 NULL, 아래 신규 행 참고) |
 | 십이간지 캐릭터 | **저장하지 않음.** `card_design_id`와 별개 개념 — 렌더링 시 `ApplicationMember.birth_date` 기반으로 계산해 `CardFieldDefinition`(CHARACTER)에 합성 |
 | Applicant/Receiver 법인정보 | **둘 다 `organization_name`, `department` 추가 확정.** 개인 신청(INDIVIDUAL)은 NULL, 법인/단체 신청(GROUP)에서만 사용 |
 | 로고/직인/제출ZIP 연결 방식 | **Application에 `logo_file_id`/`seal_file_id`/`submit_file_id` 역할별 FK 3개로 확정.** 조인 테이블 방식 아님 |
@@ -363,6 +401,12 @@
 | `receiver_same_as_applicant` 중복 | **`Receiver.is_same_as_applicant` 제거.** `Application.receiver_same_as_applicant`만 유지, 체크 시 `Applicant` 정보를 `Receiver`로 복사하는 구조 |
 | `Receiver.country` | **보류.** 해외 배송 지원 여부 미정. 지원 안 하기로 결정되면 컬럼 자체를 제거하는 방향으로 재검토 |
 | `CardFieldDefinition.font_color` 이후 필드 | **보류.** 원본 자료 자체가 없음, 추가 정보 오면 이어서 정리 |
+| 회원탈퇴 방식 | **소프트 삭제(7일 유예) → 완전탈퇴(익명화) 2단계 확정.** 사용자 액션은 "탈퇴하기" 하나, 유예기간 내 재로그인 시 자동 복구. `User` 컬럼(`status`/`withdrawal_requested_at`/`anonymized_at`) 추가 확정 |
+| 카드 디자인 배정 주체 (2026-07-31) | **사용자가 아니라 관리자가 배정.** `Application.card_design_id`는 신청 생성 시 항상 NULL, `card_type_id`(카드종류)만 사용자가 선택. 배정 시점은 [TBD] |
+| 학생증(STUDENT) 추가 항목 (2026-07-31) | **학번/학과(`ApplicationMember`, 인당) + 학교로고/직인(`Application.logo_file_id`/`seal_file_id` 재사용, 신청당 1회) 확정.** 개인/단체 신청 무관하게 항상 적용 — `CardType.code=STUDENT`로 판별 |
+| 한국입국날짜(`entry_date`) (2026-07-31) | **`ApplicationMember`에 신규 추가, Nullable.** 단체 신청은 엑셀 상단 "공통값" + 행별 "개별 예외값" 2단 구조, 개별값이 있으면 우선 적용 — DB엔 해석된 최종값만 저장 |
+| `birth_time`/`birth_region` 필수 여부 (2026-07-31) | **재정정: NOT NULL → NULL(선택 입력)로 변경.** 출생시간은 "모릅니다" 체크 시 미입력 허용 |
+| 신청자 이메일/전화번호 소속 (2026-07-31) | **개인 신청은 `Applicant`만 사용(`ApplicationMember.email`/`phone`은 NULL), 단체 신청은 `ApplicationMember`에 엑셀 행별로 저장.** `Applicant.email`/`phone`은 단체의 "대표 신청인" 연락처로 별개 유지 |
 
 ## 8. 미해결 / 확인 필요 사항 (남은 것)
 
@@ -370,6 +414,15 @@
 - **공지사항이 전용 `Notice` 엔티티인지 `Post`(행사·사업)를 재사용하는지** — 게시판으로 관리하는 것까지는 확정(5절), 구체적 엔티티 형태는 미정
 - **`Receiver.country`** — 해외 배송 지원 여부 결정 대기 중 (보류)
 - **CardDesign/CardFieldDefinition의 좌표 기반 합성 로직** — 프론트 `cards.ts`/`CardPreviewPanel`은 정적 이미지만 보여줄 뿐 아직 구현 안 됨 (별도 작업 필요, 정책 확인 대상은 아님).
+- **카드번호(`ApplicationMember.card_number`) 채번 로직** — 형식(`ROK-XXXXX-XXXX`)은 확정, 순차 발급 vs 무작위 생성은 미정 (2.4절 본문에 inline으로 있었는데 이 목록에 누락되어 있었음 — 2026-07-31 정합성 점검 중 추가)
+- **refresh 토큰 rotation용 세션 저장소** — DB 테이블(`refresh_token_sessions`)로 유지할지 Redis만 쓸지 미정, 구현 단계에서 결정 가능 (`API-명세.md` User 도메인 TODO와 동일 항목)
+- **`issue_type=MOBILE_AND_PHYSICAL`의 실물배송(SHIPPING/DELIVERED) 흐름** — 이번 Admin 도메인 설계 범위 밖, 추후 별도 설계 (`API-명세.md` Admin 도메인과 동일 항목)
+- **`CardDesign` 배정 시점** — 관리자가 신청 접수 직후/사진검토 통과 후/작명 단계 중 언제 배정하는지 (`APPLICATION-사용자명세.md` 6절)
+- **학번/학과 형식 제약** — 원본 요구사항에 글자수 등 세부 스펙 없음
+- **학생증 디자인 시안** — 아직 미도착
+- **신청조회(lookup) 전화번호 인증 vs 이메일 인증 조합** — 둘 다 필수인지 하나만이면 되는지 (`APPLICATION-사용자명세.md` 3절)
+- **단체 신청 엑셀 파싱 실패율 룰** — 옛 백엔드의 "30% 룰"을 새 설계에도 적용할지 미정
+- **신청 내용(카드종류/인적사항 등) 수정 API 필요 여부** — 현재는 반려 시 사진 재업로드만 가능, 그 외 수정 경로 없음
 
 ---
 

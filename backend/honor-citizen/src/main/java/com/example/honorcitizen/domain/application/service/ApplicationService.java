@@ -44,6 +44,7 @@ public class ApplicationService {
 
         String photoPath = photoUploadService.resolvePhotoPath(request.getPhotoId(), userId);
 
+        // TODO(2026-07-31): entryDate/address/cardType 임시 null — Application 도메인 재설계 대상이라 우선 컴파일만 통과시킴
         Application application = Application.createSingle(
                 userId,
                 request.getNameEn(),
@@ -53,7 +54,10 @@ public class ApplicationService {
                 request.getBirthRegion(),
                 request.getGender(),
                 request.getPhotoId(),
-                photoPath);
+                photoPath,
+                null,
+                null,
+                null);
 
         Application saved = applicationRepository.save(application);
         statusLogRepository.save(ApplicationStatusLog.create(

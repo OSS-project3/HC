@@ -123,13 +123,15 @@ public class BulkApplicationService {
             throw new CustomException(ErrorCode.ALL_FAILED);
         }
 
+        // TODO(2026-07-31): cardType/entryDate/address 임시 null — Application/BulkOrder 도메인 재설계 대상이라 우선 컴파일만 통과시킴
         BulkOrder bulkOrder = bulkOrderRepository.save(
-                BulkOrder.create(userId, prepared.size(), zipFile.getOriginalFilename()));
+                BulkOrder.create(userId, prepared.size(), zipFile.getOriginalFilename(), null));
 
         prepared.forEach(p -> applicationRepository.save(
                 Application.createBulk(userId, p.row().nameEn(), p.row().nationality(),
                         p.row().birthDate(), p.row().birthTime(), p.row().birthRegion(),
-                        p.row().gender(), p.photoId(), p.photoPath(), bulkOrder.getId())));
+                        p.row().gender(), p.photoId(), p.photoPath(),
+                        null, null, null, bulkOrder.getId())));
 
         return BulkApplicationCreateResponse.of(bulkOrder.getId(), prepared.size(), failures);
     }

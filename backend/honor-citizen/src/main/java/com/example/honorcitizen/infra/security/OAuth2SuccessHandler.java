@@ -6,6 +6,7 @@ import com.example.honorcitizen.domain.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.util.Map;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
@@ -59,6 +61,11 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 .orElseGet(() -> userRepository.save(
                         User.createNewUser(email, oauthId, provider, name)
                 ));
+
+        if (user.isRestorable()) {
+            user.restore();
+            log.info("보안 이벤트: 탈퇴 유예기간 내 재로그인으로 계정 자동 복구 userId={}", user.getId());
+        }
 
         AuthTokens tokens = userService.issueLoginTokens(user);
         authCookieManager.addAccessTokenCookie(response, tokens.accessToken());

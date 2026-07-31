@@ -148,7 +148,9 @@ Cookie: accessToken={JWT}
     "id": 1,
     "name": "홍길동",
     "email": "hong@example.com",
-    "role": "USER"
+    "role": "USER",
+    "phone": "010-1234-5678",
+    "address": "서울특별시 강남구 ..."
   }
 }
 ```
@@ -170,12 +172,14 @@ Cookie: accessToken={JWT}
 | name | name |
 | email | email |
 | role | role |
+| phone | phone (NULL 가능) |
+| address | address (NULL 가능) |
 
-`phone`/`address`/`provider`/`provider_id`는 응답에 안 넣음 — 프론트가 실제로 쓰는 건 `user.name`(헤더 표시)과 `role`(`isAdmin` 판별)뿐이라서, `AuthContext.tsx`의 `AuthUser` 타입(`name`, `email`, `role`)과도 맞음.
+`provider`/`provider_id`는 응답에 안 넣음(로그인 식별용 내부 값, 프론트에서 쓸 일 없음). `phone`/`address`는 ⚠️ 2026-07-31 추가 — 내 정보 수정(API 5) 화면에서 기존 값을 미리 채워 보여줘야 해서 Read 응답에도 포함시킴(수정 API 설계하며 정합성 점검 중 반영).
 
 #### ⑦ 누락된 필드 확인
 
-없음 — 프론트가 필요로 하는 필드(`name`, `email`, `role`)가 전부 `User` 테이블에 이미 있어서 막히는 게 없습니다.
+없음 — 프론트가 필요로 하는 필드(`name`, `email`, `role`)와, 신규로 필요해진 `phone`/`address`가 전부 `User` 테이블에 이미 있어서 막히는 게 없습니다.
 
 **API 2 완료.**
 
@@ -211,6 +215,126 @@ Cookie: accessToken={JWT}; refreshToken={JWT}
 
 ---
 
+### API 4 / 4 — 회원탈퇴(소프트) (2026-07-31 추가, 로그인 필수) ⚠️ 확인필요 — 프론트에 탈퇴 버튼/화면 자체가 없음(신규)
+
+#### ④ Request/Response 설계
+
+```
+POST /api/users/me/withdraw
+Cookie: accessToken={JWT}
+```
+(body 없음)
+
+**Response `200 OK`**
+```json
+{ "success": true }
+```
+
+#### ⑤ Validation
+
+| 상황 | errorCode | HTTP |
+|---|---|---|
+| 비로그인 | `UNAUTHORIZED` | 401 |
+| 이미 `status=WITHDRAWN`인 계정이 다시 호출 | `ALREADY_WITHDRAWN`(신규 코드) | 409 |
+
+- 진행 중인 신청(`Application`)이 있어도 탈퇴 자체는 항상 허용 — `.md` User 정책 참고(이력은 `user_id` FK로 보존, 완전탈퇴 때도 삭제 안 됨)
+
+#### ⑥ DB 컬럼과 매핑 검증
+
+| — | 변경되는 컬럼 |
+|---|---|
+| — | User.status: `ACTIVE` → `WITHDRAWN` |
+| — | User.withdrawal_requested_at = 현재 시각 |
+| — | 세션 무효화: `TokenSessionStore.invalidateUserSessions()` + 현재 accessToken 블랙리스트 등록 (로그아웃과 동일 처리) |
+
+#### ⑦ 누락된 필드 확인
+
+없음.
+
+**API 4 완료.**
+
+---
+
+### API 5 / 5 — 내 정보 수정 (2026-07-31 추가, 로그인 필수) ⚠️ 확인필요 — 프론트에 정보수정 화면 자체가 없음(신규)
+
+#### ④ Request/Response 설계
+
+```
+PATCH /api/users/me
+Cookie: accessToken={JWT}
+Content-Type: application/json
+```
+```json
+{
+  "name": "홍길동",
+  "phone": "010-1234-5678",
+  "address": "서울특별시 강남구 ..."
+}
+```
+(세 필드 다 선택 — 보낸 필드만 갱신하는 partial update. 단, 최소 1개는 있어야 함)
+
+**Response `200 OK`**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "홍길동",
+    "email": "hong@example.com",
+    "role": "USER",
+    "phone": "010-1234-5678",
+    "address": "서울특별시 강남구 ..."
+  }
+}
+```
+(API 2와 동일한 응답 형태 — 수정 직후 최신 상태를 그대로 돌려줌)
+
+#### ⑤ Validation
+
+| 상황 | errorCode | HTTP |
+|---|---|---|
+| 비로그인 | `UNAUTHORIZED` | 401 |
+| `name`/`phone`/`address` 전부 없음(빈 요청) | `INVALID_INPUT` | 400 |
+| `name`이 빈 문자열로 옴 | `INVALID_INPUT` | 400 |
+| `phone` 형식 오류(숫자/하이픈 외 문자 등) | `INVALID_INPUT` | 400 |
+
+- `email`은 이 API로 수정 불가 — OAuth 계정 식별값이자 `Applicant.email`과 일치해야 하는 제약(`.md` 2.2절)이라, 바꾸려면 OAuth 재연동이 필요한 별개 문제. 이번 범위에서 다루지 않음.
+- `phone`/`address`는 `NULL` 허용 컬럼이라, 빈 문자열이 아니라 값을 아예 지우고 싶은 경우(예: `null` 전송)까지 지원할지는 ⚠️ 구현 단계 확인 필요(우선 값 채우는 용도로만 설계, 지우는 UX는 프론트에 없어서 보류).
+
+#### ⑥ DB 컬럼과 매핑 검증
+
+| Request | User 컬럼 |
+|---|---|
+| name | name |
+| phone | phone |
+| address | address |
+| — | updated_at 자동 갱신 |
+
+#### ⑦ 누락된 필드 확인
+
+없음.
+
+**API 5 완료.**
+
+---
+
+### 회원탈퇴 관련 로직 변경 (API 아님 — 기존 인프라 수정)
+
+**1) 재로그인 시 자동 복구 (`OAuth2SuccessHandler` 수정)**
+기존 회원 재로그인 시(`existsByOauthIdAndOauthProvider`로 판별), 해당 User의 `status=WITHDRAWN`이고 `anonymized_at IS NULL`이면(= 완전탈퇴 전, 유예기간 내) 로그인 처리 직전에 자동 복구:
+```
+status: WITHDRAWN → ACTIVE
+withdrawal_requested_at = NULL
+```
+그 다음은 기존 로그인 흐름 그대로 진행(신규회원 아님, `/`로 리다이렉트).
+
+**2) 완전탈퇴 배치 (신규 스케줄러, API 아님)**
+- 대상: `status=WITHDRAWN` AND `anonymized_at IS NULL` AND `withdrawal_requested_at` ≤ NOW - 7일
+- 처리: `email`/`name`/`oauth_id`/`oauth_provider`(+`phone`/`address`가 있다면) 스크램블 값으로 치환, `anonymized_at = NOW`
+- 실행 주기: 일 1회 배치로 충분(3영업일 미입금 자동취소 스케줄러와 같은 성격 — 둘 다 아직 구현 안 됨, 별도 작업)
+
+---
+
 ## User 도메인 정리
 
 | # | API | 상태 |
@@ -218,9 +342,19 @@ Cookie: accessToken={JWT}; refreshToken={JWT}
 | 1 | `GET /oauth2/authorization/{provider}` (+콜백) | 설계 완료 |
 | 2 | `GET /api/users/me` | 설계 완료 |
 | 3 | `POST /api/auth/logout` | 설계 완료 |
+| 4 | `POST /api/users/me/withdraw` (회원탈퇴, 소프트) | 설계 완료 |
+| 5 | `PATCH /api/users/me` (내 정보 수정) | 설계 완료 |
+| — | 재로그인 자동복구(`OAuth2SuccessHandler`) + 완전탈퇴 스케줄러 | 설계 완료(API 아님) |
 
 **남은 TODO (User 도메인 공통):**
 - refresh 토큰 rotation/재사용 감지용 세션 저장소를 `.md`에 추가할지 여부 (구현 단계에서 결정해도 되는 사항)
+- `ALREADY_WITHDRAWN` 에러코드는 기존 `ErrorCode.java`에 없음 — 신규 추가 필요(구현 단계에서 처리)
+- 완전탈퇴 배치 스케줄러 구현 필요 (Admin 도메인의 3영업일 미입금 자동취소 스케줄러와 함께 인프라 작업으로 묶어도 됨)
+- 정보수정(API 5)에서 `phone`/`address`를 `null`로 지우는 것까지 지원할지 — 구현 단계 확인 필요
+
+✅ 2026-07-31 확인/추가:
+- **`POST /api/auth/terms`(약관동의) 유지 확정.** 기존 코드에 이미 구현되어 있고(신규가입 시 `/terms`로 리다이렉트), 새 설계에서도 계속 씀 — `DB.md` User 엔티티에 `terms_agreed` 등 필드 반영함
+- **`GET /api/users/me`(API 2)가 실제 코드(`AuthController`)엔 아직 없음** — 설계는 되어있지만 미구현 확인됨, 신규 구현 필요
 
 ---
 User 도메인 완료.
@@ -267,10 +401,12 @@ Content-Type: multipart/form-data
 |---|---|---|
 | `request` | JSON | 아래 |
 | `photo` | file | `ApplicationMember.photo_path`용 — ⚠️ 프론트에 아직 업로드 입력란 없음(기존 확정 TODO) |
+| `schoolLogo` | file | ⚠️ 2026-07-31 신규 — `cardTypeId`가 학생증일 때만 필수. `Application.logo_file_id` |
+| `schoolSeal` | file | ⚠️ 2026-07-31 신규 — 학생증 전용, `Application.seal_file_id` |
 
 ```json
 {
-  "cardDesignId": 1,
+  "cardTypeId": 1,
   "issueType": "MOBILE_AND_PHYSICAL",
   "applicant": {
     "name": "홍길동",
@@ -286,14 +422,25 @@ Content-Type: multipart/form-data
     "deliveryRequest": "부재 시 경비실"
   },
   "member": {
-    "birthDate": "1990-05-15"
+    "birthDate": "1990-05-15",
+    "nationality": "US",
+    "birthTime": "14:30",
+    "birthRegion": "New York",
+    "gender": "MALE",
+    "entryDate": "2026-08-15",
+    "studentId": "20261234",
+    "department": "컴퓨터공학과"
   }
 }
 ```
 
-- `applicant.email`은 요청에 **포함하지 않음** — `Applicant.email`은 로그인 세션의 `User.email`을 서버가 그대로 채움(신청 이메일=가입 이메일 확정 정책)
+- `applicant.email`은 요청에 **포함하지 않음** — `Applicant.email`은 로그인 세션의 `User.email`을 서버가 그대로 채움(신청 이메일=가입 이메일 확정 정책) — ⚠️ 실제 프론트(`StepInfo.tsx`)엔 이메일 입력란이 존재해서 이 정책과 다르게 구현돼 있음(기존부터 있던 프론트 불일치, 이번 정합성 점검 중 재확인 — 정책 자체는 변경하지 않음)
 - `receiver`는 `issueType=MOBILE`이면 생략
-- `logo`/`seal`/제출ZIP은 이 API에 없음 — 개인 신청은 법인 전용 요소라 불필요(2.4절 근거)
+- ⚠️ 2026-07-31 정정: **`cardDesignId` → `cardTypeId`로 교체.** 사용자는 카드 "종류"만 선택하고, 구체적 디자인은 관리자가 신청 검토 중 배정(`.md` 2.1절, `APPLICATION-사용자명세.md` 6절) — `Application.card_design_id`는 생성 시 NULL
+- `logo`/`seal`/제출ZIP(회사용)은 이 API에 없음 — 개인 신청은 법인 전용 요소라 불필요. 단, **학생증(`CardType.code=STUDENT`)은 예외로 `schoolLogo`/`schoolSeal` 필요**(위 표)
+- ⚠️ 2026-07-31 재정정: `member.birthTime`/`birthRegion`은 **선택 입력으로 정정**(NOT NULL이었던 걸 Nullable로 변경, "출생시간 모름" 체크 지원). `nationality`/`gender`/`birthDate`는 계속 필수
+- ✅ 2026-07-31 신규: `member.entryDate`(한국입국날짜, 선택) 추가
+- ✅ 2026-07-31 신규: `member.studentId`/`department`(학번/학과) — `cardTypeId`가 학생증일 때만 필수, 그 외엔 보내지 않음
 
 **Response `201 Created`**
 ```json
@@ -313,25 +460,40 @@ Content-Type: multipart/form-data
 
 | 상황 | errorCode | HTTP |
 |---|---|---|
-| `cardDesignId`가 없거나 `is_active=false` | `NOT_FOUND` | 404 |
+| `cardTypeId`가 없거나 `is_active=false` | `NOT_FOUND` | 404 |
 | `issueType=MOBILE_AND_PHYSICAL`인데 `receiver` 없음 | `INVALID_INPUT` | 400 |
-| `member.birthDate` 누락, `photo` 파일 누락 | `INVALID_INPUT` | 400 |
+| `member.birthDate`/`nationality`/`gender` 중 하나라도 누락, `photo` 파일 누락 | `INVALID_INPUT` | 400 |
+| `cardTypeId`가 학생증인데 `studentId`/`department`/`schoolLogo`/`schoolSeal` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
+| `cardTypeId`가 학생증이 아닌데 `studentId`/`department`/`schoolLogo`/`schoolSeal`을 보냄 | `INVALID_INPUT` | 400 |
 | 비로그인 | `UNAUTHORIZED` | 401 |
 
 - `receiver.sameAsApplicant=true`면 나머지 receiver 필드 생략 가능(서버가 `applicant` 값을 복사)
+- `member.birthTime`/`birthRegion`/`entryDate`는 선택이라 누락돼도 통과(2026-07-31 정정)
 - ✅ 2026-07-29 확인: `quantity`는 요청에 없음 — 개인 신청은 `total_quantity=1` 서버 고정, 클라이언트가 보낼 필요 없음
 
 #### ⑥ DB 컬럼과 매핑 검증
 
 | Request | 엔티티.컬럼 |
 |---|---|
-| cardDesignId | Application.card_design_id |
+| cardTypeId | Application.card_type_id (⚠️ 2026-07-31 정정 — 기존 `cardDesignId` 대체) |
+| — | Application.card_design_id = `NULL`(관리자가 이후 배정, ⚠️ 2026-07-31 정정) |
 | issueType | Application.issue_type |
 | applicant.name/phone | Applicant.name/phone |
 | (세션) | Applicant.email ← User.email |
-| receiver.* | Receiver.* |
+| receiver.* | Receiver.* (receiver.name/phone → `Receiver.receiver_name`/`receiver_phone` 컬럼명 매핑 주의) |
+| receiver.sameAsApplicant | Application.receiver_same_as_applicant |
 | member.birthDate | ApplicationMember.birth_date |
+| member.nationality | ApplicationMember.nationality |
+| member.birthTime | ApplicationMember.birth_time (⚠️ 2026-07-31 Nullable로 정정) |
+| member.birthRegion | ApplicationMember.birth_region (⚠️ 2026-07-31 Nullable로 정정) |
+| member.gender | ApplicationMember.gender |
+| member.entryDate | ApplicationMember.entry_date (✅ 2026-07-31 신규) |
+| member.studentId | ApplicationMember.student_id (✅ 2026-07-31 신규, 학생증 전용) |
+| member.department | ApplicationMember.department (✅ 2026-07-31 신규, 학생증 전용) |
 | photo(file) | ApplicationMember.photo_path |
+| schoolLogo(file) | UploadFile 생성 → Application.logo_file_id (✅ 2026-07-31 신규, 학생증 전용) |
+| schoolSeal(file) | UploadFile 생성 → Application.seal_file_id (✅ 2026-07-31 신규, 학생증 전용) |
+| — | ApplicationMember.email/phone = `NULL`(개인 신청은 항상 비움 — `Applicant`가 대신함, ✅ 2026-07-31 확정) |
 | — | Application.application_type = `INDIVIDUAL` (고정) |
 | — | Application.total_quantity = `1` (✅ 확정, `.md` 2.1절 반영) |
 | — | Application.total_price = `CardType.price × 1` |
@@ -344,6 +506,10 @@ Content-Type: multipart/form-data
 **해결됨 (2026-07-29):**
 1. 개인 신청은 `quantity=1` 고정으로 확정 (위 반영).
 2. `StepFiles.tsx`가 신청 유형과 무관하게 로고/직인/제출ZIP을 항상 보여주는 건 **프론트가 아직 이 설계를 못 따라간 상태로 확인** — 개인 신청 시엔 이 3개를 숨기고 생년월일·사진 입력란을 보여주는 쪽으로 프론트를 고쳐야 함. 프론트 미구현 TODO로 기록(`birth_date`/사진 업로드 TODO와 같은 묶음).
+
+⚠️ **재정정 (2026-07-31, DB.md와 정합성 점검 중 발견):** 위 "해결됨" 시점(07-29) 이후, `.md` 2.4절에서 `ApplicationMember.nationality`/`birth_time`/`birth_region`/`gender`가 **NOT NULL로 신규 확정**됐는데 이 API 설계엔 반영이 안 되어 있었음 — 그대로 두면 `ApplicationMember` 저장 시 NOT NULL 위반. `member` 요청 필드 4개 추가로 정정함(위 반영).
+
+⚠️ **재정정 2 (2026-07-31, `APPLICATION-사용자명세.md` 기준 반영):** `cardDesignId`(사용자 선택) → `cardTypeId`(카드종류만 선택, 디자인은 관리자 배정)로 교체, `birthTime`/`birthRegion` 필수→선택 전환, `entryDate`/학생증 전용 필드(`studentId`/`department`/`schoolLogo`/`schoolSeal`) 신규 추가.
 
 **API 1 완료.**
 
@@ -362,13 +528,13 @@ Content-Type: multipart/form-data
 | part | 타입 | 설명 |
 |---|---|---|
 | `request` | JSON | 아래 |
-| `logo` | file | Application.logo_file_id |
-| `seal` | file | Application.seal_file_id |
+| `logo` | file | `Application.logo_file_id` — 일반 카드종류는 "회사 로고", **학생증은 "학교 로고"**로 의미만 다르고 파트 이름/컬럼은 동일(⚠️ 2026-07-31 명시) |
+| `seal` | file | `Application.seal_file_id` — 동일하게 학생증이면 "학교 직인" |
 | `submitFile` | file (ZIP) | Application.submit_file_id — 엑셀(인원별 이름/생년월일/사진 파일명 등) + 사진 묶음 |
 
 ```json
 {
-  "cardDesignId": 1,
+  "cardTypeId": 1,
   "issueType": "MOBILE_AND_PHYSICAL",
   "applicant": {
     "organizationName": "OO기업",
@@ -392,6 +558,7 @@ Content-Type: multipart/form-data
 
 - `applicant.email`은 API 1과 동일하게 세션에서 채움
 - `member`(개인 신청의 `birthDate` 등)는 이 요청에 없음 — 인원별 정보는 ZIP 안 엑셀에서 옴
+- ⚠️ 2026-07-31 정정: `cardDesignId` → `cardTypeId`로 교체(API 1과 동일 이유 — 디자인은 관리자 배정)
 
 **Response `201 Created`**
 ```json
@@ -416,42 +583,63 @@ Content-Type: multipart/form-data
 | ZIP 안에 엑셀이 없음 | `EXCEL_NOT_FOUND` | 400 |
 | 엑셀 형식이 안 맞음 | `EXCEL_PARSE_ERROR` | 400 |
 | ZIP 파일 크기 초과 | `ZIP_TOO_LARGE` | 413 |
-| `cardDesignId` 없음/비활성 | `NOT_FOUND` | 404 |
+| `cardTypeId` 없음/비활성 | `NOT_FOUND` | 404 |
+| `cardTypeId`가 학생증인데 `logo`/`seal`(학교 로고/직인) 누락 | `INVALID_INPUT` | 400 |
 
-(위 4개 코드는 기존 `ErrorCode.java`에 이미 있는 걸 그대로 재사용 — Bulk 신청 도메인은 사주 도메인이었을 때도 ZIP+엑셀 처리 방식이 똑같아서 그대로 맞음)
+(ZIP/엑셀 관련 4개 코드는 기존 `ErrorCode.java`에 이미 있는 걸 그대로 재사용 — Bulk 신청 도메인은 사주 도메인이었을 때도 ZIP+엑셀 처리 방식이 똑같아서 그대로 맞음)
 
 - 엑셀 행 수만큼 `ApplicationMember`가 생성됨 → `total_quantity`는 서버가 엑셀 행 수를 세서 채움(클라이언트가 안 보냄)
-- ✅ 2026-07-29 확인: 엑셀 컬럼 = `영문명(english_name)`, `생년월일(birth_date)`, `주소(address)` + 사진 파일명(→ `photo_path` 매칭). 나머지(`name`/`chinese_name`/`name_meaning`/`name_interpretation`/`card_number`/`issue_date`)는 관리자가 신청 이후 별도로 채움
+- ⚠️ 2026-07-31 정정: `cardDesignId` → `cardTypeId`로 교체(API 1과 동일 이유)
+- ✅ 2026-07-31 신규: 엑셀에 개별입국날짜/이메일/전화번호/(학생증이면)학번·학과 컬럼 추가 — 아래 엑셀 템플릿 표 참고
 
 #### ⑥ DB 컬럼과 매핑 검증
 
 | Request | 엔티티.컬럼 |
 |---|---|
-| cardDesignId | Application.card_design_id |
+| cardTypeId | Application.card_type_id (⚠️ 2026-07-31 정정 — 기존 `cardDesignId` 대체) |
+| — | Application.card_design_id = `NULL`(관리자가 이후 배정, ⚠️ 2026-07-31 정정) |
 | issueType | Application.issue_type |
 | applicant.* | Applicant.* (organizationName/department 포함) |
-| receiver.* | Receiver.* (organizationName/department 포함) |
-| logo(file) | UploadFile 생성 → Application.logo_file_id |
-| seal(file) | UploadFile 생성 → Application.seal_file_id |
+| receiver.* | Receiver.* (organizationName/department 포함, receiver.name/phone → `receiver_name`/`receiver_phone` 컬럼명 매핑 주의) |
+| receiver.sameAsApplicant | Application.receiver_same_as_applicant |
+| logo(file) | UploadFile 생성 → Application.logo_file_id (일반: 회사로고 / 학생증: 학교로고) |
+| seal(file) | UploadFile 생성 → Application.seal_file_id (일반: 회사직인 / 학생증: 학교직인) |
 | submitFile(file) | UploadFile 생성 → Application.submit_file_id |
-| 엑셀 각 행 | ApplicationMember N건 — 생성 시 채움: `english_name`/`birth_date`/`address`/`photo_path`. `name`/`chinese_name`/`name_meaning`/`name_interpretation`/`card_number`/`issue_date`는 NULL로 시작(관리자가 나중에 채움) |
+| 엑셀 각 행 | ApplicationMember N건 — 생성 시 채움: `english_name`/`birth_date`/`nationality`/`birth_time`/`birth_region`/`gender`/`entry_date`/`email`/`phone`/`address`/`photo_path`, (학생증이면)`student_id`/`department`. `name`/`chinese_name`/`name_meaning`/`name_interpretation`/`card_number`/`issue_date`는 NULL로 시작(관리자가 나중에 채움) |
 | — | Application.application_type = `GROUP` (고정) |
 | — | Application.total_quantity = 엑셀 행 수 |
 | — | Application.total_price = `CardType.price × total_quantity` |
 
-**엑셀 템플릿 컬럼 (확정)**
+**엑셀 템플릿 컬럼 (⚠️ 2026-07-31 재정정 — `APPLICATION-사용자명세.md` 기준)**
 
-| 컬럼 | ApplicationMember 필드 |
-|---|---|
-| ID | (사진 파일명 매칭용 식별자, 저장 안 함) |
-| 영문명 | english_name |
-| 생년월일 | birth_date |
-| 주소 | address |
-| (사진 파일명, ZIP 내부 photos/ 하위) | photo_path |
+표 위 별도 셀에 **"공통 입국날짜"** 1개 값(선택 입력)을 두고, 표 안 "개별입국날짜"는 예외자만 입력 — 비어있으면 공통값 적용, 채워져 있으면 개별값 우선(해석된 최종값만 `entry_date`에 저장, 상세 로직은 `.md` 2.4절/`APPLICATION-사용자명세.md` 2-3절).
+
+```
+공통 입국날짜 : 2026-08-15   (선택 입력)
+```
+
+| 컬럼 | ApplicationMember 필드 | 필수 여부 |
+|---|---|---|
+| ID | (사진 파일명 매칭용 식별자, 저장 안 함) | 필수 |
+| 영문명 | english_name | 필수 |
+| 생년월일 | birth_date | 필수 |
+| 국적 | nationality | 필수 |
+| 출생시간 | birth_time | 선택(⚠️ 2026-07-31 Nullable로 정정) |
+| 출생지역 | birth_region | 선택(⚠️ 2026-07-31 Nullable로 정정) |
+| 성별 | gender | 필수 |
+| 개별입국날짜 | entry_date(상단 공통값과 조합해 해석) | 선택 |
+| 이메일 | email(✅ 2026-07-31 신규 — 행마다 다른 신청자 본인 이메일) | 필수 |
+| 전화번호 | phone(✅ 2026-07-31 신규 — 행마다 다른 신청자 본인 연락처) | 필수 |
+| 주소 | address | 선택 |
+| 학번 | student_id(✅ 2026-07-31 신규, `cardTypeId`가 학생증일 때만 존재) | 학생증만 필수 |
+| 학과 | department(✅ 2026-07-31 신규, 학생증 전용) | 학생증만 필수 |
+| (사진 파일명, ZIP 내부 photos/ 하위) | photo_path | 필수 |
 
 #### ⑦ 누락된 필드 확인
 
-없음 — 위 표로 해결됨.
+⚠️ **재정정 (2026-07-31, DB.md와 정합성 점검 중 발견):** 원래 "없음"으로 완료 처리했던 07-29 시점 이후 `.md` 2.4절에서 `nationality`/`birth_time`/`birth_region`/`gender`가 NOT NULL로 신규 확정되어, 엑셀 템플릿에 4개 컬럼을 추가로 반영했었음.
+
+⚠️ **재정정 2 (2026-07-31, `APPLICATION-사용자명세.md` 기준):** `cardDesignId`→`cardTypeId` 교체, `birthTime`/`birthRegion` 필수→선택 전환, 개별입국날짜(+상단 공통값)/이메일/전화번호/학번/학과 컬럼 신규 추가.
 
 **API 2 완료.**
 
@@ -469,16 +657,17 @@ Content-Type: application/json
 
 ```json
 {
-  "method": "application",
-  "keyValue": "APP-2026-000123",
-  "phone": "010-1234-5678"
+  "method": "card",
+  "keyValue": "ROK-35777-2105",
+  "phone": "010-1234-5678",
+  "email": "hong@example.com"
 }
 ```
 | 필드 | 설명 |
 |---|---|
 | method | `"application"`(신청번호) \| `"card"`(카드번호) |
 | keyValue | 신청번호 또는 카드번호 |
-| phone | 신청인 연락처(`Applicant.phone`) — 필수, 단독 조회 불가 |
+| phone / email | ⚠️ 2026-07-31 재정정: 본인 인증 채널 — `phone`/`email` 중 **최소 1개 필수**(정확히 둘 다 필수인지, 하나만 있어도 되는지는 [TBD], 우선 "하나 이상"으로 설계). 대조 대상 엔티티는 아래 ⑤ 참고 |
 
 **Response `200 OK`**
 ```json
@@ -505,8 +694,11 @@ Content-Type: application/json
 #### ⑤ Validation
 
 - `method=card`일 때 `keyValue`(`ApplicationMember.card_number`)로 검색 → 그 카드가 속한 `Application`을 찾음 → ✅ 2026-07-29 확인: **`Application` 전체(단체 신청 전체)의 진행상태를 반환.** 그 카드 1장만의 상태가 아님
-- `phone`이 `Applicant.phone`과 일치해야 함(9자리 미만이면 `INVALID_INPUT` 400, 기존 프론트 검증과 동일)
-- 번호+연락처 조합이 안 맞으면 `NOT_FOUND`(404) — 신청번호는 맞는데 연락처만 틀렸어도 동일하게 404(존재 여부 구분 안 함)
+- ⚠️ 2026-07-31 재정정 — 본인 인증 대조 대상:
+  - `method=card`(카드번호 조회): 그 카드의 실제 소유자, 즉 **`ApplicationMember.phone`/`email`**과 대조(개인 신청은 이 두 컬럼이 NULL이므로 자연히 `Applicant`를 대신 참조)
+  - `method=application`(신청번호 조회): 기존대로 **`Applicant.phone`/`email`**과 대조(신청 대표자 기준)
+- `phone`/`email` 둘 다 없으면 `INVALID_INPUT`(400)
+- 번호+연락처(또는 이메일) 조합이 안 맞으면 `NOT_FOUND`(404) — 신청번호는 맞는데 인증 정보만 틀렸어도 동일하게 404(존재 여부 구분 안 함)
 
 #### ⑥ DB 컬럼과 매핑 검증
 
@@ -516,13 +708,13 @@ Content-Type: application/json
 | applicationNumber | Application.application_number |
 | applicantNameMasked | Applicant.name (마스킹 처리). ⚠️ 단체 신청은 이게 **신청 대표자**(예: 인사담당자) 이름이지, 카드번호로 조회한 그 개인(직원 등)의 이름이 아님 — 결과 화면에서 헷갈릴 수 있어 참고로 남김 |
 | cardType | Application.card_type_id → CardType.name |
-| status | Application.status — ✅ 2026-07-31 정정된 enum(PAYMENT_PENDING/RECEIVED/REVIEWING/PHOTO_REJECTED/PRODUCING/COMPLETED/CANCELLED) 기준. 프론트 `statusLabels`도 이걸로 교체 필요(이미 알려진 프론트 갭) |
+| status | Application.status — ✅ 2026-07-31 정정된 enum(PAYMENT_PENDING/RECEIVED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCING/COMPLETED/CANCELLED, ⚠️ 8개 — 사진검토/작명 분리로 `NAME_EDITING` 포함, 정합성 점검 중 누락 발견해 정정) 기준. 프론트 `statusLabels`도 이걸로 교체 필요(이미 알려진 프론트 갭) |
 | photoRejectReason | Application.photo_reject_reason (status=PHOTO_REJECTED일 때만) |
 | submittedAt | Application.created_at |
 
 #### ⑦ 누락된 필드 확인
 
-없음.
+⚠️ **재정정 (2026-07-31, `APPLICATION-사용자명세.md` 기준):** 단체 신청에서 `ApplicationMember`가 자기 phone/email을 갖게 되면서, 카드번호 조회는 `Applicant`가 아니라 `ApplicationMember` 기준으로 인증하도록 대조 대상을 변경. 이메일 인증 채널도 추가.
 
 **API 3 완료.**
 
@@ -848,11 +1040,13 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
 Content-Type: application/json
 ```
 ```json
-{ "name": "명예한국인증", "description": "...", "price": 30000 }
+{ "code": "HONOR_KOREAN", "name": "명예한국인증", "description": "...", "price": 30000 }
 ```
+✅ 2026-07-31 신규: `code`(`HONOR_KOREAN`/`HONOR_CITIZEN`/`VISITOR`/`STUDENT`) 추가 — 학생증 전용 로직(학번/학과/학교로고·직인 노출 등)이 관리자가 자유롭게 바꿀 수 있는 `name` 문자열이 아니라 이 고정 코드값으로 분기되게 하기 위함(`.md` 4.1절).
+
 **Response `201 Created`**
 ```json
-{ "success": true, "data": { "cardTypeId": 1, "name": "명예한국인증", "price": 30000, "isActive": true } }
+{ "success": true, "data": { "cardTypeId": 1, "code": "HONOR_KOREAN", "name": "명예한국인증", "price": 30000, "isActive": true } }
 ```
 
 **목록 조회**
@@ -861,7 +1055,7 @@ GET /api/admin/card-types
 ```
 **Response `200 OK`**
 ```json
-{ "success": true, "data": [ { "cardTypeId": 1, "name": "명예한국인증", "price": 30000, "isActive": true } ] }
+{ "success": true, "data": [ { "cardTypeId": 1, "code": "HONOR_KOREAN", "name": "명예한국인증", "price": 30000, "isActive": true } ] }
 ```
 
 **수정**
@@ -879,15 +1073,18 @@ PATCH /api/admin/card-types/{cardTypeId}
 |---|---|---|
 | `role != ADMIN` | `FORBIDDEN` | 403 |
 | `name` 누락, 또는 이미 존재하는 `name`(UNIQUE) | `INVALID_INPUT` | 400 |
+| `code` 누락(등록 시), 또는 이미 존재하는 `code`(UNIQUE) | `INVALID_INPUT` | 400 |
 | `cardTypeId` 없음(수정 시) | `NOT_FOUND` | 404 |
 | 비로그인 | `UNAUTHORIZED` | 401 |
 
 ⚠️ `price` 변경은 **이미 신청된 건에 영향 안 줌** — `Application.total_price`는 신청 시점 스냅샷이라 이 API로 가격을 바꿔도 기존 신청 금액은 그대로 (2.5절 가격 정책과 일치)
+⚠️ 2026-07-31 신규: `code`는 등록 후 **수정 API에서 변경 불가**로 설계(카드종류별 비즈니스 로직이 이 값에 고정 연결되므로) — 바꾸고 싶으면 새 CardType을 등록해야 함
 
 #### ⑥ DB 컬럼과 매핑 검증
 
 | Request/Response | CardType 컬럼 |
 |---|---|
+| code | code (✅ 2026-07-31 신규) |
 | name | name |
 | description | description |
 | price | price |
@@ -988,6 +1185,7 @@ PATCH /api/admin/card-designs/{cardDesignId}
 - 카드종류당 디자인 6개 (명예시민증/명예한국인증/방문증 각각 폴더 1~6)
 - 학생증 디자인은 추후 전달 예정 — 받으면 동일 구조로 추가
 - 뒷면은 한자 유무에 따라 좌표 2벌(`CardFieldDefinition` config에서 처리)
+- ✅ 2026-07-31 신규: `CardFieldDefinition`에 `STUDENT_ID`/`DEPARTMENT`/`SCHOOL_LOGO`/`SCHOOL_SEAL` 4개 필드 추가 — `CardType.code=STUDENT`일 때만 활성화(`.md` 4.3절)
 
 ---
 카드 도메인 완료.
@@ -1059,6 +1257,8 @@ REVIEWING(검토중 — 사진/내용 검토)
 4. 사진 검토 — 승인/반려
 5. 이름 작명 저장
 6. 카드 발급 (`PRODUCING→COMPLETED`)
+
+⚠️ **[TBD] 7번째 액션 — 카드 디자인 배정 API 필요 (2026-07-31 신규 이슈).** `APPLICATION-사용자명세.md` 6절 확정으로 `Application.card_design_id`는 이제 사용자가 아니라 관리자가 채우는데, 위 6개 API 어디에도 이 값을 채우는 액션이 없음. 신청 접수 직후/사진검토 통과 후/작명 단계 중 **언제** 배정하는지부터 정해야 API로 설계 가능 — 아직 미설계.
 
 ### API 1 / 6 — 신청 목록 조회 ⚠️ 확인필요 — `adminMock.ts`와 필드 구성은 유사하나 실제 서버 호출 없음, `status`/검색 필터는 신규
 
@@ -1182,6 +1382,11 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
           "birthTime": "14:30",
           "birthRegion": "New York",
           "gender": "MALE",
+          "entryDate": "2026-08-15",
+          "email": "kim@example.com",
+          "phone": "010-1111-2222",
+          "studentId": null,
+          "department": null,
           "address": "...",
           "cardNumber": null,
           "issueDate": null
@@ -1194,6 +1399,7 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
   }
 }
 ```
+⚠️ 2026-07-31 갱신: `members[]`에 `entryDate`/`email`/`phone`(✅ 신규) + `studentId`/`department`(✅ 신규, `cardType`이 학생증이 아니면 항상 `null`) 추가. `cardDesignId`는 관리자가 아직 배정 안 했으면 `null`(위 예시는 이미 배정된 상태를 보여줌).
 
 #### ⑤ Validation
 
@@ -1218,7 +1424,7 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
 
 #### ⑦ 누락된 필드 확인
 
-없음 — 지금까지 확정된 컬럼으로 다 채워집니다.
+⚠️ 2026-07-31 갱신: `members[].*`가 `ApplicationMember.*` 전체를 가리키는 와일드카드 매핑이라 `entry_date`/`email`/`phone`/`student_id`/`department` 신규 컬럼도 별도 수정 없이 자동 반영됨.
 
 **API 2 완료.**
 
@@ -1473,3 +1679,9 @@ Admin 도메인 완료 — User/Application/Payment/카드/Admin 5개 도메인,
 | `CardFieldDefinition.font_color` 이후 필드 | 원본 자료 자체가 없음(잘림) | `.md` 4.3절 |
 | refresh 토큰 rotation용 세션 저장소 | DB 테이블로 만들지 Redis로 갈지 — 구현 단계 결정 가능 | User 도메인 |
 | `MOBILE_AND_PHYSICAL` 배송 흐름(SHIPPING/DELIVERED) | 이번 Admin 설계에서 스코프 아웃, 추후 별도 설계 | Admin 도메인 |
+| **`CardDesign` 배정 시점** (2026-07-31 신규) | 관리자가 신청 접수 직후/사진검토 통과 후/작명 단계 중 언제 배정하는지 — 정해져야 Admin API로 설계 가능 | Admin 도메인 |
+| **신청조회(lookup) 인증 채널 조합** (2026-07-31 신규) | 전화번호/이메일 인증을 "둘 다 필수"로 할지 "하나만 있어도" 되는지 | Application API 3 |
+| 학번/학과 형식 제약 (2026-07-31 신규) | 원본 요구사항에 글자수 등 세부 스펙 없음 | Application API 1/2 |
+| 학생증 디자인 시안 (2026-07-31 신규) | 아직 미도착 — 받으면 CardDesign 시드 데이터 추가 | 카드 도메인 |
+| 단체 신청 엑셀 파싱 실패율 룰 (2026-07-31 신규) | 옛 백엔드의 "30% 룰"을 새 설계에도 적용할지 미정 | Application API 2 |
+| 신청 내용 수정 API 필요 여부 (2026-07-31 신규) | 현재는 반려 시 사진 재업로드만 가능, 그 외 수정 경로 없음 | Application 도메인 |

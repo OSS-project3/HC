@@ -206,6 +206,7 @@ class ApplicationControllerTest {
     }
 
     private Application saveApplication(Long userId, ApplicationStatus status) {
+        // TODO(2026-07-31): entryDate/address/cardType 임시 null — Application 도메인 재설계 대상이라 우선 컴파일만 통과시킴 (ApplicationService.java와 동일 조치)
         Application application = Application.createSingle(
                 userId,
                 "John Smith",
@@ -215,7 +216,10 @@ class ApplicationControllerTest {
                 "New York, USA",
                 Gender.MALE,
                 "photo_abc123",
-                "photos/preview/photo_abc123");
+                "photos/preview/photo_abc123",
+                null,
+                null,
+                null);
 
         if (status == ApplicationStatus.REVIEWING) {
             application.startReview();
@@ -227,6 +231,7 @@ class ApplicationControllerTest {
     }
 
     private Application savePhotoRejectedApplication(Long userId) {
+        // TODO(2026-07-31): entryDate/address/cardType 임시 null — Application 도메인 재설계 대상이라 우선 컴파일만 통과시킴 (ApplicationService.java와 동일 조치)
         Application application = Application.createSingle(
                 userId,
                 "John Smith",
@@ -236,7 +241,10 @@ class ApplicationControllerTest {
                 "New York, USA",
                 Gender.MALE,
                 "photo_abc123",
-                "photos/preview/photo_abc123");
+                "photos/preview/photo_abc123",
+                null,
+                null,
+                null);
         application.startReview();
         application.rejectPhoto();
         return applicationRepository.save(application);
