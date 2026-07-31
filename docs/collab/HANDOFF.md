@@ -5,7 +5,7 @@
 
 - 마지막 갱신: 2026-08-01
 - 작성자: Claude
-- 작성 브랜치: `backend-api`
+- 작성 브랜치: `feature/application-domain-impl`
 
 ---
 
@@ -35,32 +35,38 @@
 
 ## 지금 어디까지 됐는가
 
-- User/Auth 도메인: 구현·단위테스트·통합테스트·문서화(`user-test-result.md`) 완료, `backend-api`에 병합됨.
-  - Refresh Token Rotation, Reuse Detection, Logout+블랙리스트, CRUD(조회/수정/탈퇴/자동복구/익명화 스케줄러) 전부 실제 서버 대상 검증 완료.
-  - 로컬 개발 DB를 H2 → PostgreSQL로 전환 완료 (`application-local.properties`, gitignored).
-- Application 도메인: 요구사항 정리 단계.
-  - `APPLICATION-사용자명세.md` 작성 완료 — 4종 카드(명예한국인증/명예시민증/방문증/학생증), 학생증 전용 필드(학번/학과/학교로고/학교직인), CardDesign은 **관리자 배정**(사용자는 CardType만 선택)으로 정책 확정, entry_date 공통값+예외 처리 로직, 단체신청 신청자별 email/phone 구조 확정.
-  - `DB.md`, `docs/api/application.md`(구 `API-명세.md`)에 위 결정사항 전파 완료.
-  - Codex가 `API-명세.md`를 도메인별로 `docs/api/*.md`로 분리 — 원본과 대조해 내용 유실 없음 확인함.
-  - Codex가 작성한 `arch.md`(4계층+Port/Adapter, 945줄)를 실제 코드 규모에 맞게 Claude가 단순화함 (3단 구조로 축소, 비즈니스 규칙 절은 유지). 아직 커밋 안 됨 — `codex-docs` 워크트리에 파일만 수정된 상태.
-- 워크트리 구조: `claude-impl`(구현), `codex-docs`(문서), `backend-api`(병합 대상) 3개 확립, 원격에도 반영됨.
-- 협업 문제 인지: Claude/Codex가 서로 다른 워크트리에서 작업하며 상대 변경을 몰라서 뒤늦게 발견하는 문제가 실제로 발생함
-  (`D:\HC\arch.md`에 편집 전 원본이, `codex-docs\arch.md`에 편집본이 따로 존재 — 같은 문제의 실례).
-  이를 해결하기 위해 이번 작업으로 `docs/collab/` 체계(`RULES.md`/`TODO.md`/`CHANGELOG.md`/`HANDOFF.md`)를 도입함.
+- `feature/application-domain-impl`에서 `docs/specs/application/{requirements,data-model,api,checklist}.md` 기준으로 Application 도메인을 처음부터 다시 구현, 커밋 완료(`0dd1067`).
+- **삭제**: 옛 모델을 참조하던 `BulkOrder`/`CitizenCard`/`KoreanName`/`Payment`/`Shipping` 도메인 전체, 옛 `Application`/`CardType`(enum)/`ApplicationStatus` — 새 명세에 전혀 언급되지 않고, 카드번호/사진/카드이미지가 전부 `ApplicationMember`로 흡수되면서 개념적으로 대체됨(사람 확인 후 진행).
+- **신규 엔티티**: `CardType`(entity), `CardDesign`, `UploadFile`, `Applicant`, `Receiver`, `ApplicationMember`, 재작성된 `Application`(+ 새 8단계 상태머신). 엔티티 단위테스트 19개.
+- **API 1** `POST /api/applications`(개인 신청) — 서비스 9테스트 + 컨트롤러 4테스트.
+- **API 2** `POST /api/applications/bulk`(단체 ZIP 신청) — 신규 `BulkExcelParser`(POI 기반 ZIP+XLSX 파서) 작성, 서비스 7테스트 + 컨트롤러 3테스트.
+- **API 3** `POST /api/applications/lookup`(신청 조회, 비로그인) — 서비스 9테스트. `SecurityConfig`에 permitAll 추가.
+- 부수 수정: `GlobalExceptionHandler`에 `MissingServletRequestPartException` 핸들러 추가(필수 멀티파트 파트 누락 시 500→400).
+- 전체 테스트 스위트 그린(신규 Application 도메인 테스트 전부 통과, 기존 User 도메인 테스트도 통과).
+- API 4(사진 재업로드), API 5(카드 다운로드) 아직 미착수.
 
 ## 다음에 할 일
 
-1. `docs/collab/` 4개 파일을 `claude-impl`, `codex-docs` 워크트리에도 동일하게 배치하고 각 브랜치에 커밋.
-2. 루트 `guide.md`를 `docs/collab/RULES.md`를 가리키는 안내문으로 교체 (파일명 대소문자 오탈자 `application-사용자명세.md`→`APPLICATION-사용자명세.md`도 이 참에 수정).
-3. `D:\HC\arch.md`(루트에 남아있는 미편집 원본, untracked)를 `_quarantine/`으로 이동해 정리.
-4. Codex: `codex-docs` 워크트리의 `arch.md` 단순화본을 확인하고 커밋.
-5. Claude: `claude-impl`에서 Application 도메인 엔티티/API 구현 착수 여부를 사람에게 확인 후 시작.
+1. API 4(`PATCH /api/applications/{id}/photo`), API 5(`GET /api/applications/{id}/cards/download`) 구현 + 테스트.
+2. 전체 구현 대상 `checklist.md`(Requirements/Data Model/State Transitions/API Contract/Tests/Documentation Consistency) 6개 섹션 최종 검증.
+3. 아래 "확인 필요"의 스펙 반영을 Codex 쪽(`codex-docs`, `docs/specs/application/*.md` — Claude는 read-only)에 요청.
+4. `backend-api`로 병합 여부는 API 4/5까지 끝난 뒤 사람에게 확인.
 
-## ❓ 확인 필요 (사람에게 질문 대기 중)
+## ❓ 확인 필요 (사람에게 질문 대기 중 / Codex 문서 반영 필요)
 
-- 없음 (단, `TODO.md`의 TBD 항목들은 각자 해당 작업 착수 시점에 다시 확인 필요)
+구현 중 사람에게 직접 확인해서 "결정"까지 끝난 항목(재질문 불필요, **docs/specs/application/\* 문서에만 아직 반영 안 됨**):
+
+- `member.englishName`이 API 1(개인 신청) request/검증/매핑 표에 빠져 있었음(API 2엔 있음, requirements/data-model엔 필수로 명시) → **추가하기로 확정**, 구현엔 반영됨. `api.md`의 API 1 섹션에 반영 필요.
+- `Application.total_price`(NOT NULL로 명시되어 있었음) → 상담 확정 금액을 등록하는 API 자체가 아직 없어서 **이번 구현 범위에서 컬럼 자체를 만들지 않음**. `data-model.md` 2.1절의 `total_price` 행에 "결제/상담 도메인 설계 시 추가 예정"이라는 각주 필요, `requirements.md` 10절 TBD에도 반영 필요.
+- 단체 신청 엑셀 일부 행 파싱 실패 시 처리 → 옛 "30% 룰"은 가져오지 않고 **한 행이라도 실패하면 전체 거부(`EXCEL_PARSE_ERROR`)**로 확정. `requirements.md` 9절의 해당 TBD, `docs/specs/application/api.md` API 2 Validation 표에 명시 필요.
+
+아직 사람 확인 없이 구현하며 정한 세부사항(정책 결정은 아니고 구현 디테일이지만, 명세에 없어서 임의로 채운 부분이라 검토 필요):
+
+- **단체신청 ZIP 내부 레이아웃을 구체적으로 정의함**: 루트에 `.xlsx` 1개 + `photos/{ID}.{ext}` 사진들(대소문자·확장자 무시 매칭), 엑셀은 1행에 "공통 입국날짜" 라벨/값, 3행 헤더, 4행부터 데이터, 컬럼 순서 고정(ID·영문명·생년월일·국적·출생시간·출생지역·성별·개별입국날짜·이메일·전화번호·주소·[학번·학과]). `requirements.md`는 ASCII 목업만 제공하고 정확한 셀 좌표가 없었음 — **향후 `GET /api/applications/bulk/template` 구현 시 이 레이아웃과 반드시 일치해야 함**. `api.md`나 별도 템플릿 문서에 이 레이아웃을 명문화 추천.
+- **단체 신청의 `logo`/`seal`은 학생증 여부와 무관하게 항상 필수**로 구현(일반 카드=회사로고/직인, 학생증=학교로고/직인 — `api.md` 본문 설명은 있었으나 Validation 표엔 학생증 케이스만 명시돼 있었음). `api.md` API 2 Validation 표에 "logo/seal 자체 누락" 케이스 추가 추천.
+- `Applicant`의 `postal_code`/`address1`/`address2`는 API 1/2 어느 요청에도 입력 필드가 없어서 **항상 NULL로 둠** — `data-model.md` 2.2절의 "수령인 주소를 복사하는 등" 문구는 구현하지 않음(정책이 아니라 예시로만 적혀 있었음).
 
 ## 참고
 
-- 관련 TODO 항목: "협업 규칙 체계(`docs/collab/`) 도입", "`arch.md` 구조를 실제 코드 규모에 맞게 단순화"
-- 관련 CHANGELOG 항목: 2026-08-01
+- 관련 TODO 항목: "Application 도메인 엔티티/API 구현 착수"
+- 관련 CHANGELOG 항목: 2026-08-01 Claude — `feature/application-domain-impl`
