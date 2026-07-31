@@ -2,8 +2,9 @@ package com.example.honorcitizen.domain.application.entity;
 
 import com.example.honorcitizen.common.entity.BaseTimeEntity;
 import com.example.honorcitizen.common.enums.ApplicationStatus;
-import com.example.honorcitizen.common.enums.CardType;
-import com.example.honorcitizen.common.enums.Gender;
+import com.example.honorcitizen.common.enums.ApplicationType;
+import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.PaymentStatus;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import jakarta.persistence.Column;
@@ -18,9 +19,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
-
 @Entity
 @Table(name = "applications")
 @Getter
@@ -31,137 +29,134 @@ public class Application extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, unique = true, length = 20)
+    private String applicationNumber;
+
     @Column(nullable = false)
     private Long userId;
 
     @Column(nullable = false)
-    private String nameEn;
-
-    @Column(nullable = false)
-    private String nationality;
-
-    @Column(nullable = false)
-    private LocalDate birthDate;
-
-    @Column(nullable = false)
-    private LocalTime birthTime;
-
-    @Column(nullable = false)
-    private String birthRegion;
+    private Long cardTypeId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Gender gender;
-
-    @Column(nullable = false)
-    private String photoPath;
-
-    @Column(nullable = false)
-    private String photoId;
-
-    @Column(nullable = false)
-    private LocalDate entryDate;
-
-    @Column(nullable = false, length = 500)
-    private String address;
+    @Column(nullable = false, length = 20)
+    private ApplicationType applicationType;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private CardType cardType;
-
-    @Column
-    private Long bulkOrderId;  // null = 단건 신청
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private ApplicationStatus status;
 
-    public static Application createSingle(
-            Long userId, String nameEn, String nationality,
-            LocalDate birthDate, LocalTime birthTime, String birthRegion,
-            Gender gender, String photoId, String photoPath,
-            LocalDate entryDate, String address, CardType cardType) {
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PaymentStatus paymentStatus;
+
+    @Column(nullable = false)
+    private boolean receiverSameAsApplicant;
+
+    @Column(nullable = false)
+    private int totalQuantity;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private IssueType issueType;
+
+    private Long cardDesignId;
+
+    private Long logoFileId;
+
+    private Long sealFileId;
+
+    private Long submitFileId;
+
+    @Column(length = 500)
+    private String photoRejectReason;
+
+    public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId) {
+        Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
+        application.applicationType = ApplicationType.INDIVIDUAL;
+        application.totalQuantity = 1;
+        application.logoFileId = logoFileId;
+        application.sealFileId = sealFileId;
+        return application;
+    }
+
+    public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
+            Long logoFileId, Long sealFileId, Long submitFileId) {
+        Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
+        application.applicationType = ApplicationType.GROUP;
+        application.totalQuantity = totalQuantity;
+        application.logoFileId = logoFileId;
+        application.sealFileId = sealFileId;
+        application.submitFileId = submitFileId;
+        return application;
+    }
+
+    private static Application base(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant) {
         Application application = new Application();
         application.userId = userId;
-        application.nameEn = nameEn;
-        application.nationality = nationality;
-        application.birthDate = birthDate;
-        application.birthTime = birthTime;
-        application.birthRegion = birthRegion;
-        application.gender = gender;
-        application.photoId = photoId;
-        application.photoPath = photoPath;
-        application.entryDate = entryDate;
-        application.address = address;
-        application.cardType = cardType;
-        application.status = ApplicationStatus.PENDING;
+        application.applicationNumber = applicationNumber;
+        application.cardTypeId = cardTypeId;
+        application.issueType = issueType;
+        application.receiverSameAsApplicant = receiverSameAsApplicant;
+        application.cardDesignId = null;
+        application.status = ApplicationStatus.PAYMENT_PENDING;
+        application.paymentStatus = PaymentStatus.WAITING;
         return application;
     }
 
-    public static Application createBulk(
-            Long userId, String nameEn, String nationality,
-            LocalDate birthDate, LocalTime birthTime, String birthRegion,
-            Gender gender, String photoId, String photoPath,
-            LocalDate entryDate, String address, CardType cardType, Long bulkOrderId) {
-        Application application = createSingle(userId, nameEn, nationality,
-                birthDate, birthTime, birthRegion, gender, photoId, photoPath,
-                entryDate, address, cardType);
-        application.bulkOrderId = bulkOrderId;
-        application.status = ApplicationStatus.DRAFT;
-        return application;
+    public boolean isIndividual() {
+        return this.applicationType == ApplicationType.INDIVIDUAL;
     }
 
-    public void approvePayment() {
-        validateTransition(ApplicationStatus.PENDING);
-        this.status = ApplicationStatus.PENDING;
+    public boolean isOwnedBy(Long userId) {
+        return this.userId.equals(userId);
+    }
+
+    public void confirmPayment() {
+        transitionTo(ApplicationStatus.RECEIVED);
+        this.paymentStatus = PaymentStatus.CONFIRMED;
     }
 
     public void startReview() {
-        validateTransition(ApplicationStatus.REVIEWING);
-        this.status = ApplicationStatus.REVIEWING;
+        transitionTo(ApplicationStatus.REVIEWING);
     }
 
-    public void rejectPhoto() {
-        validateTransition(ApplicationStatus.PHOTO_REJECTED);
-        this.status = ApplicationStatus.PHOTO_REJECTED;
+    public void rejectPhoto(String reason) {
+        transitionTo(ApplicationStatus.PHOTO_REJECTED);
+        this.photoRejectReason = reason;
     }
 
-    public void resubmitPhoto(String newPhotoPath, String newPhotoId) {
-        validateTransition(ApplicationStatus.PENDING);
-        this.status = ApplicationStatus.PENDING;
-        this.photoPath = newPhotoPath;
-        this.photoId = newPhotoId;
+    public void resubmitForReview(Long newSubmitFileId) {
+        transitionTo(ApplicationStatus.REVIEWING);
+        this.photoRejectReason = null;
+        if (newSubmitFileId != null) {
+            this.submitFileId = newSubmitFileId;
+        }
     }
 
-    public void markCardReady() {
-        validateTransition(ApplicationStatus.CARD_READY);
-        this.status = ApplicationStatus.CARD_READY;
+    public void approveToNaming() {
+        transitionTo(ApplicationStatus.NAME_EDITING);
     }
 
-    public void startShipping() {
-        validateTransition(ApplicationStatus.SHIPPING);
-        this.status = ApplicationStatus.SHIPPING;
+    public void startProducing() {
+        transitionTo(ApplicationStatus.PRODUCING);
     }
 
-    public void completeDelivery() {
-        validateTransition(ApplicationStatus.DELIVERED);
-        this.status = ApplicationStatus.DELIVERED;
+    public void complete() {
+        transitionTo(ApplicationStatus.COMPLETED);
     }
 
     public void cancel() {
-        if (this.status == ApplicationStatus.SHIPPING || this.status == ApplicationStatus.DELIVERED) {
-            throwInvalidTransition(ApplicationStatus.CANCELLED);
-        }
-        this.status = ApplicationStatus.CANCELLED;
+        transitionTo(ApplicationStatus.CANCELLED);
     }
 
-    private void validateTransition(ApplicationStatus next) {
+    private void transitionTo(ApplicationStatus next) {
         if (!this.status.canTransitionTo(next)) {
-            throwInvalidTransition(next);
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
-    }
-
-    private void throwInvalidTransition(ApplicationStatus next) {
-        throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        this.status = next;
     }
 }

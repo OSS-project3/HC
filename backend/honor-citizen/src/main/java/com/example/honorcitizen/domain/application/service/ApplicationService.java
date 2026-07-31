@@ -1,25 +1,37 @@
 package com.example.honorcitizen.domain.application.service;
 
-import com.example.honorcitizen.common.enums.ApplicationStatus;
+import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.UploadFileType;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
+import com.example.honorcitizen.common.enums.LookupMethod;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
-import com.example.honorcitizen.domain.application.dto.ApplicationDetailResponse;
-import com.example.honorcitizen.domain.application.dto.ApplicationListResponse;
-import com.example.honorcitizen.domain.application.dto.ApplicationPhotoReuploadResponse;
-import com.example.honorcitizen.domain.application.dto.ApplicationResponse;
-import com.example.honorcitizen.domain.application.dto.ApplicationSummaryResponse;
+import com.example.honorcitizen.domain.application.dto.ApplicationCreateResponse;
+import com.example.honorcitizen.domain.application.dto.ApplicationLookupRequest;
+import com.example.honorcitizen.domain.application.dto.ApplicationLookupResponse;
+import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequest;
+import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateResponse;
+import com.example.honorcitizen.domain.application.entity.Applicant;
 import com.example.honorcitizen.domain.application.entity.Application;
+import com.example.honorcitizen.domain.application.entity.ApplicationMember;
+import com.example.honorcitizen.domain.application.entity.Receiver;
+import com.example.honorcitizen.domain.application.repository.ApplicantRepository;
+import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
-import com.example.honorcitizen.domain.log.entity.ApplicationStatusLog;
-import com.example.honorcitizen.domain.log.repository.ApplicationStatusLogRepository;
-import com.example.honorcitizen.domain.photo.service.PhotoUploadService;
-import com.example.honorcitizen.domain.user.service.UserService;
+import com.example.honorcitizen.domain.application.repository.ReceiverRepository;
+import com.example.honorcitizen.domain.card.entity.CardType;
+import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
+import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
+import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
+import com.example.honorcitizen.domain.user.entity.User;
+import com.example.honorcitizen.domain.user.repository.UserRepository;
+import com.example.honorcitizen.infra.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,103 +39,290 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ApplicationService {
 
-    private static final List<ApplicationStatus> DUPLICATE_TARGET_STATUSES = List.of(
-            ApplicationStatus.PENDING,
-            ApplicationStatus.REVIEWING,
-            ApplicationStatus.PHOTO_REJECTED);
-
     private final ApplicationRepository applicationRepository;
-    private final UserService userService;
-    private final PhotoUploadService photoUploadService;
-    private final ApplicationStatusLogRepository statusLogRepository;
+    private final ApplicantRepository applicantRepository;
+    private final ReceiverRepository receiverRepository;
+    private final ApplicationMemberRepository applicationMemberRepository;
+    private final CardTypeRepository cardTypeRepository;
+    private final UploadFileRepository uploadFileRepository;
+    private final UserRepository userRepository;
+    private final StorageService storageService;
+    private final BulkExcelParser bulkExcelParser;
 
     @Transactional
-    public ApplicationResponse createSingle(Long userId, ApplicationCreateRequest request) {
-        userService.validateTermsAgreed(userId);
-        validateDuplicate(userId);
+    public ApplicationCreateResponse createIndividual(Long userId, ApplicationCreateRequest request,
+            MultipartFile photo, MultipartFile schoolLogo, MultipartFile schoolSeal) {
+        CardType cardType = findActiveCardType(request.getCardTypeId());
+        boolean isStudent = cardType.isStudentCard();
 
-        String photoPath = photoUploadService.resolvePhotoPath(request.getPhotoId(), userId);
+        validateReceiverPresence(request);
+        validatePhoto(photo);
+        validateStudentFields(isStudent, request.getMember().getStudentId(), request.getMember().getDepartment(),
+                schoolLogo, schoolSeal);
 
-        // TODO(2026-07-31): entryDate/address/cardType 임시 null — Application 도메인 재설계 대상이라 우선 컴파일만 통과시킴
-        Application application = Application.createSingle(
-                userId,
-                request.getNameEn(),
-                request.getNationality(),
-                request.getBirthDate(),
-                request.getBirthTime(),
-                request.getBirthRegion(),
-                request.getGender(),
-                request.getPhotoId(),
-                photoPath,
-                null,
-                null,
-                null);
+        String applicationNumber = generateApplicationNumber();
+        Long logoFileId = isStudent ? storeUploadFile(schoolLogo, UploadFileType.PHOTO) : null;
+        Long sealFileId = isStudent ? storeUploadFile(schoolSeal, UploadFileType.PHOTO) : null;
+        boolean receiverSameAsApplicant = request.getReceiver() == null || request.getReceiver().isSameAsApplicant();
 
-        Application saved = applicationRepository.save(application);
-        statusLogRepository.save(ApplicationStatusLog.create(
-                saved.getId(), null, ApplicationStatus.PENDING, userId, "단건 신청 생성"));
-        return ApplicationResponse.from(saved);
-    }
+        Application application = Application.createIndividual(
+                userId, applicationNumber, cardType.getId(), request.getIssueType(),
+                receiverSameAsApplicant, logoFileId, sealFileId);
+        applicationRepository.save(application);
 
-    @Transactional(readOnly = true)
-    public ApplicationListResponse getMyApplications(Long userId) {
-        List<ApplicationSummaryResponse> applications = applicationRepository.findAllByUserId(userId).stream()
-                .map(ApplicationSummaryResponse::from)
-                .toList();
-        return new ApplicationListResponse(applications);
-    }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-    @Transactional(readOnly = true)
-    public ApplicationDetailResponse getMyApplicationDetail(Long userId, Long applicationId) {
-        Application application = findOwnedApplication(userId, applicationId);
-        return ApplicationDetailResponse.from(application);
+        Applicant applicant = Applicant.createIndividual(
+                application.getId(), request.getApplicant().getName(), user.getEmail(), request.getApplicant().getPhone());
+        applicantRepository.save(applicant);
+
+        saveReceiverIfNeeded(application, request, applicant);
+
+        String photoPath = storePhotoFile(applicationNumber, photo);
+        ApplicationCreateRequest.MemberRequest memberRequest = request.getMember();
+        ApplicationMember member = ApplicationMember.createIndividual(
+                application.getId(), memberRequest.getEnglishName(), memberRequest.getBirthDate(),
+                memberRequest.getNationality(), memberRequest.getBirthTime(), memberRequest.getBirthRegion(),
+                memberRequest.getGender(), memberRequest.getEntryDate(),
+                memberRequest.getStudentId(), memberRequest.getDepartment(), photoPath);
+        applicationMemberRepository.save(member);
+
+        return ApplicationCreateResponse.from(application);
     }
 
     @Transactional
-    public ApplicationPhotoReuploadResponse reuploadPhoto(Long userId, Long applicationId, MultipartFile photo) {
-        Application application = findOwnedApplication(userId, applicationId);
-        validatePhotoReuploadAllowed(application);
-        validatePhotoFile(photo);
+    public BulkApplicationCreateResponse createGroup(Long userId, BulkApplicationCreateRequest request,
+            MultipartFile logo, MultipartFile seal, MultipartFile submitFile) {
+        CardType cardType = findActiveCardType(request.getCardTypeId());
+        boolean isStudent = cardType.isStudentCard();
 
-        String photoId = "photo_" + UUID.randomUUID();
-        String photoPath = "photos/preview/" + photoId + "-" + sanitizeFilename(photo.getOriginalFilename());
-        application.resubmitPhoto(photoPath, photoId);
-
-        return ApplicationPhotoReuploadResponse.from(application);
-    }
-
-    private void validateDuplicate(Long userId) {
-        if (applicationRepository.existsByUserIdAndStatusIn(userId, DUPLICATE_TARGET_STATUSES)) {
-            throw new CustomException(ErrorCode.DUPLICATE_APPLICATION);
+        validateGroupReceiverPresence(request);
+        if (!isPresent(logo) || !isPresent(seal)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
         }
+
+        List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, isStudent);
+
+        String applicationNumber = generateApplicationNumber();
+        Long logoFileId = storeUploadFile(logo, UploadFileType.PHOTO);
+        Long sealFileId = storeUploadFile(seal, UploadFileType.PHOTO);
+        Long submitFileId = storeUploadFile(submitFile, UploadFileType.ZIP);
+        boolean receiverSameAsApplicant = request.getReceiver() == null || request.getReceiver().isSameAsApplicant();
+
+        Application application = Application.createGroup(
+                userId, applicationNumber, cardType.getId(), request.getIssueType(),
+                receiverSameAsApplicant, rows.size(), logoFileId, sealFileId, submitFileId);
+        applicationRepository.save(application);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        BulkApplicationCreateRequest.ApplicantRequest applicantRequest = request.getApplicant();
+        Applicant applicant = Applicant.createGroup(application.getId(), applicantRequest.getName(),
+                user.getEmail(), applicantRequest.getPhone(),
+                applicantRequest.getOrganizationName(), applicantRequest.getDepartment());
+        applicantRepository.save(applicant);
+
+        saveGroupReceiverIfNeeded(application, request, applicant);
+
+        for (BulkMemberRow row : rows) {
+            String photoPath = storePhotoBytes(applicationNumber, row.photoFilename(), row.photoBytes());
+            ApplicationMember member = ApplicationMember.createGroupRow(
+                    application.getId(), row.englishName(), row.birthDate(), row.nationality(),
+                    row.birthTime(), row.birthRegion(), row.gender(), row.entryDate(),
+                    row.email(), row.phone(), row.address(), row.studentId(), row.department(), photoPath);
+            applicationMemberRepository.save(member);
+        }
+
+        return BulkApplicationCreateResponse.from(application);
     }
 
-    private Application findOwnedApplication(Long userId, Long applicationId) {
-        Application application = applicationRepository.findByIdWithUser(applicationId)
-                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+    @Transactional(readOnly = true)
+    public ApplicationLookupResponse lookup(ApplicationLookupRequest request) {
+        if ((request.getPhone() == null || request.getPhone().isBlank())
+                && (request.getEmail() == null || request.getEmail().isBlank())) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
 
-        if (!application.getUserId().equals(userId)) {
-            throw new CustomException(ErrorCode.APPLICATION_NOT_FOUND);
+        Application application = request.getMethod() == LookupMethod.CARD
+                ? lookupByCard(request)
+                : lookupByApplicationNumber(request);
+
+        Applicant applicant = applicantRepository.findByApplicationId(application.getId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        CardType cardType = cardTypeRepository.findById(application.getCardTypeId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+
+        return new ApplicationLookupResponse(
+                application.getId(),
+                application.getApplicationNumber(),
+                maskName(applicant.getName()),
+                cardType.getName(),
+                application.getStatus(),
+                application.getPhotoRejectReason(),
+                application.getCreatedAt());
+    }
+
+    private Application lookupByCard(ApplicationLookupRequest request) {
+        ApplicationMember member = applicationMemberRepository.findByCardNumber(request.getKeyValue())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        Application application = applicationRepository.findById(member.getApplicationId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        Applicant applicant = applicantRepository.findByApplicationId(application.getId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+
+        String targetPhone = member.getPhone() != null ? member.getPhone() : applicant.getPhone();
+        String targetEmail = member.getEmail() != null ? member.getEmail() : applicant.getEmail();
+        if (!matches(request, targetPhone, targetEmail)) {
+            throw new CustomException(ErrorCode.NOT_FOUND);
         }
         return application;
     }
 
-    private void validatePhotoReuploadAllowed(Application application) {
-        if (application.getStatus() != ApplicationStatus.PHOTO_REJECTED) {
-            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+    private Application lookupByApplicationNumber(ApplicationLookupRequest request) {
+        Application application = applicationRepository.findByApplicationNumber(request.getKeyValue())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        Applicant applicant = applicantRepository.findByApplicationId(application.getId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+
+        if (!matches(request, applicant.getPhone(), applicant.getEmail())) {
+            throw new CustomException(ErrorCode.NOT_FOUND);
+        }
+        return application;
+    }
+
+    private boolean matches(ApplicationLookupRequest request, String targetPhone, String targetEmail) {
+        boolean phoneMatches = request.getPhone() != null && request.getPhone().equals(targetPhone);
+        boolean emailMatches = request.getEmail() != null && request.getEmail().equalsIgnoreCase(targetEmail);
+        return phoneMatches || emailMatches;
+    }
+
+    private String maskName(String name) {
+        if (name == null || name.length() <= 1) {
+            return name;
+        }
+        if (name.length() == 2) {
+            return name.charAt(0) + "*";
+        }
+        return name.charAt(0) + "*".repeat(name.length() - 2) + name.charAt(name.length() - 1);
+    }
+
+    private void validateGroupReceiverPresence(BulkApplicationCreateRequest request) {
+        if (request.getIssueType() == IssueType.MOBILE_AND_PHYSICAL && request.getReceiver() == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
         }
     }
 
-    private void validatePhotoFile(MultipartFile photo) {
+    private void saveGroupReceiverIfNeeded(Application application, BulkApplicationCreateRequest request, Applicant applicant) {
+        if (request.getIssueType() != IssueType.MOBILE_AND_PHYSICAL) {
+            return;
+        }
+        BulkApplicationCreateRequest.ReceiverRequest receiverRequest = request.getReceiver();
+        Receiver receiver = receiverRequest.isSameAsApplicant()
+                ? Receiver.copyFromApplicant(application.getId(), applicant)
+                : Receiver.create(application.getId(), receiverRequest.getName(), receiverRequest.getPhone(),
+                        receiverRequest.getZipCode(), receiverRequest.getAddress(), receiverRequest.getDetailAddress(),
+                        receiverRequest.getDeliveryRequest(), receiverRequest.getOrganizationName(), receiverRequest.getDepartment());
+        receiverRepository.save(receiver);
+    }
+
+    private String storePhotoBytes(String applicationNumber, String originalFilename, byte[] bytes) {
+        String key = "applications/" + applicationNumber + "/member-photos/" + UUID.randomUUID() + "-"
+                + sanitizeFilename(originalFilename);
+        storageService.uploadBytes(key, bytes, guessContentType(originalFilename));
+        return key;
+    }
+
+    private String guessContentType(String filename) {
+        String lower = filename == null ? "" : filename.toLowerCase();
+        if (lower.endsWith(".png")) {
+            return "image/png";
+        }
+        if (lower.endsWith(".webp")) {
+            return "image/webp";
+        }
+        return "image/jpeg";
+    }
+
+    private CardType findActiveCardType(Long cardTypeId) {
+        return cardTypeRepository.findById(cardTypeId)
+                .filter(CardType::isActive)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+    }
+
+    private void validateReceiverPresence(ApplicationCreateRequest request) {
+        if (request.getIssueType() == IssueType.MOBILE_AND_PHYSICAL && request.getReceiver() == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+    }
+
+    private void validatePhoto(MultipartFile photo) {
         if (photo == null || photo.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
     }
 
+    private void validateStudentFields(boolean isStudent, String studentId, String department,
+            MultipartFile schoolLogo, MultipartFile schoolSeal) {
+        boolean anyStudentFieldPresent = studentId != null || department != null
+                || isPresent(schoolLogo) || isPresent(schoolSeal);
+        boolean allStudentFieldsPresent = studentId != null && department != null
+                && isPresent(schoolLogo) && isPresent(schoolSeal);
+
+        if (isStudent && !allStudentFieldsPresent) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (!isStudent && anyStudentFieldPresent) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+    }
+
+    private boolean isPresent(MultipartFile file) {
+        return file != null && !file.isEmpty();
+    }
+
+    private void saveReceiverIfNeeded(Application application, ApplicationCreateRequest request, Applicant applicant) {
+        if (request.getIssueType() != IssueType.MOBILE_AND_PHYSICAL) {
+            return;
+        }
+        ApplicationCreateRequest.ReceiverRequest receiverRequest = request.getReceiver();
+        Receiver receiver = receiverRequest.isSameAsApplicant()
+                ? Receiver.copyFromApplicant(application.getId(), applicant)
+                : Receiver.create(application.getId(), receiverRequest.getName(), receiverRequest.getPhone(),
+                        receiverRequest.getZipCode(), receiverRequest.getAddress(), receiverRequest.getDetailAddress(),
+                        receiverRequest.getDeliveryRequest(), null, null);
+        receiverRepository.save(receiver);
+    }
+
+    private String storePhotoFile(String applicationNumber, MultipartFile photo) {
+        String key = "applications/" + applicationNumber + "/member-photos/" + UUID.randomUUID() + "-"
+                + sanitizeFilename(photo.getOriginalFilename());
+        storageService.upload(key, photo);
+        return key;
+    }
+
+    private Long storeUploadFile(MultipartFile file, UploadFileType fileType) {
+        String storedName = UUID.randomUUID() + "-" + sanitizeFilename(file.getOriginalFilename());
+        String key = "applications/uploads/" + storedName;
+        storageService.upload(key, file);
+
+        UploadFile uploadFile = UploadFile.create(
+                file.getOriginalFilename(), storedName, key, fileType, file.getContentType(), file.getSize());
+        return uploadFileRepository.save(uploadFile).getId();
+    }
+
     private String sanitizeFilename(String filename) {
         if (filename == null || filename.isBlank()) {
-            return "photo";
+            return "file";
         }
         return filename.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private String generateApplicationNumber() {
+        int year = LocalDate.now().getYear();
+        String prefix = "APP-" + year + "-";
+        long sequence = applicationRepository.countByApplicationNumberStartingWith(prefix) + 1;
+        return prefix + String.format("%06d", sequence);
     }
 }
