@@ -11,4 +11,6 @@ public interface ApplicationMemberRepository extends JpaRepository<ApplicationMe
     List<ApplicationMember> findByApplicationId(Long applicationId);
 
     Optional<ApplicationMember> findByCardNumber(String cardNumber);
+
+    void deleteByApplicationId(Long applicationId);
 }

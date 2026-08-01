@@ -115,6 +115,10 @@ public class Application extends BaseTimeEntity {
         return this.userId.equals(userId);
     }
 
+    public void updateTotalQuantity(int totalQuantity) {
+        this.totalQuantity = totalQuantity;
+    }
+
     public void confirmPayment() {
         transitionTo(ApplicationStatus.RECEIVED);
         this.paymentStatus = PaymentStatus.CONFIRMED;

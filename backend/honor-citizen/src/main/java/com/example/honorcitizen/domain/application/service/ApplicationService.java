@@ -1,14 +1,17 @@
 package com.example.honorcitizen.domain.application.service;
 
+import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.UploadFileType;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.enums.LookupMethod;
+import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationLookupRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationLookupResponse;
+import com.example.honorcitizen.domain.application.dto.ApplicationPhotoReuploadResponse;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateResponse;
 import com.example.honorcitizen.domain.application.entity.Applicant;
@@ -31,13 +34,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 @RequiredArgsConstructor
 public class ApplicationService {
+
+    private static final long CARD_DOWNLOAD_URL_EXPIRY_SECONDS = 7 * 24 * 60 * 60L;
 
     private final ApplicationRepository applicationRepository;
     private final ApplicantRepository applicantRepository;
@@ -136,6 +145,98 @@ public class ApplicationService {
         }
 
         return BulkApplicationCreateResponse.from(application);
+    }
+
+    @Transactional
+    public ApplicationPhotoReuploadResponse reuploadPhoto(Long userId, Long applicationId,
+            MultipartFile photo, MultipartFile submitFile) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        if (!application.isOwnedBy(userId)) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+        if (application.getStatus() != ApplicationStatus.PHOTO_REJECTED) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        if (application.isIndividual()) {
+            if (!isPresent(photo) || isPresent(submitFile)) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            ApplicationMember member = applicationMemberRepository.findByApplicationId(applicationId).get(0);
+            member.updatePhoto(storePhotoFile(application.getApplicationNumber(), photo));
+            application.resubmitForReview(null);
+        } else {
+            if (!isPresent(submitFile) || isPresent(photo)) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            CardType cardType = cardTypeRepository.findById(application.getCardTypeId())
+                    .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+            List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, cardType.isStudentCard());
+
+            Long newSubmitFileId = storeUploadFile(submitFile, UploadFileType.ZIP);
+            applicationMemberRepository.deleteByApplicationId(applicationId);
+            for (BulkMemberRow row : rows) {
+                String photoPath = storePhotoBytes(application.getApplicationNumber(), row.photoFilename(), row.photoBytes());
+                ApplicationMember member = ApplicationMember.createGroupRow(
+                        applicationId, row.englishName(), row.birthDate(), row.nationality(),
+                        row.birthTime(), row.birthRegion(), row.gender(), row.entryDate(),
+                        row.email(), row.phone(), row.address(), row.studentId(), row.department(), photoPath);
+                applicationMemberRepository.save(member);
+            }
+            application.updateTotalQuantity(rows.size());
+            application.resubmitForReview(newSubmitFileId);
+        }
+
+        return ApplicationPhotoReuploadResponse.from(application);
+    }
+
+    @Transactional(readOnly = true)
+    public ApplicationCardDownloadResponse getCardDownload(Long userId, Long applicationId) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        if (!application.isOwnedBy(userId)) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+        if (application.getStatus() != ApplicationStatus.COMPLETED) {
+            throw new CustomException(ErrorCode.CARD_NOT_READY);
+        }
+
+        LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+        List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(applicationId);
+
+        if (application.isIndividual()) {
+            ApplicationMember member = members.get(0);
+            String cardFrontUrl = storageService.generatePresignedUrl(member.getCardFrontPath(), CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+            String cardBackUrl = storageService.generatePresignedUrl(member.getCardBackPath(), CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+            return ApplicationCardDownloadResponse.forIndividual(applicationId, cardFrontUrl, cardBackUrl, expiresAt);
+        }
+
+        String downloadUrl = buildGroupCardsZipAndGetUrl(application, members);
+        return ApplicationCardDownloadResponse.forGroup(applicationId, downloadUrl, expiresAt);
+    }
+
+    private String buildGroupCardsZipAndGetUrl(Application application, List<ApplicationMember> members) {
+        ByteArrayOutputStream zipBytes = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(zipBytes)) {
+            int index = 1;
+            for (ApplicationMember member : members) {
+                String label = member.getEnglishName() != null ? member.getEnglishName() : String.valueOf(index);
+                zip.putNextEntry(new ZipEntry(label + "-front.png"));
+                zip.write(storageService.download(member.getCardFrontPath()));
+                zip.closeEntry();
+                zip.putNextEntry(new ZipEntry(label + "-back.png"));
+                zip.write(storageService.download(member.getCardBackPath()));
+                zip.closeEntry();
+                index++;
+            }
+        } catch (java.io.IOException e) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR);
+        }
+
+        String key = "applications/" + application.getApplicationNumber() + "/cards/" + UUID.randomUUID() + ".zip";
+        storageService.uploadBytes(key, zipBytes.toByteArray(), "application/zip");
+        return storageService.generatePresignedUrl(key, CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
     }
 
     @Transactional(readOnly = true)

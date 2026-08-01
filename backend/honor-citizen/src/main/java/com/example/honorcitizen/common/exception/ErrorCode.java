@@ -39,33 +39,9 @@ public enum ErrorCode {
     INVALID_ZIP(400, "ZIP 형식이 올바르지 않습니다."),
     EXCEL_NOT_FOUND(400, "ZIP 안에 엑셀 파일이 없습니다."),
     EXCEL_PARSE_ERROR(400, "엑셀 형식이 올바르지 않습니다."),
-    ALL_FAILED(400, "전체 행 처리에 실패했습니다."),
 
-    // Shipping
-    SHIPPING_ALREADY_EXISTS(409, "이미 배송지가 등록되어 있습니다."),
-    SHIPPING_NOT_FOUND(404, "배송지 정보가 없습니다."),
-    SHIPPING_LOCKED(400, "발송 이후 배송지는 수정할 수 없습니다."),
-    EDIT_PERIOD_EXPIRED(400, "수정 가능 기간이 만료되었습니다."),
-    UNAUTHORIZED_ACCESS(403, "본인 신청이 아닙니다."),
-
-    // KoreanName
-    KOREAN_NAME_ALREADY_EXISTS(409, "이미 한국 이름이 등록되어 있습니다."),
-    KOREAN_NAME_NOT_FOUND(404, "등록된 한국 이름이 없습니다."),
-    INVALID_APPLICATION_STATUS(400, "현재 신청 상태에서 허용되지 않는 작업입니다."),
-
-    // CitizenCard
-    CARD_ALREADY_ISSUED(409, "이미 발급된 시민증이 있습니다."),
-    CARD_NOT_READY(400, "아직 시민증이 발급되지 않았습니다."),
-    CARD_NOT_FOUND(404, "발급된 시민증을 찾을 수 없습니다."),
-
-    // Bulk Order
-    BULK_ORDER_NOT_FOUND(404, "단체 신청 정보를 찾을 수 없습니다."),
-    NO_CARDS_ISSUED(400, "아직 발급된 카드가 없습니다."),
-
-    // Payment
-    ALREADY_PAID(409, "이미 결제 완료된 신청입니다."),
-    PAYMENT_FAILED(402, "결제에 실패했습니다."),
-    AMOUNT_MISMATCH(400, "결제 금액이 일치하지 않습니다.");
+    // Card
+    CARD_NOT_READY(400, "아직 카드가 발급되지 않았습니다.");
 
     private final int status;
     private final String message;
