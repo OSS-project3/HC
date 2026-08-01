@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-01 — Claude — `backend-api` (User/Application End-to-End 플로우 테스트)
+
+- 변경: 실사용자 시나리오 기준 통합 테스트(`UserApplicationFlowTest`) 추가 — Google 로그인(OAuth2SuccessHandler와 동일 코드 경로로 재현) → 인증 유지(Cookie/JWT, 이후 전 구간 동일 쿠키 재사용) → 개인 신청 생성 → 신청 조회(lookup) → 신청 상태 전이(관리자 검토·반려를 엔티티 레벨로 재현, HTTP API 없음) → Lookup 재조회(반려 사유 노출 확인) → 사진 재업로드 → DB 최종 상태 검증까지 8단계를 한 테스트로 연결. 각 단계 HTTP 상태코드/Response/DB 상태/(모킹된) 파일 업로드 호출을 전부 검증.
+- 로컬에 Redis가 없어 처음엔 기존 `UserControllerTest`의 탈퇴 테스트 2개와 이 신규 테스트가 전부 막혀 있었음 — Docker로 Redis 컨테이너를 띄워서 실제로 통과하는 것까지 확인(이 컴퓨터엔 다른 프로젝트("zerotime")의 Redis가 이미 6379를 점유 중이라 별도 컨테이너를 다른 포트로 띄움 — `REDIS_PORT` 오버라이드는 로컬 전용이라 커밋 안 함).
+- 테스트 작성 중 버그 발견: `@Transactional` 테스트 메서드에서 `deleteAll()` 직후 `save()`를 호출하면 Hibernate의 flush 순서(Insert가 Delete보다 먼저 실행됨) 때문에 유니크 제약 위반 발생 — 이 프로젝트의 나머지 테스트들이 전부 비-`@Transactional`(각 리포지토리 호출이 즉시 커밋)인 이유와 일치, 새 테스트도 동일 컨벤션으로 맞춤.
+- 파일: `backend/honor-citizen/src/test/java/com/example/honorcitizen/flow/UserApplicationFlowTest.java`
+- 사유: 사용자 요청 — "API 단위 테스트는 충분, 이제 실제 사용자 시나리오 기준 User Flow Integration Test 작성"
+- 관련: 전체 테스트 83/83 통과(Redis 가용 시)
+
 ## 2026-08-01 — Claude — `backend-api` (전체 코드베이스 감사 + 정리)
 
 - 변경: 사용자 요청으로 전체 백엔드 감사(① 문서에 없는 코드 ② 코드에 없는 문서 ③ 호출자 없는 클래스 ④ 호출자 없는 API ⑤ 아키텍처 위반 ⑥ 실행 안 되는 코드) 수행 후 삭제 가능 항목 정리. `infra/card/*`(5개 파일, CitizenCard 삭제 후 orphan) 삭제. `domain/photo/*` + `api/UploadController.java` 삭제(프론트 `src/` 검색 결과 호출 없음 확인, `docs/api/upload-file.md`도 "독립 API 불필요"로 이미 결론). `domain/user/dto/{TokenRefreshRequest,TokenRefreshResponse}`(정의만 되고 미사용) 삭제. `ErrorCode`에서 `DUPLICATE_APPLICATION`(미사용)과 domain/photo 삭제로 연쇄 orphan된 `UNSUPPORTED_FILE_TYPE`/`INVALID_IMAGE`/`INAPPROPRIATE_IMAGE`/`PHOTO_NOT_FOUND`/`PHOTO_EXPIRED`/`PHOTO_OWNER_MISMATCH` 제거. **아키텍처 위반 수정**: `ApplicationService`가 `UserRepository`를 직접 주입하던 것 — arch.md "다른 도메인의 Repository를 생성자 주입하지 않는다" 위반 — `UserService.findById()` 경유로 교체.
