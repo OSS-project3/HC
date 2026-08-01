@@ -48,12 +48,27 @@
 - **의도적으로 유지한 것**: `CardDesignRepository`/`domain/log/*`(AdminActivityLog/EmailLog) — 현재 호출자 없지만 Admin 도메인 구현 시 필요한 스캐폴딩이라 유지. `ApplicationService`의 `CardTypeRepository`/`UploadFileRepository` 직접 주입 — 전자는 Card 도메인에 Service가 아직 없어서(향후 CardService 승격 권장), 후자는 UploadFile이 애초에 "소유 도메인 없는 공용 엔티티"로 설계돼서 예외로 유지.
 - 감사 방법: 코드 전체 grep으로 호출자 추적(문서 읽고 추측 아님), 프론트 `src/` 디렉터리까지 확인.
 
+**User/Application End-to-End 플로우 테스트 추가 완료** (`UserApplicationFlowTest`):
+
+- Google 로그인(OAuth2SuccessHandler와 동일 코드 경로로 재현) → 인증 유지(Cookie, 전 구간 동일 accessToken 재사용) → 개인 신청 생성 → 신청 조회(lookup) → 관리자 검토·반려(엔티티 레벨 재현, HTTP API 없음) → Lookup 재조회(반려 사유 노출) → 사진 재업로드 → DB 최종 상태 검증까지 8단계, 각 단계 HTTP 상태/Response/DB/파일업로드 호출 전부 검증.
+- 로컬 Redis 없어서 처음엔 막혀 있었음 — Docker로 띄워 실제 통과 확인(이 PC엔 다른 프로젝트 "zerotime"의 Redis가 6379 점유 중이라 별도 포트 사용, `build.gradle`엔 흔적 안 남김 — **로컬에서 재현하려면 각자 `localhost:6379`에 인증 없는 Redis 준비 필요**).
+- 과정에서 실제 버그 발견/수정: `@Transactional` 테스트에서 `deleteAll()` 직후 `save()`하면 Hibernate flush 순서상 Insert가 Delete보다 먼저 실행돼 유니크 제약 위반 — 테스트를 이 프로젝트의 나머지 테스트와 동일하게 비-`@Transactional`로 수정.
+- 전체 테스트 83/83 통과(Redis 가용 시).
+
+**`ApplicationService` 리팩터링 계획 수립됨** (사용자 지시, Task 2~4는 Codex 담당 — `docs/collab/TODO.md`에 상세 기록):
+
+- Task 1(진행 중, 담당 미지정): 생성 로직을 `createIndividualApplication`/`createIndividualApplicant`/`createIndividualMember` 등 private 메서드로 추출 — 이미 코드에 일부 반영됨.
+- Task 2(Codex): Factory + Context 패턴 도입 — `ApplicationFactory`/`CreatedApplication`/`IndividualCreationContext` 신설, 생성 로직 이동, Service는 흐름만 담당. 동작은 그대로 유지.
+- Task 3(Codex): Validation 통합 — 회원존재/ACTIVE/USER권한/약관동의/하루3회/PhotoValidator/StudentCardValidator를 하나의 관심사로 묶어 처리(PR을 억지로 잘게 쪼개지 않음, 단 개별 Validator가 커지면 그건 별도 PR).
+- Task 4(Codex, 마지막 순서): 운영 개선 — 신청번호 Generator, 동시성, 파일 보상 처리, Retry, Transaction 경계 정리.
+
 ## 다음에 할 일
 
 1. (Codex) 아래 "확인 필요" 5건을 각 문서에 반영.
 2. (Codex) User/Auth 문서 `docs/specs/user/`로 이전 → Payment → Card → Common/Admin/File/Board 순.
-3. Payment/상담금액/자동취소/환불 도메인 설계 및 구현 — 다음 단위 작업으로 분리 필요(사람 확인 후 시작).
-4. Admin 도메인(사진검토/작명/카드발급/CardDesign 배정) — 아직 전혀 손 안 댐.
+3. (Codex) `ApplicationService` 리팩터링 Task 2 → 3 → 4 순서로 진행(위 상세 내용 참고, `TODO.md`에도 동일 기록).
+4. Payment/상담금액/자동취소/환불 도메인 설계 및 구현 — 다음 단위 작업으로 분리 필요(사람 확인 후 시작).
+5. Admin 도메인(사진검토/작명/카드발급/CardDesign 배정) — 아직 전혀 손 안 댐.
 
 ## ❓ 확인 필요 (사람에게 질문 대기 중 / Codex 문서 반영 필요)
 
