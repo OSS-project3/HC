@@ -1,7 +1,7 @@
 # 프로젝트 현재 상태 (2026-07-31 기준)
 
 > 이 문서 하나만 읽으면 프로젝트를 한동안 안 봤어도 "지금 뭐가 되어있고, 뭐가 안 되어있고, 다음에 뭘 해야 하는지" 파악할 수 있도록 작성했습니다.
-> 상세 설계는 `DB.md`(엔티티), `API-명세.md`(API)를 참고하세요. 이 문서는 그 둘의 요약 + 백엔드 실제 코드 상태 + 프론트 상태를 종합한 것입니다.
+> 상세 설계는 `DB.md`(엔티티), `docs/api/README.md`(API)를 참고하세요. 이 문서는 그 둘의 요약 + 백엔드 실제 코드 상태 + 프론트 상태를 종합한 것입니다.
 
 ---
 
@@ -12,8 +12,8 @@
 
 ## 현재 구현 범위 (한 줄 요약)
 - **프론트**: 화면/디자인은 상당히 완성도 높게 만들어져 있으나, **서버 연동이 0%** (fetch/axios 호출이 코드 전체에 단 하나도 없음). 전부 정적 mock 데이터.
-- **백엔드**: Spring Boot 프로젝트가 이미 상당 부분 구현되어 있으나, **이것과 완전히 다른 옛 도메인("사주 기반 외국인 등록증") 기준**으로 짜여 있고, **현재 컴파일조차 안 되는 상태**(4곳 미완성 리팩터링). 새로 확정한 설계(`DB.md`/`API-명세.md`)와 재사용 가능한 건 인증(OAuth/JWT) 인프라 정도뿐.
-- **DB/API 설계 문서**: `DB.md`, `API-명세.md`에 새 도메인 기준 엔티티·API 21개가 상세 설계되어 있음(코드는 아직 없음).
+- **백엔드**: Spring Boot 프로젝트가 이미 상당 부분 구현되어 있으나, **이것과 완전히 다른 옛 도메인("사주 기반 외국인 등록증") 기준**으로 짜여 있고, **현재 컴파일조차 안 되는 상태**(4곳 미완성 리팩터링). 새로 확정한 설계(`DB.md`/`docs/api/README.md`)와 재사용 가능한 건 인증(OAuth/JWT) 인프라 정도뿐.
+- **DB/API 설계 문서**: `DB.md`, `docs/api/README.md`에 새 도메인 기준 엔티티·API 21개가 상세 설계되어 있음(코드는 아직 없음).
 
 ## 주요 기술 스택
 | 영역 | 스택 |
@@ -29,7 +29,7 @@
    src/data/*.ts 정적 데이터                          domain/{user,application,payment,...}
    sessionStorage에 신청 draft 보관                    (사주 기반 — 새 설계와 불일치)
         │
-   DB.md / API-명세.md ── 새 도메인 설계 (User/Application/Payment/카드/Admin, 21개 API) — 구현 전
+   DB.md / docs/api/README.md ── 새 도메인 설계 (User/Application/Payment/카드/Admin, 21개 API) — 구현 전
 ```
 프론트와 백엔드가 **지금은 완전히 분리되어 있고 연결된 적이 없습니다.** 새 설계 문서 기준으로 백엔드를 다시 짜고, 프론트에 API 연동 코드를 새로 붙이는 작업이 남아있습니다.
 
@@ -115,7 +115,7 @@
 - 백엔드 테스트 파일 **2개뿐**(`HonorCitizenApplicationTests`(스모크), `ApplicationControllerTest`) — 그마저도 컴파일이 안 돼서 지금은 실행 자체가 안 됨. OAuth/JWT/User 관련 테스트는 **0개**.
 - **왜 문제인가**: 새로 구현할 때 회귀를 잡아줄 안전망이 없음.
 
-### 기술 부채 / 미결정 사항 (`API-명세.md` 말미에 종합됨)
+### 기술 부채 / 미결정 사항 (`docs/api/README.md` 말미에 종합됨)
 - 카드번호 채번 로직(순차 발급 vs 무작위) 미정
 - 게시판(Review/Post) 필드 미정 — 프론트 요구사항 대기
 - `Receiver.country`(해외배송 지원 여부) 미정
@@ -137,7 +137,7 @@
 5. **프론트-백엔드 연동 골격 구축** — API 클라이언트, 공통 응답(`{success,data,errorCode,errorMessage}`) 파싱 유틸
 
 ## 이후 구현
-6. `DB.md`/`API-명세.md` 기준 **Application/Payment/카드/Admin 도메인 백엔드 신규 구현** (엔티티 + API 21개)
+6. `DB.md`/`docs/api/README.md` 기준 **Application/Payment/카드/Admin 도메인 백엔드 신규 구현** (엔티티 + API 21개)
 7. 프론트: 개인 신청 폼에 생년월일·국적·출생시각·출생지역·성별·사진 필드 추가, `StepFiles`/`StepInfo` 신청유형별 분기
 8. 로그인/회원가입 화면을 OAuth 버튼 방식으로 교체
 9. 입금자명 입력 활성화(`value`/`onChange` 연결), `/lookup`에 반려사유+재업로드 버튼, 카드 다운로드 화면 신규
@@ -176,7 +176,7 @@
 ## 미구현 API (백엔드 자체 문서 기준, 옛 도메인의 나머지 14개 — 참고용, 새 설계에선 대부분 불필요해짐)
 `POST /admin/auth/login`, `GET /admin/applications` 등 어드민 관리 API 일부, Bulk 검증/확인 분리 API(`bulk/validate`, `bulk/confirm`, `bulk/template`) — TossPayments 웹훅 서명검증 TODO 포함.
 
-## 새로 추가해야 하는 API (`API-명세.md` 기준, 21개 — 전부 코드 없음, ⚠️ 표시는 프론트 미확인)
+## 새로 추가해야 하는 API (`docs/api/README.md` 기준, 21개 — 전부 코드 없음, ⚠️ 표시는 프론트 미확인)
 
 | 도메인 | API | 비고 |
 |---|---|---|
@@ -198,7 +198,7 @@
 | Admin | `PATCH /api/admin/application-members/{id}/name` + `.../complete-naming` | 신규 |
 | Admin | `POST /api/admin/applications/{id}/issue-cards` | 신규 |
 
-전부 `API-명세.md`에 Request/Response/Validation/DB매핑까지 상세 설계되어 있음.
+전부 `docs/api/README.md`에 Request/Response/Validation/DB매핑까지 상세 설계되어 있음.
 
 ---
 

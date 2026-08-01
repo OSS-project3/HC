@@ -2,7 +2,7 @@
 
 > 작성일: 2026-07-31
 > 목적: Application(신청) 도메인 백엔드 구현 전, 사용자 흐름 기준으로 개인/단체 처리 방침과 카드종류별 차이를 확정한다.
-> 기준 문서: `DB.md`(엔티티), `API-명세.md`(API) — 이 문서에서 확정되는 내용은 두 문서에 이어서 반영한다.
+> 기준 문서: `DB.md`(엔티티), `docs/api/README.md`(API) — 이 문서에서 확정되는 내용은 두 문서에 이어서 반영한다.
 > ⚠️ 아직 DB/API 상세 설계 단계가 아니라 **요구사항 정리 단계**. 임의로 세부 스펙(글자수 제한 등)을 만들지 않고, 확인 필요한 건 [TBD]로 남긴다.
 
 ---
@@ -129,7 +129,7 @@
 
 ### 기존 설계/프론트 동작
 - 프론트: 홈/`DesignPage.tsx`에서 사용자가 구체적 디자인(예: `honorary-korean-03`)을 클릭 → `/apply?designId=xxx`로 진입 → 신청 시 그 `designId`가 그대로 제출됨.
-- `API-명세.md` Application API 1/2 request body에 `cardDesignId`가 사용자 입력값으로 포함되어 있었음.
+- `docs/api/README.md` Application API 1/2 request body에 `cardDesignId`가 사용자 입력값으로 포함되어 있었음.
 
 ### 변경된 정책
 ✅ **사용자는 "카드 종류"만 선택하고, 구체적 디자인(`CardDesign`)은 관리자가 신청 검토 과정에서 배정한다.**
@@ -179,6 +179,31 @@
 - **사주 정보 입력폼이 방문증에만 있음**: `isVisitor`일 때만 영문이름/국적/생년월일/출생시각/출생지역/성별 필드가 보이고, 나머지 3종(명예한국인증/명예시민증/학생증)은 이름/연락처/이메일만 받는 단순폼임. 매트릭스대로면 **4종 전부** 사주 정보가 필요함.
 - **한국입국날짜/"출생시간 모름" 체크 시 미입력 처리**: 현재 프론트엔 입국날짜 필드 자체가 없음(신규 추가 필요), 출생시간 "모름" 체크박스는 이미 있음(`birthTimeUnknown`, `visitor` 폼에만 존재).
 
+### 7-4. 결제 금액·입금 기한·환불 정책
+
+#### 결제 금액
+
+- 결제 금액은 카드 종류별 고정 금액을 하드코딩하거나 `CardType.price × total_quantity`로 자동 계산하지 않는다.
+- 개인/단체 신청 모두 **신청 건별 사전 상담을 통해 최종 결제 금액을 확정**한다.
+- `Application.total_price`에는 상담을 통해 확정된 최종 금액을 저장한다.
+- 상담 확정 금액을 시스템에 등록하는 주체와 API는 [TBD]다.
+
+#### 입금 기한
+
+- 사용자는 **신청일로부터 3일 이내**에 입금해야 한다.
+- 기한 내 입금되지 않은 신청은 `CANCELLED` 처리한다.
+
+#### 환불 정책
+
+| 신청 상태 | 환불 가능 여부 | 사유 |
+|---|---|---|
+| `RECEIVED` | ✅ 전액 환불 | 아직 제작 전 |
+| `REVIEWING` | ✅ 전액 환불 | 검토 중 |
+| `PHOTO_REJECTED` | ✅ 전액 환불 | 사용자 재업로드 또는 취소 가능 |
+
+- `PAYMENT_PENDING`은 아직 입금이 확인되지 않은 상태이므로 환불 대상이 아니라 신청 취소 대상으로 처리한다.
+- `NAME_EDITING` 이후 상태의 환불 가능 여부와 환불 금액은 [TBD]다.
+
 ---
 
 ## 8. 단건/다건 CRUD 정책
@@ -219,4 +244,4 @@
 
 ---
 
-이 문서 확정 후 `DB.md`(`ApplicationMember`에 `entry_date`/`email`/`phone` 추가, `birth_region`/`birth_time` Nullable로 정정, CardType 학생증 필드 반영) → `API-명세.md`(Application API 1/2에서 `cardDesignId` 제거, 신규 필드 반영) 순으로 이어서 반영합니다.
+이 문서 확정 후 [data-model.md](data-model.md)(`ApplicationMember`에 `entry_date`/`email`/`phone` 추가, `birth_region`/`birth_time` Nullable로 정정, CardType 학생증 필드 반영) → [api.md](api.md)(Application API 1/2에서 `cardDesignId` 제거, 신규 필드 반영) 순으로 이어서 반영합니다.

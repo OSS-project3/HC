@@ -37,13 +37,14 @@ git show origin/feature/application-domain-impl:docs/collab/HANDOFF.md
 
 ### 1순위 — 기준 문서 (Source of Truth)
 
-- `APPLICATION-사용자명세.md`
+- `docs/specs/application/requirements.md`
   - Application 도메인의 요구사항·비즈니스 규칙을 정의한 기준 문서. 구현·API 설계는 이 문서를 최우선으로 따른다.
   - ⚠️ 파일명은 대문자 `APPLICATION`으로 시작한다 (Windows는 대소문자를 구분하지 않아 오탈자가 숨을 수 있으니 주의).
 
 ### 2순위 — 도메인 API
 
-- `docs/api/{도메인}.md` (예: `docs/api/application.md`, `docs/api/user.md`)
+- Application: `docs/specs/application/api.md`
+- 아직 이전하지 않은 도메인: `docs/api/{도메인}.md` (도메인 이전 작업 완료 시 `docs/specs/{도메인}/api.md`로 변경)
   - 도메인별 API 명세. 해당 도메인 API는 이 파일에서만 관리한다.
 
 ### 3순위 — 공통 문서
@@ -54,19 +55,20 @@ git show origin/feature/application-domain-impl:docs/collab/HANDOFF.md
 ### 4순위 — 참고 문서
 
 - `arch.md` — 아키텍처·개발 규칙
-- `DB.md` — 테이블·컬럼 구조
+- Application: `docs/specs/application/data-model.md` — Application 데이터 모델 Source of Truth
+- 아직 이전하지 않은 도메인: `DB.md` — 이전 완료 전까지의 테이블·컬럼 구조
 - `docs/api/unresolved.md` — 미결정 사항 목록
 
 ### 문서 갱신 전파 방향
 
 요구사항이 바뀌면 반드시 이 순서로 전파한다:
-`APPLICATION-사용자명세.md` → `DB.md` → `docs/api/{도메인}.md` → (구조에 영향 있으면) `arch.md`
+`docs/specs/application/requirements.md` → `docs/specs/application/data-model.md` → `docs/specs/application/api.md` → (구조에 영향 있으면) `arch.md`
 
 ---
 
 ## 3. 작업 원칙 (기존 guide.md 승계)
 
-- `APPLICATION-사용자명세.md`를 Source of Truth로 사용한다.
+- `docs/specs/application/requirements.md`를 Source of Truth로 사용한다.
 - 공통 규칙(응답 형식, 인증, 에러 코드)은 `docs/api/common.md`를 따르며 중복 작성하지 않는다.
 - 문서 간 내용이 충돌하면 임의로 구현·수정하지 말고, 충돌 내용을 `HANDOFF.md`의 "❓ 확인 필요"에 기록한 뒤 사람에게 질문한다.
 - 미결정 사항(Unresolved)이 있거나 요구사항이 모호하면 구현하지 말고 먼저 질문한다.
@@ -89,8 +91,8 @@ git show origin/feature/application-domain-impl:docs/collab/HANDOFF.md
 ## 5. 작업 종료 절차 (체크리스트)
 
 - [ ] 변경 내용이 아래 4가지 기준과 일치하는지 검증
-  - [ ] `APPLICATION-사용자명세.md`와 일치하는가
-  - [ ] `DB.md` 구조와 일치하는가
+  - [ ] `docs/specs/application/requirements.md`와 일치하는가
+  - [ ] `docs/specs/application/data-model.md` 구조와 일치하는가
   - [ ] `docs/api/common.md` 공통 규칙을 준수하는가
   - [ ] 기존 API/문서와 충돌하지 않는가
 - [ ] `docs/collab/TODO.md` 갱신 (완료 체크, 새로 발견한 작업 추가, 블로킹이면 `🔴`로 표시)
@@ -105,9 +107,9 @@ git show origin/feature/application-domain-impl:docs/collab/HANDOFF.md
 
 | 상황 | 반드시 수정해야 하는 문서 |
 |---|---|
-| 요구사항/정책 변경 | `APPLICATION-사용자명세.md` → `DB.md` → `docs/api/{도메인}.md` |
-| API 엔드포인트 추가/변경 | `docs/api/{도메인}.md` |
-| DB 스키마 변경 | `DB.md` |
+| Application 요구사항/정책 변경 | `docs/specs/application/requirements.md` → `data-model.md` → `api.md` |
+| Application API 엔드포인트 추가/변경 | `docs/specs/application/api.md` |
+| Application DB 스키마 변경 | `docs/specs/application/data-model.md` |
 | 패키지 구조 등 아키텍처 변경 | `arch.md` |
 | 코드 구현/리팩터링 | 코드 (+ 구조가 바뀌면 `arch.md`) |
 | 결정 보류 항목 발생 | `docs/api/unresolved.md` |
