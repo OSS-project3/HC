@@ -27,7 +27,7 @@ import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
 import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
 import com.example.honorcitizen.domain.user.entity.User;
-import com.example.honorcitizen.domain.user.repository.UserRepository;
+import com.example.honorcitizen.domain.user.service.UserService;
 import com.example.honorcitizen.infra.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -54,7 +54,7 @@ public class ApplicationService {
     private final ApplicationMemberRepository applicationMemberRepository;
     private final CardTypeRepository cardTypeRepository;
     private final UploadFileRepository uploadFileRepository;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final StorageService storageService;
     private final BulkExcelParser bulkExcelParser;
 
@@ -79,8 +79,7 @@ public class ApplicationService {
                 receiverSameAsApplicant, logoFileId, sealFileId);
         applicationRepository.save(application);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        User user = userService.findById(userId);
 
         Applicant applicant = Applicant.createIndividual(
                 application.getId(), request.getApplicant().getName(), user.getEmail(), request.getApplicant().getPhone());
@@ -124,8 +123,7 @@ public class ApplicationService {
                 receiverSameAsApplicant, rows.size(), logoFileId, sealFileId, submitFileId);
         applicationRepository.save(application);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        User user = userService.findById(userId);
 
         BulkApplicationCreateRequest.ApplicantRequest applicantRequest = request.getApplicant();
         Applicant applicant = Applicant.createGroup(application.getId(), applicantRequest.getName(),

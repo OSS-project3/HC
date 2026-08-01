@@ -21,18 +21,11 @@ public enum ErrorCode {
     ALREADY_WITHDRAWN(409, "이미 탈퇴 처리된 계정입니다."),
 
     // Application
-    DUPLICATE_APPLICATION(409, "진행 중인 신청이 이미 존재합니다."),
     APPLICATION_NOT_FOUND(404, "존재하지 않는 신청입니다."),
     INVALID_STATUS_TRANSITION(400, "허용되지 않는 상태 전이입니다."),
 
     // Upload
     FILE_TOO_LARGE(413, "파일 크기는 10MB를 초과할 수 없습니다."),
-    UNSUPPORTED_FILE_TYPE(415, "허용되지 않는 파일 형식입니다."),
-    INVALID_IMAGE(400, "얼굴을 식별할 수 없습니다."),
-    INAPPROPRIATE_IMAGE(400, "부적절한 이미지가 감지되었습니다."),
-    PHOTO_NOT_FOUND(404, "유효하지 않은 사진입니다."),
-    PHOTO_EXPIRED(400, "사진 업로드가 만료되었습니다."),
-    PHOTO_OWNER_MISMATCH(403, "다른 사용자가 업로드한 사진입니다."),
 
     // Bulk Application
     ZIP_TOO_LARGE(413, "ZIP 파일은 500MB를 초과할 수 없습니다."),
