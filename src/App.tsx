@@ -6,12 +6,19 @@ import { Toaster } from "./components/ui/toast";
 import { HomePage } from "./pages/HomePage";
 import { DesignPage } from "./pages/DesignPage";
 import { LookupPage } from "./pages/LookupPage";
+import { MobileCardPage } from "./pages/MobileCardPage";
 import { SupportPage } from "./pages/SupportPage";
+import { FaqPage } from "./pages/FaqPage";
+import { NoticesPage } from "./pages/NoticesPage";
+import { NoticeDetailPage } from "./pages/NoticeDetailPage";
+import { MyPage } from "./pages/MyPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
+import { AccountRecoveryPage } from "./pages/AccountRecoveryPage";
 import { AdminPage } from "./pages/AdminPage";
 import { StubPage } from "./pages/StubPage";
 import { CompanyPage } from "./pages/CompanyPage";
+import { GreetingsPage } from "./pages/GreetingsPage";
 import { ReviewsPage } from "./pages/ReviewsPage";
 import { EventsPage } from "./pages/EventsPage";
 import { ApplyPage } from "./pages/apply/ApplyPage";
@@ -26,10 +33,17 @@ export default function App() {
           <Route path="/design" element={<DesignPage />} />
           <Route path="/apply/*" element={<ApplyPage />} />
           <Route path="/lookup" element={<LookupPage />} />
+          <Route path="/mobile-card" element={<MobileCardPage />} />
           <Route path="/support" element={<SupportPage />} />
+          <Route path="/faq" element={<FaqPage />} />
+          <Route path="/notices" element={<NoticesPage />} />
+          <Route path="/notices/:noticeId" element={<NoticeDetailPage />} />
+          <Route path="/mypage" element={<MyPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/account-recovery" element={<AccountRecoveryPage />} />
           <Route path="/company" element={<CompanyPage />} />
+          <Route path="/greetings" element={<GreetingsPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/admin" element={<AdminPage />} />

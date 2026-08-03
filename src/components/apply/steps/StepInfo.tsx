@@ -13,6 +13,7 @@ interface StepInfoProps {
 export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
   const isVisitor = draft.cardType === "visitor";
+  const isStudent = draft.cardType === "student";
 
   const setApplicant = (patch: Partial<ApplicantInfo>) =>
     update({ applicant: { ...draft.applicant, ...patch } });
@@ -209,6 +210,28 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   placeholder="홍 길 동"
                 />
               </div>
+              {isStudent && (
+                <div className="field-row">
+                  <label className="field">
+                    <span className="field__label">학번<span className="req">*</span></span>
+                    <input
+                      className="field__input"
+                      value={draft.applicant.studentNumber ?? ""}
+                      onChange={(e) => setApplicant({ studentNumber: e.target.value })}
+                      placeholder="20260001"
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">학과<span className="req">*</span></span>
+                    <input
+                      className="field__input"
+                      value={draft.applicant.department ?? ""}
+                      onChange={(e) => setApplicant({ department: e.target.value })}
+                      placeholder="학과를 입력해 주세요"
+                    />
+                  </label>
+                </div>
+              )}
               <label className="field">
                 <span className="field__label">
                   연락처<span className="req">*</span>

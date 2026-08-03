@@ -29,6 +29,58 @@
   gap: 16px;
 }
 
+.auth__recovery-links {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 11px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+.auth__recovery-links a {
+  color: var(--color-text-muted);
+}
+.auth__recovery-links a:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+.auth__recovery-links i {
+  width: 1px;
+  height: 12px;
+  background: var(--color-border-soft);
+}
+
+.auth__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.auth__tab {
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.auth__tab--active {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.auth__result {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-card);
+  background: var(--color-warm-beige);
+  color: var(--color-text-title);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .auth__divider {
   display: flex;
   align-items: center;

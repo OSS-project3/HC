@@ -8,15 +8,15 @@ import "./LoginPage.css";
 export function SignupPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirm: "" });
   const [error, setError] = useState<string | null>(null);
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.email.trim()) {
-      setError("이름과 이메일을 입력해 주세요.");
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim()) {
+      setError("이름, 이메일, 전화번호를 모두 입력해 주세요.");
       return;
     }
     if (form.password !== form.confirm) {
@@ -64,6 +64,18 @@ export function SignupPage() {
               value={form.password}
               onChange={(e) => set({ password: e.target.value })}
               placeholder="비밀번호"
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">전화번호</span>
+            <input
+              className="field__input"
+              type="tel"
+              autoComplete="tel"
+              value={form.phone}
+              onChange={(e) => set({ phone: e.target.value })}
+              placeholder="010-1234-5678"
+              required
             />
           </label>
           <label className="field">

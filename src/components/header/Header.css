@@ -105,6 +105,11 @@
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
+.header__username:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
 .header__logout {
   font-family: var(--font-sans);
   font-weight: 500;

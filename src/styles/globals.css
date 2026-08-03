@@ -56,6 +56,7 @@ body {
 /* Shared top treatment for every routed subpage. */
 .subpage-hero {
   padding-block: clamp(40px, 6vw, 76px) clamp(20px, 3vw, 36px);
+  padding-inline: clamp(14px, 2vw, 28px);
   text-align: left;
 }
 .subpage-hero .eyebrow {

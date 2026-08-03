@@ -9,13 +9,37 @@
 .lookup__hero {
   width: 100%;
 }
-.lookup__form {
+.lookup__panel {
   margin-top: 4px;
   width: min(100%, 480px);
   background: var(--color-surface);
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.lookup__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.lookup__tab {
+  min-height: 52px;
+  padding: 10px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: var(--color-warm-beige);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lookup__tab--active {
+  border-bottom-color: var(--color-primary);
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+.lookup__form {
   padding: clamp(24px, 4vw, 36px);
   display: grid;
   gap: 18px;

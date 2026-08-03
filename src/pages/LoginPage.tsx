@@ -44,6 +44,12 @@ export function LoginPage() {
           </Button>
         </form>
 
+        <div className="auth__recovery-links" aria-label="계정 찾기">
+          <Link to="/account-recovery?type=id">아이디 찾기</Link>
+          <i aria-hidden="true" />
+          <Link to="/account-recovery?type=password">비밀번호 찾기</Link>
+        </div>
+
         <div className="auth__divider">
           <span>또는 데모 계정으로 체험</span>
         </div>

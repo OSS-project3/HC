@@ -1,18 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { companyInfo } from "../config/company";
 import { PhoneIcon, MailIcon, DocIcon, ChatIcon, ArrowUpRight } from "../components/ui/icons";
 import { Modal } from "../components/ui/Modal";
 import "./SupportPage.css";
 
-const notices = [
-  { title: "단체 제작 신청 안내", date: "2027.02.05" },
-  { title: "신청양식 다운로드", date: "2027.02.05" },
-  { title: "모바일·실물 카드 수령 안내", date: "2027.01.26" },
-  { title: "공식 서비스 및 운영 안내", date: "2027.01.08" },
+export const notices = [
+  { id: "group-application", title: "단체 제작 신청 안내", date: "2027.02.05", content: "단체 카드 제작을 신청하실 경우 제작 신청 페이지에서 법인·단체 신청을 선택해 주세요. 담당자 확인 후 제작 일정과 필요한 자료를 안내드립니다.", attachment: "단체_카드_신청안내.txt" },
+  { id: "application-form", title: "신청양식 다운로드", date: "2027.02.05", content: "단체 카드(명예 한국인증, 명예 시민증, 학생증, 방문증) 신청 시 필요한 신청양식입니다.\n아래 첨부파일을 다운로드하여 작성 후 신청 시 함께 첨부해 주세요.", attachment: "단체_카드_신청양식.txt" },
+  { id: "card-delivery", title: "모바일·실물 카드 수령 안내", date: "2027.01.26", content: "모바일 카드는 발급 완료 후 신청 조회 페이지에서 확인할 수 있습니다. 실물 카드를 함께 신청하신 경우 등록한 수령지로 순차 배송됩니다.", attachment: "카드_수령_안내.txt" },
+  { id: "service-guide", title: "공식 서비스 및 운영 안내", date: "2027.01.08", content: "한글과 세종 공식 서비스 운영 안내입니다. 서비스 이용과 제작 신청에 관한 문의는 고객지원 상담·문의 메뉴를 이용해 주세요.", attachment: "서비스_운영_안내.txt" },
 ];
 
-const faqs = [
+export const faqs = [
   { q: "제작된 카드는 실제 신분증으로 사용할 수 있나요?", a: "아니요.\n본 상품은 신분증으로서의 법적 효력을 갖지 않습니다." },
   { q: "작명 의뢰는 각 개인이 직접 하여야 하나요?", a: "개인 신청과 단체 신청 모두 가능하며, 신청 유형에 맞는 정보를 입력해 주시면 됩니다." },
   { q: "의뢰 후 제작 기간은 어느정도 걸리나요?", a: "상담과 자료 확인이 완료된 뒤 제작 일정과 수령 방법을 개별 안내드립니다." },
@@ -23,17 +23,27 @@ const faqs = [
 ];
 
 const stories = [
-  { title: "한국 이름을 지어줄 때\n한글로 된 이름을\n지어주나요?", body: "한국 이름의 소리와 뜻을 함께 고려해 한글 이름을 제안합니다." },
-  { title: "한국 이름은 한글로\n작명하는 경우가 대부분인데\n어떻게 작명하나요?", body: "이름에 담길 뜻과 발음, 사용 환경을 종합해 작명 방향을 정합니다." },
-  { title: "한국 이름 지어주기는\n어떻게 어떤 방식으로\n지어주나요?", body: "신청 정보를 바탕으로 이름 후보와 풀이를 구성해 전달합니다." },
-  { title: "한글 이름에도\n사주 오행이 있나요?", body: "요청한 서비스 유형에 따라 관련 설명과 이름 풀이를 함께 제공합니다." },
+  {
+    title: "한국 이름을 지어줄 때\n한글로 된 이름을 지어주나요?",
+    body: "예! 그렇습니다. 한문으로 해석된 이름과 순우리말 이름도 지어줍니다.",
+  },
+  {
+    title: "한국 이름은 한문으로\n작명하는 경우가 대부분인데\n어떻게 작명하나요?",
+    body: "한국 이름은 순우리말 이름이 있고 한문 이름도 한글로 된 한문 이름으로 작명하여 뜻과 의미를 해석하여 공급합니다. 한국, 중국, 일본 등은 한자 문화권으로 한문 이름이 많습니다. 한문 이름으로 작명하여도 한글로 해석하여 제공합니다.",
+  },
+  {
+    title: "한국 이름 지어주기는\n어떻게, 어떤 방식으로\n지어주나요?",
+    body: "순우리말과 한국식 이름을 작명하며, 뜻과 의미가 있는 이름을 지어줍니다. 사람마다 태어난 년·월·일·시가 제각각이고 태어난 나라와 도시가 다르기 때문에 사람마다 사주 오행을 분석하여 동양철학 전문가가 이름을 지어줍니다. 이름의 뜻과 의미도 함께 설명하여 줍니다.",
+  },
+  {
+    title: "한글 이름에도\n사주 오행이 있나요?",
+    body: "그렇습니다. 한문 이름에도 사주 오행이 있으며, 한글에도 사주 오행이 있습니다. 한글의 자음을 각기 다른 오행으로 분류합니다.",
+  },
 ];
 
 export function SupportPage() {
   const { hash } = useLocation();
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [searchBy, setSearchBy] = useState("전체");
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -44,65 +54,39 @@ export function SupportPage() {
     });
   }, [hash]);
 
-  const filteredNotices = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-    if (!keyword) return notices;
-    return notices.filter((notice) => {
-      const target = searchBy === "작성일" ? notice.date : notice.title;
-      return target.toLowerCase().includes(keyword);
-    });
-  }, [query, searchBy]);
-
   return (
     <div className="support">
       <header className="support__hero subpage-hero page-container">
-        <p className="eyebrow">고객지원</p>
-        <h1 className="support__title subpage-hero__title">고객지원</h1>
+        <div className="support__hero-copy">
+          <p className="eyebrow">고객지원</p>
+          <h1 className="support__title subpage-hero__title">고객지원</h1>
+        </div>
+        <img className="support__hero-art" src="/images/support/support-bg.png" alt="" aria-hidden="true" />
       </header>
 
       <section id="notice" className="support__section page-container">
         <SectionRule />
-        <h2 className="support__heading">공지사항</h2>
-        <form className="notice-search" onSubmit={(e) => e.preventDefault()}>
-          <select value={searchBy} onChange={(e) => setSearchBy(e.target.value)} aria-label="검색 조건">
-            <option>전체</option>
-            <option>제목</option>
-            <option>작성일</option>
-          </select>
-          <label>
-            <span className="visually-hidden">검색어 입력</span>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="검색어를 입력하세요" />
-            <button type="submit" aria-label="검색">
-              <SearchGlyph />
-            </button>
-          </label>
-        </form>
-
+        <div className="notice-summary__head">
+          <h2>공지사항</h2>
+          <button onClick={() => navigate("/notices")}>더보기 <span aria-hidden="true">›</span></button>
+        </div>
         <div className="notice-table">
-          <div className="notice-table__head">
-            <span>번호</span><span>제목</span><span>작성일</span>
-          </div>
-          {filteredNotices.map((notice) => (
+          {notices.slice(0, 4).map((notice) => (
             <article className="notice-table__row" key={notice.title}>
               <span className="notice-table__badge">공지</span>
-              <span className="notice-table__title">{notice.title}</span>
+              <Link className="notice-table__title" to={`/notices/${notice.id}`}>{notice.title}</Link>
               <time>{notice.date}</time>
             </article>
           ))}
-          {filteredNotices.length === 0 && <p className="notice-table__empty">검색 결과가 없습니다.</p>}
         </div>
-        <nav className="support-pagination" aria-label="공지사항 페이지">
-          <button aria-label="이전 페이지">‹</button><b>1</b><button aria-label="다음 페이지">›</button>
-        </nav>
       </section>
 
       <section id="faq" className="support__section page-container">
-        <SectionRule />
-        <h2 className="support__heading support__heading--plain">자주 묻는 질문</h2>
-        <p className="faq__intro">
-          자주 문의하시는 내용을 정리했습니다.<br />
-          원하시는 내용을 찾지 못하신 경우 상담 문의를 이용해 주세요.
-        </p>
+        <SectionRule plain />
+        <div className="notice-summary__head">
+          <h2>자주 묻는 질문</h2>
+          <button onClick={() => navigate("/faq")}>더보기 <span aria-hidden="true">›</span></button>
+        </div>
         <div className="faq">
           {faqs.map((faq, index) => (
             <details key={faq.q} className="faq__item" open={index === 0 ? true : undefined}>
@@ -111,15 +95,10 @@ export function SupportPage() {
             </details>
           ))}
         </div>
-        <div className="faq-help">
-          <span className="faq-help__icon"><PhoneIcon /></span>
-          <p>상담 문의 {companyInfo.phone}　 |　 {companyInfo.businessHours}<br />고객지원에서 다양한 상담 방법을 이용하실 수 있습니다.</p>
-          <button onClick={() => navigate("/support#contact")}>고객 지원</button>
-        </div>
       </section>
 
       <section id="story" className="support__section page-container">
-        <SectionRule />
+        <SectionRule plain />
         <h2 className="support__heading">제작 이야기</h2>
         <div className="story-grid">
           {stories.map((story, index) => (
@@ -131,7 +110,7 @@ export function SupportPage() {
       </section>
 
       <section id="contact" className="support__section support__section--contact page-container">
-        <SectionRule />
+        <SectionRule plain />
         <h2 className="support__heading">상담·문의</h2>
         <div className="support__contact">
           <ContactCard icon={<PhoneIcon />} title="전화 상담" lines={[companyInfo.businessHours, `(${companyInfo.lunchHours})`]}>
@@ -155,6 +134,7 @@ export function SupportPage() {
         open={storyIndex !== null}
         onClose={() => setStoryIndex(null)}
         title={storyIndex === null ? "제작 이야기" : stories[storyIndex].title.replace(/\n/g, " ")}
+        className="story-modal"
       >
         <p>{storyIndex === null ? "" : stories[storyIndex].body}</p>
       </Modal>
@@ -162,12 +142,8 @@ export function SupportPage() {
   );
 }
 
-function SectionRule() {
-  return <div className="support-rule" aria-hidden="true"><i /></div>;
-}
-
-function SearchGlyph() {
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>;
+function SectionRule({ plain = false }: { plain?: boolean }) {
+  return <div className={`support-rule${plain ? " support-rule--plain" : ""}`} aria-hidden="true"><i /></div>;
 }
 
 function ContactCard({ icon, title, lines, children }: { icon: React.ReactNode; title: string; lines: string[]; children: React.ReactNode }) {

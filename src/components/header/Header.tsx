@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { Logo } from "../brand/Logo";
-import { mainNav, adminNavItem, supportMenu, designMenu, applyMenu, type NavItem } from "../../config/navigation";
+import { mainNav, adminNavItem, supportMenu, designMenu, applyMenu, companyMenu, type NavItem } from "../../config/navigation";
 import { useAuth } from "../../features/auth/AuthContext";
 import { GlobeIcon, ChevronRight } from "../ui/icons";
 import "./Header.css";
@@ -25,12 +25,13 @@ export function Header() {
 
   // Admin entry appears (before 고객지원) only when logged in as admin.
   const navItems = useMemo<NavItem[]>(() => {
+    if (user?.role === "user") return [...mainNav, { label: "마이페이지", to: "/mypage" }];
     if (!isAdmin) return mainNav;
     const items = [...mainNav];
     const supportIdx = items.findIndex((i) => i.to === "/support");
     items.splice(supportIdx < 0 ? items.length : supportIdx, 0, adminNavItem);
     return items;
-  }, [isAdmin]);
+  }, [isAdmin, user?.role]);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -45,7 +46,9 @@ export function Header() {
 
         <nav className="header__nav" aria-label="주요 메뉴">
           {navItems.map((item) =>
-            item.to === "/design" ? (
+            item.to === "/company" ? (
+              <CompanyNavItem key={item.to} />
+            ) : item.to === "/design" ? (
               <DesignNavItem key={item.to} />
             ) : item.to === "/apply" ? (
               <ApplyNavItem key={item.to} />
@@ -67,7 +70,7 @@ export function Header() {
           <LanguageSelector />
           {user ? (
             <div className="header__account">
-              <span className="header__username">{user.name}님</span>
+              <NavLink to="/mypage" className="header__username">{user.name}님</NavLink>
               <button className="header__logout" onClick={logout}>
                 로그아웃
               </button>
@@ -93,6 +96,63 @@ export function Header() {
 
       <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} navItems={navItems} />
     </>
+  );
+}
+
+function CompanyNavItem() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | undefined>(undefined);
+
+  const openNow = () => {
+    window.clearTimeout(closeTimer.current);
+    setOpen(true);
+  };
+  const closeSoon = () => {
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 260);
+  };
+
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
+  return (
+    <div
+      className="support-menu"
+      ref={ref}
+      onMouseEnter={openNow}
+      onMouseLeave={closeSoon}
+      onFocus={openNow}
+      onBlur={(event) => {
+        if (!ref.current?.contains(event.relatedTarget as Node)) closeSoon();
+      }}
+    >
+      <NavLink
+        to="/company#about"
+        className={() => clsx("nav-item", (pathname === "/company" || pathname === "/greetings") && "nav-item--active")}
+        aria-haspopup="true"
+        aria-expanded={open}
+      >
+        회사 소개
+      </NavLink>
+      <div className={clsx("support-menu__panel", open && "support-menu__panel--open")} role="menu">
+        {companyMenu.map((item) => (
+          <button
+            key={item.to}
+            role="menuitem"
+            className="support-menu__item"
+            onClick={() => {
+              window.clearTimeout(closeTimer.current);
+              setOpen(false);
+              navigate(item.to);
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -228,7 +288,7 @@ function SupportNavItem() {
   const go = (id: string) => {
     window.clearTimeout(closeTimer.current);
     setOpen(false);
-    navigate(`/support#${id}`);
+    navigate(id === "faq" ? "/faq" : id === "notice" ? "/notices" : `/support#${id}`);
   };
 
   return (
@@ -311,6 +371,7 @@ function MobileDrawer({
   const [supportOpen, setSupportOpen] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
+  const [companyOpen, setCompanyOpen] = useState(false);
 
   return (
     <div className={clsx("drawer", open && "drawer--open")} aria-hidden={!open}>
@@ -318,7 +379,32 @@ function MobileDrawer({
       <div className="drawer__panel">
         <nav aria-label="모바일 메뉴">
           {navItems.map((item) =>
-            item.to === "/design" ? (
+            item.to === "/company" ? (
+              <div key="company" className="drawer__group">
+                <button className="drawer__link drawer__accordion" onClick={() => setCompanyOpen((v) => !v)}>
+                  회사 소개
+                  <span className={clsx("drawer__chev", companyOpen && "drawer__chev--open")}>
+                    <ChevronRight width={16} height={16} />
+                  </span>
+                </button>
+                {companyOpen && (
+                  <div className="drawer__sub">
+                    {companyMenu.map((entry) => (
+                      <button
+                        key={entry.to}
+                        className="drawer__sublink"
+                        onClick={() => {
+                          onClose();
+                          navigate(entry.to);
+                        }}
+                      >
+                        {entry.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : item.to === "/design" ? (
               <div key="design" className="drawer__group">
                 <button className="drawer__link drawer__accordion" onClick={() => setDesignOpen((v) => !v)}>
                   디자인
@@ -384,7 +470,7 @@ function MobileDrawer({
                         className="drawer__sublink"
                         onClick={() => {
                           onClose();
-                          navigate(`/support#${s.id}`);
+                          navigate(s.id === "faq" ? "/faq" : s.id === "notice" ? "/notices" : `/support#${s.id}`);
                         }}
                       >
                         {s.label}
@@ -400,15 +486,17 @@ function MobileDrawer({
             ),
           )}
           {user ? (
-            <button
-              className="drawer__link drawer__link--login"
-              onClick={() => {
-                logout();
-                onClose();
-              }}
-            >
-              로그아웃 ({user.name}님)
-            </button>
+            <>
+              <button
+                className="drawer__link drawer__link--login"
+                onClick={() => {
+                  logout();
+                  onClose();
+                }}
+              >
+                로그아웃
+              </button>
+            </>
           ) : (
             <NavLink to="/login" className="drawer__link drawer__link--login" onClick={onClose}>
               로그인

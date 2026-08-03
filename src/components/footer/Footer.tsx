@@ -80,7 +80,7 @@ export function Footer() {
                 {companyInfo.representativeTitle} {companyInfo.representative}
               </span>
               <i aria-hidden="true">|</i>
-              <span>법인등록번호 {companyInfo.registrationNumber}</span>
+              <span>사업자등록번호 {companyInfo.registrationNumber}</span>
             </p>
             <p>
               <span>

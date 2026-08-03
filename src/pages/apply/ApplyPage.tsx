@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";
-import { findCardDesign, honoraryKoreanCards, visitorCards, cardTypeLabels } from "../../data/cards";
+import { findCardDesign, honoraryKoreanCards, honoraryCitizenCards, studentCards, visitorCards, cardTypeLabels } from "../../data/cards";
 import { Stepper } from "../../components/apply/Stepper";
 import { CardPreviewPanel } from "../../components/apply/CardPreviewPanel";
 import { StepType } from "../../components/apply/steps/StepType";
@@ -17,6 +17,10 @@ export function ApplyPage() {
   const { pathname } = useLocation();
   const routeDesignId = pathname.endsWith("/visitor")
     ? visitorCards[0]?.id
+    : pathname.endsWith("/honorary-citizen")
+      ? honoraryCitizenCards[0]?.id
+      : pathname.endsWith("/student")
+        ? studentCards[0]?.id
     : pathname.endsWith("/honorary-korean")
       ? honoraryKoreanCards[0]?.id
       : undefined;

@@ -15,6 +15,7 @@ export interface ApplicantInfo {
   gender?: "male" | "female" | "";
   organizationName?: string;
   department?: string;
+  studentNumber?: string;
   phone: string;
   email: string;
 }
@@ -69,6 +70,7 @@ export const emptyApplicant: ApplicantInfo = {
   gender: "",
   organizationName: "",
   department: "",
+  studentNumber: "",
   phone: "",
   email: "",
 };

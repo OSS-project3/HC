@@ -1,6 +1,9 @@
 .content-page {
   color: var(--color-text-secondary);
 }
+.anchor-section {
+  scroll-margin-top: 110px;
+}
 .content-kicker {
   color: var(--color-icon-accent);
   font-size: 11px;

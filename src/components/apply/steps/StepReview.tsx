@@ -18,6 +18,7 @@ const dash = "—";
 export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepReviewProps) {
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
   const isVisitor = draft.cardType === "visitor";
+  const isStudent = draft.cardType === "student";
   const issuanceLabel = isPhysical ? "모바일 + 실물 발급" : "모바일 발급";
   const typeLabel = draft.applicantType === "organization" ? "법인 단체 신청" : "개인 신청";
   const cardLabel = design ? cardTypeLabels[design.cardType] : draft.cardType ? cardTypeLabels[draft.cardType] : dash;
@@ -55,6 +56,8 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
         ) : (
           <>
             <Item label="이름" value={draft.applicant.name || dash} />
+            {isStudent && <Item label="학번" value={draft.applicant.studentNumber || dash} />}
+            {isStudent && <Item label="학과" value={draft.applicant.department || dash} />}
             <Item label="연락처" value={draft.applicant.phone || dash} />
             <Item label="이메일" value={draft.applicant.email || dash} />
           </>
@@ -80,6 +83,12 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
       <ReviewSection title="등록한 이미지 / 파일" onEdit={() => onEdit(2)}>
         {isVisitor ? (
           <FileItem label="본인 얼굴 사진" name={draft.faceFile?.name} preview={draft.faceFile?.previewUrl} />
+        ) : isStudent ? (
+          <>
+            <FileItem label="본인 프로필 사진" name={draft.faceFile?.name} preview={draft.faceFile?.previewUrl} />
+            <FileItem label="학교 로고" name={draft.logoFile?.name} preview={draft.logoFile?.previewUrl} />
+            <FileItem label="학교 직인" name={draft.sealFile?.name} preview={draft.sealFile?.previewUrl} />
+          </>
         ) : (
           <>
             <FileItem label="로고 이미지" name={draft.logoFile?.name} preview={draft.logoFile?.previewUrl} />

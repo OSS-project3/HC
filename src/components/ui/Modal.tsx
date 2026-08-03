@@ -11,6 +11,8 @@ interface ModalProps {
   /** Optional prev/next navigation arrows (used by the policy modal). */
   onPrev?: () => void;
   onNext?: () => void;
+  /** Optional class applied to the dialog surface for scoped variants. */
+  className?: string;
 }
 
 const FOCUSABLE =
@@ -20,7 +22,7 @@ const FOCUSABLE =
  * Accessible modal dialog: white surface, scrollable body, closes on backdrop
  * click / ESC / close button, traps focus and restores it on close.
  */
-export function Modal({ open, onClose, title, children, onPrev, onNext }: ModalProps) {
+export function Modal({ open, onClose, title, children, onPrev, onNext, className }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
@@ -75,7 +77,7 @@ export function Modal({ open, onClose, title, children, onPrev, onNext }: ModalP
   return createPortal(
     <div className="modal" onMouseDown={onClose}>
       <div
-        className="modal__dialog"
+        className={`modal__dialog${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}

@@ -52,5 +52,14 @@ export const designMenu: SupportMenuItem[] = [
 /** Separate application flows sharing the same visual shell. */
 export const applyMenu: NavItem[] = [
   { label: "명예한국인증", to: "/apply/honorary-korean" },
+  { label: "명예시민증", to: "/apply/honorary-citizen" },
+  { label: "학생증", to: "/apply/student" },
   { label: "방문증", to: "/apply/visitor" },
+];
+
+/** Company dropdown: greeting is separate; the other entries anchor into the company page. */
+export const companyMenu: NavItem[] = [
+  { label: "인사말", to: "/greetings" },
+  { label: "회사소개", to: "/company#about" },
+  { label: "오시는 길", to: "/company#directions" },
 ];
