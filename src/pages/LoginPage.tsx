@@ -1,12 +1,15 @@
 // Login page.
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { useAuth, demoUser } from "../features/auth/AuthContext";
 import "./LoginPage.css";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
+  const safeReturnTo = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
   const { login, loginAsUser, loginAsAdmin } = useAuth();
   const [email, setEmail] = useState("");
 
@@ -14,7 +17,7 @@ export function LoginPage() {
     e.preventDefault();
     // Mock: sign in as a regular user with the entered email.
     login({ name: email.split("@")[0] || demoUser.name, email: email || demoUser.email, role: "user" });
-    navigate("/");
+    navigate(safeReturnTo);
   };
 
   return (
@@ -60,7 +63,7 @@ export function LoginPage() {
             block
             onClick={() => {
               loginAsUser();
-              navigate("/");
+              navigate(safeReturnTo);
             }}
           >
             일반 사용자 데모 로그인

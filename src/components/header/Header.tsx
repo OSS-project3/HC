@@ -6,12 +6,15 @@ import { Logo } from "../brand/Logo";
 import { mainNav, adminNavItem, supportMenu, designMenu, applyMenu, companyMenu, type NavItem } from "../../config/navigation";
 import { useAuth } from "../../features/auth/AuthContext";
 import { GlobeIcon, ChevronRight } from "../ui/icons";
+import { showToast } from "../ui/toast";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import "./Header.css";
 
 export function Header() {
   const location = useLocation();
   const isHome = location.pathname === "/";
   const { user, isAdmin, logout } = useAuth();
+  const { t } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
   // Transparent at the very top; gains a backdrop once the page is scrolled so
   // the header stays legible over content passing underneath.
@@ -60,7 +63,7 @@ export function Header() {
                 to={item.to}
                 className={({ isActive }) => clsx("nav-item", isActive && "nav-item--active")}
               >
-                {item.label}
+                {t(item.label)}
               </NavLink>
             ),
           )}
@@ -72,12 +75,12 @@ export function Header() {
             <div className="header__account">
               <NavLink to="/mypage" className="header__username">{user.name}님</NavLink>
               <button className="header__logout" onClick={logout}>
-                로그아웃
+                {t("로그아웃")}
               </button>
             </div>
           ) : (
             <NavLink to="/login" className="header__login">
-              로그인
+              {t("로그인")}
             </NavLink>
           )}
           <button
@@ -103,6 +106,7 @@ function CompanyNavItem() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | undefined>(undefined);
 
@@ -134,7 +138,7 @@ function CompanyNavItem() {
         aria-haspopup="true"
         aria-expanded={open}
       >
-        회사 소개
+        {t("회사 소개")}
       </NavLink>
       <div className={clsx("support-menu__panel", open && "support-menu__panel--open")} role="menu">
         {companyMenu.map((item) => (
@@ -148,7 +152,7 @@ function CompanyNavItem() {
               navigate(item.to);
             }}
           >
-            {item.label}
+            {t(item.label)}
           </button>
         ))}
       </div>
@@ -160,6 +164,7 @@ function ApplyNavItem() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | undefined>(undefined);
 
@@ -191,7 +196,7 @@ function ApplyNavItem() {
         aria-haspopup="true"
         aria-expanded={open}
       >
-        제작 신청
+        {t("제작 신청")}
       </NavLink>
       <div className={clsx("support-menu__panel", open && "support-menu__panel--open")} role="menu">
         {applyMenu.map((item) => (
@@ -205,7 +210,7 @@ function ApplyNavItem() {
               navigate(item.to);
             }}
           >
-            {item.label}
+            {t(item.label)}
           </button>
         ))}
       </div>
@@ -216,6 +221,7 @@ function ApplyNavItem() {
 function DesignNavItem() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | undefined>(undefined);
 
@@ -253,12 +259,12 @@ function DesignNavItem() {
         aria-haspopup="true"
         aria-expanded={open}
       >
-        디자인
+        {t("디자인")}
       </NavLink>
       <div className={clsx("support-menu__panel", open && "support-menu__panel--open")} role="menu">
         {designMenu.map((item) => (
           <button key={item.id} role="menuitem" className="support-menu__item" onClick={() => go(item.id)}>
-            {item.label}
+            {t(item.label)}
           </button>
         ))}
       </div>
@@ -271,6 +277,7 @@ function DesignNavItem() {
 function SupportNavItem() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | undefined>(undefined);
 
@@ -308,12 +315,12 @@ function SupportNavItem() {
         aria-haspopup="true"
         aria-expanded={open}
       >
-        고객지원
+        {t("고객지원")}
       </NavLink>
       <div className={clsx("support-menu__panel", open && "support-menu__panel--open")} role="menu">
         {supportMenu.map((item) => (
           <button key={item.id} role="menuitem" className="support-menu__item" onClick={() => go(item.id)}>
-            {item.label}
+            {t(item.label)}
           </button>
         ))}
       </div>
@@ -323,6 +330,7 @@ function SupportNavItem() {
 
 function LanguageSelector() {
   const [open, setOpen] = useState(false);
+  const { language, setLanguage } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -338,7 +346,7 @@ function LanguageSelector() {
     <div className="lang" ref={ref}>
       <button className="lang__toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <GlobeIcon width={16} height={16} />
-        <span>한국어</span>
+        <span>{language === "ko" ? "한국어" : "English"}</span>
         <span className="lang__caret" aria-hidden="true">
           ⌄
         </span>
@@ -346,10 +354,10 @@ function LanguageSelector() {
       {open && (
         <ul className="lang__menu">
           <li>
-            <button className="lang__option lang__option--active">한국어</button>
+            <button className={`lang__option${language === "ko" ? " lang__option--active" : ""}`} onClick={() => { setLanguage("ko"); setOpen(false); }}>한국어</button>
           </li>
           <li>
-            <button className="lang__option">English</button>
+            <button className={`lang__option${language === "en" ? " lang__option--active" : ""}`} onClick={() => { setLanguage("en"); setOpen(false); showToast("Language changed to English."); }}>English</button>
           </li>
         </ul>
       )}
@@ -368,6 +376,7 @@ function MobileDrawer({
 }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const [supportOpen, setSupportOpen] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
@@ -382,7 +391,7 @@ function MobileDrawer({
             item.to === "/company" ? (
               <div key="company" className="drawer__group">
                 <button className="drawer__link drawer__accordion" onClick={() => setCompanyOpen((v) => !v)}>
-                  회사 소개
+                  {t("회사 소개")}
                   <span className={clsx("drawer__chev", companyOpen && "drawer__chev--open")}>
                     <ChevronRight width={16} height={16} />
                   </span>
@@ -398,7 +407,7 @@ function MobileDrawer({
                           navigate(entry.to);
                         }}
                       >
-                        {entry.label}
+                        {t(entry.label)}
                       </button>
                     ))}
                   </div>
@@ -407,7 +416,7 @@ function MobileDrawer({
             ) : item.to === "/design" ? (
               <div key="design" className="drawer__group">
                 <button className="drawer__link drawer__accordion" onClick={() => setDesignOpen((v) => !v)}>
-                  디자인
+                  {t("디자인")}
                   <span className={clsx("drawer__chev", designOpen && "drawer__chev--open")}>
                     <ChevronRight width={16} height={16} />
                   </span>
@@ -423,7 +432,7 @@ function MobileDrawer({
                           navigate(`/design#${s.id}`);
                         }}
                       >
-                        {s.label}
+                        {t(s.label)}
                       </button>
                     ))}
                   </div>
@@ -432,7 +441,7 @@ function MobileDrawer({
             ) : item.to === "/apply" ? (
               <div key="apply" className="drawer__group">
                 <button className="drawer__link drawer__accordion" onClick={() => setApplyOpen((v) => !v)}>
-                  제작 신청
+                  {t("제작 신청")}
                   <span className={clsx("drawer__chev", applyOpen && "drawer__chev--open")}>
                     <ChevronRight width={16} height={16} />
                   </span>
@@ -448,7 +457,7 @@ function MobileDrawer({
                           navigate(s.to);
                         }}
                       >
-                        {s.label}
+                        {t(s.label)}
                       </button>
                     ))}
                   </div>
@@ -457,7 +466,7 @@ function MobileDrawer({
             ) : item.to === "/support" ? (
               <div key="support" className="drawer__group">
                 <button className="drawer__link drawer__accordion" onClick={() => setSupportOpen((v) => !v)}>
-                  고객지원
+                  {t("고객지원")}
                   <span className={clsx("drawer__chev", supportOpen && "drawer__chev--open")}>
                     <ChevronRight width={16} height={16} />
                   </span>
@@ -473,7 +482,7 @@ function MobileDrawer({
                           navigate(s.id === "faq" ? "/faq" : s.id === "notice" ? "/notices" : `/support#${s.id}`);
                         }}
                       >
-                        {s.label}
+                        {t(s.label)}
                       </button>
                     ))}
                   </div>
@@ -481,7 +490,7 @@ function MobileDrawer({
               </div>
             ) : (
               <NavLink key={item.to} to={item.to} className="drawer__link" onClick={onClose}>
-                {item.label}
+                {t(item.label)}
               </NavLink>
             ),
           )}
@@ -494,12 +503,12 @@ function MobileDrawer({
                   onClose();
                 }}
               >
-                로그아웃
+                {t("로그아웃")}
               </button>
             </>
           ) : (
             <NavLink to="/login" className="drawer__link drawer__link--login" onClick={onClose}>
-              로그인
+              {t("로그인")}
             </NavLink>
           )}
         </nav>

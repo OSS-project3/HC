@@ -2,21 +2,21 @@
 .company-hero { border-bottom: 1px solid var(--color-border-soft); }
 .company-overview { display: grid; grid-template-columns: .82fr 1.18fr; gap: clamp(48px, 8vw, 110px); padding-block: clamp(56px, 8vw, 100px); }
 .company-overview__lead { padding-right: clamp(20px, 4vw, 62px); border-right: 1px solid var(--color-border-soft); }
-.company-overview__lead h2 { color: var(--color-wordmark); font-family: var(--font-serif); font-size: clamp(25px, 3vw, 36px); line-height: 1.45; }
-.company-overview__lead p { margin-top: 46px; color: var(--color-text-muted); font-size: 14px; line-height: 1.85; }
+.company-overview__lead h2 { color: var(--color-wordmark); font-family: var(--font-serif); font-size: clamp(25px, 3vw, 36px); font-weight: 800; line-height: 1.45; }
+.company-overview__lead p { margin-top: 46px; color: var(--color-text-secondary); font-size: clamp(15px, 1.35vw, 17px); font-weight: 600; line-height: 1.85; }
 .company-overview__details { display: grid; gap: 30px; }
-.company-overview__details h3, .company-promises h3 { margin-bottom: 10px; color: var(--color-icon-accent); font-size: 15px; font-weight: 700; }
-.company-overview__details p, .company-promises p { color: var(--color-text-secondary); font-size: 13px; line-height: 1.8; word-break: keep-all; }
+.company-overview__details h3, .company-promises h3 { margin-bottom: 12px; color: var(--color-icon-accent); font-size: clamp(17px, 1.6vw, 20px); font-weight: 800; }
+.company-overview__details p, .company-promises p { color: var(--color-text-secondary); font-size: clamp(15px, 1.35vw, 17px); line-height: 1.85; word-break: keep-all; }
 .company-promises { padding-block: 10px clamp(70px, 9vw, 120px); }
 .company-promises > h2, .company-process > h2, .company-location > h2 { padding-bottom: 24px; border-bottom: 1px solid var(--color-border-soft); color: var(--color-wordmark); font-family: var(--font-serif); font-size: clamp(26px, 3vw, 36px); }
 .company-promises__list { display: grid; gap: 36px; margin-top: 40px; max-width: 880px; }
 .company-process { padding-block: 48px clamp(80px, 10vw, 130px); border-top: 1px solid var(--color-border-soft); }
-.company-process > p { margin: 14px 0 34px; color: var(--color-text-muted); font-size: 13px; }
+.company-process > p { margin: 16px 0 36px; color: var(--color-text-secondary); font-size: clamp(15px, 1.35vw, 17px); font-weight: 600; line-height: 1.7; }
 .company-process__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .company-process__grid article { min-height: 190px; padding: 24px 20px; border: 1px solid var(--color-border-accent); text-align: center; }
-.company-process__grid span { color: var(--color-border-accent); font-size: 11px; }
-.company-process__grid h3 { margin: 14px 0 24px; color: var(--color-icon-accent); font-size: 15px; }
-.company-process__grid p { color: var(--color-text-secondary); font-size: 13px; line-height: 1.7; }
+.company-process__grid span { color: var(--color-icon-accent); font-size: 14px; font-weight: 800; }
+.company-process__grid h3 { margin: 14px 0 22px; color: var(--color-wordmark); font-size: clamp(17px, 1.5vw, 19px); font-weight: 800; }
+.company-process__grid p { color: var(--color-text-secondary); font-size: clamp(14px, 1.2vw, 16px); font-weight: 600; line-height: 1.75; }
 .company-roadmap { padding-block: clamp(70px, 9vw, 120px); }
 .company-section-kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 34px; font-size: 13px; }
 .company-section-kicker::before { content: ""; width: 28px; height: 2px; background: var(--color-text-secondary); }
@@ -26,9 +26,9 @@
 .timeline ol { margin-left: 10px; border-left: 2px solid var(--color-border-accent); }
 .timeline li { position: relative; padding: 0 0 27px 30px; }
 .timeline li::before { content: ""; position: absolute; left: -8px; top: 3px; width: 12px; height: 12px; border: 2px solid var(--color-border-accent); border-radius: 50%; background: var(--color-background); }
-.timeline strong { color: var(--color-icon-accent); font-size: 16px; }
-.timeline h3 { margin: 4px 0; color: var(--color-text-secondary); font-size: 14px; }
-.timeline p { white-space: pre-line; color: var(--color-text-muted); font-size: 12px; line-height: 1.6; }
+.timeline strong { color: var(--color-icon-accent); font-size: clamp(17px, 1.5vw, 19px); }
+.timeline h3 { margin: 6px 0; color: var(--color-text-secondary); font-size: clamp(16px, 1.4vw, 18px); line-height: 1.55; }
+.timeline p { white-space: pre-line; color: var(--color-text-secondary); font-size: clamp(14px, 1.2vw, 16px); line-height: 1.75; }
 .company-tree { background: var(--color-warm-beige); }
 .company-tree__inner { display: grid; grid-template-columns: 1.25fr .75fr; gap: clamp(40px, 7vw, 100px); align-items: center; padding-block: clamp(60px, 8vw, 105px); }
 .company-tree img { width: 100%; max-height: 460px; object-fit: contain; }

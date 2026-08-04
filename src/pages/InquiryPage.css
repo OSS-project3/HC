@@ -1,0 +1,13 @@
+.inquiry-page { color: var(--color-text-secondary); }
+.inquiry-page__hero { border-bottom: 1px solid var(--color-border-soft); }
+.inquiry-form-wrap { padding-block: clamp(48px, 7vw, 90px); }
+.inquiry-form { display: grid; gap: 28px; max-width: 860px; margin: 0 auto; padding: clamp(24px, 4vw, 48px); border: 1px solid var(--color-border-soft); background: #fff; box-shadow: var(--shadow-card); }
+.inquiry-form__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 20px; }
+.inquiry-form__textarea { min-height: 220px; line-height: 1.7; }
+.inquiry-form__privacy { padding: 18px; background: var(--color-surface-soft); }
+.inquiry-form__privacy span { display: grid; gap: 5px; }
+.inquiry-form__privacy b { color: var(--color-wordmark); font-size: 14px; }
+.inquiry-form__privacy small { color: var(--color-text-muted); font-size: 12px; }
+.inquiry-form__actions { display: flex; justify-content: center; gap: 10px; }
+.inquiry-form__actions .btn { min-width: 140px; }
+@media (max-width: 640px) { .inquiry-form__grid { grid-template-columns: 1fr; } .inquiry-form { padding: 22px 18px; } }

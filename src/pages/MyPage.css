@@ -17,7 +17,10 @@
 .mypage-list article strong { color: var(--color-wordmark); font-weight: 600; }
 .mypage-list time { color: var(--color-text-muted); font-size: 13px; }
 .mypage-status, .mypage-answer { justify-self: start; padding: 4px 10px; border-radius: var(--radius-pill); background: var(--color-primary); color: var(--color-primary-foreground); font-size: 11px; font-weight: 500; }
+.mypage-answer.is-waiting { background: #f6e6cf; color: #8a5a1f; }
+.mypage-list__empty { padding: 34px 16px; border-bottom: 1px solid var(--color-border-soft); color: var(--color-text-muted); font-size: 13px; text-align: center; }
 .mypage-list--activity article { grid-template-columns: 1fr auto auto; gap: 24px; }
+.mypage-list--activity article a:hover strong { color: var(--color-primary); }
 .mypage--guest { min-height: 60vh; display: grid; place-content: center; justify-items: center; gap: 14px; text-align: center; }
 .mypage--guest h1 { color: var(--color-wordmark); font-family: var(--font-serif); font-size: 28px; }
 .mypage--guest p { color: var(--color-text-muted); }

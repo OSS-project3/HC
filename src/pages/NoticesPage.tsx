@@ -53,7 +53,7 @@ export function NoticesPage() {
         </div>
 
         <nav className="support-pagination" aria-label="공지사항 페이지">
-          <button aria-label="이전 페이지">‹</button><b>1</b><button aria-label="다음 페이지">›</button>
+          <button aria-label="이전 페이지" disabled>‹</button><b>1</b><button aria-label="다음 페이지" disabled>›</button>
         </nav>
       </section>
     </div>

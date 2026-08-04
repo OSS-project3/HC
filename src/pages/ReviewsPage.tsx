@@ -1,49 +1,66 @@
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Button } from "../components/ui/Button";
+import { showToast } from "../components/ui/toast";
+import { useAuth } from "../features/auth/AuthContext";
+import { loadReviews } from "../data/reviews";
 import "./ContentPages.css";
-
-const reviews = [
-  { type: "개인 신청", title: "한국에서의 추억이 이름과 카드로 남았어요.", text: "이름의 뜻을 함께 설명해 주셔서 여행이 끝난 뒤에도 특별한 기억으로 간직하고 있습니다.", author: "명예한국인증 신청자" },
-  { type: "단체 신청", title: "행사 참가자에게 색다른 경험을 선물했습니다.", text: "신청부터 수령까지 과정이 명확했고, 참가자들의 만족도도 높아 다음 행사에서도 활용하고 싶습니다.", author: "문화행사 운영 담당자" },
-  { type: "방문증", title: "한국 문화를 자연스럽게 소개할 수 있었습니다.", text: "방문객 정보에 맞춘 카드가 행사 안내와 기념품 역할을 함께해 현장 반응이 좋았습니다.", author: "기관 방문 프로그램 담당자" },
-  { type: "모바일 카드", title: "휴대전화로 간편하게 확인하고 공유했어요.", text: "실물 카드와 함께 모바일 카드도 받을 수 있어 가족과 친구들에게 쉽게 보여줄 수 있었습니다.", author: "개인 신청자" },
-  { type: "이름 풀이", title: "이름에 담긴 의미가 가장 인상적이었습니다.", text: "단순히 이름만 받는 것이 아니라 뜻과 이야기를 함께 알 수 있어 더욱 의미 있었습니다.", author: "한국 문화 체험 참가자" },
-  { type: "기관 협업", title: "프로그램의 완성도를 높여준 콘텐츠였습니다.", text: "기존 체험 과정에 자연스럽게 연결할 수 있었고 결과물까지 제공되어 운영하기 편리했습니다.", author: "교육 프로그램 담당자" },
-];
+import "./SupportPage.css";
+import "./ReviewsPage.css";
 
 export function ReviewsPage() {
+  const { user } = useAuth();
+  const [reviews] = useState(loadReviews);
+  const [query, setQuery] = useState("");
+  const [searchBy, setSearchBy] = useState("전체");
+
+  const filteredReviews = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return reviews;
+    return reviews.filter((review) => {
+      if (searchBy === "제목") return review.title.toLowerCase().includes(keyword);
+      if (searchBy === "내용") return review.content.toLowerCase().includes(keyword);
+      if (searchBy === "작성자") return review.author.toLowerCase().includes(keyword);
+      return `${review.title} ${review.content} ${review.author}`.toLowerCase().includes(keyword);
+    });
+  }, [query, reviews, searchBy]);
+
   return (
-    <div className="content-page">
-      <header className="subpage-hero page-container">
+    <div className="support reviews-page">
+      <header className="support__hero subpage-hero page-container">
         <p className="eyebrow">후기</p>
-        <h1 className="subpage-hero__title">함께 만든 이야기</h1>
-        <p className="section-lead">한글과 세종을 경험한 분들의 이야기를 소개합니다.</p>
+        <h1 className="support__title subpage-hero__title">후기</h1>
       </header>
 
-      <section className="reviews-section page-container">
-        <div className="review-cards">
-          {reviews.map((review, index) => (
-            <article className="review-card" key={review.title}>
-              <div className="review-card__top">
-                <span>{review.type}</span>
-                <b>{String(index + 1).padStart(2, "0")}</b>
+      <section className="support__section page-container reviews-board">
+        <div className="support-rule" aria-hidden="true"><i /></div>
+        <div className="reviews-board__heading"><h2 className="support__heading">후기</h2><p>총 {filteredReviews.length}개의 후기가 있습니다.</p></div>
+
+        <form className="notice-search" onSubmit={(event) => event.preventDefault()}>
+          <select value={searchBy} onChange={(event) => setSearchBy(event.target.value)} aria-label="검색 조건"><option>전체</option><option>제목</option><option>내용</option><option>작성자</option></select>
+          <label><span className="visually-hidden">검색어 입력</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="검색어를 입력하세요" /><button type="submit" aria-label="검색"><SearchGlyph /></button></label>
+        </form>
+
+        <div className="notice-table review-table" aria-label="후기 목록">
+          <div className="notice-table__head"><span>번호</span><span>제목</span><span>작성자</span><span>작성일</span></div>
+          {filteredReviews.length === 0 ? <p className="notice-table__empty">검색 결과가 없습니다.</p> : filteredReviews.map((review, index) => (
+            <article className="review-row" key={review.id}>
+              <div className="review-row__summary">
+                <span>{reviews.indexOf(review) > -1 ? reviews.length - reviews.indexOf(review) : filteredReviews.length - index}</span>
+                <Link className="notice-table__title" to={`/reviews/${encodeURIComponent(review.id)}`} state={{ review }}>{review.title}</Link>
+                <span className="review-row__author">{review.author}</span>
+                <time dateTime={review.createdAt}>{review.createdAt.replace(/-/g, ".")}</time>
               </div>
-              <h2>{review.title}</h2>
-              <p>{review.text}</p>
-              <small>{review.author}</small>
             </article>
           ))}
         </div>
-      </section>
-
-      <section className="content-cta">
-        <div className="page-container">
-          <div>
-            <p className="content-kicker">YOUR STORY</p>
-            <h2>나만의 한국 이름과 카드를 만나보세요.</h2>
-          </div>
-          <Link to="/apply/honorary-korean">제작 신청　→</Link>
-        </div>
+        <div className="reviews-board__footer"><nav className="support-pagination" aria-label="후기 페이지"><button aria-label="이전 페이지" disabled>‹</button><b>1</b><button aria-label="다음 페이지" disabled>›</button></nav><div className="reviews-board__write">{user ? <Button to="/reviews/new">후기 작성</Button> : <Button onClick={() => showToast("로그인 후 이용할 수 있습니다.")}>후기 작성</Button>}</div></div>
+        {!user && <p className="reviews-board__login">후기를 작성하려면 <Link to={`/login?returnTo=${encodeURIComponent("/reviews/new")}`}>로그인</Link>해 주세요.</p>}
       </section>
     </div>
   );
+}
+
+function SearchGlyph() {
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>;
 }

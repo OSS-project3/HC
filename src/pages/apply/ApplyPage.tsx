@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";
 import { findCardDesign, honoraryKoreanCards, honoraryCitizenCards, studentCards, visitorCards, cardTypeLabels } from "../../data/cards";
+import { loadApplications, saveApplications } from "../../data/adminMock";
 import { Stepper } from "../../components/apply/Stepper";
 import { CardPreviewPanel } from "../../components/apply/CardPreviewPanel";
 import { StepType } from "../../components/apply/steps/StepType";
@@ -56,6 +57,8 @@ export function ApplyPage() {
     // the server-issued number. Here we generate a placeholder.
     const num = `APP-2026-${String(Math.floor(100000 + (Date.now() % 900000))).padStart(6, "0")}`;
     setApplicationNumber(num);
+    const applications = loadApplications();
+    saveApplications([{ applicationNumber: num, applicantType: draft.applicantType === "organization" ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name, applicantEmail: draft.applicant.email, phone: draft.applicant.phone, quantity: draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10) }, ...applications]);
     goTo(4);
   };
 

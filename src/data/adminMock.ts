@@ -13,6 +13,7 @@ export interface AdminApplication {
   cardType: string;
   applicantName: string;
   phone: string;
+  applicantEmail?: string;
   quantity: number;
   status: AdminStatus;
   submittedAt: string;
@@ -96,3 +97,16 @@ export const adminStats = [
   { label: "입금 대기", value: adminApplications.filter((a) => a.status === "PAYMENT_PENDING").length },
   { label: "발급 완료", value: adminApplications.filter((a) => a.status === "COMPLETED").length },
 ];
+
+const APPLICATIONS_STORAGE_KEY = "admin-applications";
+
+export function loadApplications(): AdminApplication[] {
+  try {
+    const saved = localStorage.getItem(APPLICATIONS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) as AdminApplication[] : adminApplications;
+  } catch { return adminApplications; }
+}
+
+export function saveApplications(applications: AdminApplication[]) {
+  localStorage.setItem(APPLICATIONS_STORAGE_KEY, JSON.stringify(applications));
+}

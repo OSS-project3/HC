@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
+import { loadApplications } from "../data/adminMock";
 import "./LookupPage.css";
 
 type LookupMethod = "contact" | "card";
@@ -35,9 +36,10 @@ export function LookupPage() {
     event.preventDefault();
     const contactMatches =
       normalizePhone(phone) === DEMO_PHONE && email.trim().toLowerCase() === DEMO_EMAIL;
+    const savedApplicationMatches = loadApplications().some((application) => normalizePhone(application.phone) === normalizePhone(phone) && application.applicantEmail?.toLowerCase() === email.trim().toLowerCase());
     const cardMatches = normalizeCardNumber(cardNumber) === DEMO_CARD_NUMBER;
 
-    if ((method === "contact" && contactMatches) || (method === "card" && cardMatches)) {
+    if ((method === "contact" && (contactMatches || savedApplicationMatches)) || (method === "card" && cardMatches)) {
       navigate("/mobile-card");
       return;
     }

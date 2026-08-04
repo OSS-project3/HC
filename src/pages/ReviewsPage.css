@@ -1,0 +1,26 @@
+.reviews-board { padding-bottom: clamp(70px, 9vw, 120px); }
+.reviews-board__heading { max-width: 1100px; margin: 0 auto; }
+.reviews-board__heading .support__heading { margin-inline: 0; margin-bottom: 8px; }
+.reviews-board__heading > p { margin: 0 0 28px 20px; color: var(--color-text-muted); font-size: 13px; }
+.review-editor { display: grid; gap: 20px; max-width: 1100px; margin: 0 auto 38px; padding: clamp(22px, 4vw, 38px); border: 1px solid var(--color-border-accent); background: var(--color-warm-beige); }
+.review-editor h3 { color: var(--color-wordmark); font-size: 20px; }
+.review-editor .field__textarea { min-height: 180px; line-height: 1.7; }
+.review-editor__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.review-table .notice-table__head, .review-row__summary { grid-template-columns: 90px minmax(0, 1fr) 160px 130px; }
+.review-row { border-bottom: 1px solid var(--color-border-soft); }
+.review-row__summary { display: grid; align-items: center; min-height: 64px; }
+.review-row__summary > span, .review-row__summary time { padding: 12px; color: var(--color-text-muted); font-size: 14px; text-align: center; }
+.review-row__summary .notice-table__title { padding: 18px 20px; text-align: left; }
+.review-row__summary time { text-align: right; }
+.review-row--open .review-row__summary { background: color-mix(in srgb, var(--color-warm-beige) 45%, transparent); }
+.review-row__detail { padding: 30px clamp(24px, 8vw, 110px); background: var(--color-surface-soft); }
+.review-row__detail > p { color: var(--color-text-secondary); font-size: 14px; line-height: 1.85; white-space: pre-line; }
+.review-post__admin { display: flex; justify-content: flex-end; gap: 12px; margin-top: 22px; }
+.review-post__admin button { color: var(--color-primary); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.review-post__admin button:last-child { color: #a54134; }
+.reviews-board__footer { position: relative; max-width: 1100px; margin: 0 auto; }
+.reviews-board__footer .support-pagination { margin-top: clamp(38px, 6vw, 80px); }
+.reviews-board__write { position: absolute; right: 0; top: 0; }
+.reviews-board__login { max-width: 1100px; margin: 18px auto 0; color: var(--color-text-muted); font-size: 13px; text-align: right; }
+.reviews-board__login a { color: var(--color-primary); font-weight: 700; }
+@media (max-width: 720px) { .review-table .notice-table__head { display: none; } .review-row__summary { grid-template-columns: 42px minmax(0, 1fr); padding-block: 8px; } .review-row__summary .notice-table__title { padding: 12px; } .review-row__author, .review-row__summary time { grid-column: 2; padding: 0 12px 5px !important; text-align: left !important; font-size: 12px !important; } .review-row__author::before { content: "작성자  "; color: var(--color-text-faint); } .review-row__summary time::before { content: "작성일  "; color: var(--color-text-faint); } .reviews-board__footer { padding-bottom: 62px; } .reviews-board__write { top: 58px; } }

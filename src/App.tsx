@@ -20,6 +20,9 @@ import { StubPage } from "./pages/StubPage";
 import { CompanyPage } from "./pages/CompanyPage";
 import { GreetingsPage } from "./pages/GreetingsPage";
 import { ReviewsPage } from "./pages/ReviewsPage";
+import { ReviewDetailPage } from "./pages/ReviewDetailPage";
+import { ReviewEditorPage } from "./pages/ReviewEditorPage";
+import { InquiryPage } from "./pages/InquiryPage";
 import { EventsPage } from "./pages/EventsPage";
 import { ApplyPage } from "./pages/apply/ApplyPage";
 
@@ -35,6 +38,7 @@ export default function App() {
           <Route path="/lookup" element={<LookupPage />} />
           <Route path="/mobile-card" element={<MobileCardPage />} />
           <Route path="/support" element={<SupportPage />} />
+          <Route path="/inquiry" element={<InquiryPage />} />
           <Route path="/faq" element={<FaqPage />} />
           <Route path="/notices" element={<NoticesPage />} />
           <Route path="/notices/:noticeId" element={<NoticeDetailPage />} />
@@ -45,6 +49,9 @@ export default function App() {
           <Route path="/company" element={<CompanyPage />} />
           <Route path="/greetings" element={<GreetingsPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
+          <Route path="/reviews/new" element={<ReviewEditorPage />} />
+          <Route path="/reviews/:reviewId/edit" element={<ReviewEditorPage />} />
+          <Route path="/reviews/:reviewId" element={<ReviewDetailPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route

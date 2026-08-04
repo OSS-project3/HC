@@ -2,6 +2,9 @@
 import type { ApplicationDraft, IssuanceMethod, ApplicantInfo, RecipientInfo } from "../../../features/apply/types";
 import { Button } from "../../ui/Button";
 import { ChevronLeft, ChevronRight } from "../../ui/icons";
+import { showToast } from "../../ui/toast";
+import { openPostcodeSearch } from "../../../lib/postcode";
+import { useRef } from "react";
 
 interface StepInfoProps {
   draft: ApplicationDraft;
@@ -11,6 +14,7 @@ interface StepInfoProps {
 }
 
 export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
+  const addressDetailRef = useRef<HTMLInputElement>(null);
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
   const isVisitor = draft.cardType === "visitor";
   const isStudent = draft.cardType === "student";
@@ -309,11 +313,21 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   onChange={(e) => setRecipient({ postalCode: e.target.value })}
                   placeholder="우편번호"
                 />
-                <button type="button" className="postal-btn">
+                <button type="button" className="postal-btn" onClick={async () => {
+                  try {
+                    await openPostcodeSearch((postalCode, address) => {
+                      setRecipient({ postalCode, address });
+                      requestAnimationFrame(() => addressDetailRef.current?.focus());
+                    });
+                  } catch {
+                    showToast("주소 검색 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+                  }
+                }}>
                   우편번호 찾기
                 </button>
               </div>
               <input
+                ref={addressDetailRef}
                 className="field__input"
                 value={draft.recipient.address}
                 onChange={(e) => setRecipient({ address: e.target.value })}

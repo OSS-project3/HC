@@ -120,7 +120,7 @@ export function SupportPage() {
             <a href={`mailto:${companyInfo.email}`} className="support__link">{companyInfo.email}</a>
           </ContactCard>
           <ContactCard icon={<DocIcon />} title="1:1 문의" lines={["문의를 남겨주시면", "영업일 기준 1~2일 내 답변 드립니다"]}>
-            <button className="support__link">1:1 문의하기　›</button>
+            <button className="support__link" onClick={() => navigate("/inquiry")}>1:1 문의하기　›</button>
           </ContactCard>
           <ContactCard icon={<ChatIcon />} title="카카오톡 문의" lines={[companyInfo.businessHours, `(${companyInfo.lunchHours})`]}>
             <a href="https://pf.kakao.com/" target="_blank" rel="noreferrer noopener" className="support__link">

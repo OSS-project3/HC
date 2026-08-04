@@ -9,10 +9,12 @@ import { policyDocuments, type PolicyType } from "../../data/policies";
 import { Modal } from "../ui/Modal";
 import { SocialLinks } from "./SocialLinks";
 import "./Footer.css";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 
 const policyOrder: Exclude<PolicyType, "sitemap">[] = ["privacy", "terms", "email"];
 
 export function Footer() {
+  const { t } = useLanguage();
   const [policy, setPolicy] = useState<Exclude<PolicyType, "sitemap"> | null>(null);
   const [sitemapOpen, setSitemapOpen] = useState(false);
 
@@ -27,7 +29,7 @@ export function Footer() {
           <nav className="footer__menu" aria-label="푸터 메뉴">
             {footerNav.map((item) => (
               <Link key={item.to} to={item.to} className="footer__menu-link">
-                {item.label}
+                {t(item.label)}
               </Link>
             ))}
           </nav>
@@ -35,7 +37,7 @@ export function Footer() {
           <div className="footer__policies">
             {policyOrder.map((p) => (
               <button key={p} className="footer__policy" onClick={() => setPolicy(p)}>
-                {policyDocuments[p].title}
+                {t(policyDocuments[p].title)}
               </button>
             ))}
             <div className="sitemap">
@@ -46,7 +48,7 @@ export function Footer() {
                 onMouseEnter={() => setSitemapOpen(true)}
                 onMouseLeave={() => setSitemapOpen(false)}
               >
-                사이트맵
+                {t("사이트맵")}
               </button>
               <div
                 className={clsx("sitemap__panel", sitemapOpen && "sitemap__panel--open")}
@@ -55,7 +57,7 @@ export function Footer() {
               >
                 {footerNav.map((item) => (
                   <Link key={item.to} to={item.to} className="sitemap__link">
-                    {item.label}
+                    {t(item.label)}
                   </Link>
                 ))}
               </div>

@@ -15,6 +15,8 @@ const messages = [
     ],
     organization: "(주)한글과 세종 고문",
     name: "KAIST 총장  이광형",
+    photo: "/images/company/kaist-president.jpg",
+    photoAlt: "KAIST 총장 이광형",
   },
   {
     role: "이사장",
@@ -28,6 +30,8 @@ const messages = [
     ],
     organization: "(주)한글과 세종 이사장",
     name: "유철호",
+    photo: "/images/company/chairman.jpg",
+    photoAlt: "한글과 세종 이사장 유철호",
   },
 ];
 
@@ -44,7 +48,9 @@ export function GreetingsPage() {
           <section className="greeting-block" key={message.role}>
             <h2 className="greeting-block__label">{message.sectionTitle}</h2>
             <div className="greeting-block__body">
-              <div className="greeting-block__photo" role="img" aria-label={`${message.role} 사진 영역`} />
+              <div className="greeting-block__photo">
+                <img src={message.photo} alt={message.photoAlt} />
+              </div>
               <div className="greeting-block__copy">
                 <h3>{message.title}</h3>
                 {message.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}

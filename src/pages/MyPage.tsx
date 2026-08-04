@@ -1,5 +1,8 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
+import { loadReviews } from "../data/reviews";
+import { loadInquiries } from "../data/inquiries";
+import { adminStatusLabels, loadApplications } from "../data/adminMock";
 import "./MyPage.css";
 
 export function MyPage() {
@@ -14,6 +17,10 @@ export function MyPage() {
       </section>
     );
   }
+
+  const myReviews = loadReviews().filter((review) => review.authorEmail === user.email);
+  const myInquiries = loadInquiries().filter((inquiry) => inquiry.email === user.email);
+  const myApplications = loadApplications().filter((application) => application.applicantEmail === user.email);
 
   return (
     <div className="mypage">
@@ -32,19 +39,22 @@ export function MyPage() {
       <MySection title="제작 내역" action={<Link to="/lookup">신청 조회 ›</Link>}>
         <div className="mypage-list mypage-list--production">
           <div className="mypage-list__head"><span>신청번호</span><span>카드 종류</span><span>신청일</span><span>상태</span></div>
-          <article><strong>APP-2026-000123</strong><span>명예 한국인증</span><time>2026.07.15</time><b className="mypage-status">제작 중</b></article>
+          {myApplications.map((application) => <article key={application.applicationNumber}><strong>{application.applicationNumber}</strong><span>{application.cardType}</span><time>{application.submittedAt.replace(/-/g, ".")}</time><b className="mypage-status">{adminStatusLabels[application.status]}</b></article>)}
+          {myApplications.length === 0 && <p className="mypage-list__empty">제작 신청 내역이 없습니다.</p>}
         </div>
       </MySection>
 
-      <MySection title="후기" action={<Link to="/reviews">후기 보기 ›</Link>}>
+      <MySection title="후기" action={<Link to="/reviews/new">후기 작성 ›</Link>}>
         <div className="mypage-list mypage-list--activity">
-          <article><strong>한국에서의 추억이 이름과 카드로 남았어요.</strong><time>2026.07.28</time></article>
+          {myReviews.map((review) => <article key={review.id}><Link to={`/reviews/${encodeURIComponent(review.id)}`}><strong>{review.title}</strong></Link><time>{review.createdAt.replace(/-/g, ".")}</time></article>)}
+          {myReviews.length === 0 && <p className="mypage-list__empty">작성한 후기가 없습니다.</p>}
         </div>
       </MySection>
 
-      <MySection title="문의 내역" action={<Link to="/support#contact">문의하기 ›</Link>}>
+      <MySection title="문의 내역" action={<Link to="/inquiry">문의하기 ›</Link>}>
         <div className="mypage-list mypage-list--activity">
-          <article><strong>모바일 카드 수령 관련 문의</strong><span className="mypage-answer">답변 완료</span><time>2026.07.30</time></article>
+          {myInquiries.map((inquiry) => <article key={inquiry.id}><strong>{inquiry.title}</strong><span className={`mypage-answer ${inquiry.status === "PENDING" ? "is-waiting" : ""}`}>{inquiry.status === "COMPLETED" ? "문의 완료" : "답변 대기"}</span><time>{new Date(inquiry.createdAt).toLocaleDateString("ko-KR")}</time></article>)}
+          {myInquiries.length === 0 && <p className="mypage-list__empty">접수한 문의가 없습니다.</p>}
         </div>
       </MySection>
     </div>

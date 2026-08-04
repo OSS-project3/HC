@@ -55,7 +55,7 @@ export function ContactSection() {
               <br />
               영업일 기준 1~2일 내 답변 드립니다
             </p>
-            <button className="contact__action contact__action--btn" onClick={() => navigate("/support#contact")}>
+            <button className="contact__action contact__action--btn" onClick={() => navigate("/inquiry")}>
               1:1 문의하기 <ChevronRight width={15} height={15} />
             </button>
           </article>
