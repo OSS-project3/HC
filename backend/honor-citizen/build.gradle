@@ -1,0 +1,61 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.6'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+description = 'honor-citizen'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation platform('software.amazon.awssdk:bom:2.26.0')
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-json'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    compileOnly 'org.projectlombok:lombok'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testCompileOnly 'org.projectlombok:lombok'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // 테스트는 실제 외부 서비스를 호출하지 않으므로 값 자체엔 의미 없음 — 컨텍스트 로딩(플레이스홀더 해석)만 통과시키는 더미 값.
+    // application.properties가 ${GOOGLE_CLIENT_ID} 등 기본값 없는 필수 프로퍼티를 참조해서, 없으면 컨텍스트 로딩 자체가 실패함.
+    environment 'GOOGLE_CLIENT_ID', 'test-google-client-id'
+    environment 'GOOGLE_CLIENT_SECRET', 'test-google-client-secret'
+    environment 'NAVER_CLIENT_ID', 'test-naver-client-id'
+    environment 'NAVER_CLIENT_SECRET', 'test-naver-client-secret'
+    environment 'JWT_SECRET', 'HImgyWNFVUNTeLrpMelHwdaw8YFhFwVdopIIScxtMX4='
+    environment 'AWS_ACCESS_KEY', 'test-aws-access-key'
+    environment 'AWS_SECRET_KEY', 'test-aws-secret-key'
+    environment 'AWS_S3_BUCKET', 'test-bucket'
+    environment 'AWS_REGION', 'ap-northeast-2'
+    environment 'AWS_S3_BASE_URL', 'http://localhost/test-s3'
+}

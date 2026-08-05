@@ -1,0 +1,39 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  backend:
+    build: ./backend/honor-citizen
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-bG9jYWwtZGV2ZWxvcG1lbnQtand0LXNlY3JldC1tdXN0LWJlLWF0LWxlYXN0LTMyLWJ5dGVzLWxvbmc=}
+      JWT_ISSUER: honor-citizen
+      COOKIE_SECURE: "false"
+      COOKIE_SAME_SITE: Lax
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-docker-local-google-client}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-docker-local-google-secret}
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-docker-local-naver-client}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-docker-local-naver-secret}
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-local-access-key}
+      AWS_SECRET_KEY: ${AWS_SECRET_KEY:-local-secret-key}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-honor-citizen-local}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_S3_BASE_URL: ${AWS_S3_BASE_URL:-http://localhost:9000/honor-citizen-local}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ""
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
