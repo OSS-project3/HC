@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-06 — Claude — `main` (마이페이지 신청 목록/상세 조회 API 설계)
+
+- 변경: 로그인 사용자가 자기 신청 내역을 목록(`GET /api/my/applications`, 페이징+status 필터)/상세(`GET /api/my/applications/{id}`, 소유권 검증)로 조회하는 API 2개 설계. 기존 `POST /api/applications/lookup`(API 3)은 비로그인 공개 조회용이라 이 용도로 못 씀 — 사용자가 "로그인한 경우 다건조회 → 클릭 시 단건조회" 흐름을 요청해서 추가.
+- 파일: `docs/specs/application/api.md`(API 6/7 신규), `docs/collab/TODO.md`
+- 사유: Application 도메인 현재 구현 상태(생성만 완성, 조회/수정/취소는 부분적/미구현)를 사용자가 점검하다가 발견한 갭.
+- 참고: 설계까지만 진행, 구현은 다음 확인 후 — `ApplicationRepository.findByUserId(...)` 신규 필요, `PageResponse<T>`는 Review 목록조회와 공유하는 첫 실제 사용처가 될 예정.
+- 관련: TODO "마이페이지 신청 목록/상세 조회 API 6·7 설계"
+
 ## 2026-08-06 — Claude — `main` (Review 자격 검증 정책 확정)
 
 - 변경: 후기 작성 자격을 `Application.user_id`(제출 계정) 대신 **이메일 매칭**(`Applicant.email` 또는 `ApplicationMember.email`이 로그인 계정 이메일과 일치)으로 검증하도록 확정. 단체 신청은 대표 제출자뿐 아니라 실제 카드를 받은 구성원 개인(같은 이메일로 별도 가입된 경우)도 자격을 인정 — `lookup` API의 본인확인 방식과 같은 사고방식. 신규 `REVIEW_NOT_ELIGIBLE`(403) 에러코드 추가.

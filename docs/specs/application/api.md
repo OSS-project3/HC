@@ -487,6 +487,148 @@ Cookie: accessToken={JWT}
 
 ---
 
+### API 6 / 7 — 마이페이지 신청 목록 조회 (2026-08-06 추가, 로그인 필수) ⚠️ 설계만 — 아직 구현 안 됨
+
+> 지금까지 있던 `POST /api/applications/lookup`(API 3)은 **비로그인 공개 조회**로, 신청번호/카드번호+연락처 조합으로 딱 1건만 제한된 필드로 보여준다. 로그인한 사용자가 "내가 지금까지 신청한 것들"을 목록으로 훑어보는 기능은 별개로 없었음 — 이번에 신규 추가.
+
+#### ④ Request/Response 설계
+
+```
+GET /api/my/applications?page=0&size=20&status=
+Cookie: accessToken={JWT}
+```
+
+| 쿼리 파라미터 | 설명 |
+|---|---|
+| page | 0부터 시작, 기본값 0 |
+| size | 기본값 20, 상한 100 |
+| status | 선택. `ApplicationStatus` 값 1개로 필터(예: `?status=COMPLETED`). 생략하면 전체 |
+
+로그인한 사용자 본인의 신청만 반환한다(`Application.user_id = 로그인 userId`). 정렬은 `createdAt DESC` 고정.
+
+**Response `200 OK`** — Review 도메인 설계에서 제안한 공용 `PageResponse<T>` 포맷 재사용(`docs/specs/review/api.md` §공통 참고, 이번에 실제로 만들면 첫 사용 사례가 됨).
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "applicationId": 1,
+        "applicationNumber": "APP-2026-000123",
+        "applicationType": "INDIVIDUAL",
+        "cardTypeId": 1,
+        "cardTypeName": "명예한국인증",
+        "totalQuantity": 1,
+        "status": "PAYMENT_PENDING",
+        "paymentStatus": "WAITING",
+        "createdAt": "2026-08-06T10:00:00"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+
+(`backend/FRONTEND_API_REQUIREMENTS.md` §5에 이미 제안돼 있던 필드 구성과 동일 — 그 문서의 제안을 그대로 채택)
+
+#### ⑤ Validation
+
+| 상황 | errorCode | HTTP |
+|---|---|---|
+| 비로그인 | `UNAUTHORIZED` | 401 |
+| `page`/`size` 음수 | `INVALID_INPUT` | 400 |
+| `size` 100 초과 | `INVALID_INPUT` | 400 |
+| `status` 값이 `ApplicationStatus` enum에 없음 | `INVALID_INPUT` | 400 |
+
+#### ⑥ DB 컬럼과 매핑 검증
+
+| Response 필드 | 출처 |
+|---|---|
+| applicationId | `Application.id` |
+| applicationNumber | `Application.application_number` |
+| applicationType | `Application.application_type` |
+| cardTypeId/cardTypeName | `Application.card_type_id` → `CardType.id`/`name` |
+| totalQuantity | `Application.total_quantity` |
+| status/paymentStatus | `Application.status`/`payment_status` |
+| createdAt | `Application.created_at` |
+
+#### ⑦ 누락된 필드 확인
+
+`ApplicationRepository`에 `findByUserId(Long userId, Pageable pageable)`(+ status 필터 버전) 신규 필요 — 지금은 `findByApplicationNumber`/`countByApplicationNumberStartingWith`만 있음.
+
+**API 6 완료(설계).**
+
+---
+
+### API 7 / 7 — 마이페이지 신청 상세 조회 (2026-08-06 추가, 로그인 필수) ⚠️ 설계만 — 아직 구현 안 됨
+
+#### ④ Request/Response 설계
+
+```
+GET /api/my/applications/{applicationId}
+Cookie: accessToken={JWT}
+```
+
+**Response `200 OK`**
+```json
+{
+  "success": true,
+  "data": {
+    "applicationId": 1,
+    "applicationNumber": "APP-2026-000123",
+    "applicationType": "INDIVIDUAL",
+    "cardTypeId": 1,
+    "cardTypeName": "명예한국인증",
+    "issueType": "MOBILE",
+    "totalQuantity": 1,
+    "status": "PAYMENT_PENDING",
+    "paymentStatus": "WAITING",
+    "photoRejectReason": null,
+    "applicant": {
+      "name": "홍길동",
+      "email": "hong@example.com",
+      "phone": "010-1234-5678",
+      "organizationName": null,
+      "department": null
+    },
+    "receiver": null,
+    "memberCount": 1,
+    "createdAt": "2026-08-06T10:00:00"
+  }
+}
+```
+
+- 단체(GROUP) 신청은 `ApplicationMember`가 N건이라 이 응답에 전부 담지 않는다 — `memberCount`(총원수)만 포함하고, 구성원 개별 목록은 `backend/FRONTEND_API_REQUIREMENTS.md` §5에 이미 제안된 `GET /api/my/bulk-applications/{id}/members`(이번 범위 밖, 별도 TODO)로 분리.
+- `receiver`는 `issueType=MOBILE`이면 `null`.
+
+#### ⑤ Validation
+
+| 상황 | errorCode | HTTP |
+|---|---|---|
+| 비로그인 | `UNAUTHORIZED` | 401 |
+| `Application.user_id != 로그인한 유저` | `FORBIDDEN` | 403 (API 4/5와 동일 패턴 — `application.isOwnedBy(userId)`) |
+| `applicationId` 없음 | `APPLICATION_NOT_FOUND` | 404 |
+
+#### ⑥ DB 컬럼과 매핑 검증
+
+| Response 필드 | 출처 |
+|---|---|
+| applicationId ~ createdAt | `Application.*` (API 6과 동일 매핑 + `issue_type`/`photo_reject_reason`) |
+| applicant.* | `Applicant.*`(name/email/phone/organization_name/department) |
+| receiver | `Receiver.*`(있으면), `issueType=MOBILE`이면 조회 자체를 안 함 |
+| memberCount | `ApplicationMember` 개수(`COUNT(*) WHERE application_id = ?`) |
+
+#### ⑦ 누락된 필드 확인
+
+없음(신청 목록 조회 API 6과 동일한 조회 조건 재사용).
+
+**API 7 완료(설계).**
+
+---
+
 ## Application 도메인 정리
 
 | # | API | 상태 |
@@ -496,6 +638,8 @@ Cookie: accessToken={JWT}
 | 3 | `POST /api/applications/lookup` (신청 조회) | 설계 완료 |
 | 4 | `PATCH /api/applications/{applicationId}/photo` (사진 재업로드) | 설계 완료 |
 | 5 | `GET /api/applications/{applicationId}/cards/download` (카드 다운로드) | 설계 완료 |
+| 6 | `GET /api/my/applications` (마이페이지 목록 조회, 페이징) | 설계 완료 (2026-08-06, 구현 전) |
+| 7 | `GET /api/my/applications/{applicationId}` (마이페이지 상세 조회) | 설계 완료 (2026-08-06, 구현 전) |
 
 **프론트 반영 필요 항목(이번 도메인에서 새로 확인/누적된 것):**
 - `StepInfo.tsx`/`StepFiles.tsx`가 `applicantType`에 따라 분기 안 되어 있음 — 개인은 생년월일·국적·출생시각·출생지역·성별·사진 입력, 로고/직인/제출ZIP 숨김 / 법인은 반대
