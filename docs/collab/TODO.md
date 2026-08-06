@@ -53,6 +53,11 @@
 | ⚪ | 입금 기한 계산 기준(신청일 포함 여부·마감 시각) 확정 | 미정 | - | `docs/specs/application/requirements.md` | TBD |
 | ✅ | 전체 코드베이스 감사 + 죽은 코드/아키텍처 위반 정리 | Claude | `backend-api` | HANDOFF.md | infra/card·domain/photo·UploadController·TokenRefreshRequest/Response·ErrorCode.DUPLICATE_APPLICATION 삭제, ApplicationService의 UserRepository 직접 주입(arch.md 위반) → UserService 경유로 수정 |
 | ⚪ | Codex: `docs/api/user.md` 225행 stale 문구 수정 | Codex | `feature/application-domain-docs` | `docs/api/user.md` | "GET /api/users/me 미구현"이라 적혀있는데 이미 구현됨(UserController) |
+| ✅ | Review 도메인 설계(Entity/API, 구현 전 단계) | Claude | `main` | `docs/specs/review/{data-model,api}.md` | 후기 등록/목록조회/단건조회 3개 API + `Review`/`ReviewCardType`/`ReviewImage` Entity 설계 완료. 요구사항 변경(사진 다중첨부, 작성자명 수동입력)으로 `docs/api/upload-file.md`의 옛 `thumbnail_file_id` 가정 대체 |
+| ⚪ | Review 도메인 구현 | 미정 | - | `docs/specs/review/{data-model,api}.md` | 설계만 완료, 구현 안 됨. `ErrorCode.REVIEW_NOT_FOUND` 신규 추가 필요, 공용 `PageResponse<T>`(`common/response/`) 신설 필요(프로젝트 첫 페이징 API) |
+| ⚪ | Review [TBD] 확인 필요 3건 | 미정 | - | `docs/specs/review/data-model.md` §2·§4 | ① 카드종류 체크박스 0개 허용 여부(현재 "최소 1개"로 추론) ② 본문 최대 글자수(옛 프론트 mock은 3000자였음) ③ 조회수 필드 노출 여부(현재 설계에서 제외 제안) |
+| ⚪ | Review 사진 첨부 최대 개수 확정 | 미정 | - | `docs/specs/review/data-model.md` §3 | 우선 10장으로 제안, DB 제약 아님 — 정책 확정 필요 |
+| ⚪ | 프론트: `ReviewEditorPage.tsx` 등 Review 요구사항 변경 반영 | 프론트 담당자 | `main` | `docs/specs/review/api.md` §② | 현재 `author: user.name`으로 로그인 이름 자동 사용 중 — "작성자 직접 입력"으로 변경 필요. 신청유형/카드종류/사진 다중첨부 입력 UI 전체 신규 필요 |
 | ⚪ | Codex: `arch.md` 3절 패키지 구조 예시 최신화 | Codex | `feature/application-domain-docs` | `arch.md` | `api/admin`·`infra/toss`는 삭제됨, `domain/uploadfile`·`domain/log`는 예시에 없음, `ApplicationResponse.java`는 이제 `ApplicationCreateResponse` 등으로 분리됨 |
 
 > 아래 "Task 1~4" 4행 요약은 이 로드맵이 Task 1~6(5-A/5-B 포함)으로 세분화되기 전의 옛 버전이라 삭제함 — 최신 진행 상태는 바로 아래 "Application 개인 신청 리팩터링 로드맵" 절 참고.

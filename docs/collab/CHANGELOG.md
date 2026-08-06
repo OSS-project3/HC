@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-06 — Claude — `main` (Review 도메인 설계)
+
+- 변경: 후기(Review) 작성 요구사항 변경에 따라 Entity/API 설계. `Review`(작성자 실계정 `user_id`와 화면표시 `author_display_name`을 분리, `application_type` 재사용, 신청 실체와 FK 연결 없이 자기신고 값), `ReviewCardType`(`@ElementCollection`, `CardTypeCode` 다중 선택), `ReviewImage`(`UploadFile` 재사용 + `review_id`/`upload_file_id`/`display_order` join). API 3개(등록/목록조회/단건조회) 설계, 목록 응답 최소 4필드로 제한, 프로젝트 첫 페이징 응답 포맷(`PageResponse<T>`) 제안. `docs/api/upload-file.md`에 있던 옛 "`Review.thumbnail_file_id`(단일)" 가정을 대체.
+- 파일(신규): `docs/specs/review/{data-model,api}.md`. 파일(수정): `docs/api/{README,upload-file,board}.md`, `arch.md`(§4.7 Review 모듈 신설, 기존 Board는 §4.8로 이동, §5.3/§5.5 갱신), `docs/collab/TODO.md`
+- 사유: 사용자 요청 — "후기 기능 요구사항 변경, Entity/API 설계까지만(구현 금지)"
+- 참고: [TBD] 3건(카드종류 0개 허용 여부/본문 최대 글자수/조회수 노출 여부)과 사진 첨부 최대 개수는 확인 후 반영 필요 — TODO.md에 기록. 구현·프론트 반영은 이번 범위 밖.
+- 관련: TODO "Review 도메인 설계"
+
 ## 2026-08-06 — Claude — feature/application-domain-impl (조회 인증 정책 + CardType ID 고정)
 
 - 변경: (1) `ApplicationService.lookup()`을 method별로 분리 검증하도록 수정 — `method=application`은 phone·email 둘 다 필수+둘 다 일치해야 함(기존엔 OR), `method=card`는 phone·email 검증을 아예 제거(카드번호 단독 조회). (2) 신규 `CardTypeSeeder`(`CommandLineRunner`)를 추가해 최초 기동 시 `HONOR_KOREAN=1, HONOR_CITIZEN=2, VISITOR=3, STUDENT=4` 순서로 시딩 — 프론트가 `cardTypeId`를 1~4로 하드코딩해서 쓰는 것을 그대로 허용하기 위함(신규 `GET /api/card-types` API는 만들지 않기로 결정).

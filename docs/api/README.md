@@ -12,5 +12,6 @@
   - [CardType](card-type.md)
   - [CardDesign](card-design.md)
 - [Admin](admin.md)
+- [Review](../specs/review/api.md)
 - [Board (보류)](board.md)
 - [미결정 사항](unresolved.md)

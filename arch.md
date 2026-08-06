@@ -439,9 +439,28 @@ Admin은 독립된 업무 데이터 모듈이라기보다 여러 도메인의 �
 
 ---
 
-## 4.7 Board 모듈
+## 4.7 Review 모듈
 
-Review/Post는 요구사항과 화면이 확정되지 않았으므로 현재 구현 대상에서 제외한다.
+✅ 2026-08-06: 후기 작성 요구사항이 확정되어 설계 완료(`docs/specs/review/{data-model,api}.md`). 이번 패스는 등록/목록조회/단건조회 API 설계까지만 — 구현은 아직 진행하지 않는다.
+
+### 책임
+
+- 로그인 사용자의 후기(제목/신청유형/카드종류/작성자 표시명/사진 0~N장/본문)를 저장한다.
+- 후기 목록·상세를 비로그인 포함 누구나 조회할 수 있게 한다.
+
+### 소유 데이터
+
+- `Review`, `ReviewCardType`(`@ElementCollection`), `ReviewImage`
+
+### 규칙
+
+- `Review.user_id`(실제 작성 계정)와 `Review.author_display_name`(화면 표시용, 사용자가 직접 입력)은 별개다 — 로그인 이름을 자동으로 채우지 않는다.
+- `Review.application_type`/`ReviewCardType`는 실제 `Application` 레코드와 FK로 연결하지 않는 자기 신고(self-report) 값이다.
+- 사진은 `UploadFile`을 그대로 재사용하고 `ReviewImage`가 순서(`display_order`)를 포함한 N:1 연결을 담당한다(다른 도메인의 Entity를 직접 참조하지 않는다는 §5 원칙과 동일하게, 파일 메타데이터를 중복 저장하지 않음).
+
+## 4.8 Board(Post) 모듈
+
+Post(일반 게시판)는 요구사항과 화면이 확정되지 않았으므로 현재 구현 대상에서 제외한다. (Review는 위 4.7절로 분리됨)
 
 - 다른 핵심 도메인이 Board를 참조하지 않는다.
 - 요구사항 확정 전 테이블, API, Repository를 선제 구현하지 않는다.
@@ -511,6 +530,8 @@ api → service → repository/entity
 | Card | Application | 발급 대상 구성원 조회·발급 결과 반영 |
 | Card | File | 템플릿 및 발급 이미지 저장 |
 | Admin | Application/Payment/Card | 관리자 유스케이스 조정 |
+| Review | User | 작성자 계정 검증(표시 이름은 요청 값 그대로 저장, `User`를 조회는 하되 이름을 복사하진 않음) |
+| Review | File | 첨부 사진 저장(`UploadFile` 재사용, `ReviewImage`가 연결) |
 
 역방향 참조가 필요해지면 Entity나 Repository를 직접 공유하지 말고 다음 중 하나를 선택한다.
 
@@ -539,6 +560,8 @@ api → service → repository/entity
 | CardType | Card 독립 기준정보 |
 | CardDesign | CardType에 종속된 기준정보 |
 | UploadFile | File 모듈, 연결 주체가 사용 목적 보유 |
+| ReviewCardType | Review |
+| ReviewImage | Review |
 
 Application 삭제가 필요한 경우 하위 신청 데이터와 사진 정리 정책을 함께 적용한다. 결제·발급 이력이 있는 신청은 원칙적으로 물리 삭제하지 않고 상태로 보존한다.
 
