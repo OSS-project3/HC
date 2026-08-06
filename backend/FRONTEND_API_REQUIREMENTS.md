@@ -86,40 +86,15 @@
 
 ## 4. 카드 종류·디자인 API
 
-프론트의 `data/cards.ts`에는 문자열 `designId`, 카드 이미지, 방향, 샘플 표시 정보가 하드코딩되어 있다. 신청 API는 숫자 `cardTypeId`를 요구하므로 운영 환경에서는 서버 카탈로그가 필요하다.
+프론트의 `data/cards.ts`에는 문자열 `designId`, 카드 이미지, 방향, 샘플 표시 정보가 하드코딩되어 있고, `ApplyPage.tsx`는 `cardTypeId`를 `{honorary-korean:1, honorary-citizen:2, visitor:3, student:4}`로 하드코딩해서 신청 API에 그대로 전송한다.
 
-| Method | 제안 경로 | 목적 |
-|---|---|---|
-| GET | `/api/card-types` | 활성 카드 종류 목록 |
-| GET | `/api/card-types/{id}/designs` | 카드 종류별 활성 디자인 목록 |
-| GET | `/api/card-designs/{id}` | 디자인 상세 |
-| POST/PATCH/DELETE | `/admin/card-types[/{id}]` | 관리자 카드 종류 관리 |
-| POST/PATCH/DELETE | `/admin/card-designs[/{id}]` | 관리자 디자인 및 이미지 관리 |
+### 결정 — 조회 API 신설 안 함 (2026-08-06)
 
-최소 응답 필드:
+카드 목록/디자인 표시는 이미 프론트 정적 페이지(`data/cards.ts`)로 처리되고 있어 `GET /api/card-types` 같은 조회 API를 신설할 필요가 없다. 실제 문제는 "프론트가 카드종류를 몰라서"가 아니라 **DB에 자동 생성되는 `CardType.id`가 프론트가 하드코딩한 1~4와 어긋날 수 있다는 것**이었다. 이를 백엔드에서 부팅 시 `CardTypeSeeder`(`domain/card/CardTypeSeeder.java`)가 `HONOR_KOREAN=1, HONOR_CITIZEN=2, VISITOR=3, STUDENT=4` 순서로 최초 1회 시딩하도록 고정했다(이미 데이터가 있으면 아무 것도 하지 않음). 따라서 프론트의 하드코딩된 `cardTypeId` 매핑은 그대로 유지해도 된다.
 
-```json
-{
-  "id": 1,
-  "code": "HONOR_KOREAN",
-  "name": "명예한국인증",
-  "active": true,
-  "designs": [
-    {
-      "id": 10,
-      "code": "honorary-korean-01",
-      "name": "디자인 01",
-      "orientation": "LANDSCAPE",
-      "frontImageUrl": "https://...",
-      "backImageUrl": "https://...",
-      "displayOrder": 1,
-      "active": true
-    }
-  ]
-}
-```
+한국어→영어 등 다국어 표시는 순수 프론트 관심사(코드값 `code`는 이미 안정적인 enum이므로 프론트가 언어별 라벨 사전을 갖고 있으면 됨)이고 백엔드 API가 필요하지 않다. 다만 향후 관리자가 카드 종류명/설명을 언어별로 직접 편집해야 하는 CMS성 요구가 생기면, 그때는 `/admin/card-types` 계열의 콘텐츠 관리 API가 별도로 필요해질 수 있다 — 지금은 범위 밖.
 
-신청 생성 시 프론트 문자열을 임의의 숫자로 변환하지 말고 서버가 반환한 `cardTypeId`와 필요 시 `cardDesignId`를 전송해야 한다.
+가격은 `CardTypeSeeder`가 `0`(placeholder)으로 시딩하며, 관리자가 실제 가격을 설정할 관리자 API는 아직 없다(Admin 도메인 전체가 [TBD]).
 
 ## 5. 신청·마이페이지 API
 
@@ -171,6 +146,23 @@
 - 프론트 관리자 상태와 백엔드 `ApplicationStatus` 값이 다르다. 서버 enum을 기준으로 UI 매핑표를 확정해야 한다.
 - 신청 완료 후 로컬 `admin-applications`에 복사하지 말고 서버 응답과 목록 조회 API를 사용해야 한다.
 - 다운로드 URL은 만료 시간이 있으므로 저장하지 말고 클릭 시마다 다시 발급받아야 한다.
+
+### `POST /api/applications/lookup` 인증 정책 — 확정·구현 완료 (2026-08-06)
+
+`LookupPage.tsx` 실제 구현을 기준으로 백엔드 정책을 다음과 같이 확정했고, `ApplicationService.lookup()`에 반영 완료했다. (기존 문서에 "phone/email 중 최소 1개 필수"로 되어 있던 TBD를 대체한다.)
+
+- **`method: "application"`(신청번호 조회, 프론트 탭 "전화번호·이메일")**: 전화번호와 이메일을 **모두** 입력받고, `Applicant.phone`/`Applicant.email`과 **모두** 일치해야 조회된다. 하나만 맞으면 실패로 처리한다.
+- **`method: "card"`(카드번호 조회, 프론트 탭 "카드번호")**: 전화번호·이메일 입력란이 아예 없다. **카드번호만으로 조회**하며 별도 본인 인증 값을 요구하지 않는다.
+- 카드번호만으로 신원 확인 없이 조회를 허용하는 것이므로, 카드번호 자체의 추측 난이도(형식 `ROK-XXXXX-XXXX`)와 응답에 포함되는 정보(마스킹된 이름, 신청 상태 등 개인정보 성격)를 감안해 보안상 허용 가능한 수준인지는 별도 검토가 필요하다는 점은 여전히 남아있다 — 프론트팀과 같이 재검토 대상.
+
+### UI/API 갭 분석 결정사항 (2026-08-06)
+
+아래 4건은 2026-08-06 UI/API 갭 분석에 대한 최종 결정이다. 프론트를 이어받는 팀은 이 문서 기준으로 작업해야 한다.
+
+1. **단체 신청 파일 파트**: `logo`/`seal`/`submitFile` 3개 별도 파트 방식을 유지한다(`excelFile`+`photoZip` 2파트로 바꾸는 안은 채택하지 않음). 현재 프론트 UI(`ApplyPage.tsx`의 `submit()`)를 그대로 유지하면 된다. 백엔드 `POST /api/applications/bulk`, `PATCH .../photo`(단체 재제출) 모두 3파트 방식으로 구현되어 있다.
+2. **단체 재제출**: `PATCH /api/applications/{id}/photo`가 `submitFile` 파트로 단체 전체(엑셀+ZIP) 재제출을 이미 지원하며, `Application.status`가 `PHOTO_REJECTED`(수정 가능한 상태)일 때만 허용한다(그 외 상태는 `INVALID_STATUS_TRANSITION`). 백엔드 구현은 완료 상태 — **프론트에 단체용 재업로드 UI가 없는 것만 남은 문제**(`MobileCardPage.tsx`는 개인 `photo` 파트만 사용). 프론트팀 작업 필요.
+3. **사주정보 필수 항목**: 영문명/국적/생년월일/성별 등은 카드종류 4종 전부에 필수(방문증에 한정되지 않음) — 기존 방침 그대로 유지, 백엔드 변경 없음. 지금 방문증 외 3종에서 검증 실패가 안 드러나는 건 프론트가 아직 목데이터로 동작 중이기 때문이며, 실제 API 연동 시 바로 드러난다. **프론트팀이 `StepInfo.tsx`에 나머지 3종도 사주정보 입력폼을 추가해야 한다**(requirements.md §7-3에 이미 기록됨).
+4. **`ApplicationMember.englishName`**: 언어 무관하게 신원 표기용 이름 필드로 사용한다(반드시 영문이어야 하는 것은 아님) — 별도 입력란이 없는 카드종류에서 "이름" 필드값을 그대로 전송하는 현재 프론트 동작은 의도된 동작이며 수정 불필요.
 
 ## 6. 관리자 신청 관리 API
 
