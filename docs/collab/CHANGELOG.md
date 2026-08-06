@@ -15,6 +15,13 @@
 
 ---
 
+## 2026-08-06 — Claude — `main` (Review 자격 검증 정책 확정)
+
+- 변경: 후기 작성 자격을 `Application.user_id`(제출 계정) 대신 **이메일 매칭**(`Applicant.email` 또는 `ApplicationMember.email`이 로그인 계정 이메일과 일치)으로 검증하도록 확정. 단체 신청은 대표 제출자뿐 아니라 실제 카드를 받은 구성원 개인(같은 이메일로 별도 가입된 경우)도 자격을 인정 — `lookup` API의 본인확인 방식과 같은 사고방식. 신규 `REVIEW_NOT_ELIGIBLE`(403) 에러코드 추가.
+- 파일: `docs/specs/review/data-model.md`(§2.1 신규), `docs/specs/review/api.md`, `docs/collab/TODO.md`
+- 사유: 사용자 지적 — "단체신청도 개인에서는 카드 정보를 조회할 수 있는 사람만" — 기존 설계(신청유형/카드종류를 자유 입력받는 자기신고 방식)로는 신청 경험이 없는 사람도 후기를 쓸 수 있어서 수정.
+- 관련: TODO "Review 자격 검증 정책 반영"
+
 ## 2026-08-06 — Claude — `main` (Review 도메인 설계)
 
 - 변경: 후기(Review) 작성 요구사항 변경에 따라 Entity/API 설계. `Review`(작성자 실계정 `user_id`와 화면표시 `author_display_name`을 분리, `application_type` 재사용, 신청 실체와 FK 연결 없이 자기신고 값), `ReviewCardType`(`@ElementCollection`, `CardTypeCode` 다중 선택), `ReviewImage`(`UploadFile` 재사용 + `review_id`/`upload_file_id`/`display_order` join). API 3개(등록/목록조회/단건조회) 설계, 목록 응답 최소 4필드로 제한, 프로젝트 첫 페이징 응답 포맷(`PageResponse<T>`) 제안. `docs/api/upload-file.md`에 있던 옛 "`Review.thumbnail_file_id`(단일)" 가정을 대체.

@@ -68,7 +68,7 @@ Content-Type: multipart/form-data
 ```
 
 - `authorDisplayName`은 로그인 사용자의 `User.name`을 서버가 자동으로 채우지 않는다 — 요청 값을 그대로 저장(요구사항 확정 사항).
-- `applicant`/`applicationId` 같은 실제 신청 연결 필드는 없다 — `applicationType`/`cardTypeCodes`는 작성자가 스스로 고르는 분류값이다(data-model.md §1/§3 참고, FK 검증 없음).
+- `applicant`/`applicationId` 같은 특정 신청 1건을 못박는 필드는 없다. 대신 **`applicationType`+`cardTypeCodes`는 로그인 사용자의 실제 카드 발급 이력과 서버가 대조해서 검증한다** — 자격 없는 조합을 보내면 `REVIEW_NOT_ELIGIBLE`로 거절(data-model.md §2.1 참고). 단체 신청은 대표 제출자(`Applicant.email`)뿐 아니라 실제 카드를 받은 구성원 개인(`ApplicationMember.email`, 본인이 같은 이메일로 가입돼 있는 경우)도 자격을 인정한다.
 - Application 도메인의 개인/단체 신청 생성 API와 동일하게, 파일은 사전 업로드 없이 이 등록 API에 함께 실어서 그 자리에서 `UploadFile`(+`ReviewImage`) row가 만들어진다(`docs/api/upload-file.md`에 이미 확정된 공통 원칙).
 
 **Response `201 Created`**
@@ -90,6 +90,7 @@ Content-Type: multipart/form-data
 | `title`/`content`/`authorDisplayName` 중 하나라도 공백 | `INVALID_INPUT` | 400 |
 | `applicationType` 누락 | `INVALID_INPUT` | 400 |
 | `cardTypeCodes` 비어있음 | `INVALID_INPUT` | 400 (§data-model.md 2절 — 최소 1개 필수로 해석, [TBD]) |
+| `(applicationType, cardTypeCodes)` 조합 중 로그인 사용자의 실제 카드 발급 이력에 없는 게 하나라도 있음 | `REVIEW_NOT_ELIGIBLE`(신규) | 403 (data-model.md §2.1) |
 | 첨부 사진 개수가 상한(제안: 10장) 초과 | `INVALID_INPUT` | 400 |
 | 사진 5 MiB 초과 | `FILE_TOO_LARGE` | 413 |
 | 사진 확장자/MIME 미허용 | `UNSUPPORTED_FILE_TYPE` | 415 |
@@ -223,13 +224,14 @@ GET /api/reviews/{reviewId}
 | 2 | `GET /api/reviews` (목록 조회, 페이징) | 설계 완료 |
 | 3 | `GET /api/reviews/{reviewId}` (단건 조회) | 설계 완료 |
 
-**신규 ErrorCode**: `REVIEW_NOT_FOUND(404)` — `common/exception/ErrorCode.java`에 추가 필요(구현 시).
+**신규 ErrorCode**: `REVIEW_NOT_FOUND(404)`, `REVIEW_NOT_ELIGIBLE(403, "선택한 신청유형·카드종류에 대한 신청 이력이 없습니다.")` — `common/exception/ErrorCode.java`에 추가 필요(구현 시).
 
 **이번 범위 밖 (TODO.md에 별도 기록):**
 - 후기 수정/삭제 API — 소유자 판단 기준(`Review.user_id`)은 이미 설계에 포함해뒀으므로 나중에 추가해도 스키마 변경 불필요
 - 마이페이지 "내 후기" 목록 (`GET /api/my/reviews`)
+- "내가 후기 쓸 수 있는 (신청유형, 카드종류) 목록" 조회 API — 없으면 프론트가 체크박스 옵션을 모른 채 제출했다가 `REVIEW_NOT_ELIGIBLE`로 거절당하는 흐름만 가능(data-model.md §2.1)
 - 조회수 — data-model.md §4
-- 카드 종류 0개 허용 여부, 본문 최대 길이, 사진 최대 개수 — [TBD], 확인 후 이 문서에 반영
+- 카드 종류 0개 허용 여부, 본문 최대 길이, 사진 최대 개수, 자격 검증 시 `Application.status` 최소 조건(`COMPLETED` 제안) — [TBD], 확인 후 이 문서에 반영
 
 ---
 Review 도메인 완료(설계).

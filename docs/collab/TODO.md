@@ -54,9 +54,11 @@
 | ✅ | 전체 코드베이스 감사 + 죽은 코드/아키텍처 위반 정리 | Claude | `backend-api` | HANDOFF.md | infra/card·domain/photo·UploadController·TokenRefreshRequest/Response·ErrorCode.DUPLICATE_APPLICATION 삭제, ApplicationService의 UserRepository 직접 주입(arch.md 위반) → UserService 경유로 수정 |
 | ⚪ | Codex: `docs/api/user.md` 225행 stale 문구 수정 | Codex | `feature/application-domain-docs` | `docs/api/user.md` | "GET /api/users/me 미구현"이라 적혀있는데 이미 구현됨(UserController) |
 | ✅ | Review 도메인 설계(Entity/API, 구현 전 단계) | Claude | `main` | `docs/specs/review/{data-model,api}.md` | 후기 등록/목록조회/단건조회 3개 API + `Review`/`ReviewCardType`/`ReviewImage` Entity 설계 완료. 요구사항 변경(사진 다중첨부, 작성자명 수동입력)으로 `docs/api/upload-file.md`의 옛 `thumbnail_file_id` 가정 대체 |
-| ⚪ | Review 도메인 구현 | 미정 | - | `docs/specs/review/{data-model,api}.md` | 설계만 완료, 구현 안 됨. `ErrorCode.REVIEW_NOT_FOUND` 신규 추가 필요, 공용 `PageResponse<T>`(`common/response/`) 신설 필요(프로젝트 첫 페이징 API) |
-| ⚪ | Review [TBD] 확인 필요 3건 | 미정 | - | `docs/specs/review/data-model.md` §2·§4 | ① 카드종류 체크박스 0개 허용 여부(현재 "최소 1개"로 추론) ② 본문 최대 글자수(옛 프론트 mock은 3000자였음) ③ 조회수 필드 노출 여부(현재 설계에서 제외 제안) |
+| ✅ | Review 자격 검증(실제 카드 이력 있는 사람만) 정책 반영 | Claude | `main` | `docs/specs/review/data-model.md` §2.1 | `Application.user_id`가 아니라 이메일 매칭(`Applicant.email`/`ApplicationMember.email`)으로 검증 — 단체 신청의 실제 카드 수령자(계정 있는 구성원 개인)도 후기 작성 가능하게 함. `REVIEW_NOT_ELIGIBLE`(403) 신규 |
+| ⚪ | Review 도메인 구현 | 미정 | - | `docs/specs/review/{data-model,api}.md` | 설계만 완료, 구현 안 됨. `ErrorCode.REVIEW_NOT_FOUND`/`REVIEW_NOT_ELIGIBLE` 신규 추가 필요, 공용 `PageResponse<T>`(`common/response/`) 신설 필요(프로젝트 첫 페이징 API) |
+| ⚪ | Review [TBD] 확인 필요 4건 | 미정 | - | `docs/specs/review/data-model.md` §2·§2.1·§4 | ① 카드종류 체크박스 0개 허용 여부(현재 "최소 1개"로 추론) ② 본문 최대 글자수(옛 프론트 mock은 3000자였음) ③ 조회수 필드 노출 여부(현재 설계에서 제외 제안) ④ 자격 검증 시 인정하는 `Application.status` 최소 조건(`COMPLETED`만 인정 제안) |
 | ⚪ | Review 사진 첨부 최대 개수 확정 | 미정 | - | `docs/specs/review/data-model.md` §3 | 우선 10장으로 제안, DB 제약 아님 — 정책 확정 필요 |
+| ⚪ | "내가 후기 쓸 수 있는 카드종류" 조회 API 추가 여부 결정 | 미정 | - | `docs/specs/review/api.md` | 없으면 프론트가 체크박스 옵션을 모른 채 제출 → `REVIEW_NOT_ELIGIBLE`로 사후 거절만 가능. UX상 필요해 보이나 이번 3개 API 범위 밖이라 별도 확정 필요 |
 | ⚪ | 프론트: `ReviewEditorPage.tsx` 등 Review 요구사항 변경 반영 | 프론트 담당자 | `main` | `docs/specs/review/api.md` §② | 현재 `author: user.name`으로 로그인 이름 자동 사용 중 — "작성자 직접 입력"으로 변경 필요. 신청유형/카드종류/사진 다중첨부 입력 UI 전체 신규 필요 |
 | ⚪ | Codex: `arch.md` 3절 패키지 구조 예시 최신화 | Codex | `feature/application-domain-docs` | `arch.md` | `api/admin`·`infra/toss`는 삭제됨, `domain/uploadfile`·`domain/log`는 예시에 없음, `ApplicationResponse.java`는 이제 `ApplicationCreateResponse` 등으로 분리됨 |
 
