@@ -122,9 +122,9 @@
 | 학번 | `ApplicationMember`(개인별) | 단체 신청 시 N명 각각 학번이 다름 |
 | 학과 | `ApplicationMember`(개인별) | 동일 |
 | 학교 로고 | `Application`(신청당 1회) | 개인/단체 무관하게 카드에 공통으로 들어가는 요소 |
-| 학교 직인 | `Application`(신청당 1회) | 동일 |
+| 학교 직인 | `Application`(신청당 1회) | 선택 입력. 제공된 경우에만 저장 |
 
-✅ 확정: **학생증은 개인신청/단체신청 둘 다 처리방침이 동일** — 학교로고/직인은 신청 유형과 무관하게 항상 필요.
+✅ 확정: **학생증은 개인신청/단체신청 둘 다 처리방침이 동일** — 학교 로고는 항상 필요하고 학교 직인은 선택이다.
 
 [TBD] 학번/학과 형식 제약(글자수, 숫자만 허용 여부 등) — 원본 요구사항 없음.
 
@@ -137,7 +137,7 @@
 - 요청 MIME만 신뢰하지 않고 파일 signature와 실제 이미지 디코딩 결과를 검증한다.
 - 확장자·MIME·signature·실제 이미지 형식은 서로 일치해야 한다.
 - 얼굴사진은 EXIF Orientation을 적용한 최종 표시 방향을 기준으로 가로 300px 이상, 세로 400px 이상이어야 한다.
-- 학생증 학교 로고·직인에도 동일한 용량·확장자·MIME·signature·디코딩 검증을 적용한다.
+- 학생증 학교 로고와 제공된 학교 직인에도 동일한 용량·확장자·MIME·signature·디코딩 검증을 적용한다.
 - 최소 해상도 제한은 얼굴사진에만 적용하고 학교 로고·직인에는 적용하지 않는다.
 - 모든 파일 검증은 object storage 업로드와 DB 저장 전에 완료한다.
 - 오류 코드는 기존 `FILE_TOO_LARGE`, `UNSUPPORTED_FILE_TYPE`, `INVALID_IMAGE`를 재사용하고 신규 세부 ErrorCode를 추가하지 않는다.
@@ -185,10 +185,10 @@
 | 로고(회사) | — | ✅ (`Application.logo_file_id`) | — | — |
 | 직인(회사) | — | ✅ (`Application.seal_file_id`) | — | — |
 | 학교 로고 | — | — | ✅ (`Application.logo_file_id`) | ✅ (`Application.logo_file_id`) |
-| 학교 직인 | — | — | ✅ (`Application.seal_file_id`) | ✅ (`Application.seal_file_id`) |
+| 학교 직인 | — | — | 선택 (`Application.seal_file_id`) | 선택 (`Application.seal_file_id`) |
 | 제출 ZIP(엑셀+사진) | — | ✅ 필수 | — | ✅ 필수 |
 
-**정리**: `Application.logo_file_id`/`seal_file_id`는 "카드종류가 학생증이면 항상, 그 외 카드종류는 단체 신청일 때만" 사용 — 기존 "단체 전용" 조건에 학생증 예외가 추가됨.
+**정리**: `Application.logo_file_id`는 학생증이면 개인·단체 모두 사용하고, 일반 카드는 단체 신청에서 사용한다. `Application.seal_file_id`는 일반 단체 신청에서는 필수이며 학생증 개인·단체 신청에서는 선택이다.
 
 ### 7-3. 발견한 프론트 코드 불일치 (수정 필요, 백엔드 설계와 별개)
 
@@ -223,6 +223,8 @@
 - 하위 Entity는 유효한 `applicationId`가 발급된 후에만 생성하며 null FK 상태의 중간 객체를 만들지 않는다.
 - Factory는 Entity 생성만 담당한다. 검증, 파일 업로드, Repository 저장, 트랜잭션 흐름은 Application Service가 담당한다.
 - 별도 CreatedApplication, CreatedChildren, Context, Plan 객체는 추가하지 않는다.
+
+ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 순서는 [service-flow.md](service-flow.md)를 기준으로 한다.
 
 #### 입금 기한
 

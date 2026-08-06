@@ -39,7 +39,7 @@ Content-Type: multipart/form-data
 | `request` | JSON | 아래 |
 | `photo` | file | `ApplicationMember.photo_path`용 — ⚠️ 프론트에 아직 업로드 입력란 없음(기존 확정 TODO) |
 | `schoolLogo` | file | ⚠️ 2026-07-31 신규 — `cardTypeId`가 학생증일 때만 필수. `Application.logo_file_id` |
-| `schoolSeal` | file | ⚠️ 2026-07-31 신규 — 학생증 전용, `Application.seal_file_id` |
+| `schoolSeal` | file (선택) | 학생증 전용. 전달된 경우 `Application.seal_file_id`로 저장 |
 
 ```json
 {
@@ -74,7 +74,7 @@ Content-Type: multipart/form-data
 - `applicant.email`은 요청에 **포함하지 않음** — `Applicant.email`은 로그인 세션의 `User.email`을 서버가 그대로 채움(신청 이메일=가입 이메일 확정 정책) — ⚠️ 실제 프론트(`StepInfo.tsx`)엔 이메일 입력란이 존재해서 이 정책과 다르게 구현돼 있음(기존부터 있던 프론트 불일치, 이번 정합성 점검 중 재확인 — 정책 자체는 변경하지 않음)
 - `receiver`는 `issueType=MOBILE`이면 생략
 - ⚠️ 2026-07-31 정정: **`cardDesignId` → `cardTypeId`로 교체.** 사용자는 카드 "종류"만 선택하고, 구체적 디자인은 관리자가 신청 검토 중 배정(`.md` 2.1절, `docs/specs/application/requirements.md` 6절) — `Application.card_design_id`는 생성 시 NULL
-- `logo`/`seal`/제출ZIP(회사용)은 이 API에 없음 — 개인 신청은 법인 전용 요소라 불필요. 단, **학생증(`CardType.code=STUDENT`)은 예외로 `schoolLogo`/`schoolSeal` 필요**(위 표)
+- `logo`/`seal`/제출ZIP(회사용)은 이 API에 없음 — 개인 신청은 법인 전용 요소라 불필요. 단, **학생증(`CardType.code=STUDENT`)은 예외로 `schoolLogo`가 필수이고 `schoolSeal`은 선택**이다.
 - ⚠️ 2026-07-31 재정정: `member.birthTime`/`birthRegion`은 **선택 입력으로 정정**(NOT NULL이었던 걸 Nullable로 변경, "출생시간 모름" 체크 지원). `nationality`/`gender`/`birthDate`는 계속 필수
 - ✅ 2026-07-31 신규: `member.entryDate`(한국입국날짜, 선택) 추가
 - ✅ 2026-07-31 신규: `member.studentId`/`department`(학번/학과) — `cardTypeId`가 학생증일 때만 필수, 그 외엔 보내지 않음
@@ -108,7 +108,7 @@ Content-Type: multipart/form-data
 | EXIF Orientation 적용 후 얼굴사진 해상도가 300×400 미만 | `INVALID_IMAGE` | 400 |
 | `issueType=MOBILE_AND_PHYSICAL`인데 `receiver` 없음 | `INVALID_INPUT` | 400 |
 | `member.birthDate`/`nationality`/`gender` 중 하나라도 누락, `photo` 파일 누락 | `INVALID_INPUT` | 400 |
-| `cardTypeId`가 학생증인데 `studentId`/`department`/`schoolLogo`/`schoolSeal` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
+| `cardTypeId`가 학생증인데 `studentId`/`department`/`schoolLogo` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
 | `cardTypeId`가 학생증이 아닌데 `studentId`/`department`/`schoolLogo`/`schoolSeal`을 보냄 | `INVALID_INPUT` | 400 |
 | 비로그인 | `UNAUTHORIZED` | 401 |
 
@@ -137,7 +137,7 @@ Content-Type: multipart/form-data
 | member.department | ApplicationMember.department (✅ 2026-07-31 신규, 학생증 전용) |
 | photo(file) | ApplicationMember.photo_path |
 | schoolLogo(file) | UploadFile 생성 → Application.logo_file_id (✅ 2026-07-31 신규, 학생증 전용) |
-| schoolSeal(file) | UploadFile 생성 → Application.seal_file_id (✅ 2026-07-31 신규, 학생증 전용) |
+| schoolSeal(file) | 선택. 전달된 경우 UploadFile 생성 → Application.seal_file_id |
 | — | ApplicationMember.email/phone = `NULL`(개인 신청은 항상 비움 — `Applicant`가 대신함, ✅ 2026-07-31 확정) |
 | — | Application.application_type = `INDIVIDUAL` (고정) |
 | — | Application.total_quantity = `1` (✅ 확정, `.md` 2.1절 반영) |
@@ -174,7 +174,7 @@ Content-Type: multipart/form-data
 |---|---|---|
 | `request` | JSON | 아래 |
 | `logo` | file | `Application.logo_file_id` — 일반 카드종류는 회사 로고, 학생증은 학교 로고 |
-| `seal` | file | `Application.seal_file_id` — 일반 카드종류는 직인, 학생증은 학교 직인 |
+| `seal` | file (조건부) | 일반 카드종류는 기관 직인으로 필수, 학생증은 학교 직인으로 선택 |
 | `submitFile` | file (ZIP) | `Application.submit_file_id` — 엑셀과 구성원 사진 묶음 |
 
 ```json
@@ -229,7 +229,8 @@ Content-Type: multipart/form-data
 | 엑셀 형식이 안 맞음 | `EXCEL_PARSE_ERROR` | 400 |
 | ZIP 파일 크기 초과 | `ZIP_TOO_LARGE` | 413 |
 | `cardTypeId` 없음/비활성 | `NOT_FOUND` | 404 |
-| `logo`/`seal` 누락 | `INVALID_INPUT` | 400 |
+| 일반 단체 신청에서 `logo` 또는 `seal` 누락 | `INVALID_INPUT` | 400 |
+| 학생증 단체 신청에서 `logo` 누락 | `INVALID_INPUT` | 400 |
 
 (ZIP/엑셀 관련 4개 코드는 기존 `ErrorCode.java`에 이미 있는 걸 그대로 재사용 — Bulk 신청 도메인은 사주 도메인이었을 때도 ZIP+엑셀 처리 방식이 똑같아서 그대로 맞음)
 
