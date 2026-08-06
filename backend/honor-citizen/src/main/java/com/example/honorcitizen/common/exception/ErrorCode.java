@@ -26,6 +26,8 @@ public enum ErrorCode {
 
     // Upload
     FILE_TOO_LARGE(413, "파일 크기는 10MB를 초과할 수 없습니다."),
+    UNSUPPORTED_FILE_TYPE(415, "허용되지 않는 파일 형식입니다."),
+    INVALID_IMAGE(400, "얼굴을 식별할 수 없습니다."),
 
     // Bulk Application
     ZIP_TOO_LARGE(413, "ZIP 파일은 500MB를 초과할 수 없습니다."),
