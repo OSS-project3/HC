@@ -20,6 +20,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -79,7 +82,9 @@ class ApplicationControllerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User user = userRepository.save(User.createNewUser("app@example.com", "oauth-app-ctrl", "google", "Applicant"));
+        User user = User.createNewUser("app@example.com", "oauth-app-ctrl", "google", "Applicant");
+        user.agreeTerms(true, true, true);
+        user = userRepository.save(user);
         token = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
         cardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-ctrl", null, BigDecimal.valueOf(30000)));
@@ -91,7 +96,7 @@ class ApplicationControllerTest {
     void createIndividualReturnsCreatedWithApplicationNumber() throws Exception {
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", REQUEST_JSON.formatted(cardType.getId()).getBytes());
-        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", "photo-bytes".getBytes());
+        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", imageBytes());
 
         mockMvc.perform(multipart("/api/applications")
                         .file(requestPart)
@@ -108,7 +113,7 @@ class ApplicationControllerTest {
     void createIndividualReturnsUnauthorizedWithoutToken() throws Exception {
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", REQUEST_JSON.formatted(cardType.getId()).getBytes());
-        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", "photo-bytes".getBytes());
+        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", imageBytes());
 
         mockMvc.perform(multipart("/api/applications")
                         .file(requestPart)
@@ -120,7 +125,7 @@ class ApplicationControllerTest {
     void createIndividualReturnsNotFoundForUnknownCardType() throws Exception {
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", REQUEST_JSON.formatted(999999L).getBytes());
-        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", "photo-bytes".getBytes());
+        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", imageBytes());
 
         mockMvc.perform(multipart("/api/applications")
                         .file(requestPart)
@@ -140,5 +145,15 @@ class ApplicationControllerTest {
                         .file(requestPart)
                         .header("Authorization", token))
                 .andExpect(status().isBadRequest());
+    }
+    private byte[] imageBytes() {
+        try {
+            BufferedImage image = new BufferedImage(300, 400, BufferedImage.TYPE_INT_RGB);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", output);
+            return output.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

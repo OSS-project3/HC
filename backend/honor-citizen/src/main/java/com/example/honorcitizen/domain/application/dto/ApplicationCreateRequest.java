@@ -32,6 +32,10 @@ public class ApplicationCreateRequest {
     @Valid
     private MemberRequest member;
 
+    public boolean isReceiverSameAsApplicant() {
+        return receiver == null || receiver.isSameAsApplicant();
+    }
+
     @Getter
     @NoArgsConstructor
     public static class ApplicantRequest {

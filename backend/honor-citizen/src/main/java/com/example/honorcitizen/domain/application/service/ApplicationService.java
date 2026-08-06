@@ -55,48 +55,71 @@ public class ApplicationService {
     private final CardTypeRepository cardTypeRepository;
     private final UploadFileRepository uploadFileRepository;
     private final UserService userService;
+    private final ApplicationFactory applicationFactory;
+    private final ApplicationPhotoValidator applicationPhotoValidator;
     private final StorageService storageService;
     private final BulkExcelParser bulkExcelParser;
 
     @Transactional
     public ApplicationCreateResponse createIndividual(Long userId, ApplicationCreateRequest request,
             MultipartFile photo, MultipartFile schoolLogo, MultipartFile schoolSeal) {
+        User user = findUser(userId);
         CardType cardType = findActiveCardType(request.getCardTypeId());
         boolean isStudent = cardType.isStudentCard();
 
+        validateCreateIndividual(request, photo, schoolLogo, schoolSeal, isStudent);
+
+        Application application = createIndividualApplication(userId, request, schoolLogo, schoolSeal, cardType,
+                isStudent);
+        Applicant applicant = createIndividualApplicant(application, request, user);
+        saveReceiverIfNeeded(application, request, applicant);
+        createIndividualMember(application, request, photo);
+
+        return ApplicationCreateResponse.from(application);
+    }
+
+    private void validateCreateIndividual(ApplicationCreateRequest request, MultipartFile photo,
+            MultipartFile schoolLogo, MultipartFile schoolSeal, boolean isStudent) {
         validateReceiverPresence(request);
-        validatePhoto(photo);
+        applicationPhotoValidator.validateFacePhoto(photo);
         validateStudentFields(isStudent, request.getMember().getStudentId(), request.getMember().getDepartment(),
                 schoolLogo, schoolSeal);
+    }
 
+    private Application createIndividualApplication(Long userId, ApplicationCreateRequest request,
+            MultipartFile schoolLogo, MultipartFile schoolSeal, CardType cardType, boolean isStudent) {
         String applicationNumber = generateApplicationNumber();
         Long logoFileId = isStudent ? storeUploadFile(schoolLogo, UploadFileType.PHOTO) : null;
         Long sealFileId = isStudent ? storeUploadFile(schoolSeal, UploadFileType.PHOTO) : null;
-        boolean receiverSameAsApplicant = request.getReceiver() == null || request.getReceiver().isSameAsApplicant();
+        boolean receiverSameAsApplicant = request.isReceiverSameAsApplicant();
 
-        Application application = Application.createIndividual(
+        Application application = applicationFactory.createIndividualApplication(
                 userId, applicationNumber, cardType.getId(), request.getIssueType(),
                 receiverSameAsApplicant, logoFileId, sealFileId);
         applicationRepository.save(application);
+        return application;
+    }
 
-        User user = userService.findById(userId);
+    private User findUser(Long userId) {
+        return userService.findEligibleApplicationUser(userId);
+    }
 
-        Applicant applicant = Applicant.createIndividual(
+    private Applicant createIndividualApplicant(Application application, ApplicationCreateRequest request, User user) {
+        Applicant applicant = applicationFactory.createIndividualApplicant(
                 application.getId(), request.getApplicant().getName(), user.getEmail(), request.getApplicant().getPhone());
         applicantRepository.save(applicant);
+        return applicant;
+    }
 
-        saveReceiverIfNeeded(application, request, applicant);
-
-        String photoPath = storePhotoFile(applicationNumber, photo);
+    private void createIndividualMember(Application application, ApplicationCreateRequest request, MultipartFile photo) {
+        String photoPath = storePhotoFile(application.getApplicationNumber(), photo);
         ApplicationCreateRequest.MemberRequest memberRequest = request.getMember();
-        ApplicationMember member = ApplicationMember.createIndividual(
+        ApplicationMember member = applicationFactory.createIndividualMember(
                 application.getId(), memberRequest.getEnglishName(), memberRequest.getBirthDate(),
                 memberRequest.getNationality(), memberRequest.getBirthTime(), memberRequest.getBirthRegion(),
                 memberRequest.getGender(), memberRequest.getEntryDate(),
                 memberRequest.getStudentId(), memberRequest.getDepartment(), photoPath);
         applicationMemberRepository.save(member);
-
-        return ApplicationCreateResponse.from(application);
     }
 
     @Transactional
@@ -239,8 +262,9 @@ public class ApplicationService {
 
     @Transactional(readOnly = true)
     public ApplicationLookupResponse lookup(ApplicationLookupRequest request) {
-        if ((request.getPhone() == null || request.getPhone().isBlank())
-                && (request.getEmail() == null || request.getEmail().isBlank())) {
+        if (request.getMethod() == LookupMethod.APPLICATION
+                && ((request.getPhone() == null || request.getPhone().isBlank())
+                        || (request.getEmail() == null || request.getEmail().isBlank()))) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
@@ -266,17 +290,8 @@ public class ApplicationService {
     private Application lookupByCard(ApplicationLookupRequest request) {
         ApplicationMember member = applicationMemberRepository.findByCardNumber(request.getKeyValue())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
-        Application application = applicationRepository.findById(member.getApplicationId())
+        return applicationRepository.findById(member.getApplicationId())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
-        Applicant applicant = applicantRepository.findByApplicationId(application.getId())
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
-
-        String targetPhone = member.getPhone() != null ? member.getPhone() : applicant.getPhone();
-        String targetEmail = member.getEmail() != null ? member.getEmail() : applicant.getEmail();
-        if (!matches(request, targetPhone, targetEmail)) {
-            throw new CustomException(ErrorCode.NOT_FOUND);
-        }
-        return application;
     }
 
     private Application lookupByApplicationNumber(ApplicationLookupRequest request) {
@@ -294,7 +309,7 @@ public class ApplicationService {
     private boolean matches(ApplicationLookupRequest request, String targetPhone, String targetEmail) {
         boolean phoneMatches = request.getPhone() != null && request.getPhone().equals(targetPhone);
         boolean emailMatches = request.getEmail() != null && request.getEmail().equalsIgnoreCase(targetEmail);
-        return phoneMatches || emailMatches;
+        return phoneMatches && emailMatches;
     }
 
     private String maskName(String name) {
@@ -356,17 +371,12 @@ public class ApplicationService {
         }
     }
 
-    private void validatePhoto(MultipartFile photo) {
-        if (photo == null || photo.isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
-        }
-    }
 
     private void validateStudentFields(boolean isStudent, String studentId, String department,
             MultipartFile schoolLogo, MultipartFile schoolSeal) {
-        boolean anyStudentFieldPresent = studentId != null || department != null
+        boolean anyStudentFieldPresent = hasText(studentId) || hasText(department)
                 || isPresent(schoolLogo) || isPresent(schoolSeal);
-        boolean allStudentFieldsPresent = studentId != null && department != null
+        boolean allStudentFieldsPresent = hasText(studentId) && hasText(department)
                 && isPresent(schoolLogo) && isPresent(schoolSeal);
 
         if (isStudent && !allStudentFieldsPresent) {
@@ -375,6 +385,14 @@ public class ApplicationService {
         if (!isStudent && anyStudentFieldPresent) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
+        if (isStudent) {
+            applicationPhotoValidator.validateSchoolAsset(schoolLogo);
+            applicationPhotoValidator.validateSchoolAsset(schoolSeal);
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private boolean isPresent(MultipartFile file) {
@@ -387,10 +405,10 @@ public class ApplicationService {
         }
         ApplicationCreateRequest.ReceiverRequest receiverRequest = request.getReceiver();
         Receiver receiver = receiverRequest.isSameAsApplicant()
-                ? Receiver.copyFromApplicant(application.getId(), applicant)
-                : Receiver.create(application.getId(), receiverRequest.getName(), receiverRequest.getPhone(),
-                        receiverRequest.getZipCode(), receiverRequest.getAddress(), receiverRequest.getDetailAddress(),
-                        receiverRequest.getDeliveryRequest(), null, null);
+                ? applicationFactory.copyIndividualReceiver(application.getId(), applicant)
+                : applicationFactory.createIndividualReceiver(application.getId(), receiverRequest.getName(),
+                        receiverRequest.getPhone(), receiverRequest.getZipCode(), receiverRequest.getAddress(),
+                        receiverRequest.getDetailAddress(), receiverRequest.getDeliveryRequest());
         receiverRepository.save(receiver);
     }
 

@@ -2,6 +2,7 @@ package com.example.honorcitizen.domain.user.service;
 
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
+import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.enums.UserStatus;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeRequest;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeResponse;
@@ -106,6 +107,21 @@ public class UserService {
     public User findById(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public User findEligibleApplicationUser(Long userId) {
+        User user = findById(userId);
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new CustomException(ErrorCode.ALREADY_WITHDRAWN);
+        }
+        if (user.getRole() != UserRole.USER) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+        if (!user.isAllTermsAgreed()) {
+            throw new CustomException(ErrorCode.TERMS_NOT_AGREED);
+        }
+        return user;
     }
 
     @Transactional(readOnly = true)
