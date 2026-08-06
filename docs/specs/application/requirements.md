@@ -108,6 +108,11 @@
 
 ✅ 확정(기존과 동일): 단체 신청 시 **엑셀 + 사진을 포함한 ZIP 파일 업로드는 필수**. 선택 아님.
 
+- 엑셀의 `ID` 컬럼과 ZIP 내부 사진 파일명을 매칭한다. 예: `ID=1`은 `1.jpg` 또는 `1.png`와 매칭한다.
+- 엑셀 `ID`는 ZIP 안에서 사진을 찾기 위한 임시 식별자이며 DB에 저장하지 않는다.
+- 구성원 사진마다 별도의 사진 파일 ID를 생성하지 않는다. 매칭된 이미지의 저장 경로만 `ApplicationMember.photo_path`에 저장한다.
+- 제출 ZIP 원본은 신청 단위 파일이므로 기존 `Application.submit_file_id`로 관리한다. 이는 구성원별 사진 파일 ID와 구분한다.
+
 ---
 
 ## 5. 학생증(STUDENT) 추가 항목
@@ -119,9 +124,23 @@
 | 학교 로고 | `Application`(신청당 1회) | 개인/단체 무관하게 카드에 공통으로 들어가는 요소 |
 | 학교 직인 | `Application`(신청당 1회) | 동일 |
 
-✅ 확정: **학생증은 개인신청/단체신청 둘 다 처리방침이 동일** — 학교로고/직인은 신청 유형과 무관하게 항상 필요(기존 설계에서 "로고/직인은 GROUP 전용"이었던 것과 다른 예외 케이스).
+✅ 확정: **학생증은 개인신청/단체신청 둘 다 처리방침이 동일** — 학교로고/직인은 신청 유형과 무관하게 항상 필요.
 
 [TBD] 학번/학과 형식 제약(글자수, 숫자만 허용 여부 등) — 원본 요구사항 없음.
+
+### 5-1. 얼굴사진·학교 로고·학교 직인 파일 검증
+
+- 얼굴사진은 필수이며 빈 파일을 허용하지 않는다.
+- 최대 크기는 `5 * 1024 * 1024` bytes(5 MiB)다.
+- 허용 확장자는 `jpg`, `jpeg`, `png`다.
+- 허용 MIME은 `image/jpeg`, `image/png`다.
+- 요청 MIME만 신뢰하지 않고 파일 signature와 실제 이미지 디코딩 결과를 검증한다.
+- 확장자·MIME·signature·실제 이미지 형식은 서로 일치해야 한다.
+- 얼굴사진은 EXIF Orientation을 적용한 최종 표시 방향을 기준으로 가로 300px 이상, 세로 400px 이상이어야 한다.
+- 학생증 학교 로고·직인에도 동일한 용량·확장자·MIME·signature·디코딩 검증을 적용한다.
+- 최소 해상도 제한은 얼굴사진에만 적용하고 학교 로고·직인에는 적용하지 않는다.
+- 모든 파일 검증은 object storage 업로드와 DB 저장 전에 완료한다.
+- 오류 코드는 기존 `FILE_TOO_LARGE`, `UNSUPPORTED_FILE_TYPE`, `INVALID_IMAGE`를 재사용하고 신규 세부 ErrorCode를 추가하지 않는다.
 
 ---
 
@@ -183,10 +202,27 @@
 
 #### 결제 금액
 
-- 결제 금액은 카드 종류별 고정 금액을 하드코딩하거나 `CardType.price × total_quantity`로 자동 계산하지 않는다.
-- 개인/단체 신청 모두 **신청 건별 사전 상담을 통해 최종 결제 금액을 확정**한다.
-- `Application.total_price`에는 상담을 통해 확정된 최종 금액을 저장한다.
-- 상담 확정 금액을 시스템에 등록하는 주체와 API는 [TBD]다.
+- 개인/단체 신청 모두 **상담을 먼저 진행한 후 신청**한다.
+- 신청 이후 결제는 계좌이체 방식으로 진행한다.
+- Application 신청 생성 단계에서는 결제 금액을 계산하거나 저장하지 않는다.
+- 카드 종류별 고정 금액 하드코딩, `CardType.price × total_quantity` 자동 계산 및 `Application.total_price`는 현재 범위에서 사용하지 않는다.
+- 상담 결과와 실제 입금 내역을 시스템에서 관리하는 방식은 Payment 도메인 설계 시 별도로 확정한다.
+
+### 7-5. Application 생성 시 서버 값 책임
+
+- 신청번호는 클라이언트가 보내지 않으며 Application Service가 생성한다. 번호 생성 전략의 분리는 Task 6에서 다룬다.
+- 초기 신청 상태 `PAYMENT_PENDING`과 초기 결제 상태 `WAITING`은 모든 생성 경로에 공통인 Application 불변조건이므로 Entity가 설정한다.
+- 수령인 동일 여부는 Request 자체에서 계산 가능한 단순 파생값이다. `receiver`가 없거나 `sameAsApplicant=true`이면 동일 수령인으로 판단한다.
+- 결제 금액과 구성원별 사진 파일 ID는 Application 생성 시 서버 준비값에 포함하지 않는다.
+- 위 값들은 하나의 준비 객체로 함께 전달할 필요가 없으므로 현재는 Context, Plan, `prepareServerValues()`를 추가하지 않는다.
+
+### 7-6. ApplicationFactory와 IDENTITY 저장 순서
+
+- Application은 기존 `IDENTITY` 식별자 전략을 유지한다.
+- Factory는 먼저 Application을 생성하고 Service가 이를 저장한다. DB에서 ID가 발급된 뒤 Factory가 Applicant, Receiver, ApplicationMember를 생성한다.
+- 하위 Entity는 유효한 `applicationId`가 발급된 후에만 생성하며 null FK 상태의 중간 객체를 만들지 않는다.
+- Factory는 Entity 생성만 담당한다. 검증, 파일 업로드, Repository 저장, 트랜잭션 흐름은 Application Service가 담당한다.
+- 별도 CreatedApplication, CreatedChildren, Context, Plan 객체는 추가하지 않는다.
 
 #### 입금 기한
 

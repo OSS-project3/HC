@@ -97,7 +97,15 @@ Content-Type: multipart/form-data
 
 | 상황 | errorCode | HTTP |
 |---|---|---|
+| 로그인 User가 존재하지 않음 | `USER_NOT_FOUND` | 404 |
+| User 상태가 `ACTIVE`가 아님 | `ALREADY_WITHDRAWN` | 409 |
+| User 권한이 `USER`가 아님 | `FORBIDDEN` | 403 |
+| 필수 약관에 모두 동의하지 않음 | `TERMS_NOT_AGREED` | 403 |
 | `cardTypeId`가 없거나 `is_active=false` | `NOT_FOUND` | 404 |
+| 얼굴사진 또는 학교 로고·직인이 5 MiB를 초과함 | `FILE_TOO_LARGE` | 413 |
+| 얼굴사진 또는 학교 로고·직인의 확장자/MIME가 허용되지 않음 | `UNSUPPORTED_FILE_TYPE` | 415 |
+| 파일 signature 불일치 또는 이미지 디코딩 실패 | `INVALID_IMAGE` | 400 |
+| EXIF Orientation 적용 후 얼굴사진 해상도가 300×400 미만 | `INVALID_IMAGE` | 400 |
 | `issueType=MOBILE_AND_PHYSICAL`인데 `receiver` 없음 | `INVALID_INPUT` | 400 |
 | `member.birthDate`/`nationality`/`gender` 중 하나라도 누락, `photo` 파일 누락 | `INVALID_INPUT` | 400 |
 | `cardTypeId`가 학생증인데 `studentId`/`department`/`schoolLogo`/`schoolSeal` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
@@ -133,7 +141,7 @@ Content-Type: multipart/form-data
 | — | ApplicationMember.email/phone = `NULL`(개인 신청은 항상 비움 — `Applicant`가 대신함, ✅ 2026-07-31 확정) |
 | — | Application.application_type = `INDIVIDUAL` (고정) |
 | — | Application.total_quantity = `1` (✅ 확정, `.md` 2.1절 반영) |
-| — | Application.total_price = 사전 상담을 통해 확정된 최종 결제 금액 (`CardType.price`로 자동 계산하거나 하드코딩하지 않음) |
+| — | 결제 금액을 계산하거나 저장하지 않음. 상담 후 신청하고 신청 이후 별도 계좌이체 |
 | — | Application.status = `PAYMENT_PENDING`, payment_status = `WAITING` (기본값, ✅ 2026-07-31 정정 — Admin 도메인 상태 흐름 확정 반영) |
 | — | Application.application_number = 서버 생성 |
 | — | ApplicationMember 1건 자동 생성(개인 원칙) |
@@ -165,9 +173,9 @@ Content-Type: multipart/form-data
 | part | 타입 | 설명 |
 |---|---|---|
 | `request` | JSON | 아래 |
-| `logo` | file | `Application.logo_file_id` — 일반 카드종류는 "회사 로고", **학생증은 "학교 로고"**로 의미만 다르고 파트 이름/컬럼은 동일(⚠️ 2026-07-31 명시) |
-| `seal` | file | `Application.seal_file_id` — 동일하게 학생증이면 "학교 직인" |
-| `submitFile` | file (ZIP) | Application.submit_file_id — 엑셀(인원별 이름/생년월일/사진 파일명 등) + 사진 묶음 |
+| `logo` | file | `Application.logo_file_id` — 일반 카드종류는 회사 로고, 학생증은 학교 로고 |
+| `seal` | file | `Application.seal_file_id` — 일반 카드종류는 직인, 학생증은 학교 직인 |
+| `submitFile` | file (ZIP) | `Application.submit_file_id` — 엑셀과 구성원 사진 묶음 |
 
 ```json
 {
@@ -221,7 +229,7 @@ Content-Type: multipart/form-data
 | 엑셀 형식이 안 맞음 | `EXCEL_PARSE_ERROR` | 400 |
 | ZIP 파일 크기 초과 | `ZIP_TOO_LARGE` | 413 |
 | `cardTypeId` 없음/비활성 | `NOT_FOUND` | 404 |
-| `cardTypeId`가 학생증인데 `logo`/`seal`(학교 로고/직인) 누락 | `INVALID_INPUT` | 400 |
+| `logo`/`seal` 누락 | `INVALID_INPUT` | 400 |
 
 (ZIP/엑셀 관련 4개 코드는 기존 `ErrorCode.java`에 이미 있는 걸 그대로 재사용 — Bulk 신청 도메인은 사주 도메인이었을 때도 ZIP+엑셀 처리 방식이 똑같아서 그대로 맞음)
 
@@ -239,13 +247,13 @@ Content-Type: multipart/form-data
 | applicant.* | Applicant.* (organizationName/department 포함) |
 | receiver.* | Receiver.* (organizationName/department 포함, receiver.name/phone → `receiver_name`/`receiver_phone` 컬럼명 매핑 주의) |
 | receiver.sameAsApplicant | Application.receiver_same_as_applicant |
-| logo(file) | UploadFile 생성 → Application.logo_file_id (일반: 회사로고 / 학생증: 학교로고) |
-| seal(file) | UploadFile 생성 → Application.seal_file_id (일반: 회사직인 / 학생증: 학교직인) |
+| logo(file) | UploadFile 생성 → Application.logo_file_id |
+| seal(file) | UploadFile 생성 → Application.seal_file_id |
 | submitFile(file) | UploadFile 생성 → Application.submit_file_id |
 | 엑셀 각 행 | ApplicationMember N건 — 생성 시 채움: `english_name`/`birth_date`/`nationality`/`birth_time`/`birth_region`/`gender`/`entry_date`/`email`/`phone`/`address`/`photo_path`, (학생증이면)`student_id`/`department`. `name`/`chinese_name`/`name_meaning`/`name_interpretation`/`card_number`/`issue_date`는 NULL로 시작(관리자가 나중에 채움) |
 | — | Application.application_type = `GROUP` (고정) |
 | — | Application.total_quantity = 엑셀 행 수 |
-| — | Application.total_price = 사전 상담을 통해 확정된 최종 결제 금액 (`CardType.price × total_quantity` 자동 계산 아님) |
+| — | 결제 금액을 계산하거나 저장하지 않음. 상담 후 신청하고 신청 이후 별도 계좌이체 |
 
 **엑셀 템플릿 컬럼 (⚠️ 2026-07-31 재정정 — `docs/specs/application/requirements.md` 기준)**
 
@@ -257,7 +265,7 @@ Content-Type: multipart/form-data
 
 | 컬럼 | ApplicationMember 필드 | 필수 여부 |
 |---|---|---|
-| ID | (사진 파일명 매칭용 식별자, 저장 안 함) | 필수 |
+| ID | 사진 파일명 매칭용 임시 식별자. 별도 사진 파일 ID를 생성하거나 DB에 저장하지 않음 | 필수 |
 | 영문명 | english_name | 필수 |
 | 생년월일 | birth_date | 필수 |
 | 국적 | nationality | 필수 |
@@ -271,6 +279,8 @@ Content-Type: multipart/form-data
 | 학번 | student_id(✅ 2026-07-31 신규, `cardTypeId`가 학생증일 때만 존재) | 학생증만 필수 |
 | 학과 | department(✅ 2026-07-31 신규, 학생증 전용) | 학생증만 필수 |
 | (사진 파일명, ZIP 내부 photos/ 하위) | photo_path | 필수 |
+
+엑셀 `ID`와 ZIP 내부 사진의 기본 파일명을 매칭한다(예: `ID=1` ↔ `photos/1.jpg`). 구성원별 UploadFile ID는 생성하지 않고, 매칭된 이미지의 저장 경로만 `ApplicationMember.photo_path`에 저장한다. ZIP 원본의 `Application.submit_file_id`는 신청 단위 제출 파일을 가리키며 구성원 사진 ID가 아니다.
 
 #### ⑦ 누락된 필드 확인
 
@@ -370,7 +380,7 @@ Content-Type: multipart/form-data
 | part | 타입 | 설명 |
 |---|---|---|
 | `photo` | file | `application_type=INDIVIDUAL`일 때 — 새 사진 1장 |
-| `submitFile` | file (ZIP) | `application_type=GROUP`일 때 — 수정된 엑셀+사진 ZIP 전체 재제출 (API 2와 동일한 형식) |
+| `submitFile` | file (ZIP) | `application_type=GROUP`일 때 — 수정된 엑셀+사진 ZIP 전체 재제출 |
 
 (둘 중 신청 유형에 맞는 파트 1개만 보냄)
 

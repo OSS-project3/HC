@@ -18,11 +18,10 @@
 | payment_status | ENUM | NOT NULL | WAITING, CONFIRMED |
 | receiver_same_as_applicant | BOOLEAN | NOT NULL DEFAULT TRUE | 신청자와 수령인이 동일한지 여부 |
 | total_quantity | INT | NOT NULL | 신청 인원 수 |
-| total_price | DECIMAL(10,2) | NOT NULL | 총 결제 금액 |
 | issue_type | ENUM | NOT NULL | MOBILE, MOBILE_AND_PHYSICAL — ✅ 2026-07-25 확인: Application 테이블에 반드시 있어야 함 (누락이었음) |
 | card_design_id | BIGINT | FK → CardDesign, NULL | ⚠️ 2026-07-31 재정정: **"신청 1건당 디자인 1개 선택"은 취소 — 사용자가 고르지 않음.** 신청 생성 시점엔 항상 `NULL`, **관리자가 신청 검토 과정에서 배정**(정확한 배정 시점은 Admin API 설계 시 확정, [TBD]). `시안.zip` 확인 결과 디자인이 발행 지자체별로 나뉘는 행정적 값이라 사용자가 미학적으로 고를 성격이 아님(`docs/specs/application/requirements.md` 6절) |
-| logo_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 업로드한 로고. ⚠️ 2026-07-31 조건 추가: 기존엔 "GROUP 전용"이었으나, **카드종류=학생증(학교로고)이면 개인/단체 무관하게 사용** — 그 외 카드종류는 기존대로 GROUP만 |
-| seal_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 업로드한 직인. 조건은 `logo_file_id`와 동일(학생증=학교직인, 개인/단체 무관) |
+| logo_file_id | BIGINT | FK → UploadFile, NULL | 업로드한 로고. 학생증은 개인/단체 모두 학교 로고로 사용하고, 그 외 카드종류는 GROUP에서 사용 |
+| seal_file_id | BIGINT | FK → UploadFile, NULL | 업로드한 직인. 조건은 `logo_file_id`와 동일 |
 | submit_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 제출한 ZIP(엑셀+사진) |
 | photo_reject_reason | VARCHAR(500) | NULL | ✅ 2026-07-31 신규 확정: 관리자가 사진 반려 시 입력하는 사유. `status=PHOTO_REJECTED`일 때 사용자에게 노출(`/lookup` 조회 결과) |
 
