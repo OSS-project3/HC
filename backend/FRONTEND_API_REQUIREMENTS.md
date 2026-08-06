@@ -164,6 +164,15 @@
 3. **사주정보 필수 항목**: 영문명/국적/생년월일/성별 등은 카드종류 4종 전부에 필수(방문증에 한정되지 않음) — 기존 방침 그대로 유지, 백엔드 변경 없음. 지금 방문증 외 3종에서 검증 실패가 안 드러나는 건 프론트가 아직 목데이터로 동작 중이기 때문이며, 실제 API 연동 시 바로 드러난다. **프론트팀이 `StepInfo.tsx`에 나머지 3종도 사주정보 입력폼을 추가해야 한다**(requirements.md §7-3에 이미 기록됨).
 4. **`ApplicationMember.englishName`**: 언어 무관하게 신원 표기용 이름 필드로 사용한다(반드시 영문이어야 하는 것은 아님) — 별도 입력란이 없는 카드종류에서 "이름" 필드값을 그대로 전송하는 현재 프론트 동작은 의도된 동작이며 수정 불필요.
 
+### UI/API 갭 분석 추가 발견 — 프론트 수정 필요 (2026-08-06, 2차)
+
+기존 6건과 별개로 코드 레벨로 다시 대조하다가 추가로 발견한 4건. **전부 프론트 수정 필요**(백엔드/ERD는 이미 올바름). 프론트를 이어받는 팀은 이 내용 기준으로 작업.
+
+1. **[차단] 법인·단체 신청에 `organizationName` 입력 UI가 아예 없음.** ERD(`Applicant.organization_name`, `Receiver.organization_name`, `data-model.md` §2.2/§2.3)와 백엔드 `BulkApplicationCreateRequest.ApplicantRequest.organizationName`은 이 값을 요구하는데, `StepInfo.tsx`는 `isVisitor` 여부로만 분기하고 `applicantType`(개인/법인)은 전혀 안 본다. "법인·단체 신청"을 선택해도 Step2(정보입력)에 회사명/단체명 입력란 자체가 없고, 개인용 폼(이름/학번·학과/연락처/이메일)이 그대로 뜬다. 결과: 지금 이 UI로 제출되는 모든 단체 신청은 `organizationName`이 항상 빈 값. 수령인 쪽 `organizationName`/`department`도 동일 문제. **수정 방향: `StepInfo.tsx`가 `applicantType`으로 분기해서 법인 신청 전용 폼(단체명/부서/담당자명/연락처, 수령인도 동일)을 별도로 렌더링해야 한다.**
+2. **[차단] 개인 신청 + 명예한국인증/명예시민증 조합은 현재 제출이 100% 불가능.** 원인은 `StepFiles.tsx`가 분기 기준을 잘못 잡은 것 — `applicantType`이 아니라 `cardType`(`isVisitor`/`isStudent`)으로만 분기한다: 방문증→얼굴사진만, 학생증→얼굴사진+학교로고+학교직인, **그 외(명예한국인증/명예시민증)→로고+직인+제출ZIP(얼굴사진 없음)**. 이 "그 외" 분기는 원래 법인용 UI인데 `applicantType`을 안 보기 때문에 "개인 신청"을 선택해도 이 카드종류 2개에서는 그대로 나온다. 반면 `ApplyPage.tsx`의 `submit()`은 `applicantType`으로 분기해서 개인 신청이면 `draft.faceFile`을 요구하는데, 방금 그 UI에서는 `faceFile`을 받은 적이 없어서 API 호출 전에 클라이언트에서 즉시 "본인 사진을 다시 선택해 주세요" 에러가 난다. 개인+방문증, 개인+학생증, 법인+아무 카드종류는 각각 맞는 분기를 타서 정상 동작한다 — 딱 이 조합(개인+명예한국인증/명예시민증)만 막혀 있다. **수정 방향: `StepFiles.tsx`의 분기 기준을 `cardType`이 아니라 `applicantType`으로 바꿔야 한다 — "개인이면 얼굴사진(학생증이면 학교로고/직인 추가), 법인이면 로고/직인/제출ZIP"이 맞는 기준.**
+3. **[중간] `member.entryDate`(한국입국날짜) 입력 UI가 개인 신청 흐름에 없음.** 백엔드/ERD는 개인·단체 둘 다 선택 필드로 지원하고(`data-model.md` §2.4 `entry_date`), 단체는 엑셀 템플릿에 "공통 입국날짜"/"개별입국날짜" 컬럼이 있어 동작하지만, 개인 신청은 `ApplicantInfo` 타입(`features/apply/types.ts`) 자체에 해당 필드가 없어서 입력할 방법이 없다. 선택값이라 에러는 안 나지만 기능이 죽어 있다. **수정 방향: `ApplicantInfo`에 `entryDate` 필드 추가하고 `StepInfo.tsx`(비방문증 포함 전체 카드종류)에 입력란 추가, `ApplyPage.tsx` submit()의 `member` 객체에도 포함.**
+4. **[낮음] `ApplicantInfo.department` 필드가 법인 "부서"와 학생증 "학과"를 하나로 공유.** `data-model.md` 115행이 "이름만 같음, 혼동 주의"라고 별도로 경고해둔 서로 다른 개념인데 프론트 타입에서는 필드 하나로 합쳐져 있다. `applicantType`/`cardType`을 중간에 바꾸면 이전 값이 남을 여지가 있다. **수정 방향: `ApplicantInfo`에서 `department`(법인 부서용)와 `studentDepartment`(학과용) 등으로 필드를 분리.**
+
 ## 6. 관리자 신청 관리 API
 
 현재 `/admin` 화면은 모든 신청 목록, 상태별 통계, 상태 변경을 브라우저 `localStorage`로 처리한다. 서버 역할 검증이 포함된 API가 필요하다.
