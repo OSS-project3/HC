@@ -1,30 +1,26 @@
 # 협업 규칙 (Claude / Codex 공용)
 
 > 이 문서는 `guide.md`(구 "Application 도메인 작업 가이드")를 대체·확장한다.
-> Claude와 Codex가 서로 다른 git worktree/브랜치에서 동시에 작업할 때,
+> Claude와 Codex가 동시에 작업할 때,
 > **사람이 매번 상대방의 변경사항을 프롬프트로 전달하지 않아도** 스스로 이어받을 수 있게 하는 것이 목적이다.
 
-핵심 메커니즘: 작업을 시작할 때 `docs/collab/HANDOFF.md`를 (내 브랜치 + 상대 브랜치 양쪽에서) 읽는 것을
+핵심 메커니즘: 작업을 시작할 때 `docs/collab/HANDOFF.md`를 읽는 것을
 **작업 절차의 0단계로 강제**한다. 사람의 개입 없이도 "상대가 뭘 바꿨는지"를 여기서 알 수 있다.
 
 ---
 
 ## 1. 작업 공간
 
-| 워크트리 | 브랜치 | 담당 | 역할 |
-|---|---|---|---|
-| `D:\HC-worktrees\claude-impl` | `feature/application-domain-impl` | Claude | 구현(코드) |
-| `D:\HC-worktrees\codex-docs` | `feature/application-domain-docs` | Codex | 문서·아키텍처·로직 결정 |
-| `D:\HC` | `backend-api` | 공용 | 두 브랜치의 병합 대상 |
+> ⚠️ 2026-08-06 갱신: `backend-api`/`feature/application-domain-impl`/`feature/application-domain-docs` 세 브랜치로 나눠 작업하던 구조를 정리하고, git merge로 전부 `main`에 합쳤다. **이후로는 `main` 브랜치 하나만 계속 개발한다.** 브랜치 3개짜리 표는 히스토리 참고용으로만 아래에 남겨둔다.
 
-`docs/collab/` 디렉터리(이 폴더)는 **세 워크트리 모두에 동일 구조로 존재**해야 하며, 각자의 브랜치에 커밋한다.
-서로 다른 브랜치에 있는 사본이므로 실시간으로 자동 동기화되지는 않는다 — 그래서 아래 2단계 확인이 필요하다.
+| 브랜치 | 상태 |
+|---|---|
+| `main` | ✅ 현재 유일한 개발 브랜치. Claude/Codex 전부 여기서 작업 |
+| `backend-api` | 폐기(2026-08-06 `main`에 병합 완료) — 더 이상 커밋하지 않음, 삭제 여부는 보류 중 |
+| `feature/application-domain-impl` | 폐기(2026-08-06 `main`에 병합 완료) — 더 이상 커밋하지 않음, 삭제 여부는 보류 중 |
+| `feature/application-domain-docs` | 폐기(이미 `feature/application-domain-impl` 경유로 병합 완료) |
 
-```
-git fetch origin
-git show origin/feature/application-domain-docs:docs/collab/HANDOFF.md   # 상대 브랜치 최신 스냅샷
-git show origin/feature/application-domain-impl:docs/collab/HANDOFF.md
-```
+`docs/collab/` 디렉터리(이 폴더)는 `main` 하나에만 존재하면 된다. 여러 브랜치를 오가며 `HANDOFF.md`를 대조할 필요는 이제 없고, 대신 **작업 시작 전 반드시 `git pull`로 `main`을 최신화**한다(동시 작업자가 그사이 커밋했을 수 있음).
 
 ---
 
@@ -37,15 +33,16 @@ git show origin/feature/application-domain-impl:docs/collab/HANDOFF.md
 
 ### 1순위 — 기준 문서 (Source of Truth)
 
-- `docs/specs/application/requirements.md`
-  - Application 도메인의 요구사항·비즈니스 규칙을 정의한 기준 문서. 구현·API 설계는 이 문서를 최우선으로 따른다.
-  - ⚠️ 파일명은 대문자 `APPLICATION`으로 시작한다 (Windows는 대소문자를 구분하지 않아 오탈자가 숨을 수 있으니 주의).
+- `docs/specs/{도메인}/requirements.md` (있는 도메인만 — 도메인 규모가 작으면 requirements.md 없이 api.md 상단에 요구사항을 함께 적어둔다. 예: `docs/specs/review/`는 requirements.md 없이 api.md/data-model.md 두 개만 있음)
+  - 해당 도메인의 요구사항·비즈니스 규칙을 정의한 기준 문서. 구현·API 설계는 이 문서를 최우선으로 따른다.
+  - 현재 존재: `docs/specs/application/requirements.md`
 
 ### 2순위 — 도메인 API
 
-- Application: `docs/specs/application/api.md`
+- 이전 완료된 도메인: `docs/specs/{도메인}/api.md` (예: `docs/specs/application/api.md`, `docs/specs/review/api.md`)
 - 아직 이전하지 않은 도메인: `docs/api/{도메인}.md` (도메인 이전 작업 완료 시 `docs/specs/{도메인}/api.md`로 변경)
   - 도메인별 API 명세. 해당 도메인 API는 이 파일에서만 관리한다.
+  - 전체 목차는 `docs/api/README.md` 참고.
 
 ### 3순위 — 공통 문서
 
@@ -79,10 +76,8 @@ git show origin/feature/application-domain-impl:docs/collab/HANDOFF.md
 
 ## 4. 작업 시작 절차 (체크리스트)
 
-- [ ] `git fetch origin`
-- [ ] 내 워크트리에서 `git pull` (내 브랜치 최신화)
-- [ ] `docs/collab/HANDOFF.md`(내 브랜치) 읽기 — 내가 어디까지 했는지 확인
-- [ ] `git show origin/<상대 브랜치>:docs/collab/HANDOFF.md` 로 상대방 최신 스냅샷 확인 — 아직 안 머지된 변경까지 파악
+- [ ] `git fetch origin && git pull` — `main` 최신화(동시 작업자가 그사이 커밋했을 수 있음)
+- [ ] `docs/collab/HANDOFF.md` 읽기 — 마지막 작업자가 어디까지 했는지 확인
 - [ ] `docs/collab/TODO.md` 읽고, 맡을 작업 행에 담당자·상태를 `🔵 진행중`으로 표시 후 커밋+푸시 (다른 작업자와 중복 방지)
 - [ ] `docs/collab/CHANGELOG.md` 최근 5~10개 항목 훑어보기
 - [ ] 이번 작업 범위에 맞는 1~4순위 문서 확인
@@ -91,15 +86,15 @@ git show origin/feature/application-domain-impl:docs/collab/HANDOFF.md
 ## 5. 작업 종료 절차 (체크리스트)
 
 - [ ] 변경 내용이 아래 4가지 기준과 일치하는지 검증
-  - [ ] `docs/specs/application/requirements.md`와 일치하는가
-  - [ ] `docs/specs/application/data-model.md` 구조와 일치하는가
+  - [ ] 해당 도메인 `requirements.md`(있으면)와 일치하는가
+  - [ ] 해당 도메인 `data-model.md` 구조와 일치하는가
   - [ ] `docs/api/common.md` 공통 규칙을 준수하는가
   - [ ] 기존 API/문서와 충돌하지 않는가
 - [ ] `docs/collab/TODO.md` 갱신 (완료 체크, 새로 발견한 작업 추가, 블로킹이면 `🔴`로 표시)
 - [ ] `docs/collab/CHANGELOG.md` 맨 위에 새 항목 추가 (템플릿 참고)
 - [ ] `docs/collab/HANDOFF.md` 전체를 지금 상태로 덮어쓰기 (이어붙이지 않는다 — 항상 최신 스냅샷 1개)
-- [ ] `docs/collab/*` 포함하여 커밋, 내 feature 브랜치에 push
-- [ ] 기능 단위 작업이 검증까지 끝났다면 `backend-api` 병합 여부를 사람에게 확인 후 병합
+- [ ] `docs/collab/*` 포함하여 커밋
+- [ ] `git pull --rebase` 후 `main`에 push (그 사이 다른 작업자가 push했을 수 있음 — 충돌 시 §7 참고)
 
 ---
 
@@ -119,8 +114,11 @@ git show origin/feature/application-domain-impl:docs/collab/HANDOFF.md
 
 ## 7. `docs/collab/*` 병합 규칙
 
+모두 `main` 한 브랜치에서 작업하므로, `git pull` 시점에 다른 작업자의 커밋과 충돌할 수 있다.
+
 - `TODO.md`, `CHANGELOG.md`는 append형이라 자동 병합(merge)이 대체로 안전하다. 표 순서가 꼬이면 병합 후 한 번 정리한다.
-- `HANDOFF.md`는 "스냅샷" 문서라 자동 병합하지 않는다. `backend-api`로 병합할 때 충돌이 나면
+- `HANDOFF.md`는 "스냅샷" 문서라 자동 병합하지 않는다. `git pull` 중 충돌이 나면
   두 쪽 내용을 참고해 **새로 하나로 다시 작성**한다 (둘 중 하나를 임의로 버리지 않는다).
+- 코드 파일이 충돌하면(예: 같은 Service 파일을 동시에 건드림) 상대방이 무엇을 하려 했는지 `HANDOFF.md`/`CHANGELOG.md` 최근 항목으로 먼저 파악한 뒤 수동으로 합친다 — 한쪽을 임의로 버리지 않는다(2026-08-06 `main` 통합 병합 때 실제로 이 방식으로 처리함, `CHANGELOG.md` 해당 날짜 항목 참고).
 - 협업 문서(`docs/collab/*`) 변경은 가능하면 코드/기능 변경과 **별도 커밋**으로 분리한다.
   예: `chore(collab): update handoff`
