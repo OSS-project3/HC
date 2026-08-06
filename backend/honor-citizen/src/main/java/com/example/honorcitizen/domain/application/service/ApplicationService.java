@@ -262,8 +262,9 @@ public class ApplicationService {
 
     @Transactional(readOnly = true)
     public ApplicationLookupResponse lookup(ApplicationLookupRequest request) {
-        if ((request.getPhone() == null || request.getPhone().isBlank())
-                && (request.getEmail() == null || request.getEmail().isBlank())) {
+        if (request.getMethod() == LookupMethod.APPLICATION
+                && ((request.getPhone() == null || request.getPhone().isBlank())
+                        || (request.getEmail() == null || request.getEmail().isBlank()))) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
@@ -289,17 +290,8 @@ public class ApplicationService {
     private Application lookupByCard(ApplicationLookupRequest request) {
         ApplicationMember member = applicationMemberRepository.findByCardNumber(request.getKeyValue())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
-        Application application = applicationRepository.findById(member.getApplicationId())
+        return applicationRepository.findById(member.getApplicationId())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
-        Applicant applicant = applicantRepository.findByApplicationId(application.getId())
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
-
-        String targetPhone = member.getPhone() != null ? member.getPhone() : applicant.getPhone();
-        String targetEmail = member.getEmail() != null ? member.getEmail() : applicant.getEmail();
-        if (!matches(request, targetPhone, targetEmail)) {
-            throw new CustomException(ErrorCode.NOT_FOUND);
-        }
-        return application;
     }
 
     private Application lookupByApplicationNumber(ApplicationLookupRequest request) {
@@ -317,7 +309,7 @@ public class ApplicationService {
     private boolean matches(ApplicationLookupRequest request, String targetPhone, String targetEmail) {
         boolean phoneMatches = request.getPhone() != null && request.getPhone().equals(targetPhone);
         boolean emailMatches = request.getEmail() != null && request.getEmail().equalsIgnoreCase(targetEmail);
-        return phoneMatches || emailMatches;
+        return phoneMatches && emailMatches;
     }
 
     private String maskName(String name) {

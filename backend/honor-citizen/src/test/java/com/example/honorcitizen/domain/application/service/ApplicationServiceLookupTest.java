@@ -93,9 +93,9 @@ class ApplicationServiceLookupTest {
     }
 
     @Test
-    void lookupByApplicationNumberWithMatchingPhoneSucceeds() {
+    void lookupByApplicationNumberWithMatchingPhoneAndEmailSucceeds() {
         ApplicationLookupResponse response = applicationService.lookup(request("""
-                { "method": "application", "keyValue": "APP-2026-100001", "phone": "010-1111-2222" }
+                { "method": "application", "keyValue": "APP-2026-100001", "phone": "010-1111-2222", "email": "lee@example.com" }
                 """));
 
         assertThat(response.getApplicationId()).isEqualTo(individualApplication.getId());
@@ -105,18 +105,27 @@ class ApplicationServiceLookupTest {
     }
 
     @Test
-    void lookupByApplicationNumberWithMatchingEmailSucceeds() {
-        ApplicationLookupResponse response = applicationService.lookup(request("""
-                { "method": "application", "keyValue": "APP-2026-100001", "email": "lee@example.com" }
-                """));
+    void lookupByApplicationNumberWithOnlyPhoneIsRejected() {
+        assertThatThrownBy(() -> applicationService.lookup(request("""
+                { "method": "application", "keyValue": "APP-2026-100001", "phone": "010-1111-2222" }
+                """)))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
 
-        assertThat(response.getApplicationId()).isEqualTo(individualApplication.getId());
+    @Test
+    void lookupByApplicationNumberWithOnlyEmailIsRejected() {
+        assertThatThrownBy(() -> applicationService.lookup(request("""
+                { "method": "application", "keyValue": "APP-2026-100001", "email": "lee@example.com" }
+                """)))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }
 
     @Test
     void lookupByApplicationNumberWithWrongContactFailsWithNotFound() {
         assertThatThrownBy(() -> applicationService.lookup(request("""
-                { "method": "application", "keyValue": "APP-2026-100001", "phone": "010-0000-0000" }
+                { "method": "application", "keyValue": "APP-2026-100001", "phone": "010-0000-0000", "email": "lee@example.com" }
                 """)))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);
@@ -132,16 +141,16 @@ class ApplicationServiceLookupTest {
     }
 
     @Test
-    void lookupByCardFallsBackToApplicantContactForIndividualApplication() {
+    void lookupByCardSucceedsWithoutPhoneOrEmail() {
         ApplicationLookupResponse response = applicationService.lookup(request("""
-                { "method": "card", "keyValue": "ROK-00001-0001", "phone": "010-1111-2222" }
+                { "method": "card", "keyValue": "ROK-00001-0001" }
                 """));
 
         assertThat(response.getApplicationId()).isEqualTo(individualApplication.getId());
     }
 
     @Test
-    void lookupByCardUsesMemberContactForGroupApplication() {
+    void lookupByCardIgnoresPhoneAndEmailForGroupApplication() {
         CardType cardType = cardTypeRepository.findAll().get(0);
         Application groupApplication = applicationRepository.save(Application.createGroup(
                 2L, "APP-2026-100002", cardType.getId(), IssueType.MOBILE, true, 1, null, null, 999L));
@@ -153,12 +162,15 @@ class ApplicationServiceLookupTest {
         withCardNumber(groupMember, "ROK-00002-0002");
 
         ApplicationLookupResponse response = applicationService.lookup(request("""
-                { "method": "card", "keyValue": "ROK-00002-0002", "phone": "010-1234-5678" }
+                { "method": "card", "keyValue": "ROK-00002-0002" }
                 """));
         assertThat(response.getApplicationId()).isEqualTo(groupApplication.getId());
+    }
 
+    @Test
+    void lookupByCardThrowsNotFoundForUnknownCardNumber() {
         assertThatThrownBy(() -> applicationService.lookup(request("""
-                { "method": "card", "keyValue": "ROK-00002-0002", "phone": "010-9999-9999" }
+                { "method": "card", "keyValue": "ROK-99999-9999" }
                 """)))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);
@@ -172,7 +184,7 @@ class ApplicationServiceLookupTest {
         applicationRepository.save(individualApplication);
 
         ApplicationLookupResponse response = applicationService.lookup(request("""
-                { "method": "application", "keyValue": "APP-2026-100001", "phone": "010-1111-2222" }
+                { "method": "application", "keyValue": "APP-2026-100001", "phone": "010-1111-2222", "email": "lee@example.com" }
                 """));
 
         assertThat(response.getStatus().name()).isEqualTo("PHOTO_REJECTED");
@@ -182,7 +194,7 @@ class ApplicationServiceLookupTest {
     @Test
     void lookupThrowsNotFoundForUnknownApplicationNumber() {
         assertThatThrownBy(() -> applicationService.lookup(request("""
-                { "method": "application", "keyValue": "APP-2026-999999", "phone": "010-1111-2222" }
+                { "method": "application", "keyValue": "APP-2026-999999", "phone": "010-1111-2222", "email": "lee@example.com" }
                 """)))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);
