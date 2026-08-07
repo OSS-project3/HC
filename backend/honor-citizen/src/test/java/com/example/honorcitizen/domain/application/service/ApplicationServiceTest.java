@@ -232,6 +232,18 @@ class ApplicationServiceTest {
     }
 
     @Test
+    void createIndividualForStudentCardSucceedsWithoutSchoolSeal() {
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과");
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        var response = applicationService.createIndividual(user.getId(), request, photo(), logo, null);
+
+        Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
+        assertThat(saved.getLogoFileId()).isNotNull();
+        assertThat(saved.getSealFileId()).isNull();
+    }
+
+    @Test
     void createIndividualRejectsStudentFieldsForNonStudentCard() {
         ApplicationCreateRequest request = fromJson(honorKoreanCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과");
 

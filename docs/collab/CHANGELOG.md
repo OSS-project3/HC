@@ -15,6 +15,22 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — ApplicationPersistenceService 분리)
+
+- 변경: `checklist.md` §4 두 번째 항목 구현 — `ApplicationService`를 비트랜잭션 오케스트레이터로, DB 저장을 신규 `ApplicationPersistenceService`(`@Transactional`)로 분리. self-invocation으로 인해 `@Transactional`이 무력화되는 문제를 막기 위해 별도 Bean으로 도입(`APPLICATION.md` §5). `saveIndividual()`/`saveGroup()`이 Application→Applicant→Receiver(조건부)→ApplicationMember 순서로 한 트랜잭션에 저장. 단체 신청은 파일 업로드(트랜잭션 밖)와 DB 저장(트랜잭션 안) 사이를 넘기기 위해 `GroupMemberUpload`(row+photoPath) record 신규 도입.
+- 파일: `ApplicationPersistenceService.java`(신규), `GroupMemberUpload.java`(신규), `ApplicationService.java`(createIndividual/createGroup 및 관련 private 메서드 이동), `ApplicationPersistenceServiceTest.java`(신규 3테스트)
+- 테스트: 신규 테스트를 클래스 부재로 컴파일 실패 확인 후 구현, 통과. Application/API 도메인 100개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영.
+- 관련: TODO "checklist.md §4 구현 진행"
+
+## 2026-08-07 — Claude — `main` (checklist.md §4 — 학생증 직인 선택 구현)
+
+- 변경: `checklist.md` §4 첫 항목 구현 — 학생증 학교 직인(seal)을 필수 → 선택으로 변경. `ApplicationController.createGroup`의 `seal` 파트를 optional로 변경(개인 신청 `schoolSeal`은 이미 optional이었음). `ApplicationService.validateStudentFields`는 학번·학과·로고만 필수로 검사하고 직인은 있을 때만 형식 검증. `createIndividualApplication`/`createGroup`은 직인이 없으면 업로드를 건너뛰고 `sealFileId=null`로 저장.
+- 파일: `ApplicationController.java`, `ApplicationService.java`(validateStudentFields/createIndividualApplication/createGroup), `ApplicationServiceTest.java`(`createIndividualForStudentCardSucceedsWithoutSchoolSeal` 신규), `ApplicationServiceBulkTest.java`(`createGroupSucceedsForStudentCardWithoutSeal` 신규)
+- 테스트: 신규 테스트 2건을 구현 전 실패 확인 후 통과. Application/API 도메인 97개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영(사용자 승인된 작업 방식 — TDD, 최소 범위, 완료마다 TODO/CHANGELOG 갱신).
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Codex — Application 정책 문서 동기화 및 Code Audit
 
 - APPLICATION.md와 POLICY_SYNC_CHECKLIST.md에 맞춰 requirements/data-model/api/checklist 및 운영 문서를 동기화했다.

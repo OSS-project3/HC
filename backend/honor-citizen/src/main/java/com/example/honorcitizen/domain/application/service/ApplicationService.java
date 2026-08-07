@@ -17,11 +17,9 @@ import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateResp
 import com.example.honorcitizen.domain.application.entity.Applicant;
 import com.example.honorcitizen.domain.application.entity.Application;
 import com.example.honorcitizen.domain.application.entity.ApplicationMember;
-import com.example.honorcitizen.domain.application.entity.Receiver;
 import com.example.honorcitizen.domain.application.repository.ApplicantRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
-import com.example.honorcitizen.domain.application.repository.ReceiverRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
 import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
@@ -50,17 +48,15 @@ public class ApplicationService {
 
     private final ApplicationRepository applicationRepository;
     private final ApplicantRepository applicantRepository;
-    private final ReceiverRepository receiverRepository;
     private final ApplicationMemberRepository applicationMemberRepository;
     private final CardTypeRepository cardTypeRepository;
     private final UploadFileRepository uploadFileRepository;
     private final UserService userService;
-    private final ApplicationFactory applicationFactory;
+    private final ApplicationPersistenceService applicationPersistenceService;
     private final ApplicationPhotoValidator applicationPhotoValidator;
     private final StorageService storageService;
     private final BulkExcelParser bulkExcelParser;
 
-    @Transactional
     public ApplicationCreateResponse createIndividual(Long userId, ApplicationCreateRequest request,
             MultipartFile photo, MultipartFile schoolLogo, MultipartFile schoolSeal) {
         User user = findUser(userId);
@@ -69,11 +65,15 @@ public class ApplicationService {
 
         validateCreateIndividual(request, photo, schoolLogo, schoolSeal, isStudent);
 
-        Application application = createIndividualApplication(userId, request, schoolLogo, schoolSeal, cardType,
-                isStudent);
-        Applicant applicant = createIndividualApplicant(application, request, user);
-        saveReceiverIfNeeded(application, request, applicant);
-        createIndividualMember(application, request, photo);
+        String applicationNumber = generateApplicationNumber();
+        Long logoFileId = isStudent ? storeUploadFile(schoolLogo, UploadFileType.PHOTO) : null;
+        Long sealFileId = isStudent && isPresent(schoolSeal) ? storeUploadFile(schoolSeal, UploadFileType.PHOTO) : null;
+        boolean receiverSameAsApplicant = request.isReceiverSameAsApplicant();
+        String photoPath = storePhotoFile(applicationNumber, photo);
+
+        Application application = applicationPersistenceService.saveIndividual(
+                userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
+                logoFileId, sealFileId, request, user.getEmail(), photoPath);
 
         return ApplicationCreateResponse.from(application);
     }
@@ -86,50 +86,17 @@ public class ApplicationService {
                 schoolLogo, schoolSeal);
     }
 
-    private Application createIndividualApplication(Long userId, ApplicationCreateRequest request,
-            MultipartFile schoolLogo, MultipartFile schoolSeal, CardType cardType, boolean isStudent) {
-        String applicationNumber = generateApplicationNumber();
-        Long logoFileId = isStudent ? storeUploadFile(schoolLogo, UploadFileType.PHOTO) : null;
-        Long sealFileId = isStudent ? storeUploadFile(schoolSeal, UploadFileType.PHOTO) : null;
-        boolean receiverSameAsApplicant = request.isReceiverSameAsApplicant();
-
-        Application application = applicationFactory.createIndividualApplication(
-                userId, applicationNumber, cardType.getId(), request.getIssueType(),
-                receiverSameAsApplicant, logoFileId, sealFileId);
-        applicationRepository.save(application);
-        return application;
-    }
-
     private User findUser(Long userId) {
         return userService.findEligibleApplicationUser(userId);
     }
 
-    private Applicant createIndividualApplicant(Application application, ApplicationCreateRequest request, User user) {
-        Applicant applicant = applicationFactory.createIndividualApplicant(
-                application.getId(), request.getApplicant().getName(), user.getEmail(), request.getApplicant().getPhone());
-        applicantRepository.save(applicant);
-        return applicant;
-    }
-
-    private void createIndividualMember(Application application, ApplicationCreateRequest request, MultipartFile photo) {
-        String photoPath = storePhotoFile(application.getApplicationNumber(), photo);
-        ApplicationCreateRequest.MemberRequest memberRequest = request.getMember();
-        ApplicationMember member = applicationFactory.createIndividualMember(
-                application.getId(), memberRequest.getEnglishName(), memberRequest.getBirthDate(),
-                memberRequest.getNationality(), memberRequest.getBirthTime(), memberRequest.getBirthRegion(),
-                memberRequest.getGender(), memberRequest.getEntryDate(),
-                memberRequest.getStudentId(), memberRequest.getDepartment(), photoPath);
-        applicationMemberRepository.save(member);
-    }
-
-    @Transactional
     public BulkApplicationCreateResponse createGroup(Long userId, BulkApplicationCreateRequest request,
             MultipartFile logo, MultipartFile seal, MultipartFile submitFile) {
         CardType cardType = findActiveCardType(request.getCardTypeId());
         boolean isStudent = cardType.isStudentCard();
 
         validateGroupReceiverPresence(request);
-        if (!isPresent(logo) || !isPresent(seal)) {
+        if (!isPresent(logo) || (!isStudent && !isPresent(seal))) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
@@ -137,33 +104,19 @@ public class ApplicationService {
 
         String applicationNumber = generateApplicationNumber();
         Long logoFileId = storeUploadFile(logo, UploadFileType.PHOTO);
-        Long sealFileId = storeUploadFile(seal, UploadFileType.PHOTO);
+        Long sealFileId = isPresent(seal) ? storeUploadFile(seal, UploadFileType.PHOTO) : null;
         Long submitFileId = storeUploadFile(submitFile, UploadFileType.ZIP);
         boolean receiverSameAsApplicant = request.getReceiver() == null || request.getReceiver().isSameAsApplicant();
 
-        Application application = Application.createGroup(
-                userId, applicationNumber, cardType.getId(), request.getIssueType(),
-                receiverSameAsApplicant, rows.size(), logoFileId, sealFileId, submitFileId);
-        applicationRepository.save(application);
+        List<GroupMemberUpload> memberUploads = rows.stream()
+                .map(row -> new GroupMemberUpload(row, storePhotoBytes(applicationNumber, row.photoFilename(), row.photoBytes())))
+                .toList();
 
         User user = userService.findById(userId);
 
-        BulkApplicationCreateRequest.ApplicantRequest applicantRequest = request.getApplicant();
-        Applicant applicant = Applicant.createGroup(application.getId(), applicantRequest.getName(),
-                user.getEmail(), applicantRequest.getPhone(),
-                applicantRequest.getOrganizationName(), applicantRequest.getDepartment());
-        applicantRepository.save(applicant);
-
-        saveGroupReceiverIfNeeded(application, request, applicant);
-
-        for (BulkMemberRow row : rows) {
-            String photoPath = storePhotoBytes(applicationNumber, row.photoFilename(), row.photoBytes());
-            ApplicationMember member = ApplicationMember.createGroupRow(
-                    application.getId(), row.englishName(), row.birthDate(), row.nationality(),
-                    row.birthTime(), row.birthRegion(), row.gender(), row.entryDate(),
-                    row.email(), row.phone(), row.address(), row.studentId(), row.department(), photoPath);
-            applicationMemberRepository.save(member);
-        }
+        Application application = applicationPersistenceService.saveGroup(
+                userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
+                rows.size(), logoFileId, sealFileId, submitFileId, request, user.getEmail(), memberUploads);
 
         return BulkApplicationCreateResponse.from(application);
     }
@@ -328,19 +281,6 @@ public class ApplicationService {
         }
     }
 
-    private void saveGroupReceiverIfNeeded(Application application, BulkApplicationCreateRequest request, Applicant applicant) {
-        if (request.getIssueType() != IssueType.MOBILE_AND_PHYSICAL) {
-            return;
-        }
-        BulkApplicationCreateRequest.ReceiverRequest receiverRequest = request.getReceiver();
-        Receiver receiver = receiverRequest.isSameAsApplicant()
-                ? Receiver.copyFromApplicant(application.getId(), applicant)
-                : Receiver.create(application.getId(), receiverRequest.getName(), receiverRequest.getPhone(),
-                        receiverRequest.getZipCode(), receiverRequest.getAddress(), receiverRequest.getDetailAddress(),
-                        receiverRequest.getDeliveryRequest(), receiverRequest.getOrganizationName(), receiverRequest.getDepartment());
-        receiverRepository.save(receiver);
-    }
-
     private String storePhotoBytes(String applicationNumber, String originalFilename, byte[] bytes) {
         String key = "applications/" + applicationNumber + "/member-photos/" + UUID.randomUUID() + "-"
                 + sanitizeFilename(originalFilename);
@@ -371,15 +311,14 @@ public class ApplicationService {
         }
     }
 
-
     private void validateStudentFields(boolean isStudent, String studentId, String department,
             MultipartFile schoolLogo, MultipartFile schoolSeal) {
         boolean anyStudentFieldPresent = hasText(studentId) || hasText(department)
                 || isPresent(schoolLogo) || isPresent(schoolSeal);
-        boolean allStudentFieldsPresent = hasText(studentId) && hasText(department)
-                && isPresent(schoolLogo) && isPresent(schoolSeal);
+        boolean allRequiredStudentFieldsPresent = hasText(studentId) && hasText(department)
+                && isPresent(schoolLogo);
 
-        if (isStudent && !allStudentFieldsPresent) {
+        if (isStudent && !allRequiredStudentFieldsPresent) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         if (!isStudent && anyStudentFieldPresent) {
@@ -387,7 +326,9 @@ public class ApplicationService {
         }
         if (isStudent) {
             applicationPhotoValidator.validateSchoolAsset(schoolLogo);
-            applicationPhotoValidator.validateSchoolAsset(schoolSeal);
+            if (isPresent(schoolSeal)) {
+                applicationPhotoValidator.validateSchoolAsset(schoolSeal);
+            }
         }
     }
 
@@ -397,19 +338,6 @@ public class ApplicationService {
 
     private boolean isPresent(MultipartFile file) {
         return file != null && !file.isEmpty();
-    }
-
-    private void saveReceiverIfNeeded(Application application, ApplicationCreateRequest request, Applicant applicant) {
-        if (request.getIssueType() != IssueType.MOBILE_AND_PHYSICAL) {
-            return;
-        }
-        ApplicationCreateRequest.ReceiverRequest receiverRequest = request.getReceiver();
-        Receiver receiver = receiverRequest.isSameAsApplicant()
-                ? applicationFactory.copyIndividualReceiver(application.getId(), applicant)
-                : applicationFactory.createIndividualReceiver(application.getId(), receiverRequest.getName(),
-                        receiverRequest.getPhone(), receiverRequest.getZipCode(), receiverRequest.getAddress(),
-                        receiverRequest.getDetailAddress(), receiverRequest.getDeliveryRequest());
-        receiverRepository.save(receiver);
     }
 
     private String storePhotoFile(String applicationNumber, MultipartFile photo) {

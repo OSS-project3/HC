@@ -245,6 +245,22 @@ class ApplicationServiceBulkTest {
     }
 
     @Test
+    void createGroupSucceedsForStudentCardWithoutSeal() throws Exception {
+        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        byte[] excel = buildExcel(true, studentRow);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+
+        BulkApplicationCreateResponse response = applicationService.createGroup(
+                user.getId(), request(studentCardType.getId()), logo, null, submitFile);
+
+        Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
+        assertThat(saved.getLogoFileId()).isNotNull();
+        assertThat(saved.getSealFileId()).isNull();
+    }
+
+    @Test
     void createGroupThrowsInvalidZipForCorruptFile() {
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", "not-a-zip".getBytes());
         MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());

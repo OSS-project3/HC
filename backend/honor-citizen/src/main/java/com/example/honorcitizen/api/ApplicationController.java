@@ -50,7 +50,7 @@ public class ApplicationController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestPart("request") BulkApplicationCreateRequest request,
             @RequestPart("logo") MultipartFile logo,
-            @RequestPart("seal") MultipartFile seal,
+            @RequestPart(value = "seal", required = false) MultipartFile seal,
             @RequestPart("submitFile") MultipartFile submitFile) {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
