@@ -279,6 +279,9 @@ public class ApplicationService {
         if (request.getIssueType() == IssueType.MOBILE_AND_PHYSICAL && request.getReceiver() == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
+        if (request.getIssueType() == IssueType.MOBILE && request.getReceiver() != null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
     }
 
     private String storePhotoBytes(String applicationNumber, String originalFilename, byte[] bytes) {
@@ -307,6 +310,9 @@ public class ApplicationService {
 
     private void validateReceiverPresence(ApplicationCreateRequest request) {
         if (request.getIssueType() == IssueType.MOBILE_AND_PHYSICAL && request.getReceiver() == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (request.getIssueType() == IssueType.MOBILE && request.getReceiver() != null) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
     }

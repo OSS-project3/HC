@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — MOBILE+Receiver 거절)
+
+- 변경: `checklist.md` §4 세 번째 항목 구현 — `issueType=MOBILE`인데 `receiver`를 전달하면 `INVALID_INPUT`으로 거절(기존엔 `MOBILE_AND_PHYSICAL`인데 `receiver` 없는 경우만 검증했음). 개인(`validateReceiverPresence`)·단체(`validateGroupReceiverPresence`) 둘 다 반대 방향 검증 추가.
+- 파일: `ApplicationService.java`, `ApplicationServiceTest.java`(`createIndividualRejectsReceiverWhenMobile` 신규), `ApplicationServiceBulkTest.java`(`createGroupRejectsReceiverWhenMobile` 신규 + `requestWithMobileAndReceiver` 헬퍼)
+- 테스트: 신규 테스트 2건을 구현 전 실패 확인 후 통과. Application/API 도메인 102개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영.
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — ApplicationPersistenceService 분리)
 
 - 변경: `checklist.md` §4 두 번째 항목 구현 — `ApplicationService`를 비트랜잭션 오케스트레이터로, DB 저장을 신규 `ApplicationPersistenceService`(`@Transactional`)로 분리. self-invocation으로 인해 `@Transactional`이 무력화되는 문제를 막기 위해 별도 Bean으로 도입(`APPLICATION.md` §5). `saveIndividual()`/`saveGroup()`이 Application→Applicant→Receiver(조건부)→ApplicationMember 순서로 한 트랜잭션에 저장. 단체 신청은 파일 업로드(트랜잭션 밖)와 DB 저장(트랜잭션 안) 사이를 넘기기 위해 `GroupMemberUpload`(row+photoPath) record 신규 도입.

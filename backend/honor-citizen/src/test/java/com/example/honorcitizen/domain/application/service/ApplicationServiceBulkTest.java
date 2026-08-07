@@ -101,6 +101,22 @@ class ApplicationServiceBulkTest {
         }
     }
 
+    private BulkApplicationCreateRequest requestWithMobileAndReceiver(Long cardTypeId) {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE",
+                  "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
+                  "receiver": { "sameAsApplicant": true, "organizationName": "OO기업", "name": "홍길동", "phone": "010-1234-5678" }
+                }
+                """.formatted(cardTypeId);
+        try {
+            return objectMapper.readValue(json, BulkApplicationCreateRequest.class);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private byte[] buildExcel(boolean isStudent, String... rows) throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("members");
@@ -280,6 +296,20 @@ class ApplicationServiceBulkTest {
 
         assertThatThrownBy(() -> applicationService.createGroup(
                 user.getId(), request(honorKoreanCardType.getId()), null, null, submitFile))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void createGroupRejectsReceiverWhenMobile() throws Exception {
+        byte[] excel = buildExcel(false, ROW_1);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        assertThatThrownBy(() -> applicationService.createGroup(
+                user.getId(), requestWithMobileAndReceiver(honorKoreanCardType.getId()), logo, seal, submitFile))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }

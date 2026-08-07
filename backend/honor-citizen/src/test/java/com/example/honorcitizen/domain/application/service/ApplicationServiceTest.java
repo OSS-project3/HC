@@ -244,6 +244,15 @@ class ApplicationServiceTest {
     }
 
     @Test
+    void createIndividualRejectsReceiverWhenMobile() {
+        ApplicationCreateRequest request = fromJson(honorKoreanCardType.getId(), "MOBILE", true, null, null);
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), null, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
     void createIndividualRejectsStudentFieldsForNonStudentCard() {
         ApplicationCreateRequest request = fromJson(honorKoreanCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과");
 
