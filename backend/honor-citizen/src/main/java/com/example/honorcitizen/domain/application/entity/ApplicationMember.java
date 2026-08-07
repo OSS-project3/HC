@@ -73,7 +73,7 @@ public class ApplicationMember extends BaseTimeEntity {
     @Column(length = 20)
     private String phone;
 
-    @Column(length = 50)
+    @Column(length = 10)
     private String studentId;
 
     @Column(length = 100)

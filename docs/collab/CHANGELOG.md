@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — student_id 컬럼 길이 정리, §4 전체 완료)
+
+- 변경: `checklist.md` §4 마지막 항목 구현 — `ApplicationMember.student_id` 컬럼을 `@Column(length = 50)` → `@Column(length = 10)`으로 변경. 개인 신청(`ApplicationService.isValidStudentId`)·단체 신청(`BulkExcelParser`) 양쪽 다 이미 10자·숫자만 통과시키므로 이 값을 넘는 값이 저장 경로에 도달할 수 없어 순수 스키마 정합성 정리. 이로써 `checklist.md` §4(수정 필요) 14개 행 전부 완료.
+- 파일: `ApplicationMember.java`
+- 테스트: 스키마 정의만 바뀌는 변경이라 신규 테스트 없이 Application/API 도메인 124개 전체 재실행으로 검증(`UserControllerTest` 2건, Redis 미기동, 무관만 실패) — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영 — "학번 최대 10자·숫자 정책과 충돌한다."
+- 관련: TODO "checklist.md §4 구현 진행" (§4 전체 완료, 다음은 §5 미구현 항목)
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — Receiver 우편번호·기본주소 필수 검증)
 
 - 변경: `checklist.md` §4 항목 구현 — `ApplicationCreateRequest`/`BulkApplicationCreateRequest`의 `ReceiverRequest.zipCode`/`address`에 `@NotBlank` 추가(receiver 자체가 없으면 `@Valid`가 건너뛰므로 `MOBILE`엔 영향 없음). studentId 형식 검증은 개인 신청(`ApplicationService.isValidStudentId`, item6)과 단체 신청(`BulkExcelParser`, 직전 항목)에 이미 있어 DTO에 중복 추가하지 않음.
