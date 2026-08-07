@@ -14,6 +14,7 @@ import com.example.honorcitizen.domain.application.repository.ReceiverRepository
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 // ApplicationService의 self-invocation은 Spring AOP 프록시를 우회해 @Transactional이 안 걸리므로 별도 Bean으로 분리
 @Service
@@ -86,11 +87,11 @@ class ApplicationPersistenceService {
             return;
         }
         ApplicationCreateRequest.ReceiverRequest receiverRequest = request.getReceiver();
-        Receiver receiver = receiverRequest.isSameAsApplicant()
-                ? applicationFactory.copyIndividualReceiver(application.getId(), applicant)
-                : applicationFactory.createIndividualReceiver(application.getId(), receiverRequest.getName(),
-                        receiverRequest.getPhone(), receiverRequest.getZipCode(), receiverRequest.getAddress(),
-                        receiverRequest.getDetailAddress(), receiverRequest.getDeliveryRequest());
+        String name = StringUtils.hasText(receiverRequest.getName()) ? receiverRequest.getName() : applicant.getName();
+        String phone = StringUtils.hasText(receiverRequest.getPhone()) ? receiverRequest.getPhone() : applicant.getPhone();
+        Receiver receiver = applicationFactory.createIndividualReceiver(application.getId(), name, phone,
+                receiverRequest.getZipCode(), receiverRequest.getAddress(), receiverRequest.getDetailAddress(),
+                receiverRequest.getDeliveryRequest());
         receiverRepository.save(receiver);
     }
 
@@ -99,11 +100,11 @@ class ApplicationPersistenceService {
             return;
         }
         BulkApplicationCreateRequest.ReceiverRequest receiverRequest = request.getReceiver();
-        Receiver receiver = receiverRequest.isSameAsApplicant()
-                ? Receiver.copyFromApplicant(application.getId(), applicant)
-                : Receiver.create(application.getId(), receiverRequest.getName(), receiverRequest.getPhone(),
-                        receiverRequest.getZipCode(), receiverRequest.getAddress(), receiverRequest.getDetailAddress(),
-                        receiverRequest.getDeliveryRequest(), receiverRequest.getOrganizationName(), receiverRequest.getDepartment());
+        String name = StringUtils.hasText(receiverRequest.getName()) ? receiverRequest.getName() : applicant.getName();
+        String phone = StringUtils.hasText(receiverRequest.getPhone()) ? receiverRequest.getPhone() : applicant.getPhone();
+        Receiver receiver = Receiver.create(application.getId(), name, phone,
+                receiverRequest.getZipCode(), receiverRequest.getAddress(), receiverRequest.getDetailAddress(),
+                receiverRequest.getDeliveryRequest(), receiverRequest.getOrganizationName(), receiverRequest.getDepartment());
         receiverRepository.save(receiver);
     }
 }

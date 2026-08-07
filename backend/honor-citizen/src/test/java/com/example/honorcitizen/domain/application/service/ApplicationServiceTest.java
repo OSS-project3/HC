@@ -184,14 +184,38 @@ class ApplicationServiceTest {
     }
 
     @Test
-    void createIndividualCopiesReceiverFromApplicantWhenSameAsApplicantTrue() {
+    void createIndividualUsesSubmittedReceiverAddressEvenWhenSameAsApplicantTrue() {
         ApplicationCreateRequest request = fromJson(honorKoreanCardType.getId(), "MOBILE_AND_PHYSICAL", true, null, null);
+
+        var response = applicationService.createIndividual(user.getId(), request, photo(), null, null);
+
+        Receiver receiver = receiverRepository.findByApplicationId(response.getApplicationId()).orElseThrow();
+        assertThat(receiver.getReceiverName()).isEqualTo("김수령");
+        assertThat(receiver.getReceiverPhone()).isEqualTo("010-9999-8888");
+        assertThat(receiver.getZipCode()).isEqualTo("06236");
+        assertThat(receiver.getAddress()).isEqualTo("서울특별시 강남구");
+        assertThat(receiver.getDetailAddress()).isEqualTo("101동");
+    }
+
+    @Test
+    void createIndividualFallsBackToApplicantNameAndPhoneWhenReceiverFieldsBlank() {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE_AND_PHYSICAL",
+                  "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
+                  "receiver": { "sameAsApplicant": true, "zipCode": "06236", "address": "서울특별시 강남구", "detailAddress": "101동" },
+                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE" }
+                }
+                """.formatted(honorKoreanCardType.getId());
+        ApplicationCreateRequest request = parse(json);
 
         var response = applicationService.createIndividual(user.getId(), request, photo(), null, null);
 
         Receiver receiver = receiverRepository.findByApplicationId(response.getApplicationId()).orElseThrow();
         assertThat(receiver.getReceiverName()).isEqualTo("홍길동");
         assertThat(receiver.getReceiverPhone()).isEqualTo("010-1234-5678");
+        assertThat(receiver.getAddress()).isEqualTo("서울특별시 강남구");
     }
 
     @Test

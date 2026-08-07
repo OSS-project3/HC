@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — sameAsApplicant 복사 범위 제한)
+
+- 변경: `checklist.md` §4 네 번째 항목 구현 — `sameAsApplicant=true`여도 배송지(우편번호·주소·상세주소·배송메모)는 항상 요청의 `receiver` 값을 저장하도록 변경(기존엔 `copyFromApplicant`/`copyIndividualReceiver`가 이 필드들을 전부 `null`로 덮어씀). 이름·연락처는 요청값이 비어 있을 때만 Applicant 값으로 대체(fallback) — `ReceiverRequest`에 검증 annotation이 없어 빈 값 제출이 가능하기 때문.
+- 파일: `ApplicationPersistenceService.java`(saveReceiverIfNeeded/saveGroupReceiverIfNeeded), `ApplicationServiceTest.java`(`createIndividualCopiesReceiverFromApplicantWhenSameAsApplicantTrue`→`createIndividualUsesSubmittedReceiverAddressEvenWhenSameAsApplicantTrue`로 갱신 + `createIndividualFallsBackToApplicantNameAndPhoneWhenReceiverFieldsBlank` 신규), `ApplicationServiceBulkTest.java`(`createGroupUsesSubmittedReceiverAddressEvenWhenSameAsApplicantTrue` 신규 + `requestWithPhysicalReceiverSameAsApplicant` 헬퍼)
+- 테스트: 갱신/신규 테스트 3건을 구현 전 실패 확인 후 통과. Application/API 도메인 104개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영 — "이름·연락처는 자동 복사 후 수정 가능, 배송지는 Receiver가 항상 입력".
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — MOBILE+Receiver 거절)
 
 - 변경: `checklist.md` §4 세 번째 항목 구현 — `issueType=MOBILE`인데 `receiver`를 전달하면 `INVALID_INPUT`으로 거절(기존엔 `MOBILE_AND_PHYSICAL`인데 `receiver` 없는 경우만 검증했음). 개인(`validateReceiverPresence`)·단체(`validateGroupReceiverPresence`) 둘 다 반대 방향 검증 추가.

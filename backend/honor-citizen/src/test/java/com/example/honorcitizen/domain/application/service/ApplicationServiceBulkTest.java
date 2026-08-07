@@ -101,6 +101,22 @@ class ApplicationServiceBulkTest {
         }
     }
 
+    private BulkApplicationCreateRequest requestWithPhysicalReceiverSameAsApplicant(Long cardTypeId) {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE_AND_PHYSICAL",
+                  "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
+                  "receiver": { "sameAsApplicant": true, "name": "김수령", "phone": "010-9999-8888", "zipCode": "06236", "address": "서울특별시 강남구", "detailAddress": "101동" }
+                }
+                """.formatted(cardTypeId);
+        try {
+            return objectMapper.readValue(json, BulkApplicationCreateRequest.class);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private BulkApplicationCreateRequest requestWithMobileAndReceiver(Long cardTypeId) {
         String json = """
                 {
@@ -298,6 +314,25 @@ class ApplicationServiceBulkTest {
                 user.getId(), request(honorKoreanCardType.getId()), null, null, submitFile))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void createGroupUsesSubmittedReceiverAddressEvenWhenSameAsApplicantTrue() throws Exception {
+        byte[] excel = buildExcel(false, ROW_1);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        BulkApplicationCreateResponse response = applicationService.createGroup(
+                user.getId(), requestWithPhysicalReceiverSameAsApplicant(honorKoreanCardType.getId()), logo, seal, submitFile);
+
+        var receiver = receiverRepository.findByApplicationId(response.getApplicationId()).orElseThrow();
+        assertThat(receiver.getReceiverName()).isEqualTo("김수령");
+        assertThat(receiver.getReceiverPhone()).isEqualTo("010-9999-8888");
+        assertThat(receiver.getZipCode()).isEqualTo("06236");
+        assertThat(receiver.getAddress()).isEqualTo("서울특별시 강남구");
+        assertThat(receiver.getDetailAddress()).isEqualTo("101동");
     }
 
     @Test
