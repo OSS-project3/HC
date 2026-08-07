@@ -332,12 +332,19 @@ public class ApplicationService {
         if (!isStudent && anyStudentFieldPresent) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
+        if (isStudent && !isValidStudentId(studentId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
         if (isStudent) {
             applicationPhotoValidator.validateSchoolAsset(schoolLogo);
             if (isPresent(schoolSeal)) {
                 applicationPhotoValidator.validateSchoolAsset(schoolSeal);
             }
         }
+    }
+
+    private boolean isValidStudentId(String studentId) {
+        return studentId.matches("\\d{1,10}");
     }
 
     private boolean hasText(String value) {

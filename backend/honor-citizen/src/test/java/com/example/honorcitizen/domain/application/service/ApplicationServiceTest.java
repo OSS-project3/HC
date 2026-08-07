@@ -295,6 +295,26 @@ class ApplicationServiceTest {
     }
 
     @Test
+    void createIndividualRejectsStudentIdWithNonDigitCharacters() {
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "2026-1234", "컴퓨터공학과");
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void createIndividualRejectsStudentIdLongerThanTenDigits() {
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "202612345678", "컴퓨터공학과");
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
     void createIndividualRejectsReceiverWhenMobile() {
         ApplicationCreateRequest request = fromJson(honorKoreanCardType.getId(), "MOBILE", true, null, null);
 

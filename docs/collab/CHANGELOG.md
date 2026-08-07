@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — 학번 형식 검증)
+
+- 변경: `checklist.md` §4 여섯 번째 항목 구현 — 개인 신청 경로(`ApplicationService.validateStudentFields`)에서 학생증 학번이 최대 10자·숫자만 허용하도록 형식 검증 추가(`\d{1,10}` 정규식). 단체 신청 경로(`BulkExcelParser`)는 이번 항목 범위 밖(별도 TODO 항목에서 처리 예정).
+- 파일: `ApplicationService.java`(validateStudentFields, isValidStudentId 신규), `ApplicationServiceTest.java`(`createIndividualRejectsStudentIdWithNonDigitCharacters`, `createIndividualRejectsStudentIdLongerThanTenDigits` 신규)
+- 테스트: 신규 테스트 2건을 구현 전 실패 확인 후 통과. Application/API 도메인 109개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영 — "학번은 필수·최대 10자·숫자만 허용한다."
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — Applicant.email 요청값 반영)
 
 - 변경: `checklist.md` §4 다섯 번째 항목 구현 — `Applicant.email`을 항상 `User.email`로 고정 저장하던 것을, 요청(`applicant.email`)이 있으면 그 값을, 없으면 `User.email`을 기본값으로 저장하도록 변경. `ApplicationCreateRequest`/`BulkApplicationCreateRequest`의 `ApplicantRequest`에 `email` 필드 신규 추가(검증 annotation 없음 — 신청 화면에서 자유롭게 수정 가능해야 하므로).
