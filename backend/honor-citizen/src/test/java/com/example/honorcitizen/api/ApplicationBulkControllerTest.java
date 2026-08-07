@@ -111,7 +111,7 @@ class ApplicationBulkControllerTest {
                 zip.write(excelOut.toByteArray());
                 zip.closeEntry();
 
-                zip.putNextEntry(new ZipEntry("photos/1.jpg"));
+                zip.putNextEntry(new ZipEntry("1.jpg"));
                 zip.write("photo-1".getBytes());
                 zip.closeEntry();
             }

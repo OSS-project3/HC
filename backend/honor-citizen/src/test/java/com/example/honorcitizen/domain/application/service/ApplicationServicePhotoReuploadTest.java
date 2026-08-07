@@ -129,7 +129,7 @@ class ApplicationServicePhotoReuploadTest {
                 zip.putNextEntry(new ZipEntry("members.xlsx"));
                 zip.write(excelOut.toByteArray());
                 zip.closeEntry();
-                zip.putNextEntry(new ZipEntry("photos/9.jpg"));
+                zip.putNextEntry(new ZipEntry("9.jpg"));
                 zip.write("photo-9".getBytes());
                 zip.closeEntry();
             }

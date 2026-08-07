@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — BulkExcelParser ZIP 루트·빈 행 정책)
+
+- 변경: `checklist.md` §4 아홉 번째 항목 구현 — `BulkExcelParser.parse`가 ZIP 루트(경로에 `/`가 없는 항목)만 스캔하도록 변경: `.xlsx`는 후보로 모아 0개면 `EXCEL_NOT_FOUND`, 2개 이상이면 전체 실패(`EXCEL_PARSE_ERROR`)로 처리(기존엔 첫 `.xlsx`만 조용히 사용하고 나머지·하위 폴더 엑셀을 허용했음). 사진은 `photos/` 하위 대신 ZIP 루트에서 파일명으로 매칭(`__MACOSX/...`는 루트가 아니라 자동 제외, `.DS_Store`는 파일명으로 명시 무시). `parseExcel`은 ID가 빈 행에서 `break`해서 이후 행을 통째로 버리던 것을, 시트 마지막 행까지 순회하며 빈 ID 행만 `continue`로 건너뛰도록 변경 — 중간 빈 행 뒤의 유효한 데이터도 이제 정상적으로 읽힘.
+- 파일: `BulkExcelParser.java`(parse/parseExcel, isRootEntry/isIgnoredEntry 신규), `BulkExcelParserTest.java`(신규 — 6개 테스트: ZIP 루트 사진 매칭, 하위 폴더 사진 무시, 엑셀 2개 이상 거부, 하위 폴더 엑셀 무시, `__MACOSX`/`.DS_Store` 무시, 중간·마지막 빈 행 무시), `ApplicationServiceBulkTest.java`/`ApplicationServicePhotoReuploadTest.java`/`ApplicationServiceUploadCompensationTest.java`/`ApplicationBulkControllerTest.java`(기존 zip 픽스처의 `photos/` 접두사를 ZIP 루트로 이동)
+- 테스트: 신규 `BulkExcelParserTest` 6건을 구현 전 실패 확인(1건은 우연히 다른 이유로 이미 실패 상태였던 것 확인) 후 전부 통과. Application/API 도메인 120개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영 — "Excel은 ZIP 루트에 정확히 1개, 2개 이상 전체 실패, 사진은 ZIP 루트에서 매칭한다", "중간 빈 행과 마지막 빈 행을 무시해야 한다."
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — 신청번호 DB Sequence 전환)
 
 - 변경: `checklist.md` §4 여덟 번째 항목 구현 — 신청번호 채번을 `count+1`에서 진짜 DB Sequence(`application_seq`)로 교체. Hibernate `@SequenceGenerator`를 엔티티 ID 생성에 실제로 연결하지 않으면 ddl-auto가 시퀀스를 만들어주지 않는 것을 테스트로 확인해서, `schema.sql`에 `CREATE SEQUENCE IF NOT EXISTS application_seq`를 직접 선언하고 `spring.jpa.defer-datasource-initialization=true`+`spring.sql.init.mode=always`로 Hibernate DDL 이후 실행되게 설정. `ApplicationService.generateApplicationNumber`는 `EntityManager` native query(`SELECT nextval('application_seq')`)로 채번. 더 이상 쓰이지 않는 `ApplicationRepository.countByApplicationNumberStartingWith`는 제거(§4의 별도 "count+1 정리" 항목도 함께 해소).

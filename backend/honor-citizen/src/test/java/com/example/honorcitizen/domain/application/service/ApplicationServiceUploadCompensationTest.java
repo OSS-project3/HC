@@ -174,7 +174,7 @@ class ApplicationServiceUploadCompensationTest {
             zip.write(excelBytes);
             zip.closeEntry();
             for (String photoId : photoIds) {
-                zip.putNextEntry(new ZipEntry("photos/" + photoId + ".jpg"));
+                zip.putNextEntry(new ZipEntry(photoId + ".jpg"));
                 zip.write(("photo-" + photoId).getBytes());
                 zip.closeEntry();
             }

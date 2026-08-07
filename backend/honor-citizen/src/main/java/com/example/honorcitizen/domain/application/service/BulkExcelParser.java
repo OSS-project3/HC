@@ -27,13 +27,14 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * 단체 신청 ZIP(엑셀 + photos/ 사진) 파서.
+ * 단체 신청 ZIP(엑셀 + 사진) 파서.
  *
  * 기대 구조:
- *  - ZIP 루트에 .xlsx 파일 1개
- *  - "photos/" 하위에 ID로 매칭되는 사진 파일들 (예: 1.jpg, 2.png — 대소문자/확장자 무시)
+ *  - ZIP 루트에 .xlsx 파일 정확히 1개(2개 이상이면 전체 실패), 하위 폴더의 엑셀은 무시
+ *  - ZIP 루트에 ID로 매칭되는 사진 파일들(예: 1.jpg, 2.png — 대소문자/확장자 무시), 하위 폴더 사진은 무시
+ *  - __MACOSX, .DS_Store는 무시
  *  - 엑셀 1행: A열 "공통 입국날짜" 라벨, B열 값(선택)
- *  - 엑셀 3행: 헤더, 4행부터 데이터 (ID 열이 비면 종료)
+ *  - 엑셀 3행: 헤더, 4행부터 데이터 (ID 열이 빈 행은 중간/마지막 상관없이 무시)
  *  - 열 순서: ID, 영문명, 생년월일, 국적, 출생시간, 출생지역, 성별, 개별입국날짜, 이메일, 전화번호, 주소, [학번, 학과]
  */
 @Component
@@ -45,35 +46,42 @@ class BulkExcelParser {
 
     List<BulkMemberRow> parse(MultipartFile zipFile, boolean isStudent) {
         Map<String, PhotoEntry> photosById = new HashMap<>();
-        byte[] excelBytes = null;
+        List<byte[]> excelCandidates = new ArrayList<>();
 
         try (ZipInputStream zipInputStream = new ZipInputStream(zipFile.getInputStream())) {
             ZipEntry entry;
             while ((entry = zipInputStream.getNextEntry()) != null) {
                 String name = entry.getName();
-                if (entry.isDirectory()) {
+                if (entry.isDirectory() || !isRootEntry(name) || isIgnoredEntry(name)) {
                     continue;
                 }
-                if (name.toLowerCase().endsWith(".xlsx") && excelBytes == null) {
-                    excelBytes = readAll(zipInputStream);
-                } else if (name.toLowerCase().startsWith("photos/")) {
-                    String fileName = name.substring("photos/".length());
-                    if (fileName.isBlank()) {
-                        continue;
-                    }
-                    String id = stripExtension(fileName);
-                    photosById.put(id.toLowerCase(), new PhotoEntry(fileName, readAll(zipInputStream)));
+                if (name.toLowerCase().endsWith(".xlsx")) {
+                    excelCandidates.add(readAll(zipInputStream));
+                } else {
+                    String id = stripExtension(name);
+                    photosById.put(id.toLowerCase(), new PhotoEntry(name, readAll(zipInputStream)));
                 }
             }
         } catch (IOException e) {
             throw new CustomException(ErrorCode.INVALID_ZIP);
         }
 
-        if (excelBytes == null) {
+        if (excelCandidates.isEmpty()) {
             throw new CustomException(ErrorCode.EXCEL_NOT_FOUND);
         }
+        if (excelCandidates.size() > 1) {
+            throw new CustomException(ErrorCode.EXCEL_PARSE_ERROR);
+        }
 
-        return parseExcel(excelBytes, photosById, isStudent);
+        return parseExcel(excelCandidates.get(0), photosById, isStudent);
+    }
+
+    private boolean isRootEntry(String name) {
+        return !name.contains("/");
+    }
+
+    private boolean isIgnoredEntry(String name) {
+        return name.equals(".DS_Store");
     }
 
     private List<BulkMemberRow> parseExcel(byte[] excelBytes, Map<String, PhotoEntry> photosById, boolean isStudent) {
@@ -84,17 +92,16 @@ class BulkExcelParser {
             LocalDate commonEntryDate = readDateCell(sheet, COMMON_ENTRY_DATE_ROW, 1, formatter);
 
             List<BulkMemberRow> rows = new ArrayList<>();
-            int rowIndex = FIRST_DATA_ROW;
-            while (true) {
+            int lastRowNum = sheet.getLastRowNum();
+            for (int rowIndex = FIRST_DATA_ROW; rowIndex <= lastRowNum; rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
                 String id = row == null ? null : stringValue(row, 0, formatter);
                 if (id == null || id.isBlank()) {
-                    break;
+                    continue;
                 }
 
                 BulkMemberRow parsed = parseRow(row, id, commonEntryDate, photosById, isStudent, formatter);
                 rows.add(parsed);
-                rowIndex++;
             }
 
             if (rows.isEmpty()) {
