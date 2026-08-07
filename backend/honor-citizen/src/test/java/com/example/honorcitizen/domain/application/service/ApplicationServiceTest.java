@@ -175,6 +175,24 @@ class ApplicationServiceTest {
     }
 
     @Test
+    void generateApplicationNumberNeverReusesSequenceEvenAfterExistingApplicationsAreDeleted() {
+        var first = applicationService.createIndividual(
+                user.getId(), mobileRequest(honorKoreanCardType.getId()), photo(), null, null);
+        String firstNumber = first.getApplicationNumber();
+
+        applicationMemberRepository.deleteAll();
+        receiverRepository.deleteAll();
+        applicantRepository.deleteAll();
+        applicationRepository.deleteAll();
+
+        var second = applicationService.createIndividual(
+                user.getId(), mobileRequest(honorKoreanCardType.getId()), photo(), null, null);
+        String secondNumber = second.getApplicationNumber();
+
+        assertThat(secondNumber).isNotEqualTo(firstNumber);
+    }
+
+    @Test
     void createIndividualSavesApplicantEmailFromRequestWhenProvided() {
         String json = """
                 {

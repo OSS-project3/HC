@@ -27,6 +27,8 @@ import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepositor
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.service.UserService;
 import com.example.honorcitizen.infra.storage.StorageService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +59,9 @@ public class ApplicationService {
     private final ApplicationPhotoValidator applicationPhotoValidator;
     private final StorageService storageService;
     private final BulkExcelParser bulkExcelParser;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public ApplicationCreateResponse createIndividual(Long userId, ApplicationCreateRequest request,
             MultipartFile photo, MultipartFile schoolLogo, MultipartFile schoolSeal) {
@@ -434,7 +439,11 @@ public class ApplicationService {
     private String generateApplicationNumber() {
         int year = LocalDate.now().getYear();
         String prefix = "APP-" + year + "-";
-        long sequence = applicationRepository.countByApplicationNumberStartingWith(prefix) + 1;
+        long sequence = nextApplicationSequence();
         return prefix + String.format("%06d", sequence);
+    }
+
+    private long nextApplicationSequence() {
+        return ((Number) entityManager.createNativeQuery("SELECT nextval('application_seq')").getSingleResult()).longValue();
     }
 }

@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — 신청번호 DB Sequence 전환)
+
+- 변경: `checklist.md` §4 여덟 번째 항목 구현 — 신청번호 채번을 `count+1`에서 진짜 DB Sequence(`application_seq`)로 교체. Hibernate `@SequenceGenerator`를 엔티티 ID 생성에 실제로 연결하지 않으면 ddl-auto가 시퀀스를 만들어주지 않는 것을 테스트로 확인해서, `schema.sql`에 `CREATE SEQUENCE IF NOT EXISTS application_seq`를 직접 선언하고 `spring.jpa.defer-datasource-initialization=true`+`spring.sql.init.mode=always`로 Hibernate DDL 이후 실행되게 설정. `ApplicationService.generateApplicationNumber`는 `EntityManager` native query(`SELECT nextval('application_seq')`)로 채번. 더 이상 쓰이지 않는 `ApplicationRepository.countByApplicationNumberStartingWith`는 제거(§4의 별도 "count+1 정리" 항목도 함께 해소).
+- 파일: `application.properties`(schema init 설정 추가), `schema.sql`(신규), `Application.java`(미사용 `@SequenceGenerator` 시도 후 제거), `ApplicationService.java`(generateApplicationNumber, nextApplicationSequence 신규, EntityManager 필드 추가), `ApplicationRepository.java`(countByApplicationNumberStartingWith 제거), `ApplicationServiceTest.java`(`generateApplicationNumberNeverReusesSequenceEvenAfterExistingApplicationsAreDeleted` 신규)
+- 테스트: 신규 테스트를 구현 전 실패 확인(처음엔 시퀀스 미생성으로 다른 이유로도 실패해서 원인 재확인 후 schema.sql 방식으로 수정) 후 통과. 전체 테스트 123개 중 `UserControllerTest` 2건 + `UserApplicationFlowTest` 1건(모두 Redis 미기동, 무관)만 실패 — 회귀 없음. `application.properties`를 건드린 변경이라 이번엔 도메인 범위가 아닌 전체 테스트 스위트로 재확인함.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영 — "`count+1` 금지, `application_seq.nextval` 기반 DB Sequence 사용".
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — 업로드 보상 삭제)
 
 - 변경: `checklist.md` §4 일곱 번째 항목 구현 — (1) 생성 경로: `createIndividual`/`createGroup`이 업로드한 storage key를 순서대로 추적하고, `applicationPersistenceService.saveIndividual`/`saveGroup`이 실패하면 역순으로 `storageService.delete`를 호출한 뒤 원래 예외를 재던짐(고아 파일 방지). (2) 수정 경로: `reuploadPhoto`가 DB 갱신에 성공한 뒤 개인은 기존 사진, 단체는 기존 회원 사진 전체와 기존 제출 ZIP(`UploadFileRepository` 조회)을 삭제.

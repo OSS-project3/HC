@@ -8,6 +8,4 @@ import java.util.Optional;
 public interface ApplicationRepository extends JpaRepository<Application, Long> {
 
     Optional<Application> findByApplicationNumber(String applicationNumber);
-
-    long countByApplicationNumberStartingWith(String prefix);
 }
