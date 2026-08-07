@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — BulkExcelParser 학번 검증·errors[] 계약)
+
+- 변경: `checklist.md` §4 나머지 항목(학번 검증·`ErrorCode`·`ApiResponse`·`BulkExcelParser` errors[])을 한 번에 구현 — 서로 강하게 얽혀 있어 하나로 묶음. 신규 `ValidationErrorDetail`(row·field·code·message) 레코드와 `BulkValidationException`(`CustomException` 상속) 추가. `ErrorCode`에 `BULK_APPLICATION_VALIDATION_FAILED` 추가, 미사용이 된 `ZIP_TOO_LARGE`/`EXCEL_NOT_FOUND`/`EXCEL_PARSE_ERROR` 제거(`APPLICATION_LIMIT_EXCEEDED`는 별도 §5 항목 몫이라 이번엔 추가 안 함). `ApiResponse`에 `errors` 필드(`@JsonInclude(NON_NULL)`) 추가. `GlobalExceptionHandler`에 `BulkValidationException` 전용 핸들러 추가. `BulkExcelParser.parseRow`는 필드별로 즉시 던지던 것을 `errors` 리스트에 수집하는 방식으로 바꿔 한 행이 잘못돼도 나머지 행을 계속 검사하고, 학번 형식(`\d{1,10}`) 검증도 추가. 엑셀 없음/2개 이상/데이터 없음도 동일한 `BulkValidationException` 계약으로 통일.
+- 파일: `ValidationErrorDetail.java`(신규), `BulkValidationException.java`(신규), `ErrorCode.java`, `ApiResponse.java`, `GlobalExceptionHandler.java`, `BulkExcelParser.java`(전면 개편), `BulkExcelParserTest.java`(신규 3건 + 기존 3건 갱신), `ApplicationServiceBulkTest.java`(4건 갱신), `ApplicationBulkControllerTest.java`(1건 갱신)
+- 테스트: 신규 테스트를 구현 전 컴파일 실패(신규 타입 부재) 확인 후 구현, 통과. Application/API 도메인 122개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영 — "오류 하나라도 발생하면 부분 성공 없이 신청 전체를 실패 처리하고, 상세 오류를 errors[](행 번호·필드·코드·메시지)로 함께 반환한다."
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — BulkExcelParser ZIP 루트·빈 행 정책)
 
 - 변경: `checklist.md` §4 아홉 번째 항목 구현 — `BulkExcelParser.parse`가 ZIP 루트(경로에 `/`가 없는 항목)만 스캔하도록 변경: `.xlsx`는 후보로 모아 0개면 `EXCEL_NOT_FOUND`, 2개 이상이면 전체 실패(`EXCEL_PARSE_ERROR`)로 처리(기존엔 첫 `.xlsx`만 조용히 사용하고 나머지·하위 폴더 엑셀을 허용했음). 사진은 `photos/` 하위 대신 ZIP 루트에서 파일명으로 매칭(`__MACOSX/...`는 루트가 아니라 자동 제외, `.DS_Store`는 파일명으로 명시 무시). `parseExcel`은 ID가 빈 행에서 `break`해서 이후 행을 통째로 버리던 것을, 시트 마지막 행까지 순회하며 빈 ID 행만 `continue`로 건너뛰도록 변경 — 중간 빈 행 뒤의 유효한 데이터도 이제 정상적으로 읽힘.

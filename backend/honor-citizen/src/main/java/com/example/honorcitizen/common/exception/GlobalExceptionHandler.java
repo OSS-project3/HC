@@ -16,6 +16,14 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(BulkValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBulkValidationException(BulkValidationException ex) {
+        log.warn("BulkValidationException: {} errors", ex.getErrors().size());
+        return ResponseEntity
+                .status(ex.getErrorCode().getStatus())
+                .body(ApiResponse.fail(ex.getErrorCode().name(), ex.getMessage(), ex.getErrors()));
+    }
+
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<ApiResponse<Void>> handleCustomException(CustomException ex) {
         ErrorCode errorCode = ex.getErrorCode();

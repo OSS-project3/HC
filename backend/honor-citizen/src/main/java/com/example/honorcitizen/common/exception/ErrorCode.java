@@ -30,10 +30,8 @@ public enum ErrorCode {
     INVALID_IMAGE(400, "얼굴을 식별할 수 없습니다."),
 
     // Bulk Application
-    ZIP_TOO_LARGE(413, "ZIP 파일은 500MB를 초과할 수 없습니다."),
     INVALID_ZIP(400, "ZIP 형식이 올바르지 않습니다."),
-    EXCEL_NOT_FOUND(400, "ZIP 안에 엑셀 파일이 없습니다."),
-    EXCEL_PARSE_ERROR(400, "엑셀 형식이 올바르지 않습니다."),
+    BULK_APPLICATION_VALIDATION_FAILED(400, "단체 신청 검증에 실패했습니다."),
 
     // Card
     CARD_NOT_READY(400, "아직 카드가 발급되지 않았습니다.");

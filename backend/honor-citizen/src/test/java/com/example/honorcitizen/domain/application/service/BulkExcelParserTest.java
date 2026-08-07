@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.application.service;
 
+import com.example.honorcitizen.common.exception.BulkValidationException;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import org.apache.poi.ss.usermodel.Row;
@@ -86,8 +87,10 @@ class BulkExcelParserTest {
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "photos/1.jpg");
 
         assertThatThrownBy(() -> parser.parse(zip, false))
-                .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXCEL_PARSE_ERROR);
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("field").containsExactly("photo"));
     }
 
     @Test
@@ -108,8 +111,8 @@ class BulkExcelParserTest {
         MockMultipartFile zipFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", out.toByteArray());
 
         assertThatThrownBy(() -> parser.parse(zipFile, false))
-                .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXCEL_PARSE_ERROR);
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
     }
 
     @Test
@@ -118,8 +121,38 @@ class BulkExcelParserTest {
         MockMultipartFile zip = zipOf(excel, "nested/members.xlsx", "1.jpg");
 
         assertThatThrownBy(() -> parser.parse(zip, false))
-                .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXCEL_NOT_FOUND);
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
+    }
+
+    @Test
+    void parseCollectsErrorsFromMultipleRowsInsteadOfFailingOnFirst() throws Exception {
+        String missingNameRow = "1||1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
+        String badGenderRow = "2|Mike Kim|1992-03-03|US|||UNKNOWN||mike@example.com|010-3333-4444|Busan";
+        byte[] excel = buildExcel(missingNameRow, badGenderRow);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg", "2.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> {
+                    List<?> errors = ((BulkValidationException) e).getErrors();
+                    assertThat(errors).hasSizeGreaterThanOrEqualTo(2);
+                    assertThat(errors).extracting("row").contains(4, 5);
+                });
+    }
+
+    @Test
+    void parseRejectsStudentIdLongerThanTenDigits() throws Exception {
+        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|202612345678|컴퓨터공학과";
+        byte[] excel = buildExcel(studentRow);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, true))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("field").contains("studentId"));
     }
 
     @Test

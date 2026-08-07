@@ -249,7 +249,7 @@ class ApplicationServiceBulkTest {
         assertThatThrownBy(() -> applicationService.createGroup(
                 user.getId(), request(honorKoreanCardType.getId()), logo, seal, submitFile))
                 .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXCEL_PARSE_ERROR);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
 
         assertThat(applicationRepository.count()).isZero();
     }
@@ -265,7 +265,7 @@ class ApplicationServiceBulkTest {
         assertThatThrownBy(() -> applicationService.createGroup(
                 user.getId(), request(honorKoreanCardType.getId()), logo, seal, submitFile))
                 .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXCEL_PARSE_ERROR);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
     }
 
     @Test
@@ -279,7 +279,7 @@ class ApplicationServiceBulkTest {
         assertThatThrownBy(() -> applicationService.createGroup(
                 user.getId(), request(studentCardType.getId()), logo, seal, submitFile))
                 .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXCEL_PARSE_ERROR);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
     }
 
     @Test
@@ -324,7 +324,7 @@ class ApplicationServiceBulkTest {
         assertThatThrownBy(() -> applicationService.createGroup(
                 user.getId(), request(honorKoreanCardType.getId()), logo, seal, submitFile))
                 .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXCEL_NOT_FOUND);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
     }
 
     @Test

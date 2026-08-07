@@ -170,6 +170,8 @@ class ApplicationBulkControllerTest {
                         .file(submitFile)
                         .header("Authorization", token))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("EXCEL_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("BULK_APPLICATION_VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors").isArray())
+                .andExpect(jsonPath("$.errors[0].code").value("EXCEL_NOT_FOUND"));
     }
 }
