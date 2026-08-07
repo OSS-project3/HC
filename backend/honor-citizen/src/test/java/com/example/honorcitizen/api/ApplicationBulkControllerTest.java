@@ -156,6 +156,31 @@ class ApplicationBulkControllerTest {
     }
 
     @Test
+    void createGroupReturnsInvalidInputWhenReceiverZipCodeMissing() throws Exception {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE_AND_PHYSICAL",
+                  "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
+                  "receiver": { "sameAsApplicant": false, "name": "김수령", "phone": "010-9999-8888", "address": "서울특별시 강남구" }
+                }
+                """.formatted(cardType.getId());
+        MockMultipartFile requestPart = new MockMultipartFile("request", "", "application/json", json.getBytes());
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", buildZip());
+
+        mockMvc.perform(multipart("/api/applications/bulk")
+                        .file(requestPart)
+                        .file(logo)
+                        .file(seal)
+                        .file(submitFile)
+                        .header("Authorization", token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
     void createGroupReturnsExcelNotFoundWhenZipHasNoExcel() throws Exception {
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", REQUEST_JSON.formatted(cardType.getId()).getBytes());

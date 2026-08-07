@@ -54,8 +54,13 @@ public class ApplicationCreateRequest {
         private boolean sameAsApplicant;
         private String name;
         private String phone;
+
+        @NotBlank
         private String zipCode;
+
+        @NotBlank
         private String address;
+
         private String detailAddress;
         private String deliveryRequest;
     }

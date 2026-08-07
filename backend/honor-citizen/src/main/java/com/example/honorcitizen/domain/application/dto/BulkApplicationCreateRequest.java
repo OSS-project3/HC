@@ -47,8 +47,13 @@ public class BulkApplicationCreateRequest {
         private String department;
         private String name;
         private String phone;
+
+        @NotBlank
         private String zipCode;
+
+        @NotBlank
         private String address;
+
         private String detailAddress;
         private String deliveryRequest;
     }

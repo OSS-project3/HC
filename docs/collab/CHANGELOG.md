@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — Receiver 우편번호·기본주소 필수 검증)
+
+- 변경: `checklist.md` §4 항목 구현 — `ApplicationCreateRequest`/`BulkApplicationCreateRequest`의 `ReceiverRequest.zipCode`/`address`에 `@NotBlank` 추가(receiver 자체가 없으면 `@Valid`가 건너뛰므로 `MOBILE`엔 영향 없음). studentId 형식 검증은 개인 신청(`ApplicationService.isValidStudentId`, item6)과 단체 신청(`BulkExcelParser`, 직전 항목)에 이미 있어 DTO에 중복 추가하지 않음.
+- 파일: `ApplicationCreateRequest.java`, `BulkApplicationCreateRequest.java`, `ApplicationControllerTest.java`(`createIndividualReturnsInvalidInputWhenReceiverZipCodeMissing` 신규), `ApplicationBulkControllerTest.java`(`createGroupReturnsInvalidInputWhenReceiverZipCodeMissing` 신규)
+- 테스트: 신규 테스트 2건을 구현 전 실패 확인 후 통과. Application/API 도메인 124개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영 — "Receiver 우편번호·기본주소 필수".
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — BulkExcelParser 학번 검증·errors[] 계약)
 
 - 변경: `checklist.md` §4 나머지 항목(학번 검증·`ErrorCode`·`ApiResponse`·`BulkExcelParser` errors[])을 한 번에 구현 — 서로 강하게 얽혀 있어 하나로 묶음. 신규 `ValidationErrorDetail`(row·field·code·message) 레코드와 `BulkValidationException`(`CustomException` 상속) 추가. `ErrorCode`에 `BULK_APPLICATION_VALIDATION_FAILED` 추가, 미사용이 된 `ZIP_TOO_LARGE`/`EXCEL_NOT_FOUND`/`EXCEL_PARSE_ERROR` 제거(`APPLICATION_LIMIT_EXCEEDED`는 별도 §5 항목 몫이라 이번엔 추가 안 함). `ApiResponse`에 `errors` 필드(`@JsonInclude(NON_NULL)`) 추가. `GlobalExceptionHandler`에 `BulkValidationException` 전용 핸들러 추가. `BulkExcelParser.parseRow`는 필드별로 즉시 던지던 것을 `errors` 리스트에 수집하는 방식으로 바꿔 한 행이 잘못돼도 나머지 행을 계속 검사하고, 학번 형식(`\d{1,10}`) 검증도 추가. 엑셀 없음/2개 이상/데이터 없음도 동일한 `BulkValidationException` 계약으로 통일.

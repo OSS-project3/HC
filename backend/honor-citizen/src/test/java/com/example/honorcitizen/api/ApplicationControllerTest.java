@@ -137,6 +137,28 @@ class ApplicationControllerTest {
     }
 
     @Test
+    void createIndividualReturnsInvalidInputWhenReceiverZipCodeMissing() throws Exception {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE_AND_PHYSICAL",
+                  "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
+                  "receiver": { "sameAsApplicant": false, "name": "김수령", "phone": "010-9999-8888", "address": "서울특별시 강남구" },
+                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE" }
+                }
+                """.formatted(cardType.getId());
+        MockMultipartFile requestPart = new MockMultipartFile("request", "", "application/json", json.getBytes());
+        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", imageBytes());
+
+        mockMvc.perform(multipart("/api/applications")
+                        .file(requestPart)
+                        .file(photoPart)
+                        .header("Authorization", token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
     void createIndividualReturnsInvalidInputWhenPhotoMissing() throws Exception {
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", REQUEST_JSON.formatted(cardType.getId()).getBytes());
