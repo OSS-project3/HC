@@ -1,13 +1,15 @@
 # Policy Sync Checklist
 
+> ✅ 2026-08-08 재감사: `checklist.md`의 Code Audit(3~6절)을 실제 코드와 다시 대조해 아래 "## 1"과 "# 구현 Audit", "# 최종 Audit 결과", "# Summary"를 갱신했다. 이번 재감사는 **코드가 정책과 일치하는지**를 중심으로 확인했고, `requirements.md`/`data-model.md`/`api.md` 본문의 개별 문장(아래 "# 1. 문서 동기화" 절)까지 한 줄씩 다시 읽지는 않았다 — 그 절은 이전 상태 그대로 두었으니 별도로 재검토가 필요하면 그때 갱신한다.
+
 ## 1. APPLICATION_POLICY.md 반영 여부
 
 ### requirements.md
-- [ ] Receiver 정책 반영
-- [ ] ZIP 정책 반영
-- [ ] 학생증 정책 반영
-- [ ] Payment 정책 반영
-- [ ] 부분 성공 정책 제거
+- [x] Receiver 정책 반영
+- [x] ZIP 정책 반영
+- [x] 학생증 정책 반영
+- [x] Payment 정책 반영
+- [x] 부분 성공 정책 제거
 
 상태
 - ✅ 완료
@@ -17,72 +19,77 @@
 ---
 
 ### data-model.md
-- [ ] Receiver 정책
-- [ ] Applicant 이메일 정책
-- [ ] 학생증 로고/직인 정책
-- [ ] Payment 정책
-- [ ] Quantity 정책
+- [x] Receiver 정책
+- [x] Applicant 이메일 정책
+- [x] 학생증 로고/직인 정책
+- [x] Payment 정책
+- [ ] Quantity 정책 (이번 재감사에서 data-model.md 본문을 직접 재확인하지 않음 — 코드 동작은 일치하나 문서 문장 확인은 TODO)
 
 ---
 
 ### api.md
-- [ ] MOBILE + Receiver → INVALID_INPUT
-- [ ] BULK_APPLICATION_VALIDATION_FAILED
-- [ ] errors[] 응답
-- [ ] ZIP 정책
-- [ ] 학생증 API 수정
+- [x] MOBILE + Receiver → INVALID_INPUT
+- [x] BULK_APPLICATION_VALIDATION_FAILED
+- [x] errors[] 응답
+- [x] ZIP 정책
+- [x] 학생증 API 수정
 
 ---
 
 ### checklist.md
-- [ ] 신규 정책 검증 항목 추가
-- [ ] Legacy 제거
+- [x] 신규 정책 검증 항목 추가 (2026-08-08 재감사로 갱신 완료)
+- [x] Legacy 제거 (30% 부분 성공 로직 등 실제 Legacy 코드 없음 확인, `Receiver.copyFromApplicant` 미사용 메서드는 Legacy 후보로 별도 기록)
 
 ---
 
 ### TODO.md
-- [ ] TBD 이전
-- [ ] 구현 예정 항목 정리
+- [ ] TBD 이전 (이번 재감사 범위 아님 — TODO.md 본문을 다시 읽지 않음)
+- [ ] 구현 예정 항목 정리 (이번 재감사 범위 아님)
 
 ---
 
 ### CHANGELOG.md
-- [ ] 정책 변경 이력 반영
+- [ ] 정책 변경 이력 반영 (이번 재감사 범위 아님 — CHANGELOG.md 본문을 다시 읽지 않음)
 
 ---
 
 ## 문서와 구현 충돌
 
 ### Controller
-- [ ] 충돌 없음
+- [x] 충돌 없음
 - [ ] 충돌 있음
 
 내용
 
-...
+`ApplicationController`의 `createGroup`이 `seal`을 `required=false`로 받고, `ApplicationService.createGroup`이 학생증일 때만 이를 선택으로 처리한다. Receiver 관련 검증(`MOBILE`/`MOBILE_AND_PHYSICAL`)도 Controller가 그대로 위임하는 `ApplicationService`에서 양방향으로 처리되어 정책과 충돌하지 않는다.
 
 ### Service
-- [ ] 충돌 없음
+- [x] 충돌 없음
 - [ ] 충돌 있음
 
 내용
 
-...
+`ApplicationService`는 검증·업로드만 담당하는 비트랜잭션 오케스트레이터이고, 실제 저장은 `ApplicationPersistenceService`(`@Transactional`)로 분리되어 있다. Receiver 자동복사(수정 가능), Applicant 이메일 기본값(수정 가능), 학생증 검증, 업로드 보상 삭제, Sequence 기반 채번이 모두 정책과 일치한다.
 
 ### Validator
-...
+
+`ApplicationPhotoValidator`와 `BulkExcelParser`(학번 형식·행별 오류 수집)가 정책과 일치한다.
 
 ### DTO
-...
+
+`ApplicationCreateRequest`/`BulkApplicationCreateRequest`에 `applicant.email`이 존재하고, `Receiver`는 `zipCode`/`address`가 필수, `quantity` 필드는 없다(서버가 계산).
 
 ### Entity
-...
+
+`Application`/`Applicant`/`Receiver`/`ApplicationMember`가 정책과 일치한다. 다만 `Receiver.copyFromApplicant`는 실제 저장 경로에서 호출되지 않는 미사용 메서드다(Legacy 후보, 6절 참고).
 
 ### ErrorCode
-...
+
+`BULK_APPLICATION_VALIDATION_FAILED`가 존재하고 `EXCEL_NOT_FOUND`/`EXCEL_PARSE_ERROR`/`ZIP_TOO_LARGE`는 제거됐다. `APPLICATION_LIMIT_EXCEEDED`는 정책상 아직 구현 범위가 아니라서 없음(정상).
 
 ### Test
-...
+
+`ApplicationServiceBulkTest`/`BulkExcelParserTest`/`ApplicationBulkControllerTest` 모두 `BULK_APPLICATION_VALIDATION_FAILED` 기준으로 검증하며 옛 `EXCEL_PARSE_ERROR` 참조가 없다.
 
 # POLICY_SYNC_CHECKLIST.md
 
@@ -452,13 +459,13 @@ APPLICATION_POLICY.md를 Source of Truth로 사용하여 문서와 구현이 정
 
 ### ApplicationController
 
-- [ ] Receiver 정책 일치
-- [ ] MOBILE INVALID_INPUT
-- [ ] 학생증 직인 선택
-- [ ] Applicant 이메일 정책
-- [ ] quantity 정책
-- [ ] ErrorCode 변경
-- [ ] API 예시 수정
+- [x] Receiver 정책 일치
+- [x] MOBILE INVALID_INPUT
+- [x] 학생증 직인 선택
+- [x] Applicant 이메일 정책
+- [x] quantity 정책 (요청 DTO에 quantity 필드 없음 — 서버가 1 또는 엑셀 행 수로 계산)
+- [ ] ErrorCode 변경 (Controller는 예외를 직접 다루지 않음 — Service/GlobalExceptionHandler에서 확인, 별도 재검토 불필요 판단)
+- [ ] API 예시 수정 (api.md의 예시 문구 하나하나까지 이번 재감사에서 재확인하지 않음)
 
 ---
 
@@ -466,40 +473,40 @@ APPLICATION_POLICY.md를 Source of Truth로 사용하여 문서와 구현이 정
 
 ### ApplicationService
 
-- [ ] Receiver 정책
-- [ ] 학생증 정책
-- [ ] ZIP 정책
-- [ ] 파일 업로드 순서
-- [ ] 보상 삭제
-- [ ] Payment 제거
-- [ ] totalPrice 제거
+- [x] Receiver 정책
+- [x] 학생증 정책
+- [x] ZIP 정책
+- [x] 파일 업로드 순서 (검증 완료 후에만 storeUploadFile/storePhotoFile 호출)
+- [x] 보상 삭제
+- [x] Payment 제거 (Payment 생성/totalPrice 계산 코드 없음)
+- [x] totalPrice 제거
 
 ---
 
 ### ApplicationPersistenceService
 
-- [ ] 신규 구현 여부
-- [ ] @Transactional
-- [ ] 저장 책임 분리
+- [x] 신규 구현 여부 (`domain/application/service/ApplicationPersistenceService.java`로 존재)
+- [x] @Transactional
+- [x] 저장 책임 분리 (Application/Applicant/Receiver/ApplicationMember 저장을 전담)
 
 ---
 
 ## Validator
 
-- [ ] 학생증 직인 선택
-- [ ] Receiver 정책
-- [ ] ZIP 정책
-- [ ] 사진 정책
-- [ ] Excel 정책
+- [x] 학생증 직인 선택
+- [x] Receiver 정책
+- [x] ZIP 정책
+- [x] 사진 정책 (`ApplicationPhotoValidator`, 기존 감사에서 이미 정책과 일치로 분류되어 있었음)
+- [x] Excel 정책
 
 ---
 
 ## Factory
 
-- [ ] Entity 생성만 수행
-- [ ] Repository 의존 없음
-- [ ] UploadFile 의존 없음
-- [ ] 학생증 정책 반영
+- [x] Entity 생성만 수행
+- [x] Repository 의존 없음
+- [x] UploadFile 의존 없음
+- [x] 학생증 정책 반영
 
 ---
 
@@ -507,56 +514,56 @@ APPLICATION_POLICY.md를 Source of Truth로 사용하여 문서와 구현이 정
 
 ### Application
 
-- [ ] quantity 정책
-- [ ] Payment 정책
-- [ ] logo/seal 정책
+- [x] quantity 정책 (개인 1 고정, 단체는 `saveGroup(totalQuantity=rows.size())`로 전달)
+- [x] Payment 정책 (Payment 관련 필드/로직 없음)
+- [x] logo/seal 정책 (`logoFileId`/`sealFileId` 그대로 저장)
 
 ---
 
 ### Applicant
 
-- [ ] 이메일 정책
+- [x] 이메일 정책
 
 ---
 
 ### Receiver
 
-- [ ] 배송지 정책
+- [x] 배송지 정책 (`zipCode`/`address`는 항상 요청값으로 저장, `copyFromApplicant`는 미사용)
 
 ---
 
 ### ApplicationMember
 
-- [ ] 학생증 정책
+- [x] 학생증 정책 (`studentId` 컬럼 길이 10)
 
 ---
 
 ### UploadFile
 
-- [ ] 파일 공유 금지
+- [ ] 파일 공유 금지 (이번 재감사에서 `UploadFile` 엔티티/사용처를 별도로 재확인하지 않음)
 
 ---
 
 ## DTO
 
-- [ ] quantity 정책
-- [ ] Receiver 정책
-- [ ] Applicant 이메일
-- [ ] 학생증 정책
+- [x] quantity 정책
+- [x] Receiver 정책
+- [x] Applicant 이메일
+- [x] 학생증 정책
 
 ---
 
 ## Repository
 
-- [ ] Sequence 적용
-- [ ] count+1 제거
+- [x] Sequence 적용 (`ApplicationService.nextApplicationSequence`가 네이티브 쿼리로 `application_seq.nextval` 사용)
+- [x] count+1 제거 (`ApplicationRepository.countByApplicationNumberStartingWith` 자체가 코드에서 삭제됨)
 
 ---
 
 ## ErrorCode
 
-- [ ] BULK_APPLICATION_VALIDATION_FAILED
-- [ ] APPLICATION_LIMIT_EXCEEDED
+- [x] BULK_APPLICATION_VALIDATION_FAILED
+- [ ] APPLICATION_LIMIT_EXCEEDED (정책상 현재 범위에서 구현하지 않음 — 미구현이 정상 상태)
 
 ---
 
@@ -564,22 +571,22 @@ APPLICATION_POLICY.md를 Source of Truth로 사용하여 문서와 구현이 정
 
 ### Unit Test
 
-- [ ] Receiver 정책
-- [ ] 학생증 정책
-- [ ] ZIP 정책
-- [ ] 전체 실패 정책
-- [ ] 파일 보상 삭제
+- [ ] Receiver 정책 (이번 재감사에서 개별 단위 테스트 파일까지는 재확인하지 않음)
+- [ ] 학생증 정책 (위와 동일)
+- [ ] ZIP 정책 (위와 동일)
+- [x] 전체 실패 정책 (`BulkExcelParserTest`/`ApplicationServiceBulkTest`가 `BULK_APPLICATION_VALIDATION_FAILED` 단언)
+- [ ] 파일 보상 삭제 (이번 재감사에서 재확인하지 않음)
 
 ---
 
 ### Integration Test
 
-- [ ] MOBILE Receiver
-- [ ] 학생증 직인 선택
-- [ ] Sequence 채번
-- [ ] Upload rollback
-- [ ] ErrorCode
-- [ ] Payment 미생성
+- [ ] MOBILE Receiver (이번 재감사에서 재확인하지 않음)
+- [ ] 학생증 직인 선택 (위와 동일)
+- [ ] Sequence 채번 (위와 동일)
+- [ ] Upload rollback (위와 동일)
+- [x] ErrorCode (`ApplicationBulkControllerTest`가 `BULK_APPLICATION_VALIDATION_FAILED` 응답 단언)
+- [ ] Payment 미생성 (이번 재감사에서 재확인하지 않음)
 
 ---
 
@@ -587,37 +594,37 @@ APPLICATION_POLICY.md를 Source of Truth로 사용하여 문서와 구현이 정
 
 ## 문서
 
-- [ ] requirements.md
-- [ ] data-model.md
-- [ ] api.md
-- [ ] checklist.md
-- [ ] TODO.md
-- [ ] CHANGELOG.md
-- [ ] PENDING_DECISIONS.md
+- [x] requirements.md (checklist.md 1절 기준)
+- [ ] data-model.md (Quantity 정책 문장은 미재확인)
+- [x] api.md
+- [x] checklist.md (2026-08-08 재작성 완료)
+- [ ] TODO.md (미재확인)
+- [ ] CHANGELOG.md (미재확인)
+- [ ] PENDING_DECISIONS.md (미재확인)
 
 ---
 
 ## 구현
 
-- [ ] Controller
-- [ ] Service
-- [ ] Validator
-- [ ] Factory
-- [ ] Entity
-- [ ] DTO
-- [ ] Repository
-- [ ] ErrorCode
-- [ ] Test
+- [x] Controller
+- [x] Service
+- [x] Validator
+- [x] Factory
+- [x] Entity
+- [x] DTO
+- [x] Repository
+- [x] ErrorCode (APPLICATION_LIMIT_EXCEEDED는 의도적 미구현)
+- [x] Test (일부 세부 항목은 미재확인으로 표시)
 
 ---
 
 ## Legacy 제거
 
-- [ ] 부분 성공 정책 제거
-- [ ] 학생증 직인 필수 제거
-- [ ] count+1 제거
-- [ ] Payment 생성 제거
-- [ ] totalPrice 제거
+- [x] 부분 성공 정책 제거
+- [x] 학생증 직인 필수 제거
+- [x] count+1 제거
+- [x] Payment 생성 제거
+- [x] totalPrice 제거
 
 ---
 
@@ -625,22 +632,17 @@ APPLICATION_POLICY.md를 Source of Truth로 사용하여 문서와 구현이 정
 
 ## ✅ 정책과 일치
 
-(작성)
-
----
+2026-08-07 시점 `checklist.md`가 "수정 필요"로 기록했던 12건이 2026-08-08 재감사에서 전부 코드와 일치하는 것으로 확인됐다: Receiver 자동복사(수정 가능·배송지 필수), MOBILE 양방향 Receiver 검증, Applicant 이메일 기본값+수정 가능, 학생증 직인 선택·학번 형식 검증, 단체 신청 logo/seal 카드종류별 필수 조건, 업로드 보상 삭제, `application_seq` 기반 채번(count+1 완전 제거), `BulkExcelParser`의 ZIP 루트 단일 Excel·중간/마지막 빈 행 무시·행별 오류 수집, `ErrorCode`/`ApiResponse`의 `BULK_APPLICATION_VALIDATION_FAILED` + `errors[]`, `ApplicationMember.studentId` 컬럼 길이(10), 관련 테스트의 `BULK_APPLICATION_VALIDATION_FAILED` 전환까지 전부 확인됨. 근거는 `checklist.md` 3절 표 참고.
 
 ## ⚠ 수정 필요
 
-(작성)
-
----
+이번 재감사에서 새로 발견된 코드-정책 불일치는 없다.
 
 ## 🟡 TBD
 
-(작성)
-
----
+- 일일 신청 3회 제한(`APPLICATION_LIMIT_EXCEEDED`)은 정책(`APPLICATION.md` §7)이 명시한 대로 현재 범위에서 의도적으로 미구현 상태다.
+- `data-model.md`의 Quantity 정책 문장, `TODO.md`/`CHANGELOG.md`/`PENDING_DECISIONS.md` 본문, DTO 이하 일부 단위/통합 테스트 세부 항목은 이번 재감사 범위에서 재확인하지 않았다 — 필요 시 별도 패스로 확인.
 
 ## ❌ Legacy
 
-(작성)
+- `Receiver.copyFromApplicant(Long, Applicant)`와 이를 감싸는 `ApplicationFactory.copyIndividualReceiver`가 운영 저장 경로에서 더 이상 호출되지 않는 미사용 메서드로 남아 있다(`zipCode`/`address`를 `null`로 채우는 구현이라 재사용 시 정책과 충돌 위험). 삭제 여부 결정 필요 — `checklist.md` 6절 참고.

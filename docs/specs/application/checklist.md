@@ -2,6 +2,7 @@
 
 > `APPLICATION.md`의 확정 정책과 `POLICY_SYNC_CHECKLIST.md`의 검증 기준을 적용한 결과다. 코드는 수정하지 않았으며 실제 구현에서 확인한 내용만 기록한다.
 > ⚠️ 2026-08-07: 학생증 `department`(학과) 필드 제외는 이 문서에 반영하지 않았다 — `APPLICATION.md`에 근거가 없고 사람이 미결정으로 확인했다(`PENDING_DECISIONS.md` 참고). department를 "충돌"로 지목했던 원본 Audit 항목은 아래에서 "정책과 일치"로 재분류하거나 관련 설명만 제거했다.
+> ✅ 2026-08-08 재감사: 아래 07-07 시점 Audit의 "수정 필요" 12건, "미구현" 5건을 실제 코드(`ApplicationService`, `ApplicationPersistenceService`, `BulkExcelParser`, DTO, Entity, `ErrorCode`, 테스트 전체)와 한 줄씩 다시 대조했다. 그 사이 구현이 진행되어 11건은 이미 정책과 일치하는 상태였고, "미구현" 5건 중 4건도 이미 구현되어 있었다. 아래 3~6절을 이 재감사 결과로 갱신한다.
 
 ## 1. 문서 동기화
 
@@ -30,42 +31,37 @@
 | 조회·다운로드 DTO와 Service/Controller, 관련 테스트 | 각 클래스의 lookup, getCardDownload 경로 | 이번 Source of Truth의 생성 정책과 충돌하는 실제 동작이 확인되지 않았다. |
 | ApplicationMember.java | ApplicationMember / department 필드·인자 | ✅ 2026-08-07 재분류: 학과 필드 저장은 현재 정책(유지, 미결정)과 일치한다 — 원래 "수정 필요"로 분류됐던 항목을 여기로 옮김. |
 | ApplicationMemberTest.java | studentCardCarriesStudentIdAndDepartment (59-66) | ✅ 2026-08-07 재분류: 학생증 Entity가 학과를 저장하는 것을 검증하는 테스트는 현재 정책과 일치한다. |
+| api/ApplicationController.java, service/ApplicationService.java | createGroup의 `seal` `@RequestPart(required=false)` + 학생증 분기 | ✅ 2026-08-08 재분류: 학생증은 `seal` 생략을 허용하고, 비학생증은 여전히 필수로 검사한다 — "학교 직인은 선택" 정책과 일치. |
+| service/ApplicationService.java, service/ApplicationPersistenceService.java | ApplicationService(비트랜잭션) → ApplicationPersistenceService.saveIndividual/saveGroup(`@Transactional`) | ✅ 2026-08-08 재분류: 별도 `@Service`로 분리되어 있고 Spring 자기호출 없이 Bean 간 호출로 구성된다 — 트랜잭션 구조 정책과 일치. |
+| service/ApplicationService.java | validateReceiverPresence, validateGroupReceiverPresence | ✅ 2026-08-08 재분류: `MOBILE_AND_PHYSICAL` + Receiver 없음, `MOBILE` + Receiver 있음 두 방향 모두 `INVALID_INPUT`으로 거절한다. |
+| service/ApplicationPersistenceService.java | saveReceiverIfNeeded, saveGroupReceiverIfNeeded | ✅ 2026-08-08 재분류: 요청값이 있으면 그대로, 없을 때만 신청인 이름·연락처로 fallback한다(수정 가능). 우편번호·기본주소는 항상 요청값을 그대로 저장해 배송지 필수 정책과 일치한다. `Receiver.copyFromApplicant`는 이 경로에서 더 이상 호출되지 않는다(6절 Legacy 참고). |
+| service/ApplicationService.java | createIndividual, createGroup의 applicantEmail 계산 | ✅ 2026-08-08 재분류: `hasText(request.getApplicant().getEmail())`이면 요청값, 아니면 `user.getEmail()`을 사용한다 — `User.email` 기본값 + 수정 가능 정책과 일치. |
+| service/ApplicationService.java | validateStudentFields, isValidStudentId | ✅ 2026-08-08 재분류: 직인은 `isPresent(schoolSeal)`일 때만 검증(선택), 학번은 `\d{1,10}` 정규식으로 최대 10자·숫자만 허용한다. |
+| service/ApplicationService.java | createGroup의 logo/seal 필수 조건 (`!isPresent(logo) \|\| (!isStudent && !isPresent(seal))`) | ✅ 2026-08-08 재분류: 학생증은 logo만 필수, 그 외 카드종류는 logo·seal 모두 필수 — §13 정책과 일치. |
+| service/ApplicationService.java | uploadedKeys 추적 + deleteUploadedFilesReversed | ✅ 2026-08-08 재분류: 생성 흐름에서 저장 실패 시 그 요청에서 업로드한 파일을 역순으로 삭제하는 보상 로직이 구현되어 있다. |
+| service/ApplicationService.java | generateApplicationNumber, nextApplicationSequence | ✅ 2026-08-08 재분류: `entityManager.createNativeQuery("SELECT nextval('application_seq')")`로 DB Sequence 기반 채번을 사용한다. `count+1` 방식과 `ApplicationRepository.countByApplicationNumberStartingWith`는 코드에서 완전히 제거됐다. |
+| service/BulkExcelParser.java | parse, isRootEntry | ✅ 2026-08-08 재분류: ZIP 루트(`!name.contains("/")`)의 `.xlsx`만 후보로 모으고, 하위 폴더 Excel/사진은 자동으로 제외된다. 루트에 `.xlsx`가 2개 이상이면 `EXCEL_DUPLICATE`로 전체 실패한다. |
+| service/BulkExcelParser.java | parseExcel | ✅ 2026-08-08 재분류: ID가 빈 행은 `continue`로 건너뛴다 — 중간 빈 행과 마지막 빈 행 모두 무시하는 정책과 일치한다. |
+| service/BulkExcelParser.java | parseRow, isValidStudentId | ✅ 2026-08-08 재분류: 학번 형식(`\d{1,10}`)을 검증하고, 행별 오류를 모두 모아 `BulkValidationException`으로 한 번에 던진다(첫 오류에서 즉시 중단하지 않음). |
+| common/exception/ErrorCode.java | ErrorCode | ✅ 2026-08-08 재분류: `BULK_APPLICATION_VALIDATION_FAILED`가 존재하며, `EXCEL_NOT_FOUND`/`EXCEL_PARSE_ERROR`/`ZIP_TOO_LARGE`는 더 이상 정의되어 있지 않다. |
+| common/response/ApiResponse.java, common/exception/GlobalExceptionHandler.java | ApiResponse.fail(errorCode, message, errors), handleBulkValidationException | ✅ 2026-08-08 재분류: `ApiResponse`에 `errors` 필드가 있고, `BulkValidationException` 전용 핸들러가 `errors[]`를 포함해 응답한다. |
+| entity/ApplicationMember.java | studentId 컬럼 (`@Column(length = 10)`) | ✅ 2026-08-08 재분류: 학번 컬럼 길이가 10으로 정책과 일치한다. |
+| ApplicationServiceBulkTest.java, BulkExcelParserTest.java, ApplicationBulkControllerTest.java | 각 테스트의 `BULK_APPLICATION_VALIDATION_FAILED` 단언 | ✅ 2026-08-08 재분류: 세 테스트 파일 모두 `BULK_APPLICATION_VALIDATION_FAILED` 기준으로 검증하며 `EXCEL_PARSE_ERROR` 참조는 남아있지 않다. |
 
 ## 4. 수정 필요
 
-| 파일 / 클래스 / 메서드(라인) | 현재 구현 | 충돌하는 APPLICATION.md 정책 / 판단 근거 |
-|---|---|---|
-| api/ApplicationController.java / ApplicationController.createGroup (49-58) | seal을 필수 `@RequestPart("seal")`로 받는다. | 학생증 학교 직인은 선택이다. 학생증 단체 신청도 Controller에서 직인이 없으면 거절되므로 충돌한다. |
-| service/ApplicationService.java / createIndividual, createGroup (63-78, 125-168) | 두 생성 메서드 자체가 `@Transactional`이며 검증·업로드·DB 저장을 한 Service에서 수행한다. | `ApplicationService`는 비트랜잭션 오케스트레이터이고 별도 `ApplicationPersistenceService.save()`가 트랜잭션 저장을 담당해야 한다. |
-| 같은 파일 / validateReceiverPresence, validateGroupReceiverPresence (325-329, 368-372) | `MOBILE_AND_PHYSICAL`의 Receiver 누락만 거절하고 `MOBILE`에 Receiver가 전달된 경우는 거절하지 않는다. | `MOBILE` + Receiver는 `INVALID_INPUT`이어야 한다. |
-| 같은 파일 / saveReceiverIfNeeded, saveGroupReceiverIfNeeded (331-342, 402-413) | `sameAsApplicant=true`이면 요청 Receiver의 이름·연락처·배송지를 사용하지 않고 `copyFromApplicant` 결과를 저장한다. | 이름·연락처는 자동 복사 후 수정 가능해야 하고 배송지는 Receiver가 항상 입력해야 한다. |
-| 같은 파일 / createIndividualApplicant, createGroup (107-112, 149-155) | 요청 email 필드 없이 항상 `user.getEmail()`을 저장한다. | `User.email`은 기본값이며 신청 화면에서 수정 가능해야 한다. |
-| 같은 파일 / validateStudentFields (375-391) | 직인(`schoolSeal`)까지 필수로 검사하고 학번의 최대 10자·숫자 형식을 검사하지 않는다. | 직인은 선택, 학번은 필수·최대 10자·숫자만 허용한다. (학과 필수 검사는 현재 정책과 일치 — 3절 참고) |
-| 같은 파일 / createGroup (131-140) | 카드종류와 무관하게 `logo`와 `seal`을 모두 필수 검사한다. | 학생증은 로고만 필수이고 직인은 선택이다. |
-| 같은 파일 / storePhotoBytes, storePhotoFile, storeUploadFile, reuploadPhoto (188-209, 344-349, 415-429) | 업로드 직후 DB를 저장하며 실패 시 업로드 파일을 역순 삭제하는 호출이 없다. 재업로드 후 기존 파일도 삭제하지 않는다. | DB 실패 시 요청 업로드 파일 역순 보상 삭제, 파일 수정 시 DB 갱신 성공 후 기존 파일 삭제가 필요하다. |
-| 같은 파일 / generateApplicationNumber (439-444) | 연도 prefix 건수를 조회해 `count + 1`로 신청번호를 만든다. | `count+1` 금지, `application_seq.nextval` 기반 DB Sequence 사용 정책과 충돌한다. |
-| service/BulkExcelParser.java / parse (46-76) | 첫 `.xlsx`만 읽고 추가 Excel을 무시하며 하위 경로 Excel도 허용한다. 사진은 `photos/` 하위에서만 수집한다. | Excel은 ZIP 루트에 정확히 1개, 2개 이상 전체 실패, 사진은 ZIP 루트에서 매칭한다. |
-| 같은 파일 / parseExcel (79-108) | 첫 ID 공백 행에서 break하여 이후 행을 읽지 않는다. | 중간 빈 행과 마지막 빈 행을 무시해야 한다. |
-| 같은 파일 / parseRow (111-135) | 학번 길이·숫자 형식을 검사하지 않으며 첫 오류에 `EXCEL_PARSE_ERROR`를 던진다. | 학번 최대 10자·숫자, 전체 오류를 `BULK_APPLICATION_VALIDATION_FAILED` + `errors[]`로 반환해야 한다. (학과를 필수로 읽는 것은 현재 정책과 일치 — 3절 참고) |
-| dto/ApplicationCreateRequest.java / ApplicantRequest, ReceiverRequest, MemberRequest (39-85) | Applicant email이 없고 Receiver 주소 필수 검증과 studentId 형식 검증이 없다. | 수정 가능한 Applicant email, Receiver 우편번호·기본주소 필수, 학생증 학번 제약과 충돌한다. |
-| dto/BulkApplicationCreateRequest.java / ApplicantRequest, ReceiverRequest (27-52) | Applicant email이 없고 Receiver 우편번호·기본주소 필수 검증이 없다. | Applicant email 수정 가능 및 실물 배송 Receiver 주소 필수 정책과 충돌한다. |
-| entity/ApplicationMember.java / createIndividual, createGroupRow (76-80, 93-120) | studentId 길이는 50이다. | 학번 최대 10자·숫자 정책과 충돌한다. (department 저장은 현재 정책과 일치 — 3절 참고) |
-| repository/ApplicationRepository.java / countByApplicationNumberStartingWith (8-12) | `count+1` 채번에 사용되는 count 쿼리를 제공한다. | DB Sequence 신청번호 정책과 충돌한다. |
-| common/exception/ErrorCode.java / ErrorCode (23-36) | `BULK_APPLICATION_VALIDATION_FAILED`, `APPLICATION_LIMIT_EXCEEDED`가 없고 현재 무제한인 ZIP에 500MB `ZIP_TOO_LARGE`가 남아 있다. | 단체 오류 코드와 일일 제한 오류 코드를 추가해야 하며 ZIP 최대 크기는 현재 제한 없음이다. `ZIP_TOO_LARGE` 호출은 확인되지 않아 실행 중인 제한으로는 분류하지 않는다. |
-| common/response/ApiResponse.java / fail (6-30), GlobalExceptionHandler.java / handleCustomException (19-26) | 실패 응답은 단일 errorCode, errorMessage만 직렬화한다. | 단체 오류 응답은 `errors[]`를 함께 제공해야 한다. |
-| ApplicationServiceBulkTest.java / createGroupRequiresStudentIdAndDepartmentForStudentCardType, createGroupSucceedsForStudentCardWithStudentIdAndDepartment (216-244) | 단일 `EXCEL_PARSE_ERROR`를 정상 계약으로 고정한다. | `BULK_APPLICATION_VALIDATION_FAILED` + `errors[]` 정책과 충돌한다. (학과 필수·저장 검증은 현재 정책과 일치 — 3절 참고) |
+(2026-08-08 재감사 결과 없음 — 07-07 시점에 기록됐던 12건은 모두 3절 "정책과 일치"로 재분류됐다.)
 
 ## 5. 미구현
 
 | 정책 기능 | 확인 근거 |
 |---|---|
-| ApplicationPersistenceService 분리 | src/main에 클래스와 호출이 없고 생성 DB 저장은 ApplicationService가 직접 수행한다. |
-| BULK_APPLICATION_VALIDATION_FAILED + errors[] | ErrorCode, 응답 DTO, 예외 처리기에 해당 코드·배열 구조가 없다. |
-| 일일 KST 3회 제한의 DB 원자 처리 | APPLICATION_LIMIT_EXCEEDED와 제한 조회·원자 처리 구현이 없다. 현재 리팩터링 범위 미구현이라는 정책과 일치하는 상태다. |
-| application_seq.nextval 채번 | Sequence 정의·호출이 없고 실제로 count+1 경로를 사용한다. |
-| 업로드 추적 및 DB 실패 보상 삭제 | 생성 경로에 storageService.delete 호출과 업로드 목록 추적이 없다. |
+| 일일 KST 3회 제한의 DB 원자 처리 | `APPLICATION_LIMIT_EXCEEDED`와 제한 조회·원자 처리 구현이 없다. `APPLICATION.md` §7이 현재 범위에서 구현하지 않는다고 명시했으므로 정책과 일치하는 상태다. |
+
+(2026-08-08 재감사: 07-07 시점 5건 중 `ApplicationPersistenceService` 분리, `BULK_APPLICATION_VALIDATION_FAILED` + errors[], `application_seq.nextval` 채번, 업로드 추적/보상 삭제 4건은 이미 구현되어 3절로 이동했다.)
 
 ## 6. Legacy
 
 - 실제 구현에서 확인된 Legacy 항목은 없다.
-- `APPLICATION.md`가 과거 정책으로 언급한 30% 부분 성공 로직은 `src/main`과 `src/test`에서 확인되지 않았다. 현재 단일 오류 즉시 실패 구현은 "수정 필요"로만 분류했다.
+- `APPLICATION.md`가 과거 정책으로 언급한 30% 부분 성공 로직은 `src/main`과 `src/test`에서 확인되지 않았다.
+- **Legacy 후보(미사용 메서드, 2026-08-08 신규 발견):** `Receiver.copyFromApplicant(Long, Applicant)`와 이를 감싸는 `ApplicationFactory.copyIndividualReceiver`는 정의만 있고 운영 저장 경로(`ApplicationPersistenceService.saveReceiverIfNeeded`/`saveGroupReceiverIfNeeded`)에서는 호출되지 않는다(grep 기준 호출부는 `ReceiverTest.java` 단위 테스트뿐). `copyFromApplicant`는 `zipCode`/`address`를 `null`로 채우므로, 다시 호출되게 되면 "배송지는 항상 Receiver 입력" 정책과 충돌한다. 삭제하거나 실제로 쓰이지 않는 이유를 문서화할지 판단이 필요하다.
