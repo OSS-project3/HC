@@ -1,7 +1,8 @@
 # Application Data Model
 
-> Application 도메인의 엔티티, 컬럼, 관계 및 제약조건에 대한 Source of Truth입니다.
+> Application 도메인의 엔티티, 컬럼, 관계 및 제약조건은 [APPLICATION.md](APPLICATION.md)의 최종 정책을 반영합니다.
 > 업무 규칙은 [requirements.md](requirements.md), 외부 계약은 [api.md](api.md)를 기준으로 합니다.
+> ⚠️ 2026-08-07: 단, 학생증 `ApplicationMember.department`(학과) 필드는 예외 — `APPLICATION.md`가 "제외"로 적었으나 근거가 없어 사람이 미결정으로 확인, 기존대로 유지(`PENDING_DECISIONS.md` 참고).
 
 ## 2. Application 도메인
 
@@ -53,7 +54,7 @@
 | id | BIGINT | PK | 신청자 정보 ID |
 | application_id | BIGINT | FK, UNIQUE | Application(1:1) |
 | name | VARCHAR(100) | NOT NULL | 신청 당시 이름 |
-| email | VARCHAR(255) | NOT NULL | 신청 당시 이메일. ✅ 2026-07-25 정정: **신청 시 이메일은 가입(User.email) 이메일과 같아야 함** — 자유 입력 값이 아니라 로그인 계정 이메일과 일치해야 하는 제약 |
+| email | VARCHAR(255) | NOT NULL | 신청 당시 이메일. ✅ 2026-08-07 정정(`APPLICATION.md` 기준): 로그인 `User.email`을 기본값으로 사용하며 **신청 화면에서 수정 가능**(계정 `User.email` 자체를 바꾸는 것은 아님, 이 신청 1건의 값만 저장) |
 | phone | VARCHAR(20) | NOT NULL | 신청 당시 연락처 |
 | postal_code | VARCHAR(10) | NULL | 우편번호 |
 | address1 | VARCHAR(255) | NULL | 기본주소 |
@@ -83,7 +84,8 @@
 | created_at | DATETIME | | 생성일 |
 | updated_at | DATETIME | | 수정일 |
 
-> ✅ 2026-07-25 확인: **`is_same_as_applicant` 컬럼 제거.** 동일 여부 플래그는 `Application.receiver_same_as_applicant` 하나만 유지. 사용자가 "신청인과 동일" 체크 시, 그 시점에 `Applicant`의 정보를 `Receiver`로 복사해서 저장하는 구조로 설계(값 자체를 이중 저장하지 않음).
+> ✅ 2026-07-25 확인: **`is_same_as_applicant` 컬럼 제거.** 동일 여부 플래그는 `Application.receiver_same_as_applicant` 하나만 유지.
+> ✅ 2026-08-07 정정(`APPLICATION.md` 기준): `IssueType=MOBILE`이면 Receiver row를 생성하지 않는다. `IssueType=MOBILE_AND_PHYSICAL`이면 Receiver가 필수이며 `sameAsApplicant=true`일 때 **이름과 연락처만** 복사하고 사용자가 수정할 수 있다(배송지는 복사 대상 아님 — 항상 Receiver 입력값 저장). 우편번호와 기본주소는 필수, 상세주소와 배송 요청사항은 선택이다.
 
 ### 2.4 ApplicationMember (카드 1장 단위)
 
@@ -111,7 +113,7 @@
 | entry_date | DATE | NULL | ✅ 2026-07-31 신규 확정: 한국 입국날짜. 선택 입력. 단체 신청 시 엑셀의 "공통 입국날짜"(상단 셀) + "개별입국날짜"(행별, 예외자만) 2단 해석을 거친 **최종값만 저장** — "공통값" 자체는 별도 컬럼으로 안 둠(`docs/specs/application/requirements.md` 2-3절) |
 | email | VARCHAR(255) | NULL | ✅ 2026-07-31 신규 확정: 신청자 개인 이메일. **개인 신청은 항상 NULL**(로그인 계정=`Applicant.email`로 대체, 중복 저장 안 함) — **단체 신청에서만 엑셀 행별로 채워짐** |
 | phone | VARCHAR(20) | NULL | ✅ 2026-07-31 신규 확정: 신청자 개인 연락처. email과 동일 원칙 — 개인 신청은 NULL, 단체 신청만 엑셀 행별로 채움 |
-| student_id | VARCHAR(50) | NULL | ✅ 2026-07-31 신규 확정: 학번. **카드종류=학생증일 때만 사용**(그 외 카드종류는 NULL) |
+| student_id | VARCHAR(10) | NULL | ✅ 2026-08-07 정정(`APPLICATION.md` 기준): 학번. **카드종류=학생증일 때만 사용**(그 외 카드종류는 NULL), 최대 10자이며 숫자만 허용 |
 | department | VARCHAR(100) | NULL | ✅ 2026-07-31 신규 확정: 학과. 카드종류=학생증 전용. ⚠️ `Applicant`/`Receiver`의 `department`(부서명, 법인용)와는 다른 테이블의 다른 개념 — 이름만 같음, 혼동 주의 |
 | issue_date | DATE | NULL | 카드 발급일자 — 발급 시점에 채워짐 |
 | card_number | VARCHAR(30) | NULL, UNIQUE | 카드 발급 후 채워짐 (Application이 아니라 여기로 확정). ✅ 2026-07-31 확인: 형식 `ROK-XXXXX-XXXX`(5자리-4자리) — `시안.zip` 실물 카드번호 확인. 채번 로직(순차/무작위)은 미확정 |
@@ -124,3 +126,10 @@
 > ✅ 2026-07-25 확인: **개인 신청 폼(`StepInfo.tsx`/`StepFiles.tsx`)에 사진 업로드 입력란 추가 확정.** 개인 신청도 카드용 사진이 필요함 — `birth_date`와 마찬가지로 프론트 미구현, 별도 작업 필요 (이번 문서 정리 범위에서는 코드 수정 안 함, 항목만 기록).
 > ✅ 2026-07-31 확정: **사주(만세력) 작명 도구는 URL 링크아웃일 뿐, 실제 이름은 관리자가 우리 시스템에 직접 입력.** `nationality`/`birth_time`/`birth_region`/`gender`는 그 도구에 참고용으로 넣는 입력값이고, 실제 작명 결과(`name`/`chinese_name`/`name_meaning`/`name_interpretation`)는 관리자가 수동 입력 폼으로 저장 — 백엔드가 그 도구를 API로 호출하지 않음.
 > ✅ 2026-07-31 확정: **신청조회(lookup) 시 카드번호로 조회하는 경우, 본인인증은 `Applicant`가 아니라 그 카드의 실제 소유자인 `ApplicationMember.email`/`phone`과 대조한다.** 개인 신청은 이 두 컬럼이 NULL이므로 자연히 `Applicant` 쪽을 참조하게 됨. 전화번호 인증/이메일 인증 조합(둘 다 필수 vs 하나만)은 API 설계 시 확정([TBD], `docs/api/README.md` 참고).
+
+### 2.5 파일 및 Payment 데이터 정책 (2026-08-07, `APPLICATION.md` 기준)
+
+- 학생증은 학교 로고가 필수이고 학교 직인은 선택이다. 그 외 단체 카드종류는 로고와 직인이 모두 필수다.
+- 모든 검증 후 최종 경로에 업로드하고 `UploadFile`을 저장한다. DB 저장 실패 시 해당 요청이 업로드한 파일을 역순 삭제하며 삭제 실패는 Error 로그로 남긴다.
+- 얼굴사진·학교 로고·직인 수정은 새 파일 업로드와 DB 갱신 성공 후 기존 파일을 삭제한다.
+- 신청 생성 시 Payment를 생성하거나 totalPrice를 계산하지 않는다. 향후 온라인 결제를 위해 Payment Entity와 관련 도메인은 유지한다.

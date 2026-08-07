@@ -15,6 +15,13 @@
 
 ---
 
+## 2026-08-07 — Codex — Application 정책 문서 동기화 및 Code Audit
+
+- APPLICATION.md와 POLICY_SYNC_CHECKLIST.md에 맞춰 requirements/data-model/api/checklist 및 운영 문서를 동기화했다.
+- 실제 Controller, Service, Validator, Factory, Entity, DTO, Repository, ErrorCode, Test 구현을 파일·클래스·메서드·라인 단위로 재검증해 수정 필요·미구현 항목을 기록했다.
+- 코드 파일은 수정하지 않았다.
+- (Claude 추가 2026-08-07: 학생증 `department`(학과) 필드 삭제는 이번 동기화에서 제외 — 사람이 미결정 상태로 확인, `PENDING_DECISIONS.md` 참고)
+
 ## 2026-08-06 — Claude — `main` (마이페이지 신청 목록/상세 조회 API 설계)
 
 - 변경: 로그인 사용자가 자기 신청 내역을 목록(`GET /api/my/applications`, 페이징+status 필터)/상세(`GET /api/my/applications/{id}`, 소유권 검증)로 조회하는 API 2개 설계. 기존 `POST /api/applications/lookup`(API 3)은 비로그인 공개 조회용이라 이 용도로 못 씀 — 사용자가 "로그인한 경우 다건조회 → 클릭 시 단건조회" 흐름을 요청해서 추가.

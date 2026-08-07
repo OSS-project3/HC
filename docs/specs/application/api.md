@@ -47,6 +47,7 @@ Content-Type: multipart/form-data
   "issueType": "MOBILE_AND_PHYSICAL",
   "applicant": {
     "name": "홍길동",
+    "email": "hong@example.com",
     "phone": "010-1234-5678"
   },
   "receiver": {
@@ -71,13 +72,13 @@ Content-Type: multipart/form-data
 }
 ```
 
-- `applicant.email`은 요청에 **포함하지 않음** — `Applicant.email`은 로그인 세션의 `User.email`을 서버가 그대로 채움(신청 이메일=가입 이메일 확정 정책) — ⚠️ 실제 프론트(`StepInfo.tsx`)엔 이메일 입력란이 존재해서 이 정책과 다르게 구현돼 있음(기존부터 있던 프론트 불일치, 이번 정합성 점검 중 재확인 — 정책 자체는 변경하지 않음)
-- `receiver`는 `issueType=MOBILE`이면 생략
+- ✅ 2026-08-07 정정(`APPLICATION.md` 기준): `applicant.email`은 요청에 **포함한다** — `Applicant.email`은 로그인 `User.email`을 기본값으로 프리필하되 신청 화면에서 수정할 수 있다(계정 `User.email` 자체는 바뀌지 않음, 이 신청 1건의 값만 저장).
+- ✅ 2026-08-07 정정: `receiver`는 `issueType=MOBILE`이면 **전달하면 안 되며**(전달 시 `INVALID_INPUT`), `issueType=MOBILE_AND_PHYSICAL`이면 필수다.
 - ⚠️ 2026-07-31 정정: **`cardDesignId` → `cardTypeId`로 교체.** 사용자는 카드 "종류"만 선택하고, 구체적 디자인은 관리자가 신청 검토 중 배정(`.md` 2.1절, `docs/specs/application/requirements.md` 6절) — `Application.card_design_id`는 생성 시 NULL
 - `logo`/`seal`/제출ZIP(회사용)은 이 API에 없음 — 개인 신청은 법인 전용 요소라 불필요. 단, **학생증(`CardType.code=STUDENT`)은 예외로 `schoolLogo`가 필수이고 `schoolSeal`은 선택**이다.
 - ⚠️ 2026-07-31 재정정: `member.birthTime`/`birthRegion`은 **선택 입력으로 정정**(NOT NULL이었던 걸 Nullable로 변경, "출생시간 모름" 체크 지원). `nationality`/`gender`/`birthDate`는 계속 필수
 - ✅ 2026-07-31 신규: `member.entryDate`(한국입국날짜, 선택) 추가
-- ✅ 2026-07-31 신규: `member.studentId`/`department`(학번/학과) — `cardTypeId`가 학생증일 때만 필수, 그 외엔 보내지 않음
+- ✅ 2026-08-07 정정: `member.studentId`는 `cardTypeId`가 학생증일 때만 필수이며 최대 10자·숫자만 허용한다. `member.department`(학과)는 `APPLICATION.md`가 "현재 제외"로 적었으나 근거가 없어 사람이 미결정으로 확인 — 기존대로 학생증일 때만 필수로 유지한다(`PENDING_DECISIONS.md` 참고).
 
 **Response `201 Created`**
 ```json
@@ -107,12 +108,13 @@ Content-Type: multipart/form-data
 | 파일 signature 불일치 또는 이미지 디코딩 실패 | `INVALID_IMAGE` | 400 |
 | EXIF Orientation 적용 후 얼굴사진 해상도가 300×400 미만 | `INVALID_IMAGE` | 400 |
 | `issueType=MOBILE_AND_PHYSICAL`인데 `receiver` 없음 | `INVALID_INPUT` | 400 |
+| ✅ 2026-08-07 신규: `issueType=MOBILE`인데 `receiver` 전달 | `INVALID_INPUT` | 400 |
 | `member.birthDate`/`nationality`/`gender` 중 하나라도 누락, `photo` 파일 누락 | `INVALID_INPUT` | 400 |
-| `cardTypeId`가 학생증인데 `studentId`/`department`/`schoolLogo` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
+| `cardTypeId`가 학생증인데 `studentId`/`department`/`schoolLogo` 중 하나라도 누락, 또는 학번이 10자 초과·숫자 외 문자 포함 | `INVALID_INPUT` | 400 |
 | `cardTypeId`가 학생증이 아닌데 `studentId`/`department`/`schoolLogo`/`schoolSeal`을 보냄 | `INVALID_INPUT` | 400 |
 | 비로그인 | `UNAUTHORIZED` | 401 |
 
-- `receiver.sameAsApplicant=true`면 나머지 receiver 필드 생략 가능(서버가 `applicant` 값을 복사)
+- ✅ 2026-08-07 정정: `receiver.sameAsApplicant=true`여도 우편번호와 기본주소는 필수이며, 이름과 연락처만 복사된 기본값을 서버가 채우고 사용자가 수정할 수 있다.
 - `member.birthTime`/`birthRegion`/`entryDate`는 선택이라 누락돼도 통과(2026-07-31 정정)
 - ✅ 2026-07-29 확인: `quantity`는 요청에 없음 — 개인 신청은 `total_quantity=1` 서버 고정, 클라이언트가 보낼 필요 없음
 
@@ -124,7 +126,7 @@ Content-Type: multipart/form-data
 | — | Application.card_design_id = `NULL`(관리자가 이후 배정, ⚠️ 2026-07-31 정정) |
 | issueType | Application.issue_type |
 | applicant.name/phone | Applicant.name/phone |
-| (세션) | Applicant.email ← User.email |
+| applicant.email | Applicant.email (✅ 2026-08-07 정정 — 요청값 저장, `User.email`을 기본값으로 프리필하되 수정 가능) |
 | receiver.* | Receiver.* (receiver.name/phone → `Receiver.receiver_name`/`receiver_phone` 컬럼명 매핑 주의) |
 | receiver.sameAsApplicant | Application.receiver_same_as_applicant |
 | member.birthDate | ApplicationMember.birth_date |
@@ -133,7 +135,7 @@ Content-Type: multipart/form-data
 | member.birthRegion | ApplicationMember.birth_region (⚠️ 2026-07-31 Nullable로 정정) |
 | member.gender | ApplicationMember.gender |
 | member.entryDate | ApplicationMember.entry_date (✅ 2026-07-31 신규) |
-| member.studentId | ApplicationMember.student_id (✅ 2026-07-31 신규, 학생증 전용) |
+| member.studentId | ApplicationMember.student_id (✅ 2026-08-07 정정, 학생증 전용, 최대 10자·숫자만) |
 | member.department | ApplicationMember.department (✅ 2026-07-31 신규, 학생증 전용) |
 | photo(file) | ApplicationMember.photo_path |
 | schoolLogo(file) | UploadFile 생성 → Application.logo_file_id (✅ 2026-07-31 신규, 학생증 전용) |
@@ -185,6 +187,7 @@ Content-Type: multipart/form-data
     "organizationName": "OO기업",
     "department": "인사팀",
     "name": "홍길동",
+    "email": "hong@example.com",
     "phone": "010-1234-5678"
   },
   "receiver": {
@@ -201,7 +204,8 @@ Content-Type: multipart/form-data
 }
 ```
 
-- `applicant.email`은 API 1과 동일하게 세션에서 채움
+- ✅ 2026-08-07 정정: `applicant.email`은 API 1과 동일하게 요청값으로 받는다(`User.email`을 기본값으로 프리필하되 수정 가능).
+- ✅ 2026-08-07 정정: Receiver 규칙은 API 1과 같다 — `MOBILE`에서는 전달 금지(`INVALID_INPUT`), `MOBILE_AND_PHYSICAL`에서는 필수이며 `sameAsApplicant=true`면 이름·연락처만 복사한다.
 - `member`(개인 신청의 `birthDate` 등)는 이 요청에 없음 — 인원별 정보는 ZIP 안 엑셀에서 옴
 - ⚠️ 2026-07-31 정정: `cardDesignId` → `cardTypeId`로 교체(API 1과 동일 이유 — 디자인은 관리자 배정)
 
@@ -225,14 +229,12 @@ Content-Type: multipart/form-data
 | 상황 | errorCode | HTTP |
 |---|---|---|
 | `submitFile`이 ZIP이 아니거나 손상됨 | `INVALID_ZIP` | 400 |
-| ZIP 안에 엑셀이 없음 | `EXCEL_NOT_FOUND` | 400 |
-| 엑셀 형식이 안 맞음 | `EXCEL_PARSE_ERROR` | 400 |
-| ZIP 파일 크기 초과 | `ZIP_TOO_LARGE` | 413 |
+| ✅ 2026-08-07 정정: ZIP 검증 오류(엑셀 없음/형식 오류/ID·사진 중복·누락·매핑불가 등)가 하나 이상 발생 | `BULK_APPLICATION_VALIDATION_FAILED` + `errors[]` | 400 |
 | `cardTypeId` 없음/비활성 | `NOT_FOUND` | 404 |
 | 일반 단체 신청에서 `logo` 또는 `seal` 누락 | `INVALID_INPUT` | 400 |
 | 학생증 단체 신청에서 `logo` 누락 | `INVALID_INPUT` | 400 |
 
-(ZIP/엑셀 관련 4개 코드는 기존 `ErrorCode.java`에 이미 있는 걸 그대로 재사용 — Bulk 신청 도메인은 사주 도메인이었을 때도 ZIP+엑셀 처리 방식이 똑같아서 그대로 맞음)
+✅ 2026-08-07 확정(`APPLICATION.md` 기준): 오류 하나라도 발생하면 **부분 성공 없이 신청 전체를 실패 처리**하고, 상세 오류를 `errors[]`(행 번호·필드·코드·메시지)로 함께 반환한다. 옛 "실패율 30% 룰"은 폐기(Legacy). 기존 `EXCEL_NOT_FOUND`/`EXCEL_PARSE_ERROR`/`ZIP_TOO_LARGE`는 `BULK_APPLICATION_VALIDATION_FAILED`로 흡수되며 개별 errorCode로는 더 쓰지 않는다. ZIP 최대 크기·Excel 최대 행 수·최대 신청 인원은 현재 제한하지 않는다([TBD], `PENDING_DECISIONS.md`).
 
 - 엑셀 행 수만큼 `ApplicationMember`가 생성됨 → `total_quantity`는 서버가 엑셀 행 수를 세서 채움(클라이언트가 안 보냄)
 - ⚠️ 2026-07-31 정정: `cardDesignId` → `cardTypeId`로 교체(API 1과 동일 이유)
@@ -277,11 +279,11 @@ Content-Type: multipart/form-data
 | 이메일 | email(✅ 2026-07-31 신규 — 행마다 다른 신청자 본인 이메일) | 필수 |
 | 전화번호 | phone(✅ 2026-07-31 신규 — 행마다 다른 신청자 본인 연락처) | 필수 |
 | 주소 | address | 선택 |
-| 학번 | student_id(✅ 2026-07-31 신규, `cardTypeId`가 학생증일 때만 존재) | 학생증만 필수 |
+| 학번 | student_id(✅ 2026-08-07 정정, `cardTypeId`가 학생증일 때만 존재, 최대 10자·숫자만) | 학생증만 필수 |
 | 학과 | department(✅ 2026-07-31 신규, 학생증 전용) | 학생증만 필수 |
-| (사진 파일명, ZIP 내부 photos/ 하위) | photo_path | 필수 |
+| (사진 파일명, ZIP 루트) | photo_path | 필수 |
 
-엑셀 `ID`와 ZIP 내부 사진의 기본 파일명을 매칭한다(예: `ID=1` ↔ `photos/1.jpg`). 구성원별 UploadFile ID는 생성하지 않고, 매칭된 이미지의 저장 경로만 `ApplicationMember.photo_path`에 저장한다. ZIP 원본의 `Application.submit_file_id`는 신청 단위 제출 파일을 가리키며 구성원 사진 ID가 아니다.
+✅ 2026-08-07 정정(`APPLICATION.md` 기준): ZIP 루트에는 자유로운 파일명의 `.xlsx` Excel 1개만 허용한다(2개 이상이면 전체 실패). Excel `ID`는 `trim()` 후 String으로 비교해 선행 0을 유지하고, ZIP 루트 사진의 확장자는 대소문자를 구분하지 않는다(예: `ID=1` ↔ `1.jpg`/`1.JPG`). `__MACOSX`, `.DS_Store`, 중간·마지막 빈 행은 무시한다. 구성원별 UploadFile ID는 생성하지 않고, 매칭된 이미지의 저장 경로만 `ApplicationMember.photo_path`에 저장한다. ZIP 원본의 `Application.submit_file_id`는 신청 단위 제출 파일을 가리키며 구성원 사진 ID가 아니다.
 
 #### ⑦ 누락된 필드 확인
 
