@@ -324,8 +324,8 @@ Factory, Validator, Context 등 새로운 클래스를 추가하기 전에 반�
 
 ### checklist.md §5 구현 진행
 
-- [ ] `ApplicationPersistenceService` 신규
-- [ ] `BULK_APPLICATION_VALIDATION_FAILED` + `errors[]` 응답 구조
-- [ ] 일일 KST 3회 제한 DB 원자 처리(정책 문서엔 "현재 리팩터링 범위 미구현"으로 명시돼 있어 우선순위 낮음)
-- [ ] `application_seq.nextval` 채번
-- [ ] 업로드 추적 및 DB 실패 보상 삭제
+- [x] `ApplicationPersistenceService` 신규 — §4 "ApplicationPersistenceService 분리" 항목에서 이미 구현됨(2026-08-07)
+- [x] `BULK_APPLICATION_VALIDATION_FAILED` + `errors[]` 응답 구조 — §4 "BulkExcelParser 학번 검증·errors[] 계약" 항목에서 이미 구현됨(2026-08-07)
+- [ ] 일일 KST 3회 제한 DB 원자 처리(정책 문서엔 "현재 리팩터링 범위 미구현"으로 명시돼 있어 우선순위 낮음) — §4/§5 통틀어 유일하게 남은 항목
+- [x] `application_seq.nextval` 채번 — §4 "신청번호 DB Sequence 전환" 항목에서 이미 구현됨(2026-08-07)
+- [x] 업로드 추적 및 DB 실패 보상 삭제 — §4 "업로드 보상 삭제" 항목에서 이미 구현됨(2026-08-07, `uploadedKeys` 추적 + `storageService.delete` 역순 호출)

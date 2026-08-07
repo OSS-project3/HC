@@ -15,6 +15,13 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §5 진행 상황 정리)
+
+- 변경: `checklist.md` §5(미구현) 5개 항목을 실제 코드와 대조 — 4개는 §4 작업 과정에서 이미 구현 완료된 상태였음을 확인하고 `TODO.md`만 체크(코드 변경 없음, `checklist.md`는 수정하지 않음): `ApplicationPersistenceService` 신규(§4 "ApplicationPersistenceService 분리"), `BULK_APPLICATION_VALIDATION_FAILED`+`errors[]`(§4 "BulkExcelParser 학번 검증·errors[] 계약"), `application_seq.nextval` 채번(§4 "신청번호 DB Sequence 전환"), 업로드 추적 및 DB 실패 보상 삭제(§4 "업로드 보상 삭제" — `uploadedKeys` 추적 + 역순 `storageService.delete`가 §5 항목의 "확인 근거"였던 두 조건을 모두 충족). 남은 §5 항목은 "일일 KST 3회 제한 DB 원자 처리" 1건뿐 — 정책 문서에 "현재 리팩터링 범위 미구현"으로 명시된 저우선순위 항목.
+- 파일: `docs/collab/TODO.md`
+- 사유: `checklist.md` §4 작업이 §5의 상당 부분을 자연스럽게 해소했는지 실제로 확인하고 진행 상황을 정확히 반영.
+- 관련: TODO "checklist.md §5 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — student_id 컬럼 길이 정리, §4 전체 완료)
 
 - 변경: `checklist.md` §4 마지막 항목 구현 — `ApplicationMember.student_id` 컬럼을 `@Column(length = 50)` → `@Column(length = 10)`으로 변경. 개인 신청(`ApplicationService.isValidStudentId`)·단체 신청(`BulkExcelParser`) 양쪽 다 이미 10자·숫자만 통과시키므로 이 값을 넘는 값이 저장 경로에 도달할 수 없어 순수 스키마 정합성 정리. 이로써 `checklist.md` §4(수정 필요) 14개 행 전부 완료.
