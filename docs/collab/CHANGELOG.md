@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — 업로드 보상 삭제)
+
+- 변경: `checklist.md` §4 일곱 번째 항목 구현 — (1) 생성 경로: `createIndividual`/`createGroup`이 업로드한 storage key를 순서대로 추적하고, `applicationPersistenceService.saveIndividual`/`saveGroup`이 실패하면 역순으로 `storageService.delete`를 호출한 뒤 원래 예외를 재던짐(고아 파일 방지). (2) 수정 경로: `reuploadPhoto`가 DB 갱신에 성공한 뒤 개인은 기존 사진, 단체는 기존 회원 사진 전체와 기존 제출 ZIP(`UploadFileRepository` 조회)을 삭제.
+- 파일: `ApplicationService.java`(createIndividual/createGroup/reuploadPhoto, `storeUploadFile`/`storePhotoFile`/`storePhotoBytes`에 key-tracking 오버로드 추가, `deleteUploadedFilesReversed`/`deleteIfPresent` 신규), `ApplicationServiceUploadCompensationTest.java`(신규 — `createIndividualDeletesUploadedFilesInReverseOrderWhenPersistenceFails`, `createGroupDeletesUploadedFilesInReverseOrderWhenPersistenceFails`), `ApplicationServicePhotoReuploadTest.java`(`reuploadPhotoForIndividualDeletesOldPhotoFile`, `reuploadPhotoForGroupDeletesOldMemberPhotosAndOldSubmitFile` 신규)
+- 테스트: 신규 테스트 4건을 구현 전 실패 확인 후 통과. Application/API 도메인 113개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영 — "DB 실패 시 요청 업로드 파일 역순 보상 삭제, 파일 수정 시 DB 갱신 성공 후 기존 파일 삭제가 필요하다."
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — 학번 형식 검증)
 
 - 변경: `checklist.md` §4 여섯 번째 항목 구현 — 개인 신청 경로(`ApplicationService.validateStudentFields`)에서 학생증 학번이 최대 10자·숫자만 허용하도록 형식 검증 추가(`\d{1,10}` 정규식). 단체 신청 경로(`BulkExcelParser`)는 이번 항목 범위 밖(별도 TODO 항목에서 처리 예정).

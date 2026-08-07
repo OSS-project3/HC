@@ -15,6 +15,9 @@ import com.example.honorcitizen.domain.application.repository.ApplicationReposit
 import com.example.honorcitizen.domain.application.repository.ReceiverRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
+import com.example.honorcitizen.common.enums.UploadFileType;
+import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
+import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -36,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest
@@ -53,6 +57,8 @@ class ApplicationServicePhotoReuploadTest {
     private ApplicationMemberRepository applicationMemberRepository;
     @Autowired
     private CardTypeRepository cardTypeRepository;
+    @Autowired
+    private UploadFileRepository uploadFileRepository;
 
     @MockitoBean
     private com.example.honorcitizen.infra.storage.StorageService storageService;
@@ -149,6 +155,16 @@ class ApplicationServicePhotoReuploadTest {
     }
 
     @Test
+    void reuploadPhotoForIndividualDeletesOldPhotoFile() {
+        Application application = photoRejectedIndividualApplication(1L);
+        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", "new-bytes".getBytes());
+
+        applicationService.reuploadPhoto(1L, application.getId(), photo, null);
+
+        verify(storageService).delete("photos/old.jpg");
+    }
+
+    @Test
     void reuploadPhotoRejectsWhenStatusIsNotPhotoRejected() {
         Application application = applicationRepository.save(Application.createIndividual(
                 1L, "APP-2026-200003", cardType.getId(), IssueType.MOBILE, true, null, null));
@@ -197,6 +213,32 @@ class ApplicationServicePhotoReuploadTest {
         List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(application.getId());
         assertThat(members).hasSize(1);
         assertThat(members.get(0).getEnglishName()).isEqualTo("Jane Doe");
+    }
+
+    @Test
+    void reuploadPhotoForGroupDeletesOldMemberPhotosAndOldSubmitFile() throws Exception {
+        UploadFile oldSubmitFile = uploadFileRepository.save(UploadFile.create(
+                "old.zip", "old-stored.zip", "applications/uploads/old-submit.zip",
+                UploadFileType.ZIP, "application/zip", 100L));
+        Application application = applicationRepository.save(Application.createGroup(
+                1L, "APP-2026-200099", cardType.getId(), IssueType.MOBILE, true, 1, 10L, 11L, oldSubmitFile.getId()));
+        applicantRepository.save(Applicant.createGroup(
+                application.getId(), "인사담당", "hr@example.com", "010-1111-1111", "OO기업", "인사팀"));
+        applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                application.getId(), "John Doe", LocalDate.of(1988, 1, 1), "US",
+                null, null, Gender.MALE, null, "john@example.com", "010-2222-2222", "Seoul", null, null, "photos/old-member.jpg"));
+        application.confirmPayment();
+        application.startReview();
+        application.rejectPhoto("사진이 흐립니다.");
+        applicationRepository.save(application);
+
+        byte[] zip = buildZip("9|Jane Doe|1991-02-02|US|||FEMALE||jane@example.com|010-3333-3333|Busan");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+
+        applicationService.reuploadPhoto(1L, application.getId(), null, submitFile);
+
+        verify(storageService).delete("photos/old-member.jpg");
+        verify(storageService).delete("applications/uploads/old-submit.zip");
     }
 
     @Test

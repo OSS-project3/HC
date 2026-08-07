@@ -35,6 +35,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
@@ -66,17 +67,22 @@ public class ApplicationService {
         validateCreateIndividual(request, photo, schoolLogo, schoolSeal, isStudent);
 
         String applicationNumber = generateApplicationNumber();
-        Long logoFileId = isStudent ? storeUploadFile(schoolLogo, UploadFileType.PHOTO) : null;
-        Long sealFileId = isStudent && isPresent(schoolSeal) ? storeUploadFile(schoolSeal, UploadFileType.PHOTO) : null;
+        List<String> uploadedKeys = new ArrayList<>();
+        Long logoFileId = isStudent ? storeUploadFile(schoolLogo, UploadFileType.PHOTO, uploadedKeys) : null;
+        Long sealFileId = isStudent && isPresent(schoolSeal) ? storeUploadFile(schoolSeal, UploadFileType.PHOTO, uploadedKeys) : null;
         boolean receiverSameAsApplicant = request.isReceiverSameAsApplicant();
-        String photoPath = storePhotoFile(applicationNumber, photo);
+        String photoPath = storePhotoFile(applicationNumber, photo, uploadedKeys);
         String applicantEmail = hasText(request.getApplicant().getEmail()) ? request.getApplicant().getEmail() : user.getEmail();
 
-        Application application = applicationPersistenceService.saveIndividual(
-                userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
-                logoFileId, sealFileId, request, applicantEmail, photoPath);
-
-        return ApplicationCreateResponse.from(application);
+        try {
+            Application application = applicationPersistenceService.saveIndividual(
+                    userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
+                    logoFileId, sealFileId, request, applicantEmail, photoPath);
+            return ApplicationCreateResponse.from(application);
+        } catch (RuntimeException e) {
+            deleteUploadedFilesReversed(uploadedKeys);
+            throw e;
+        }
     }
 
     private void validateCreateIndividual(ApplicationCreateRequest request, MultipartFile photo,
@@ -104,23 +110,30 @@ public class ApplicationService {
         List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, isStudent);
 
         String applicationNumber = generateApplicationNumber();
-        Long logoFileId = storeUploadFile(logo, UploadFileType.PHOTO);
-        Long sealFileId = isPresent(seal) ? storeUploadFile(seal, UploadFileType.PHOTO) : null;
-        Long submitFileId = storeUploadFile(submitFile, UploadFileType.ZIP);
+        List<String> uploadedKeys = new ArrayList<>();
+        Long logoFileId = storeUploadFile(logo, UploadFileType.PHOTO, uploadedKeys);
+        Long sealFileId = isPresent(seal) ? storeUploadFile(seal, UploadFileType.PHOTO, uploadedKeys) : null;
+        Long submitFileId = storeUploadFile(submitFile, UploadFileType.ZIP, uploadedKeys);
         boolean receiverSameAsApplicant = request.getReceiver() == null || request.getReceiver().isSameAsApplicant();
 
-        List<GroupMemberUpload> memberUploads = rows.stream()
-                .map(row -> new GroupMemberUpload(row, storePhotoBytes(applicationNumber, row.photoFilename(), row.photoBytes())))
-                .toList();
+        List<GroupMemberUpload> memberUploads = new ArrayList<>();
+        for (BulkMemberRow row : rows) {
+            String photoPath = storePhotoBytes(applicationNumber, row.photoFilename(), row.photoBytes(), uploadedKeys);
+            memberUploads.add(new GroupMemberUpload(row, photoPath));
+        }
 
         User user = userService.findById(userId);
         String applicantEmail = hasText(request.getApplicant().getEmail()) ? request.getApplicant().getEmail() : user.getEmail();
 
-        Application application = applicationPersistenceService.saveGroup(
-                userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
-                rows.size(), logoFileId, sealFileId, submitFileId, request, applicantEmail, memberUploads);
-
-        return BulkApplicationCreateResponse.from(application);
+        try {
+            Application application = applicationPersistenceService.saveGroup(
+                    userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
+                    rows.size(), logoFileId, sealFileId, submitFileId, request, applicantEmail, memberUploads);
+            return BulkApplicationCreateResponse.from(application);
+        } catch (RuntimeException e) {
+            deleteUploadedFilesReversed(uploadedKeys);
+            throw e;
+        }
     }
 
     @Transactional
@@ -140,8 +153,10 @@ public class ApplicationService {
                 throw new CustomException(ErrorCode.INVALID_INPUT);
             }
             ApplicationMember member = applicationMemberRepository.findByApplicationId(applicationId).get(0);
+            String oldPhotoPath = member.getPhotoPath();
             member.updatePhoto(storePhotoFile(application.getApplicationNumber(), photo));
             application.resubmitForReview(null);
+            deleteIfPresent(oldPhotoPath);
         } else {
             if (!isPresent(submitFile) || isPresent(photo)) {
                 throw new CustomException(ErrorCode.INVALID_INPUT);
@@ -149,6 +164,11 @@ public class ApplicationService {
             CardType cardType = cardTypeRepository.findById(application.getCardTypeId())
                     .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
             List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, cardType.isStudentCard());
+
+            Long oldSubmitFileId = application.getSubmitFileId();
+            List<String> oldMemberPhotoPaths = applicationMemberRepository.findByApplicationId(applicationId).stream()
+                    .map(ApplicationMember::getPhotoPath)
+                    .toList();
 
             Long newSubmitFileId = storeUploadFile(submitFile, UploadFileType.ZIP);
             applicationMemberRepository.deleteByApplicationId(applicationId);
@@ -162,6 +182,11 @@ public class ApplicationService {
             }
             application.updateTotalQuantity(rows.size());
             application.resubmitForReview(newSubmitFileId);
+
+            oldMemberPhotoPaths.forEach(this::deleteIfPresent);
+            if (oldSubmitFileId != null) {
+                uploadFileRepository.findById(oldSubmitFileId).ifPresent(uploadFile -> deleteIfPresent(uploadFile.getFilePath()));
+            }
         }
 
         return ApplicationPhotoReuploadResponse.from(application);
@@ -287,9 +312,14 @@ public class ApplicationService {
     }
 
     private String storePhotoBytes(String applicationNumber, String originalFilename, byte[] bytes) {
+        return storePhotoBytes(applicationNumber, originalFilename, bytes, new ArrayList<>());
+    }
+
+    private String storePhotoBytes(String applicationNumber, String originalFilename, byte[] bytes, List<String> uploadedKeys) {
         String key = "applications/" + applicationNumber + "/member-photos/" + UUID.randomUUID() + "-"
                 + sanitizeFilename(originalFilename);
         storageService.uploadBytes(key, bytes, guessContentType(originalFilename));
+        uploadedKeys.add(key);
         return key;
     }
 
@@ -347,6 +377,18 @@ public class ApplicationService {
         return studentId.matches("\\d{1,10}");
     }
 
+    private void deleteIfPresent(String key) {
+        if (hasText(key)) {
+            storageService.delete(key);
+        }
+    }
+
+    private void deleteUploadedFilesReversed(List<String> uploadedKeys) {
+        for (int i = uploadedKeys.size() - 1; i >= 0; i--) {
+            storageService.delete(uploadedKeys.get(i));
+        }
+    }
+
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
@@ -356,16 +398,26 @@ public class ApplicationService {
     }
 
     private String storePhotoFile(String applicationNumber, MultipartFile photo) {
+        return storePhotoFile(applicationNumber, photo, new ArrayList<>());
+    }
+
+    private String storePhotoFile(String applicationNumber, MultipartFile photo, List<String> uploadedKeys) {
         String key = "applications/" + applicationNumber + "/member-photos/" + UUID.randomUUID() + "-"
                 + sanitizeFilename(photo.getOriginalFilename());
         storageService.upload(key, photo);
+        uploadedKeys.add(key);
         return key;
     }
 
     private Long storeUploadFile(MultipartFile file, UploadFileType fileType) {
+        return storeUploadFile(file, fileType, new ArrayList<>());
+    }
+
+    private Long storeUploadFile(MultipartFile file, UploadFileType fileType, List<String> uploadedKeys) {
         String storedName = UUID.randomUUID() + "-" + sanitizeFilename(file.getOriginalFilename());
         String key = "applications/uploads/" + storedName;
         storageService.upload(key, file);
+        uploadedKeys.add(key);
 
         UploadFile uploadFile = UploadFile.create(
                 file.getOriginalFilename(), storedName, key, fileType, file.getContentType(), file.getSize());
