@@ -35,6 +35,8 @@ public class BulkApplicationCreateRequest {
 
         @NotBlank
         private String phone;
+
+        private String email;
     }
 
     @Getter

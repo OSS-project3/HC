@@ -215,6 +215,29 @@ class ApplicationServiceBulkTest {
     }
 
     @Test
+    void createGroupSavesApplicantEmailFromRequestWhenProvided() throws Exception {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE",
+                  "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678", "email": "changed@example.com" }
+                }
+                """.formatted(honorKoreanCardType.getId());
+        BulkApplicationCreateRequest request = objectMapper.readValue(json, BulkApplicationCreateRequest.class);
+
+        byte[] excel = buildExcel(false, ROW_1, ROW_2);
+        byte[] zip = buildZip(excel, "1", "2");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        BulkApplicationCreateResponse response = applicationService.createGroup(user.getId(), request, logo, seal, submitFile);
+
+        Applicant applicant = applicantRepository.findByApplicationId(response.getApplicationId()).orElseThrow();
+        assertThat(applicant.getEmail()).isEqualTo("changed@example.com");
+    }
+
+    @Test
     void createGroupRejectsWholeBatchWhenAnyRowMissingRequiredField() throws Exception {
         String invalidRow = "3||1988-01-01|US|||MALE||missing-name@example.com|010-0000-0000|Seoul";
         byte[] excel = buildExcel(false, ROW_1, invalidRow);

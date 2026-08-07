@@ -44,6 +44,8 @@ public class ApplicationCreateRequest {
 
         @NotBlank
         private String phone;
+
+        private String email;
     }
 
     @Getter

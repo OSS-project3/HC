@@ -175,6 +175,33 @@ class ApplicationServiceTest {
     }
 
     @Test
+    void createIndividualSavesApplicantEmailFromRequestWhenProvided() {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE",
+                  "applicant": { "name": "홍길동", "phone": "010-1234-5678", "email": "changed@example.com" },
+                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE" }
+                }
+                """.formatted(honorKoreanCardType.getId());
+        ApplicationCreateRequest request = parse(json);
+
+        var response = applicationService.createIndividual(user.getId(), request, photo(), null, null);
+
+        Applicant applicant = applicantRepository.findByApplicationId(response.getApplicationId()).orElseThrow();
+        assertThat(applicant.getEmail()).isEqualTo("changed@example.com");
+    }
+
+    @Test
+    void createIndividualFallsBackToUserEmailWhenApplicantEmailBlank() {
+        var response = applicationService.createIndividual(
+                user.getId(), mobileRequest(honorKoreanCardType.getId()), photo(), null, null);
+
+        Applicant applicant = applicantRepository.findByApplicationId(response.getApplicationId()).orElseThrow();
+        assertThat(applicant.getEmail()).isEqualTo("member@example.com");
+    }
+
+    @Test
     void createIndividualRequiresReceiverWhenPhysicalIssueRequested() {
         ApplicationCreateRequest request = fromJson(honorKoreanCardType.getId(), "MOBILE_AND_PHYSICAL", null, null, null);
 

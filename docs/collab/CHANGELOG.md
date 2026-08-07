@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-07 — Claude — `main` (checklist.md §4 — Applicant.email 요청값 반영)
+
+- 변경: `checklist.md` §4 다섯 번째 항목 구현 — `Applicant.email`을 항상 `User.email`로 고정 저장하던 것을, 요청(`applicant.email`)이 있으면 그 값을, 없으면 `User.email`을 기본값으로 저장하도록 변경. `ApplicationCreateRequest`/`BulkApplicationCreateRequest`의 `ApplicantRequest`에 `email` 필드 신규 추가(검증 annotation 없음 — 신청 화면에서 자유롭게 수정 가능해야 하므로).
+- 파일: `ApplicationCreateRequest.java`(`ApplicantRequest.email`), `BulkApplicationCreateRequest.java`(`ApplicantRequest.email`), `ApplicationService.java`(createIndividual/createGroup), `ApplicationServiceTest.java`(`createIndividualSavesApplicantEmailFromRequestWhenProvided`, `createIndividualFallsBackToUserEmailWhenApplicantEmailBlank` 신규), `ApplicationServiceBulkTest.java`(`createGroupSavesApplicantEmailFromRequestWhenProvided` 신규)
+- 테스트: 신규 테스트 3건을 구현 전 실패 확인 후 통과. Application/API 도메인 107개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패 — 회귀 없음.
+- 사유: `APPLICATION.md`/`checklist.md` 기준 구현 반영 — "User.email은 기본값이며 신청 화면에서 수정 가능해야 한다."
+- 관련: TODO "checklist.md §4 구현 진행"
+
 ## 2026-08-07 — Claude — `main` (checklist.md §4 — sameAsApplicant 복사 범위 제한)
 
 - 변경: `checklist.md` §4 네 번째 항목 구현 — `sameAsApplicant=true`여도 배송지(우편번호·주소·상세주소·배송메모)는 항상 요청의 `receiver` 값을 저장하도록 변경(기존엔 `copyFromApplicant`/`copyIndividualReceiver`가 이 필드들을 전부 `null`로 덮어씀). 이름·연락처는 요청값이 비어 있을 때만 Applicant 값으로 대체(fallback) — `ReceiverRequest`에 검증 annotation이 없어 빈 값 제출이 가능하기 때문.

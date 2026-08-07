@@ -70,10 +70,11 @@ public class ApplicationService {
         Long sealFileId = isStudent && isPresent(schoolSeal) ? storeUploadFile(schoolSeal, UploadFileType.PHOTO) : null;
         boolean receiverSameAsApplicant = request.isReceiverSameAsApplicant();
         String photoPath = storePhotoFile(applicationNumber, photo);
+        String applicantEmail = hasText(request.getApplicant().getEmail()) ? request.getApplicant().getEmail() : user.getEmail();
 
         Application application = applicationPersistenceService.saveIndividual(
                 userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
-                logoFileId, sealFileId, request, user.getEmail(), photoPath);
+                logoFileId, sealFileId, request, applicantEmail, photoPath);
 
         return ApplicationCreateResponse.from(application);
     }
@@ -113,10 +114,11 @@ public class ApplicationService {
                 .toList();
 
         User user = userService.findById(userId);
+        String applicantEmail = hasText(request.getApplicant().getEmail()) ? request.getApplicant().getEmail() : user.getEmail();
 
         Application application = applicationPersistenceService.saveGroup(
                 userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
-                rows.size(), logoFileId, sealFileId, submitFileId, request, user.getEmail(), memberUploads);
+                rows.size(), logoFileId, sealFileId, submitFileId, request, applicantEmail, memberUploads);
 
         return BulkApplicationCreateResponse.from(application);
     }
