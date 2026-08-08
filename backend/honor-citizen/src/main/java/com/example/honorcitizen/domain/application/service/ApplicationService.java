@@ -33,6 +33,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
@@ -246,8 +248,8 @@ public class ApplicationService {
      * [개인 신청 재업로드 흐름]
      *   1. 새 사진을 S3에 업로드
      *   2. ApplicationMember의 photoPath를 새 경로로 교체
-     *   3. Application 상태를 PHOTO_REJECTED → PENDING(재검토 요청)으로 전이
-     *   4. 구 사진을 S3에서 삭제
+     *   3. Application 상태를 PHOTO_REJECTED → REVIEWING(재검토 요청)으로 전이
+     *   4. DB commit 이후 구 사진을 S3에서 삭제
      *   새 파일 저장 성공을 확인한 후에 구 파일을 지우는 순서가 중요하다.
      *   거꾸로 하면 저장 실패 시 사진 자체가 없어질 수 있다.
      *
@@ -259,7 +261,7 @@ public class ApplicationService {
      *   2. 새 ZIP 파싱 및 멤버별 사진 S3 업로드
      *   3. 기존 ApplicationMember 전체 삭제 후 새 멤버로 재적재
      *   4. Application.resubmitForReview()로 상태 전이 및 submitFileId 교체
-     *   5. 구 사진들 S3에서 삭제
+     *   5. DB commit 이후 구 사진들 S3에서 삭제
      */
     @Transactional
     public ApplicationPhotoReuploadResponse reuploadPhoto(Long userId, Long applicationId,
@@ -278,62 +280,67 @@ public class ApplicationService {
             throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
 
-        if (application.isIndividual()) {
-            // 개인 신청: 단일 사진 파일만 교체한다. ZIP을 함께 보내면 의도가 명확하지 않으므로 오류 처리한다.
-            if (!isPresent(photo) || isPresent(submitFile)) {
-                throw new CustomException(ErrorCode.INVALID_INPUT);
+        List<String> newUploadedKeys = new ArrayList<>();
+
+        try {
+            if (application.isIndividual()) {
+                // 개인 신청: 단일 사진 파일만 교체한다. ZIP을 함께 보내면 의도가 명확하지 않으므로 오류 처리한다.
+                if (!isPresent(photo) || isPresent(submitFile)) {
+                    throw new CustomException(ErrorCode.INVALID_INPUT);
+                }
+                ApplicationMember member = applicationMemberRepository.findByApplicationId(applicationId).get(0);
+                String oldPhotoPath = member.getPhotoPath();
+
+                // 새 사진을 먼저 업로드하고 경로를 교체한다.
+                // 이 순서를 지키면 업로드 실패 시 구 사진이 그대로 남아 데이터 무결성을 보장한다.
+                member.updatePhoto(storePhotoFile(application.getApplicationNumber(), photo, newUploadedKeys));
+                application.resubmitForReview(null); // submitFileId는 개인 신청에서 null
+                registerS3CleanupAfterTransaction(newUploadedKeys, java.util.Collections.singletonList(oldPhotoPath));
+            } else {
+                // 단체 신청: ZIP 전체 교체. 단일 사진 파일을 보내면 오류 처리한다.
+                if (!isPresent(submitFile) || isPresent(photo)) {
+                    throw new CustomException(ErrorCode.INVALID_INPUT);
+                }
+                CardType cardType = cardTypeRepository.findById(application.getCardTypeId())
+                        .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+                List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, cardType.isStudentCard());
+
+                Long oldSubmitFileId = application.getSubmitFileId();
+                String oldSubmitFilePath = oldSubmitFileId == null ? null : uploadFileRepository.findById(oldSubmitFileId)
+                        .map(UploadFile::getFilePath)
+                        .orElse(null);
+
+                // 구 멤버 사진 경로를 deleteByApplicationId 호출 전에 반드시 수집해야 한다.
+                // 삭제 후에는 해당 레코드가 사라지므로 경로를 조회할 수 없다.
+                List<String> oldMemberPhotoPaths = new ArrayList<>(applicationMemberRepository.findByApplicationId(applicationId).stream()
+                        .map(ApplicationMember::getPhotoPath)
+                        .toList());
+                if (hasText(oldSubmitFilePath)) {
+                    oldMemberPhotoPaths.add(oldSubmitFilePath);
+                }
+
+                UploadedFileMetadata newSubmitFileMetadata = uploadFileToStorage(submitFile, UploadFileType.ZIP, newUploadedKeys);
+                Long newSubmitFileId = saveUploadFileMetadata(newSubmitFileMetadata);
+
+                // 기존 멤버를 전체 삭제 후 새 멤버로 재적재한다.
+                // 멤버 수가 다를 수도 있고(ZIP에서 행이 추가/삭제될 수 있음), 어떤 멤버가 반려됐는지
+                // 매핑을 유지하는 것보다 전체 교체가 구현 복잡도 측면에서 훨씬 단순하다.
+                applicationMemberRepository.deleteByApplicationId(applicationId);
+                for (BulkMemberRow row : rows) {
+                    String photoPath = storePhotoBytes(application.getApplicationNumber(), row.photoFilename(), row.photoBytes(), newUploadedKeys);
+                    ApplicationMember member = ApplicationMember.createGroupRow(
+                            applicationId, row.englishName(), row.birthDate(), row.nationality(),
+                            row.birthTime(), row.birthRegion(), row.gender(), row.entryDate(),
+                            row.email(), row.phone(), row.address(), row.studentId(), row.department(), photoPath);
+                    applicationMemberRepository.save(member);
+                }
+                application.updateTotalQuantity(rows.size());
+                application.resubmitForReview(newSubmitFileId);
+                registerS3CleanupAfterTransaction(newUploadedKeys, oldMemberPhotoPaths);
             }
-            ApplicationMember member = applicationMemberRepository.findByApplicationId(applicationId).get(0);
-            String oldPhotoPath = member.getPhotoPath();
-
-            // 새 사진을 먼저 업로드하고 경로를 교체한다.
-            // 이 순서를 지키면 업로드 실패 시 구 사진이 그대로 남아 데이터 무결성을 보장한다.
-            member.updatePhoto(storePhotoFile(application.getApplicationNumber(), photo));
-            application.resubmitForReview(null); // submitFileId는 개인 신청에서 null
-
-            // 새 사진 저장이 완료된 후에 구 사진을 삭제한다.
-            // S3 삭제 실패는 무시해도 되는 허용 가능한 잔재(acceptable orphan)로 처리한다.
-            deleteIfPresent(oldPhotoPath);
-        } else {
-            // 단체 신청: ZIP 전체 교체. 단일 사진 파일을 보내면 오류 처리한다.
-            if (!isPresent(submitFile) || isPresent(photo)) {
-                throw new CustomException(ErrorCode.INVALID_INPUT);
-            }
-            CardType cardType = cardTypeRepository.findById(application.getCardTypeId())
-                    .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
-            List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, cardType.isStudentCard());
-
-            Long oldSubmitFileId = application.getSubmitFileId();
-
-            // 구 멤버 사진 경로를 deleteByApplicationId 호출 전에 반드시 수집해야 한다.
-            // 삭제 후에는 해당 레코드가 사라지므로 경로를 조회할 수 없다.
-            List<String> oldMemberPhotoPaths = applicationMemberRepository.findByApplicationId(applicationId).stream()
-                    .map(ApplicationMember::getPhotoPath)
-                    .toList();
-
-            Long newSubmitFileId = storeUploadFile(submitFile, UploadFileType.ZIP);
-
-            // 기존 멤버를 전체 삭제 후 새 멤버로 재적재한다.
-            // 멤버 수가 다를 수도 있고(ZIP에서 행이 추가/삭제될 수 있음), 어떤 멤버가 반려됐는지
-            // 매핑을 유지하는 것보다 전체 교체가 구현 복잡도 측면에서 훨씬 단순하다.
-            applicationMemberRepository.deleteByApplicationId(applicationId);
-            for (BulkMemberRow row : rows) {
-                String photoPath = storePhotoBytes(application.getApplicationNumber(), row.photoFilename(), row.photoBytes());
-                ApplicationMember member = ApplicationMember.createGroupRow(
-                        applicationId, row.englishName(), row.birthDate(), row.nationality(),
-                        row.birthTime(), row.birthRegion(), row.gender(), row.entryDate(),
-                        row.email(), row.phone(), row.address(), row.studentId(), row.department(), photoPath);
-                applicationMemberRepository.save(member);
-            }
-            application.updateTotalQuantity(rows.size());
-            application.resubmitForReview(newSubmitFileId);
-
-            // 구 파일 정리는 새 파일 저장이 모두 완료된 후 마지막에 수행한다.
-            // S3 삭제 실패가 트랜잭션 롤백을 유발하지 않도록 deleteIfPresent는 예외를 전파하지 않는다.
-            oldMemberPhotoPaths.forEach(this::deleteIfPresent);
-            if (oldSubmitFileId != null) {
-                uploadFileRepository.findById(oldSubmitFileId).ifPresent(uploadFile -> deleteIfPresent(uploadFile.getFilePath()));
-            }
+        } catch (RuntimeException e) {
+            deleteUploadedFilesQuietlyReversed(newUploadedKeys);
+            throw e;
         }
 
         return ApplicationPhotoReuploadResponse.from(application);
@@ -693,6 +700,32 @@ public class ApplicationService {
         } catch (RuntimeException e) {
             log.warn("Failed to delete uploaded S3 object. key={}", key, e);
         }
+    }
+
+    private void registerS3CleanupAfterTransaction(List<String> newUploadedKeys, List<String> oldKeysToDeleteAfterCommit) {
+        List<String> newKeysSnapshot = new ArrayList<>(newUploadedKeys);
+        List<String> oldKeysSnapshot = oldKeysToDeleteAfterCommit.stream()
+                .filter(this::hasText)
+                .toList();
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            oldKeysSnapshot.forEach(this::deleteIfPresent);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                oldKeysSnapshot.forEach(ApplicationService.this::deleteIfPresent);
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    deleteUploadedFilesQuietlyReversed(newKeysSnapshot);
+                }
+            }
+        });
     }
 
     private boolean hasText(String value) {
