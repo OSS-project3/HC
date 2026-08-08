@@ -24,8 +24,10 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -110,7 +112,11 @@ class BulkExcelParser {
                     // "1.jpg" → ID="1", "photo_001.PNG" → ID="photo_001"
                     // toLowerCase()로 통일해 "1.JPG"와 "1.jpg"가 같은 ID로 처리되도록 한다.
                     String id = stripExtension(name);
-                    photosById.put(id.toLowerCase(), new PhotoEntry(name, readAll(zipInputStream)));
+                    String normalizedId = id.toLowerCase();
+                    if (photosById.containsKey(normalizedId)) {
+                        throw singleError(null, "photo", "PHOTO_DUPLICATE", "동일 ID에 대한 사진 파일이 2개 이상입니다.");
+                    }
+                    photosById.put(normalizedId, new PhotoEntry(name, readAll(zipInputStream)));
                 }
             }
         } catch (IOException e) {
@@ -166,6 +172,7 @@ class BulkExcelParser {
 
             List<BulkMemberRow> rows = new ArrayList<>();
             List<ValidationErrorDetail> errors = new ArrayList<>();
+            Set<String> seenIds = new HashSet<>();
 
             int lastRowNum = sheet.getLastRowNum();
             for (int rowIndex = FIRST_DATA_ROW; rowIndex <= lastRowNum; rowIndex++) {
@@ -175,12 +182,21 @@ class BulkExcelParser {
                 if (id == null || id.isBlank()) {
                     continue;
                 }
+                String normalizedId = id.toLowerCase();
+                if (!seenIds.add(normalizedId)) {
+                    errors.add(new ValidationErrorDetail(rowIndex + 1, "id", "DUPLICATE_ID", "엑셀 ID가 중복되었습니다."));
+                    continue;
+                }
 
                 // parseRow는 오류가 있으면 errors에 누적하고 null을 반환한다.
                 BulkMemberRow parsed = parseRow(row, id, commonEntryDate, photosById, isStudent, formatter, errors);
                 if (parsed != null) {
                     rows.add(parsed);
                 }
+            }
+
+            for (PhotoEntry remainingPhoto : photosById.values()) {
+                errors.add(new ValidationErrorDetail(null, "photo", "PHOTO_UNMATCHED", "엑셀 ID와 매칭되지 않는 사진 파일입니다: " + remainingPhoto.fileName()));
             }
 
             // 유효한 행도 없고 오류도 없으면 → 데이터가 없는 빈 파일
@@ -265,7 +281,7 @@ class BulkExcelParser {
 
         // ID로 사진 파일을 매칭한다. 대소문자를 무시하고 확장자는 이미 제거된 상태다.
         // 예: 엑셀 ID="1", 사진 파일="1.jpg" → photosById.get("1") 으로 매칭
-        PhotoEntry photo = photosById.get(id.toLowerCase());
+        PhotoEntry photo = photosById.remove(id.toLowerCase());
         if (photo == null) {
             errors.add(new ValidationErrorDetail(rowNumber, "photo", "PHOTO_NOT_FOUND", "ID에 매칭되는 사진을 찾을 수 없습니다."));
         }

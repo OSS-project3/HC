@@ -142,6 +142,42 @@ class BulkExcelParserTest {
     }
 
     @Test
+    void parseRejectsDuplicatePhotoFilesForSameId() throws Exception {
+        byte[] excel = buildExcel("001|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul");
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg", "001.png");
+
+        assertThatThrownBy(() -> parser.parse(zip, false))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("PHOTO_DUPLICATE"));
+    }
+
+    @Test
+    void parseRejectsPhotoThatDoesNotMatchAnyExcelId() throws Exception {
+        byte[] excel = buildExcel(ROW_1);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg", "999.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("PHOTO_UNMATCHED"));
+    }
+
+    @Test
+    void parseRejectsDuplicateExcelIds() throws Exception {
+        byte[] excel = buildExcel(ROW_1, "1|Jane Doe|1991-02-02|US|||FEMALE||jane@example.com|010-3333-3333|Busan");
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("DUPLICATE_ID"));
+    }
+
+    @Test
     void parseIgnoresPhotoInsideSubfolderAndTreatsItAsMissing() throws Exception {
         byte[] excel = buildExcel(ROW_1);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "photos/1.jpg");

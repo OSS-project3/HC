@@ -236,6 +236,8 @@ Content-Type: multipart/form-data
 
 ✅ 2026-08-07 확정(`APPLICATION.md` 기준): 오류 하나라도 발생하면 **부분 성공 없이 신청 전체를 실패 처리**하고, 상세 오류를 `errors[]`(행 번호·필드·코드·메시지)로 함께 반환한다. 옛 "실패율 30% 룰"은 폐기(Legacy). 기존 `EXCEL_NOT_FOUND`/`EXCEL_PARSE_ERROR`/`ZIP_TOO_LARGE`는 `BULK_APPLICATION_VALIDATION_FAILED`로 흡수되며 개별 errorCode로는 더 쓰지 않는다. ZIP 최대 크기·Excel 최대 행 수·최대 신청 인원은 현재 제한하지 않는다([TBD], `PENDING_DECISIONS.md`).
 
+사진 매칭 세부 오류 code는 다음을 사용한다: 엑셀 ID 중복은 `DUPLICATE_ID`, 동일 ID 사진 중복은 `PHOTO_DUPLICATE`, 엑셀 ID와 매칭되지 않는 여분 사진은 `PHOTO_UNMATCHED`, 엑셀 ID에 대응하는 사진 누락은 `PHOTO_NOT_FOUND`.
+
 - 엑셀 행 수만큼 `ApplicationMember`가 생성됨 → `total_quantity`는 서버가 엑셀 행 수를 세서 채움(클라이언트가 안 보냄)
 - ⚠️ 2026-07-31 정정: `cardDesignId` → `cardTypeId`로 교체(API 1과 동일 이유)
 - ✅ 2026-07-31 신규: 엑셀에 개별입국날짜/이메일/전화번호/(학생증이면)학번·학과 컬럼 추가 — 아래 엑셀 템플릿 표 참고
