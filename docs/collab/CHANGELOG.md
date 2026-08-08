@@ -15,6 +15,38 @@
 
 ---
 
+## 2026-08-08 — Claude — `main` (createGroup — User 자격 검증을 파일 업로드 이전으로 이동)
+
+- 변경: `ApplicationService.createGroup()`이 존재 여부만 확인하는 `userService.findById(userId)`를 로고·직인·ZIP·멤버 사진 업로드가 모두 끝난 뒤(그것도 `try` 블록 밖)에서 호출하던 문제를 수정. 개인 신청(`createIndividual`)과 동일하게 메서드 최상단에서 `findUser(userId)`(=`findEligibleApplicationUser`, 탈퇴/권한/약관 동의까지 검증)를 호출하도록 이동했다. 이로써 ①탈퇴·비-USER role·약관 미동의 사용자의 단체 신청이 개인 신청과 동일하게 차단되고, ②User 검증 실패가 더 이상 `try` 블록 밖에서 발생하지 않아 이미 업로드된 S3 파일이 고아로 남는 문제도 함께 해소됨.
+- 파일: `ApplicationService.java`, `ApplicationServiceBulkTest.java`(신규 3건 + 픽스처 `agreeTerms` 보강), `ApplicationBulkControllerTest.java`(픽스처 `agreeTerms` 보강)
+- 테스트: 신규 3건(탈퇴/비-USER role/약관 미동의, 탈퇴 케이스는 `storageService` 미호출까지 검증)을 구현 전 실패 확인 후 통과. Application/API 도메인 133개 전체 통과, 전체 스위트는 기존과 동일하게 `UserControllerTest` 2건·`UserApplicationFlowTest` 1건(Redis 미기동)만 실패 — 회귀 없음.
+- 사유: 개인/단체 신청 간 신청 자격 검증 정책 불일치 및 리소스 누수 버그 발견 후 수정.
+- 관련: 없음
+
+## 2026-08-08 — Claude — `main` (Application Request DTO 입력값 검증 보강)
+
+- 변경: `ApplicationCreateRequest`/`BulkApplicationCreateRequest`의 필드 검증을 DB 컬럼 길이·표준 Bean Validation 기준으로 보강. `@Size`(엔티티 컬럼 길이와 일치: name/zipCode/address/detailAddress/deliveryRequest/englishName/birthRegion/organizationName/department), `@Email`(applicant.email), `@Past`(member.birthDate)를 추가했다. 국적은 `data-model.md`(ISO 3166-1 alpha-2 확정 명시)와 `APPLICATION.md`(언급 없음) 간 문서 충돌을 발견해 보고한 뒤, 사람이 "ISO 코드 기준 관리"로 확정해 커스텀 `@ValidNationality`(`Locale.getISOCountries()` 기반)를 추가했다. 이 판정 로직(`ApplicationFieldFormats`)은 개인 신청 DTO와 `BulkExcelParser`(단체 신청 엑셀 행 파싱) 양쪽에서 재사용해 개인/단체 검증 정책이 갈라지지 않게 했다. 전화번호 형식(`@Pattern`)과 생년월일 최소연도 제한은 각각 국제 전화번호 정책 미확정, 비즈니스 근거 부재로 이번 범위에서 제외하고 `@NotBlank`/`@Past`만 유지했다.
+- 파일: `ApplicationCreateRequest.java`, `BulkApplicationCreateRequest.java`, `BulkExcelParser.java`, `domain/application/dto/validation/`(신규 — `ApplicationFieldFormats`, `ValidNationality`, `NationalityValidator`), `ApplicationCreateRequestValidationTest.java`(신규), `BulkExcelParserTest.java`
+- 테스트: 신규 테스트를 구현 전 실패 확인 후 통과. 기존 테스트 픽스처(`nationality: "US"`, `birthDate: "1990-05-15"` 등)가 이미 새 규칙과 호환돼 회귀 없음 확인.
+- 사유: `Application.photoRejectReason` 관련 논의 중 발견한, 신청 단계 입력값 검증이 충분한지에 대한 점검 요청에 따른 보강.
+- 관련: `docs/collab/PENDING_DECISIONS.md` "국제 전화번호 형식 정책" 항목(후속 확정 필요)
+
+## 2026-08-08 — Codex — `main` (UploadFile DB 저장 트랜잭션 이동)
+
+- 변경: 신청 생성 경로에서 S3 업로드와 `UploadFile` DB 저장 책임을 분리. `ApplicationService`는 로고·직인·제출 ZIP을 S3에 먼저 업로드하고 `UploadedFileMetadata`만 전달하며, `ApplicationPersistenceService`가 동일 `@Transactional` 안에서 `UploadFile` row를 저장한 뒤 `Application`/`Applicant`/`Receiver`/`ApplicationMember`를 저장하도록 변경. 얼굴사진/멤버사진은 기존처럼 S3 key(`photoPath`)만 저장하고 `UploadFile` row를 만들지 않는다. 재업로드 경로는 기존 동작을 유지하되 `uploadFileToStorage` + `saveUploadFileMetadata` primitive 조합으로 책임 이름을 분리했다.
+- 파일: `ApplicationService.java`, `ApplicationPersistenceService.java`, `UploadedFileMetadata.java`(신규), `ApplicationPersistenceServiceTest.java`
+- 테스트: `./gradlew.bat test --tests "com.example.honorcitizen.domain.application.service.ApplicationPersistenceServiceTest" --tests "com.example.honorcitizen.domain.application.service.ApplicationServiceUploadCompensationTest"` 통과. `./gradlew.bat test --tests "com.example.honorcitizen.domain.application.service.ApplicationServiceTest" --tests "com.example.honorcitizen.domain.application.service.ApplicationServiceBulkTest" --tests "com.example.honorcitizen.domain.application.service.ApplicationServicePhotoReuploadTest"` 통과. 전체 `./gradlew.bat test`는 146개 중 `UserControllerTest` 2건, `UserApplicationFlowTest` 1건 실패 — 기존 사용자/Redis 환경 이슈로 이번 Application 변경과 무관.
+- 사유: S3 객체는 DB 트랜잭션 밖에서 먼저 업로드하되, `UploadFile` row와 신청 관련 DB row는 하나의 트랜잭션으로 원자성을 보장하기 위함. DB 저장 실패 시에는 수동 DB 보상 삭제 없이 트랜잭션 rollback으로 정리하고, 바깥 서비스는 S3 key 역순 보상 삭제만 유지한다.
+- 관련: UploadFile DB 저장 트랜잭션 이동 계획
+
+## 2026-08-08 — Claude — `main` (GlobalExceptionHandler — Bean Validation 다중 필드 오류 응답)
+
+- 변경: `MethodArgumentNotValidException` 처리 시 첫 번째 `FieldError`만 반환하던 것을 개선 — 위반된 모든 필드를 `ApiResponse.errors`(기존에 Bulk가 쓰던 `List<ValidationErrorDetail>` 필드를 그대로 재사용, 새 필드 추가 없음)에 담아 반환한다. `errors[]`는 `field` 기준으로 정렬해 `BindingResult` 내부 순서(스펙상 미보장)에 우연히 의존하지 않게 했다. 최상위 `errorMessage`는 하위 호환을 위해 기존과 동일하게 (정렬 전) 첫 번째 오류 메시지를 그대로 사용 — `errors[]` 정렬과 무관하게 유지. 중첩 DTO(`ApplicationCreateRequest.applicant.phone` 등) 경로는 Spring이 이미 `FieldError.getField()`에 점(.) 표기로 채워주므로 별도 처리 없이 그대로 노출됨. `ValidationErrorDetail.row`는 Bulk 전용 개념이라 이 경로에서는 항상 `null` — `PENDING_DECISIONS.md`에 후속 공통 오류 모델 정리 대상으로 기록.
+- 파일: `GlobalExceptionHandler.java`, `GlobalExceptionHandlerTest.java`(신규 — 다중 필드 오류 시 `errors[]` 2건·중첩 경로·기존 `errorMessage` 호환성, 단일 필드 오류 시 기존과 동일한 단일-메시지 계약을 각각 검증)
+- 테스트: 신규 테스트 2건을 구현 전 실패 확인 후 통과. 전체 스위트 141개 중 `UserControllerTest` 2건(Redis 미기동)·`UserApplicationFlowTest` 1건(Redis 미기동)만 실패 — 전부 이번 변경 이전부터 있던 환경 문제이며 무관. 회귀 없음.
+- 사유: Application 도메인 입력값 검증 작업 중 발견한 별도 이슈(클라이언트가 한 번의 요청으로 모든 필드 오류를 확인할 수 없음)를 앱 전체 공통 컴포넌트 변경으로 분리해 처리.
+- 관련: `docs/collab/PENDING_DECISIONS.md` "GlobalExceptionHandler의 Bean Validation 다중 필드 오류 응답" 항목 해결
+
 ## 2026-08-07 — Claude — `main` (checklist.md §5 진행 상황 정리)
 
 - 변경: `checklist.md` §5(미구현) 5개 항목을 실제 코드와 대조 — 4개는 §4 작업 과정에서 이미 구현 완료된 상태였음을 확인하고 `TODO.md`만 체크(코드 변경 없음, `checklist.md`는 수정하지 않음): `ApplicationPersistenceService` 신규(§4 "ApplicationPersistenceService 분리"), `BULK_APPLICATION_VALIDATION_FAILED`+`errors[]`(§4 "BulkExcelParser 학번 검증·errors[] 계약"), `application_seq.nextval` 채번(§4 "신청번호 DB Sequence 전환"), 업로드 추적 및 DB 실패 보상 삭제(§4 "업로드 보상 삭제" — `uploadedKeys` 추적 + 역순 `storageService.delete`가 §5 항목의 "확인 근거"였던 두 조건을 모두 충족). 남은 §5 항목은 "일일 KST 3회 제한 DB 원자 처리" 1건뿐 — 정책 문서에 "현재 리팩터링 범위 미구현"으로 명시된 저우선순위 항목.

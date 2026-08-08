@@ -3,6 +3,7 @@ package com.example.honorcitizen.domain.application.service;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.UploadFileType;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.entity.Applicant;
@@ -14,6 +15,7 @@ import com.example.honorcitizen.domain.application.repository.ApplicationReposit
 import com.example.honorcitizen.domain.application.repository.ReceiverRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
+import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,8 +25,10 @@ import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 class ApplicationPersistenceServiceTest {
@@ -42,6 +46,8 @@ class ApplicationPersistenceServiceTest {
     @Autowired
     private CardTypeRepository cardTypeRepository;
     @Autowired
+    private UploadFileRepository uploadFileRepository;
+    @Autowired
     private ObjectMapper objectMapper;
 
     private CardType cardType;
@@ -52,6 +58,7 @@ class ApplicationPersistenceServiceTest {
         receiverRepository.deleteAll();
         applicantRepository.deleteAll();
         applicationRepository.deleteAll();
+        uploadFileRepository.deleteAll();
         cardTypeRepository.deleteAll();
 
         cardType = cardTypeRepository.save(
@@ -97,7 +104,7 @@ class ApplicationPersistenceServiceTest {
 
         Application application = persistenceService.saveGroup(
                 1L, "APP-2026-900003", cardType.getId(), IssueType.MOBILE, true, uploads.size(),
-                null, null, 99L, request, "rep@example.com", uploads);
+                null, null, uploadMetadata("submit.zip", UploadFileType.ZIP), request, "rep@example.com", uploads);
 
         assertThat(application.getId()).isNotNull();
         Applicant applicant = applicantRepository.findByApplicationId(application.getId()).orElseThrow();
@@ -105,6 +112,56 @@ class ApplicationPersistenceServiceTest {
 
         List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(application.getId());
         assertThat(members).hasSize(2);
+        assertThat(application.getSubmitFileId()).isNotNull();
+        assertThat(uploadFileRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void saveIndividualRollsBackUploadFileRowsWhenApplicationSaveFails() throws Exception {
+        applicationRepository.saveAndFlush(Application.createIndividual(
+                1L, "APP-2026-900004", cardType.getId(), IssueType.MOBILE, true, null, null));
+
+        ApplicationCreateRequest request = individualRequest(null);
+
+        assertThatThrownBy(() -> persistenceService.saveIndividual(
+                1L, "APP-2026-900004", cardType.getId(), IssueType.MOBILE, true,
+                uploadMetadata("logo.png", UploadFileType.PHOTO), uploadMetadata("seal.png", UploadFileType.PHOTO),
+                request, "member@example.com", "photos/member.jpg"))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(uploadFileRepository.count()).isZero();
+        assertThat(applicationRepository.count()).isEqualTo(1);
+        assertThat(applicantRepository.count()).isZero();
+        assertThat(receiverRepository.count()).isZero();
+        assertThat(applicationMemberRepository.count()).isZero();
+    }
+
+    @Test
+    void saveGroupRollsBackUploadFileRowsWhenApplicationSaveFails() throws Exception {
+        applicationRepository.saveAndFlush(Application.createGroup(
+                1L, "APP-2026-900005", cardType.getId(), IssueType.MOBILE, true,
+                1, null, null, null));
+
+        BulkApplicationCreateRequest request = groupRequest();
+        List<GroupMemberUpload> uploads = List.of(new GroupMemberUpload(memberRow("1"), "photos/1.jpg"));
+
+        assertThatThrownBy(() -> persistenceService.saveGroup(
+                1L, "APP-2026-900005", cardType.getId(), IssueType.MOBILE, true, uploads.size(),
+                uploadMetadata("logo.png", UploadFileType.PHOTO), uploadMetadata("seal.png", UploadFileType.PHOTO),
+                uploadMetadata("submit.zip", UploadFileType.ZIP), request, "rep@example.com", uploads))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(uploadFileRepository.count()).isZero();
+        assertThat(applicationRepository.count()).isEqualTo(1);
+        assertThat(applicantRepository.count()).isZero();
+        assertThat(receiverRepository.count()).isZero();
+        assertThat(applicationMemberRepository.count()).isZero();
+    }
+
+    private UploadedFileMetadata uploadMetadata(String filename, UploadFileType fileType) {
+        String storedName = UUID.randomUUID() + "-" + filename;
+        String mimeType = fileType == UploadFileType.ZIP ? "application/zip" : "image/png";
+        return new UploadedFileMetadata(filename, storedName, "applications/uploads/" + storedName, fileType, mimeType, 10L);
     }
 
     private BulkMemberRow memberRow(String id) {

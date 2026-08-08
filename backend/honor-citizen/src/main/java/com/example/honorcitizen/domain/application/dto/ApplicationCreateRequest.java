@@ -2,9 +2,14 @@ package com.example.honorcitizen.domain.application.dto;
 
 import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.domain.application.dto.validation.ValidNationality;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -13,6 +18,7 @@ import java.time.LocalTime;
 
 @Getter
 @NoArgsConstructor
+@AllArgsConstructor
 public class ApplicationCreateRequest {
 
     @NotNull
@@ -40,11 +46,14 @@ public class ApplicationCreateRequest {
     @NoArgsConstructor
     public static class ApplicantRequest {
         @NotBlank
+        @Size(max = 100)
         private String name;
 
         @NotBlank
         private String phone;
 
+        @Email
+        @Size(max = 255)
         private String email;
     }
 
@@ -52,16 +61,24 @@ public class ApplicationCreateRequest {
     @NoArgsConstructor
     public static class ReceiverRequest {
         private boolean sameAsApplicant;
+
+        @Size(max = 100)
         private String name;
+
         private String phone;
 
         @NotBlank
+        @Size(max = 10)
         private String zipCode;
 
         @NotBlank
+        @Size(max = 255)
         private String address;
 
+        @Size(max = 255)
         private String detailAddress;
+
+        @Size(max = 255)
         private String deliveryRequest;
     }
 
@@ -69,16 +86,20 @@ public class ApplicationCreateRequest {
     @NoArgsConstructor
     public static class MemberRequest {
         @NotBlank
+        @Size(max = 100)
         private String englishName;
 
         @NotNull
+        @Past
         private LocalDate birthDate;
 
         @NotBlank
+        @ValidNationality
         private String nationality;
 
         private LocalTime birthTime;
 
+        @Size(max = 200)
         private String birthRegion;
 
         @NotNull
@@ -88,6 +109,7 @@ public class ApplicationCreateRequest {
 
         private String studentId;
 
+        @Size(max = 100)
         private String department;
     }
 }

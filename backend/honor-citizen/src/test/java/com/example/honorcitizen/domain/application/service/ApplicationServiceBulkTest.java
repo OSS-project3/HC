@@ -1,6 +1,7 @@
 package com.example.honorcitizen.domain.application.service;
 
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequest;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.ByteArrayOutputStream;
@@ -38,6 +40,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest
@@ -76,7 +80,10 @@ class ApplicationServiceBulkTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        user = userRepository.save(User.createNewUser("group@example.com", "oauth-group", "google", "Group"));
+        user = User.createNewUser("group@example.com", "oauth-group", "google", "Group");
+        // createGroup()이 findUser()(약관 동의 필수)를 거치므로 기본 픽스처 사용자도 동의 상태여야 한다.
+        user.agreeTerms(true, true, true);
+        user = userRepository.save(user);
         honorKoreanCardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-bulk", null, BigDecimal.valueOf(30000)));
         studentCardType = cardTypeRepository.save(
@@ -370,5 +377,63 @@ class ApplicationServiceBulkTest {
                 user.getId(), requestWithMobileAndReceiver(honorKoreanCardType.getId()), logo, seal, submitFile))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    // 개인 신청(ApplicationServiceTest)과 동일한 신청 자격 검증(findUser)이 단체 신청에도 적용되는지 확인한다.
+    // 대표 케이스(탈퇴)에서만 storageService가 전혀 호출되지 않았음을 함께 검증해, User 검증이 모든 파일
+    // 업로드보다 먼저 수행됨을 보장한다 — 나머지 두 케이스는 에러코드만 확인해 중복을 피한다.
+    @Test
+    void createGroupRejectsWithdrawnUserBeforeAnyFileUpload() throws Exception {
+        user.withdraw();
+        userRepository.save(user);
+
+        byte[] excel = buildExcel(false, ROW_1);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        assertThatThrownBy(() -> applicationService.createGroup(
+                user.getId(), request(honorKoreanCardType.getId()), logo, seal, submitFile))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ALREADY_WITHDRAWN);
+
+        verify(storageService, never()).upload(anyString(), any());
+        verify(storageService, never()).uploadBytes(anyString(), any(), anyString());
+        assertThat(applicationRepository.count()).isZero();
+    }
+
+    @Test
+    void createGroupRejectsNonUserRole() throws Exception {
+        ReflectionTestUtils.setField(user, "role", UserRole.ADMIN);
+        userRepository.save(user);
+
+        byte[] excel = buildExcel(false, ROW_1);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        assertThatThrownBy(() -> applicationService.createGroup(
+                user.getId(), request(honorKoreanCardType.getId()), logo, seal, submitFile))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void createGroupRejectsUserWithoutRequiredTerms() throws Exception {
+        User unagreed = userRepository.save(
+                User.createNewUser("group-unagreed@example.com", "oauth-group-unagreed", "google", "Unagreed"));
+
+        byte[] excel = buildExcel(false, ROW_1);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        assertThatThrownBy(() -> applicationService.createGroup(
+                unagreed.getId(), request(honorKoreanCardType.getId()), logo, seal, submitFile))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.TERMS_NOT_AGREED);
     }
 }

@@ -192,4 +192,30 @@ class BulkExcelParserTest {
         assertThat(rows.get(0).englishName()).isEqualTo("John Doe");
         assertThat(rows.get(1).englishName()).isEqualTo("Mike Kim");
     }
+
+    @Test
+    void parseRejectsNationalityThatIsNotAnIsoAlpha2Code() throws Exception {
+        String badNationalityRow = "1|John Doe|1988-01-01|USA|||MALE||john@example.com|010-1111-2222|Seoul";
+        byte[] excel = buildExcel(badNationalityRow);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("field").contains("nationality"));
+    }
+
+    @Test
+    void parseRejectsFutureBirthDate() throws Exception {
+        String futureBirthDateRow = "1|John Doe|2999-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
+        byte[] excel = buildExcel(futureBirthDateRow);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("field").contains("birthDate"));
+    }
 }

@@ -79,7 +79,10 @@ class ApplicationBulkControllerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User user = userRepository.save(User.createNewUser("bulk-ctrl@example.com", "oauth-bulk-ctrl", "google", "Bulk"));
+        User user = User.createNewUser("bulk-ctrl@example.com", "oauth-bulk-ctrl", "google", "Bulk");
+        // createGroup()이 findUser()(약관 동의 필수)를 거치므로 기본 픽스처 사용자도 동의 상태여야 한다.
+        user.agreeTerms(true, true, true);
+        user = userRepository.save(user);
         token = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
         cardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-bulk-ctrl", null, BigDecimal.valueOf(30000)));

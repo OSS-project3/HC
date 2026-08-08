@@ -3,6 +3,7 @@
 > `APPLICATION.md`의 확정 정책과 `POLICY_SYNC_CHECKLIST.md`의 검증 기준을 적용한 결과다. 코드는 수정하지 않았으며 실제 구현에서 확인한 내용만 기록한다.
 > ⚠️ 2026-08-07: 학생증 `department`(학과) 필드 제외는 이 문서에 반영하지 않았다 — `APPLICATION.md`에 근거가 없고 사람이 미결정으로 확인했다(`PENDING_DECISIONS.md` 참고). department를 "충돌"로 지목했던 원본 Audit 항목은 아래에서 "정책과 일치"로 재분류하거나 관련 설명만 제거했다.
 > ✅ 2026-08-08 재감사: 아래 07-07 시점 Audit의 "수정 필요" 12건, "미구현" 5건을 실제 코드(`ApplicationService`, `ApplicationPersistenceService`, `BulkExcelParser`, DTO, Entity, `ErrorCode`, 테스트 전체)와 한 줄씩 다시 대조했다. 그 사이 구현이 진행되어 11건은 이미 정책과 일치하는 상태였고, "미구현" 5건 중 4건도 이미 구현되어 있었다. 아래 3~6절을 이 재감사 결과로 갱신한다.
+> ✅ 2026-08-08 추가: `ApplicationCreateRequest`/`BulkApplicationCreateRequest`에 표준 Bean Validation(`@Size`는 DB 컬럼 길이 기준, `@Email`, `@Past`)을 보강했다. 국적은 `data-model.md`(ISO 3166-1 alpha-2 확정 명시)와 이 문서(언급 없음) 간 충돌이 있었는데, 자유 문자열 저장 대신 ISO 코드 기준 관리로 확정해 `@ValidNationality`(커스텀, `Locale.getISOCountries()` 기반) 검증을 추가했다 — 개인 신청 DTO와 `BulkExcelParser` 행 파싱 양쪽에 동일 로직(`ApplicationFieldFormats`)을 적용해 정책이 갈라지지 않게 했다. `birthDate`는 `@NotNull` + `@Past`(표준)만 적용하고 별도 최소연도 제한은 근거가 없어 추가하지 않았다. `phone` 형식 검증은 국제번호 정책 미확정으로 보류(`PENDING_DECISIONS.md` 참고), `@NotBlank`(필수 여부)만 유지한다.
 
 ## 1. 문서 동기화
 
