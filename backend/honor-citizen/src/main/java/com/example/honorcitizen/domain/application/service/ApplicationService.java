@@ -30,6 +30,7 @@ import com.example.honorcitizen.infra.storage.StorageService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -65,6 +66,7 @@ import java.util.zip.ZipOutputStream;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ApplicationService {
 
     // presigned URL 유효 기간: 7일
@@ -118,20 +120,20 @@ public class ApplicationService {
         // uploadedKeys: S3에 업로드된 객체 키 목록. DB 저장 실패 시 이 목록을 역순 순회해 삭제한다.
         List<String> uploadedKeys = new ArrayList<>();
 
-        // 학생증 카드에만 학교 로고가 필수이고 직인은 선택이다.
-        // 비학생 카드에 로고·직인이 들어오면 validateStudentFields에서 이미 차단했으므로 여기서는 조건만 확인한다.
-        UploadedFileMetadata logoFileMetadata = isStudent ? uploadFileToStorage(schoolLogo, UploadFileType.PHOTO, uploadedKeys) : null;
-        UploadedFileMetadata sealFileMetadata = isStudent && isPresent(schoolSeal)
-                ? uploadFileToStorage(schoolSeal, UploadFileType.PHOTO, uploadedKeys)
-                : null;
-        boolean receiverSameAsApplicant = request.isReceiverSameAsApplicant();
-        String photoPath = storePhotoFile(applicationNumber, photo, uploadedKeys);
-
-        // 신청자가 이메일을 직접 입력하지 않은 경우 OAuth2 로그인 계정의 이메일을 사용한다.
-        // 외국인 사용자 중 별도 연락용 이메일을 지정하고 싶은 경우를 위해 직접 입력도 허용한다.
-        String applicantEmail = hasText(request.getApplicant().getEmail()) ? request.getApplicant().getEmail() : user.getEmail();
-
         try {
+            // 학생증 카드에만 학교 로고가 필수이고 직인은 선택이다.
+            // 비학생 카드에 로고·직인이 들어오면 validateStudentFields에서 이미 차단했으므로 여기서는 조건만 확인한다.
+            UploadedFileMetadata logoFileMetadata = isStudent ? uploadFileToStorage(schoolLogo, UploadFileType.PHOTO, uploadedKeys) : null;
+            UploadedFileMetadata sealFileMetadata = isStudent && isPresent(schoolSeal)
+                    ? uploadFileToStorage(schoolSeal, UploadFileType.PHOTO, uploadedKeys)
+                    : null;
+            boolean receiverSameAsApplicant = request.isReceiverSameAsApplicant();
+            String photoPath = storePhotoFile(applicationNumber, photo, uploadedKeys);
+
+            // 신청자가 이메일을 직접 입력하지 않은 경우 OAuth2 로그인 계정의 이메일을 사용한다.
+            // 외국인 사용자 중 별도 연락용 이메일을 지정하고 싶은 경우를 위해 직접 입력도 허용한다.
+            String applicantEmail = hasText(request.getApplicant().getEmail()) ? request.getApplicant().getEmail() : user.getEmail();
+
             Application application = applicationPersistenceService.saveIndividual(
                     userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
                     logoFileMetadata, sealFileMetadata, request, applicantEmail, photoPath);
@@ -139,7 +141,7 @@ public class ApplicationService {
         } catch (RuntimeException e) {
             // DB 저장이 실패하면 이미 S3에 업로드한 파일들을 역순으로 제거해 고아 파일이 남지 않도록 한다.
             // 역순인 이유: 파일 간 의존 관계가 있을 경우(예: 메타데이터가 원본을 참조) 의존 역순으로 지워야 안전하다.
-            deleteUploadedFilesReversed(uploadedKeys);
+            deleteUploadedFilesQuietlyReversed(uploadedKeys);
             throw e;
         }
     }
@@ -204,35 +206,36 @@ public class ApplicationService {
 
         String applicationNumber = generateApplicationNumber();
         List<String> uploadedKeys = new ArrayList<>();
-        UploadedFileMetadata logoFileMetadata = uploadFileToStorage(logo, UploadFileType.PHOTO, uploadedKeys);
-        UploadedFileMetadata sealFileMetadata = isPresent(seal)
-                ? uploadFileToStorage(seal, UploadFileType.PHOTO, uploadedKeys)
-                : null;
-
-        // 원본 ZIP 파일도 UploadFile 엔티티로 DB에 등록한다.
-        // 이유: 관리자가 검토 중 원본 ZIP 파일을 다시 다운로드해 내용을 확인할 수 있어야 하고,
-        //       사진 재업로드 시 구 ZIP ID를 추적해 S3에서 삭제해야 하므로 DB에 ID를 보관한다.
-        UploadedFileMetadata submitFileMetadata = uploadFileToStorage(submitFile, UploadFileType.ZIP, uploadedKeys);
-        boolean receiverSameAsApplicant = request.getReceiver() == null || request.getReceiver().isSameAsApplicant();
-
-        // 각 멤버 사진을 S3에 업로드하고, 업로드된 경로와 행 데이터를 함께 GroupMemberUpload에 담는다.
-        // 이 시점에는 아직 DB에 아무것도 저장되지 않았으므로 업로드 실패 시 uploadedKeys 롤백으로 충분하다.
-        List<GroupMemberUpload> memberUploads = new ArrayList<>();
-        for (BulkMemberRow row : rows) {
-            String photoPath = storePhotoBytes(applicationNumber, row.photoFilename(), row.photoBytes(), uploadedKeys);
-            memberUploads.add(new GroupMemberUpload(row, photoPath));
-        }
-
-        String applicantEmail = hasText(request.getApplicant().getEmail()) ? request.getApplicant().getEmail() : user.getEmail();
 
         try {
+            UploadedFileMetadata logoFileMetadata = uploadFileToStorage(logo, UploadFileType.PHOTO, uploadedKeys);
+            UploadedFileMetadata sealFileMetadata = isPresent(seal)
+                    ? uploadFileToStorage(seal, UploadFileType.PHOTO, uploadedKeys)
+                    : null;
+
+            // 원본 ZIP 파일도 UploadFile 엔티티로 DB에 등록한다.
+            // 이유: 관리자가 검토 중 원본 ZIP 파일을 다시 다운로드해 내용을 확인할 수 있어야 하고,
+            //       사진 재업로드 시 구 ZIP ID를 추적해 S3에서 삭제해야 하므로 DB에 ID를 보관한다.
+            UploadedFileMetadata submitFileMetadata = uploadFileToStorage(submitFile, UploadFileType.ZIP, uploadedKeys);
+            boolean receiverSameAsApplicant = request.getReceiver() == null || request.getReceiver().isSameAsApplicant();
+
+            // 각 멤버 사진을 S3에 업로드하고, 업로드된 경로와 행 데이터를 함께 GroupMemberUpload에 담는다.
+            // 이 시점에는 아직 DB에 아무것도 저장되지 않았으므로 업로드 실패 시 uploadedKeys 롤백으로 충분하다.
+            List<GroupMemberUpload> memberUploads = new ArrayList<>();
+            for (BulkMemberRow row : rows) {
+                String photoPath = storePhotoBytes(applicationNumber, row.photoFilename(), row.photoBytes(), uploadedKeys);
+                memberUploads.add(new GroupMemberUpload(row, photoPath));
+            }
+
+            String applicantEmail = hasText(request.getApplicant().getEmail()) ? request.getApplicant().getEmail() : user.getEmail();
+
             Application application = applicationPersistenceService.saveGroup(
                     userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
                     rows.size(), logoFileMetadata, sealFileMetadata, submitFileMetadata, request, applicantEmail, memberUploads);
             return BulkApplicationCreateResponse.from(application);
         } catch (RuntimeException e) {
             // DB 저장 실패 시 업로드된 모든 파일(로고, 직인, ZIP, 멤버 사진 전부)을 역순 삭제한다.
-            deleteUploadedFilesReversed(uploadedKeys);
+            deleteUploadedFilesQuietlyReversed(uploadedKeys);
             throw e;
         }
     }
@@ -664,7 +667,7 @@ public class ApplicationService {
     // 키가 null이거나 빈 문자열인 경우 S3 API 호출 자체를 막아 불필요한 네트워크 비용을 방지한다.
     private void deleteIfPresent(String key) {
         if (hasText(key)) {
-            storageService.delete(key);
+            deleteUploadedFileQuietly(key);
         }
     }
 
@@ -678,9 +681,17 @@ public class ApplicationService {
      * 참조가 끊긴 고아 파일이 남지 않는다.
      * 현재 파일들은 독립적이지만 향후 의존 관계 추가를 대비해 역순 삭제를 유지한다.
      */
-    private void deleteUploadedFilesReversed(List<String> uploadedKeys) {
+    private void deleteUploadedFilesQuietlyReversed(List<String> uploadedKeys) {
         for (int i = uploadedKeys.size() - 1; i >= 0; i--) {
-            storageService.delete(uploadedKeys.get(i));
+            deleteUploadedFileQuietly(uploadedKeys.get(i));
+        }
+    }
+
+    private void deleteUploadedFileQuietly(String key) {
+        try {
+            storageService.delete(key);
+        } catch (RuntimeException e) {
+            log.warn("Failed to delete uploaded S3 object. key={}", key, e);
         }
     }
 

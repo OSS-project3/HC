@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest
 class ApplicationServiceUploadCompensationTest {
@@ -144,6 +145,41 @@ class ApplicationServiceUploadCompensationTest {
         assertThat(deletedKeys).isEqualTo(expectedReversed);
     }
 
+    @Test
+    void createIndividualDeletesAlreadyUploadedFilesWhenLaterUploadFails() {
+        ApplicationCreateRequest request = individualStudentRequest();
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+        MockMultipartFile seal = new MockMultipartFile("schoolSeal", "seal.png", "image/png", imageBytes(50, 50, "png"));
+        when(storageService.upload(anyString(), any()))
+                .thenReturn("http://mock-storage/logo")
+                .thenThrow(new RuntimeException("S3 seal failure"));
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, seal))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("S3 seal failure");
+
+        ArgumentCaptor<String> uploadKeyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storageService, times(2)).upload(uploadKeyCaptor.capture(), any());
+
+        ArgumentCaptor<String> deleteKeyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storageService, times(1)).delete(deleteKeyCaptor.capture());
+        assertThat(deleteKeyCaptor.getValue()).isEqualTo(uploadKeyCaptor.getAllValues().get(0));
+    }
+
+    @Test
+    void createIndividualKeepsOriginalExceptionWhenCompensationDeleteFails() {
+        ApplicationCreateRequest request = individualStudentRequest();
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+        MockMultipartFile seal = new MockMultipartFile("schoolSeal", "seal.png", "image/png", imageBytes(50, 50, "png"));
+        doThrow(new RuntimeException("S3 delete failure")).when(storageService).delete(anyString());
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, seal))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("DB failure");
+
+        verify(storageService, times(3)).delete(anyString());
+    }
+
     private byte[] buildExcel(String... rows) throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("members");
@@ -223,5 +259,37 @@ class ApplicationServiceUploadCompensationTest {
         List<String> expectedReversed = new ArrayList<>(uploadedKeys);
         Collections.reverse(expectedReversed);
         assertThat(deletedKeys).isEqualTo(expectedReversed);
+    }
+
+    @Test
+    void createGroupDeletesAlreadyUploadedFilesWhenMemberPhotoUploadFails() throws Exception {
+        byte[] excel = buildExcel(
+                "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul",
+                "2|Jane Doe|1990-02-02|US|||FEMALE||jane@example.com|010-3333-4444|Seoul");
+        byte[] zip = buildZip(excel, "1", "2");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+        when(storageService.uploadBytes(anyString(), any(), anyString()))
+                .thenReturn("http://mock-storage/member-1")
+                .thenThrow(new RuntimeException("S3 member failure"));
+
+        assertThatThrownBy(() -> applicationService.createGroup(user.getId(), groupRequest(), logo, seal, submitFile))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("S3 member failure");
+
+        ArgumentCaptor<String> uploadKeyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storageService, times(3)).upload(uploadKeyCaptor.capture(), any());
+        List<String> uploadedKeys = new ArrayList<>(uploadKeyCaptor.getAllValues());
+
+        ArgumentCaptor<String> uploadBytesKeyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storageService, times(2)).uploadBytes(uploadBytesKeyCaptor.capture(), any(), anyString());
+        uploadedKeys.add(uploadBytesKeyCaptor.getAllValues().get(0));
+
+        ArgumentCaptor<String> deleteKeyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storageService, times(4)).delete(deleteKeyCaptor.capture());
+        List<String> expectedReversed = new ArrayList<>(uploadedKeys);
+        Collections.reverse(expectedReversed);
+        assertThat(deleteKeyCaptor.getAllValues()).isEqualTo(expectedReversed);
     }
 }

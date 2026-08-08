@@ -102,9 +102,10 @@ Application 생성에는 서로 독립적인 세 가지 분기 축이 있다.
 ### File Preparation
 
 - 모든 검증이 끝난 파일만 object storage에 업로드한다.
-- Application 단위 파일은 `UploadFile`을 생성해 `logoFileId`, `sealFileId`, `submitFileId`를 준비한다.
+- Application 단위 파일은 object storage 업로드 후 `UploadedFileMetadata`로 보관하고, `UploadFile` DB row는 `ApplicationPersistenceService`의 동일 트랜잭션 안에서 생성해 `logoFileId`, `sealFileId`, `submitFileId`를 준비한다.
 - 구성원 얼굴사진은 저장 경로를 준비해 `ApplicationMember.photoPath`에 전달한다.
-- DB 저장 실패 시 이미 업로드한 파일을 보상 삭제할 수 있어야 한다.
+- object storage 업로드 중간 실패 또는 DB 저장 실패 시 이미 업로드한 신규 파일을 역순 보상 삭제한다.
+- 보상 삭제 자체가 실패해도 원래 실패 원인을 덮어쓰지 않고 로그만 남긴다.
 
 ## 4. 책임 배치
 
