@@ -1,5 +1,14 @@
 # Application Policy Sync and Code Audit
 
+## 2026-08-08 Failure-path and Contract Verification Summary
+
+- 생성 경로: `createIndividual()`/`createGroup()`의 S3 업로드 중간 실패와 DB 저장 실패 모두에서 신규 S3 key를 역순 보상 삭제하도록 검증했다.
+- 재업로드 경로: 신규 S3 파일은 transaction rollback/unknown 상태에서 보상 삭제하고, 기존 S3 파일은 DB commit 이후에만 삭제하도록 검증했다.
+- API/validation 계약: multipart part 이름, Receiver 정책, 학생증/일반카드 로고·직인 정책, Bean Validation `errors[]`, Bulk `row/field/code/message` 응답 계약을 기존 테스트로 확인했다.
+- Bulk Excel 계약: Excel ID는 텍스트 기반 식별자로 고정했고, `1`과 `001`은 다른 ID로 처리하며 leading zero 자동 보정은 하지 않는다.
+- Bulk parser edge-case: 중복 ID, 중복 사진, 누락/여분 사진, 대소문자 확장자, 빈 Excel/빈 행, macOS 부산물, 하위 디렉터리, 잘못된 ZIP/Excel 계약을 확인했다.
+- 소비 경로: 현재 구현된 조회, 카드 다운로드, 사진 반려 후 재업로드 경로를 확인했다. 별도 Admin Application API와 카드 미리보기/생성 API는 현재 구현되어 있지 않아 후속 구현 시 별도 계약 테스트가 필요하다.
+
 > ✅ 2026-08-08 검증: API/validation 계약은 기존 테스트로 충분히 보장됨을 확인했다. `ApplicationControllerTest`, `ApplicationBulkControllerTest`, `GlobalExceptionHandlerTest`, `ApplicationServiceTest`, `ApplicationServiceBulkTest`가 multipart part, Receiver 양방향 정책, 학생증/일반카드 로고·직인 정책, Bean Validation `errors[]`, Bulk `row/field/code/message` 계약을 검증한다. 중복 신규 테스트는 추가하지 않았다.
 > ✅ 2026-08-08 검증: Bulk parser edge-case는 `BulkExcelParserTest`로 검증한다. 텍스트 ID/숫자 ID 매칭, 중복 사진, 여분 사진, 중복 ID, 대소문자 확장자, 사진 누락, 빈 Excel, 중간·마지막 빈 행, `__MACOSX`, `.DS_Store`, 하위 디렉터리, Excel 중복/누락, 읽을 수 없는 Excel 계약을 포함한다.
 > ✅ 2026-08-08 검증: Application 이후 소비 경로는 현재 구현된 `lookup`, `cards/download`, `photo reupload` 범위에서 확인했다. `ApplicationServiceLookupTest`, `ApplicationServiceCardDownloadTest`, `ApplicationCardDownloadControllerTest`, `ApplicationPhotoControllerTest`, `ApplicationServicePhotoReuploadTest`가 조회, 카드 다운로드, `PHOTO_REJECTED → REVIEWING` 재제출 상태 복귀를 검증한다. 별도 Admin Application API와 카드 미리보기/생성 API는 현재 `src/main`에 구현되어 있지 않아 테스트 고정 대상에서 제외했다.
