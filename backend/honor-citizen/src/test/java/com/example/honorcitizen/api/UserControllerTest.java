@@ -67,21 +67,38 @@ class UserControllerTest {
     }
 
     @Test
-    void updateMeUpdatesPhoneAndAddress() throws Exception {
+    void updateMeUpdatesNameAndPhone() throws Exception {
         mockMvc.perform(patch("/api/users/me")
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "phone": "010-1234-5678",
-                                  "address": "서울특별시 강남구"
+                                  "name": "New Name",
+                                  "phone": "010-1234-5678"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.name").value("Jane"))
-                .andExpect(jsonPath("$.data.phone").value("010-1234-5678"))
-                .andExpect(jsonPath("$.data.address").value("서울특별시 강남구"));
+                .andExpect(jsonPath("$.data.name").value("New Name"))
+                .andExpect(jsonPath("$.data.phone").value("010-1234-5678"));
+    }
+
+    // email은 OAuth 식별값, address는 확정 정책(2026-08-08)으로 이 API 수정 대상에서 제외됐다.
+    // UserUpdateRequest에 address 필드 자체가 없으므로 요청 본문에 address를 보내도 무시되어야 한다.
+    @Test
+    void updateMeIgnoresAddressEvenWhenProvidedInRequestBody() throws Exception {
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "New Name",
+                                  "address": "서울특별시 강남구"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("New Name"))
+                .andExpect(jsonPath("$.data.address").isEmpty());
     }
 
     @Test

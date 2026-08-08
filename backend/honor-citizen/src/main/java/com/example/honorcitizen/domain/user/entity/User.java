@@ -128,15 +128,13 @@ public class User extends BaseTimeEntity {
         this.refreshToken = refreshToken;
     }
 
-    public void updateProfile(String name, String phone, String address) {
+    // address는 이 경로로 수정하지 않는다(확정 정책, 2026-08-08) — 이름·전화번호만 갱신 대상이다.
+    public void updateProfile(String name, String phone) {
         if (name != null) {
             this.name = name;
         }
         if (phone != null) {
             this.phone = phone;
-        }
-        if (address != null) {
-            this.address = address;
         }
     }
 }

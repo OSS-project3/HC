@@ -1,28 +1,34 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-08-07
+- 마지막 갱신: 2026-08-09
 - 작성자: Codex
-- 작성 브랜치: codexdocs/application-policy-sync
+- 작성 브랜치: main
 
 ## 지금 어디까지 됐는가
 
-- APPLICATION.md와 POLICY_SYNC_CHECKLIST.md 기준 Application 문서 동기화를 완료했다.
-- Code Audit을 실제 구현의 파일·클래스·메서드·라인 근거로 보강했다.
-- 코드 파일은 수정하지 않았다.
-- (Claude 추가 2026-08-07: 위 동기화 중 학생증 `department`(학과) 필드 삭제만 제외 — `APPLICATION.md`/patch 어디에도 근거가 없고 사람이 "아직 미결정"으로 확인해서, `department` 필드·필수 검증은 기존대로 유지했다. `PENDING_DECISIONS.md` 참고.)
+- Application failure-path/contract 검증 작업은 논리 단위별 커밋으로 분리 완료됐다.
+- Redis 미기동 상태에서 전체 테스트 159개 중 3개가 실패했으나, Redis 기동 후 실패 원인을 다시 분리했다.
+- Redis 기동 후 `UserControllerTest.withdrawMarksUserWithdrawnAndBlacklistsAccessToken`, `UserControllerTest.withdrawReturnsAlreadyWithdrawnOnSecondCall`은 통과했다.
+- `UserApplicationFlowTest.fullUserApplicationFlow`는 Redis 연결 실패는 해소됐지만, 개인 신청 생성 단계에서 `TERMS_NOT_AGREED` 403으로 실패한다.
+- 위 남은 실패는 Redis 환경 문제가 아니라 테스트 플로우가 현재 신청 정책(신청 전 필수 약관 동의)을 반영하지 못한 상태로 분류했다.
+- 재검증 결과는 `docs/specs/application/checklist.md`의 `2026-08-09 Redis Retry Verification` 섹션과 `docs/collab/CHANGELOG.md` 최신 항목에 기록했다.
 
 ## 다음에 할 일
 
-- `docs/specs/application/checklist.md`의 수정 필요와 미구현 항목을 기준으로 별도 승인 후 구현한다.
-- TBD는 `docs/collab/PENDING_DECISIONS.md`에서 결정 전까지 유지한다.
-- 학생증 `department`(학과) 필드를 실제로 제외할지는 별도 결정 필요 — 결정되면 `checklist.md`/`requirements.md`/`data-model.md`/`api.md`/`TODO.md`를 다시 동기화해야 한다.
+- `UserApplicationFlowTest.fullUserApplicationFlow`에 약관 동의 단계를 추가할지 결정 후 수정한다.
+  - 현재 정책상 Application 신청 전 `UserService.findEligibleApplicationUser()`가 필수 약관 동의를 요구한다.
+  - 테스트 사용자는 `User.createNewUser(...)` 직후 `userService.issueLoginTokens(user)`만 수행하고 약관 동의를 하지 않아 `TERMS_NOT_AGREED`가 발생한다.
+- 테스트 수정 시에는 정책 변경이 아니라 현재 정책에 맞춘 플로우 보정으로 처리한다.
+- Redis가 필요한 테스트는 로컬 Redis 기동 상태를 전제로 실행하거나, 별도 test profile/mock 전략을 후속으로 검토한다.
 
 ## ❓ 확인 필요
 
-- `docs/collab/PENDING_DECISIONS.md`의 Application TBD 항목
-- 학생증 `department`(학과) 필드를 계속 유지할지, 제외할지
+- `UserApplicationFlowTest`에서 실제 OAuth 신규 사용자 플로우처럼 `/api/auth/terms` 또는 `User.agreeTerms(...)`에 해당하는 단계를 HTTP/Service 중 어떤 방식으로 재현할지 결정 필요.
+- Redis 의존 테스트를 장기적으로 실제 Redis 전제로 둘지, 테스트용 mock/embedded/testcontainer 전략으로 바꿀지 결정 필요.
 
 ## 참고
 
-- 관련 TODO: Application 정책 동기화 Audit 후속 작업 (2026-08-07)
-- 관련 CHANGELOG: 2026-08-07 — Application 정책 문서 동기화 및 Code Audit
+- 관련 테스트 실행:
+  - `./gradlew.bat test --tests "com.example.honorcitizen.api.UserControllerTest.withdrawMarksUserWithdrawnAndBlacklistsAccessToken" --tests "com.example.honorcitizen.api.UserControllerTest.withdrawReturnsAlreadyWithdrawnOnSecondCall" --tests "com.example.honorcitizen.flow.UserApplicationFlowTest.fullUserApplicationFlow"`
+- 결과: 3개 중 2개 통과, 1개 실패(`UserApplicationFlowTest.fullUserApplicationFlow` — `TERMS_NOT_AGREED` 403)
+- 관련 문서: `docs/specs/application/checklist.md`, `docs/collab/CHANGELOG.md`

@@ -51,15 +51,16 @@ public class UserService {
     }
 
     public UserMeResponse updateMe(Long userId, UserUpdateRequest request) {
-        if (request.getName() == null && request.getPhone() == null && request.getAddress() == null) {
+        User user = findById(userId);
+
+        if (request.getName() == null && request.getPhone() == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         if (request.getName() != null && request.getName().isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
-        User user = findById(userId);
-        user.updateProfile(request.getName(), request.getPhone(), request.getAddress());
+        user.updateProfile(request.getName(), request.getPhone());
         return UserMeResponse.from(user);
     }
 

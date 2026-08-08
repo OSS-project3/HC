@@ -90,6 +90,7 @@ public class ApplicationMember extends BaseTimeEntity {
     private String phone;
 
     // 학생증일 때만 필수. 최대 10자·숫자만 허용(개인은 ApplicationService, 단체는 BulkExcelParser에서 검증)
+    //학번
     @Column(length = 10)
     private String studentId;
 

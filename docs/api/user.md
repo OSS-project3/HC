@@ -125,6 +125,8 @@ Cookie: accessToken={JWT}
 
 ### API 5 / 5 — 내 정보 수정 (2026-07-31 추가, 로그인 필수) ⚠️ 확인필요 — 프론트에 정보수정 화면 자체가 없음(신규)
 
+> ✅ 2026-08-08 정정: **`address`는 이 API의 수정 대상에서 제외한다.** OAuth 기반 계정이라 `email` 수정이 애초에 불가능한 것과 별개로, 사람이 "수정 가능한 필드는 이름·전화번호뿐"으로 범위를 확정했다. 아래 Request 예시·Validation 표·DB 컬럼 매핑의 `address` 관련 부분은 이 정정으로 대체됨(취소선 대신 이 노트로 표시, 과거 기록은 남겨둠).
+
 #### ④ Request/Response 설계
 
 ```
@@ -135,11 +137,10 @@ Content-Type: application/json
 ```json
 {
   "name": "홍길동",
-  "phone": "010-1234-5678",
-  "address": "서울특별시 강남구 ..."
+  "phone": "010-1234-5678"
 }
 ```
-(세 필드 다 선택 — 보낸 필드만 갱신하는 partial update. 단, 최소 1개는 있어야 함)
+(두 필드 다 선택 — 보낸 필드만 갱신하는 partial update. 단, 최소 1개는 있어야 함. `address`를 보내도 무시된다)
 
 **Response `200 OK`**
 ```json
@@ -155,19 +156,19 @@ Content-Type: application/json
   }
 }
 ```
-(API 2와 동일한 응답 형태 — 수정 직후 최신 상태를 그대로 돌려줌)
+(API 2와 동일한 응답 형태 — 수정 직후 최신 상태를 그대로 돌려줌. `address`는 응답에는 계속 포함되지만 이 API로 값을 바꿀 수는 없다)
 
 #### ⑤ Validation
 
 | 상황 | errorCode | HTTP |
 |---|---|---|
 | 비로그인 | `UNAUTHORIZED` | 401 |
-| `name`/`phone`/`address` 전부 없음(빈 요청) | `INVALID_INPUT` | 400 |
+| `name`/`phone` 전부 없음(빈 요청) | `INVALID_INPUT` | 400 |
 | `name`이 빈 문자열로 옴 | `INVALID_INPUT` | 400 |
 | `phone` 형식 오류(숫자/하이픈 외 문자 등) | `INVALID_INPUT` | 400 |
 
 - `email`은 이 API로 수정 불가 — OAuth 계정 식별값이자 `Applicant.email`과 일치해야 하는 제약(`.md` 2.2절)이라, 바꾸려면 OAuth 재연동이 필요한 별개 문제. 이번 범위에서 다루지 않음.
-- `phone`/`address`는 `NULL` 허용 컬럼이라, 빈 문자열이 아니라 값을 아예 지우고 싶은 경우(예: `null` 전송)까지 지원할지는 ⚠️ 구현 단계 확인 필요(우선 값 채우는 용도로만 설계, 지우는 UX는 프론트에 없어서 보류).
+- `address`도 이 API로 수정 불가(2026-08-08 확정). ~~`phone`/`address`는 `NULL` 허용 컬럼이라, 빈 문자열이 아니라 값을 아예 지우고 싶은 경우(예: `null` 전송)까지 지원할지는 구현 단계 확인 필요~~ → `address`가 수정 대상에서 빠지면서 이 TODO는 소멸(더 이상 지울 대상 자체가 없음). `phone`은 여전히 `@Pattern` 형식 검증이 빈 문자열을 항상 거부하므로 "지우기"는 지원하지 않는다.
 
 #### ⑥ DB 컬럼과 매핑 검증
 
@@ -175,8 +176,9 @@ Content-Type: application/json
 |---|---|
 | name | name |
 | phone | phone |
-| address | address |
 | — | updated_at 자동 갱신 |
+
+(`address` 컬럼은 계속 존재하고 API 2 응답에도 나오지만, API 5 Request로는 매핑되지 않는다)
 
 #### ⑦ 누락된 필드 확인
 

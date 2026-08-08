@@ -15,6 +15,38 @@
 
 ---
 
+## 2026-08-09 — Codex — `main` (Redis 기동 후 전체 테스트 실패 재분류)
+
+- 변경: Redis 기동 후 기존 전체 테스트 실패 3건을 재실행해 실패 원인을 재분류했다. `UserControllerTest.withdrawMarksUserWithdrawnAndBlacklistsAccessToken`, `UserControllerTest.withdrawReturnsAlreadyWithdrawnOnSecondCall`은 통과했고, 이전 실패 원인은 Redis 미기동에 따른 `RedisConnectionFailureException`으로 확인했다. `UserApplicationFlowTest.fullUserApplicationFlow`는 Redis 연결 실패가 해소됐지만 신청 생성 단계에서 `TERMS_NOT_AGREED` 403으로 실패했다.
+- 파일: `docs/specs/application/checklist.md`, `docs/collab/CHANGELOG.md`, `docs/collab/HANDOFF.md`
+- 테스트: `./gradlew.bat test --tests com.example.honorcitizen.api.UserControllerTest.withdrawMarksUserWithdrawnAndBlacklistsAccessToken --tests com.example.honorcitizen.api.UserControllerTest.withdrawReturnsAlreadyWithdrawnOnSecondCall --tests com.example.honorcitizen.flow.UserApplicationFlowTest.fullUserApplicationFlow` 실행 — 3개 중 2개 통과, 1개 실패(`TERMS_NOT_AGREED`).
+- 사유: Redis 기동 후 실패가 환경 문제인지, 현재 정책/테스트 불일치인지 정확히 분리하기 위함.
+- 관련: Application 검증 작업 후속 확인
+
+## 2026-08-08 — Codex — `main` (재업로드 S3 정리 after-commit 전환)
+
+- 변경: 사진 재업로드에서 기존 S3 파일 삭제를 DB 트랜잭션 commit 이후에만 수행하도록 `TransactionSynchronizationManager` 기반 after-commit 정리로 변경. 신규 업로드 S3 key는 메서드 내부 실패뿐 아니라 transaction rollback/commit 실패 경로에서도 보상 삭제되도록 after-completion 보상 경로를 추가했다. `PHOTO_REJECTED → PENDING` stale 주석은 SoT 기준인 `PHOTO_REJECTED → REVIEWING`으로 수정했다.
+- 파일: `ApplicationService.java`, `ApplicationServicePhotoReuploadTest.java`, `docs/specs/application/service-flow.md`
+- 테스트: 재업로드 rollback 시 신규 S3 삭제·기존 S3 유지, after-commit 기존 S3 삭제 실패 시 성공 응답 유지, 단체 재업로드 멤버 사진 업로드 실패 시 신규 ZIP 보상 삭제를 최소 보강.
+- 사유: `@Transactional` 메서드 내부 마지막에 기존 S3 파일을 삭제하면 실제 DB commit 이후 삭제가 보장되지 않아, rollback 시 DB는 복구됐지만 기존 S3 파일은 삭제되는 정합성 위험이 있었음.
+- 관련: Application 검증 작업 커밋 분리 계획 — 2. 재업로드 transaction-safe cleanup
+
+## 2026-08-08 — Codex — `main` (생성 경로 S3 업로드 실패 보상)
+
+- 변경: `createIndividual`/`createGroup`의 S3 업로드 구간까지 보상 처리 범위를 확장. 로고·직인·ZIP·멤버 사진 업로드 중간 실패와 DB 저장 실패 모두에서 이미 업로드된 신규 S3 key를 역순 삭제한다. 보상 삭제 실패는 원 예외를 덮어쓰지 않고 로그만 남기도록 정리했다.
+- 파일: `ApplicationService.java`, `ApplicationServiceUploadCompensationTest.java`, `docs/specs/application/service-flow.md`
+- 테스트: `ApplicationServiceUploadCompensationTest`에 S3 업로드 중간 실패와 보상 삭제 실패 케이스를 최소 보강. `./gradlew.bat test --tests "com.example.honorcitizen.domain.application.service.ApplicationServiceUploadCompensationTest"` 통과.
+- 사유: 기존 try/catch가 DB 저장 호출만 감싸 S3 업로드 중간 실패 시 앞서 업로드된 파일이 고아로 남을 수 있던 failure-path 정리.
+- 관련: Application 검증 작업 커밋 분리 계획 — 1. 생성 경로 S3 failure compensation
+
+## 2026-08-08 — Claude — `main` (UserUpdateRequest — address를 수정 대상에서 제외, name 길이 제한 추가)
+
+- 변경: `PATCH /api/users/me`의 수정 가능 필드를 `name`/`phone`으로 확정(사람 확인) — `email`은 기존처럼 OAuth 식별값이라 수정 불가, `address`도 이번에 수정 대상에서 제외됨. `UserUpdateRequest`에서 `address` 필드를 제거(요청 본문에 보내도 무시됨)하고 `name`에 `@Size(max=255)`(User 컬럼 길이 기본값 기준)를 추가했다. `User.updateProfile(name, phone, address)` → `updateProfile(name, phone)`으로 시그니처 축소, `UserService.updateMe()`의 "최소 1개 필드 필요" 체크에서도 `address`를 뺐다. `GET /api/users/me` 응답에는 `address` 컬럼이 계속 노출됨(조회는 그대로, 수정만 막힘).
+- 파일: `UserUpdateRequest.java`, `User.java`, `UserService.java`, `UserControllerTest.java`(`updateMeUpdatesPhoneAndAddress` → `updateMeUpdatesNameAndPhone`로 교체, `updateMeIgnoresAddressEvenWhenProvidedInRequestBody` 신규), `docs/api/user.md`(API 5 정정 노트)
+- 테스트: 신규/수정 테스트를 구현 전 실패 확인 후 통과. User 도메인 18개 중 `UserControllerTest` 2건(Redis 미기동, 무관)만 실패. 전체 스위트 147개 중 동일하게 3건(Redis 미기동)만 실패 — 회귀 없음.
+- 사유: Request DTO 검증 점검 중 `address`만 blank 방어가 없어 조용히 지워질 수 있던 문제를 보고했고, 사람이 "address는 애초에 수정 대상이 아니어야 한다"로 범위를 확정하면서 문제가 자연히 해소됨.
+- 관련: 없음
+
 ## 2026-08-08 — Claude — `main` (createGroup — User 자격 검증을 파일 업로드 이전으로 이동)
 
 - 변경: `ApplicationService.createGroup()`이 존재 여부만 확인하는 `userService.findById(userId)`를 로고·직인·ZIP·멤버 사진 업로드가 모두 끝난 뒤(그것도 `try` 블록 밖)에서 호출하던 문제를 수정. 개인 신청(`createIndividual`)과 동일하게 메서드 최상단에서 `findUser(userId)`(=`findEligibleApplicationUser`, 탈퇴/권한/약관 동의까지 검증)를 호출하도록 이동했다. 이로써 ①탈퇴·비-USER role·약관 미동의 사용자의 단체 신청이 개인 신청과 동일하게 차단되고, ②User 검증 실패가 더 이상 `try` 블록 밖에서 발생하지 않아 이미 업로드된 S3 파일이 고아로 남는 문제도 함께 해소됨.

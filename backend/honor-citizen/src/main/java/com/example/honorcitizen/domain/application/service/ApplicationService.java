@@ -512,7 +512,8 @@ public class ApplicationService {
         boolean emailMatches = request.getEmail() != null && request.getEmail().equalsIgnoreCase(targetEmail);
         return phoneMatches && emailMatches;
     }
-
+//DB: 기존 단체 구성원을 전부 삭제하고 새 ZIP의 구성원으로 통째로 교체한다.
+//S3: 기존 구성원의 사진도 지워야 하므로 DB에서 Member를 삭제하기 전에 옛날 사진 경로를 미리 기억해둔다.
     /**
      * 성명 마스킹 규칙:
      * - 1글자 이하: 그대로 반환 (마스킹할 글자가 없음)
