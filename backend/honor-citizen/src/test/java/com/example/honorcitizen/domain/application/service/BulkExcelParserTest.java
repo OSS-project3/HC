@@ -53,6 +53,30 @@ class BulkExcelParserTest {
         }
     }
 
+    private byte[] buildExcelWithNumericId(double numericId) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("members");
+            Row commonRow = sheet.createRow(0);
+            commonRow.createCell(0).setCellValue("공통 입국날짜");
+            commonRow.createCell(1).setCellValue("2026-08-15");
+            sheet.createRow(2).createCell(0).setCellValue("ID");
+
+            Row row = sheet.createRow(3);
+            row.createCell(0).setCellValue(numericId);
+            row.createCell(1).setCellValue("John Doe");
+            row.createCell(2).setCellValue("1988-01-01");
+            row.createCell(3).setCellValue("US");
+            row.createCell(6).setCellValue("MALE");
+            row.createCell(8).setCellValue("john@example.com");
+            row.createCell(9).setCellValue("010-1111-2222");
+            row.createCell(10).setCellValue("Seoul");
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
     private MockMultipartFile zipOf(byte[] excelBytes, String excelEntryName, String... photoEntries) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(out)) {
@@ -78,6 +102,42 @@ class BulkExcelParserTest {
         List<BulkMemberRow> rows = parser.parse(zip, false);
 
         assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).photoFilename()).isEqualTo("1.jpg");
+    }
+
+    @Test
+    void parseMatchesTextIdWithLeadingZerosToSamePhotoName() throws Exception {
+        byte[] excel = buildExcel("001|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul");
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg");
+
+        List<BulkMemberRow> rows = parser.parse(zip, false);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).id()).isEqualTo("001");
+        assertThat(rows.get(0).photoFilename()).isEqualTo("001.jpg");
+    }
+
+    @Test
+    void parseDoesNotAutoMatchNumericIdToPhotoNameWithLeadingZeros() throws Exception {
+        byte[] excel = buildExcelWithNumericId(1);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("field").contains("photo"));
+    }
+
+    @Test
+    void parseMatchesNumericIdToNonPaddedPhotoName() throws Exception {
+        byte[] excel = buildExcelWithNumericId(1);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        List<BulkMemberRow> rows = parser.parse(zip, false);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).id()).isEqualTo("1");
         assertThat(rows.get(0).photoFilename()).isEqualTo("1.jpg");
     }
 

@@ -283,7 +283,7 @@ Content-Type: multipart/form-data
 | 학과 | department(✅ 2026-07-31 신규, 학생증 전용) | 학생증만 필수 |
 | (사진 파일명, ZIP 루트) | photo_path | 필수 |
 
-✅ 2026-08-07 정정(`APPLICATION.md` 기준): ZIP 루트에는 자유로운 파일명의 `.xlsx` Excel 1개만 허용한다(2개 이상이면 전체 실패). Excel `ID`는 `trim()` 후 String으로 비교해 선행 0을 유지하고, ZIP 루트 사진의 확장자는 대소문자를 구분하지 않는다(예: `ID=1` ↔ `1.jpg`/`1.JPG`). `__MACOSX`, `.DS_Store`, 중간·마지막 빈 행은 무시한다. 구성원별 UploadFile ID는 생성하지 않고, 매칭된 이미지의 저장 경로만 `ApplicationMember.photo_path`에 저장한다. ZIP 원본의 `Application.submit_file_id`는 신청 단위 제출 파일을 가리키며 구성원 사진 ID가 아니다.
+✅ 2026-08-07 정정(`APPLICATION.md` 기준): ZIP 루트에는 자유로운 파일명의 `.xlsx` Excel 1개만 허용한다(2개 이상이면 전체 실패). Excel `ID`는 텍스트 기반 식별자이며 `trim()` 후 String으로 비교한다. 선행 0은 의미가 있으므로 `1`과 `001`은 서로 다른 ID다. 서버는 숫자 셀 때문에 사라진 선행 0을 자동 보정하지 않으므로 Excel 양식의 ID 컬럼은 반드시 텍스트 형식으로 입력해야 한다. ZIP 루트 사진의 확장자는 대소문자를 구분하지 않는다(예: `ID=1` ↔ `1.jpg`/`1.JPG`). `__MACOSX`, `.DS_Store`, 중간·마지막 빈 행은 무시한다. 구성원별 UploadFile ID는 생성하지 않고, 매칭된 이미지의 저장 경로만 `ApplicationMember.photo_path`에 저장한다. ZIP 원본의 `Application.submit_file_id`는 신청 단위 제출 파일을 가리키며 구성원 사진 ID가 아니다.
 
 #### ⑦ 누락된 필드 확인
 
