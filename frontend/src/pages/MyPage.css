@@ -1,4 +1,24 @@
 .mypage { min-height: 65vh; color: var(--color-text-secondary); }
+/* Top-right decorative art (shared with the support page hero). */
+.mypage__hero { position: relative; }
+.mypage__hero > * { position: relative; z-index: 1; }
+.mypage__hero-art {
+  /* 고객 지원 페이지(.support__hero-art)와 동일한 위치: 우측 하단 앵커. */
+  position: absolute;
+  z-index: 0;
+  right: max(0px, calc((100% - 1180px) / 2));
+  bottom: calc(clamp(10px, 1.5vw, 20px) * -1);
+  height: clamp(170px, 22vw, 280px);
+  width: auto;
+  object-fit: contain;
+  opacity: .94;
+  pointer-events: none;
+}
+/* Top-right actions above the profile info (수정 › text link, 회원 탈퇴). */
+.mypage__actions { max-width: 1100px; margin-inline: auto; margin-top: 14px; display: flex; justify-content: flex-end; align-items: center; gap: 22px; }
+.mypage__edit { color: var(--color-primary); font-weight: 700; font-size: 14px; }
+.mypage__edit:hover { text-decoration: underline; }
+.mypage__edit--muted { color: var(--color-text-muted); font-weight: 500; }
 .mypage__profile { max-width: 1100px; display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 8px; border-block: 1px solid var(--color-border-soft); }
 .mypage__profile > div { display: grid; gap: 8px; padding: 22px 26px; border-right: 1px solid var(--color-border-soft); }
 .mypage__profile > div:last-child { border-right: 0; }
@@ -7,7 +27,7 @@
 .mypage__section { max-width: 1100px; padding-block: clamp(38px, 5vw, 62px); }
 .mypage__rule { height: 1px; margin-bottom: 26px; background: var(--color-border-soft); }
 .mypage__section > header { min-height: 48px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-border-soft); }
-.mypage__section h2 { padding-left: 14px; border-left: 4px solid var(--color-primary); color: var(--color-wordmark); font-family: var(--font-serif); font-size: clamp(21px, 2vw, 25px); }
+.mypage__section h2 { padding-left: 14px; border-left: 4px solid var(--color-accent-bar); color: var(--color-wordmark); font-family: var(--font-serif); font-size: clamp(21px, 2vw, 25px); }
 .mypage__section header a { color: var(--color-text-muted); font-size: 14px; }
 .mypage__section header a:hover { color: var(--color-primary); }
 .mypage-list__head, .mypage-list article { display: grid; align-items: center; min-height: 62px; padding-inline: 16px; border-bottom: 1px solid var(--color-border-soft); }
@@ -21,16 +41,21 @@
 .mypage-list__empty { padding: 34px 16px; border-bottom: 1px solid var(--color-border-soft); color: var(--color-text-muted); font-size: 13px; text-align: center; }
 .mypage-list--activity article { grid-template-columns: 1fr auto auto; gap: 24px; }
 .mypage-list--activity article a:hover strong { color: var(--color-primary); }
+.mypage-list article .mypage-list__edit { padding: 6px 13px; border: 1px solid var(--color-border-accent); border-radius: var(--radius-card); color: var(--color-wordmark); font-size: 12px; font-weight: 600; text-align: center; transition: background-color var(--ease), color var(--ease); }
+.mypage-list article .mypage-list__edit:hover { background: var(--color-wordmark); color: var(--color-primary-foreground); }
 .mypage--guest { min-height: 60vh; display: grid; place-content: center; justify-items: center; gap: 14px; text-align: center; }
 .mypage--guest h1 { color: var(--color-wordmark); font-family: var(--font-serif); font-size: 28px; }
 .mypage--guest p { color: var(--color-text-muted); }
 .mypage--guest a { padding: 10px 34px; background: var(--color-primary); color: var(--color-primary-foreground); }
 @media (max-width: 680px) {
+  .mypage__hero-art { right: 0; height: clamp(110px, 26vw, 150px); width: auto; opacity: .55; }
   .mypage__profile { grid-template-columns: 1fr; }
   .mypage__profile > div { border-right: 0; border-bottom: 1px solid var(--color-border-soft); }
   .mypage__profile > div:last-child { border-bottom: 0; }
   .mypage-list__head { display: none; }
   .mypage-list--production article, .mypage-list--activity article { grid-template-columns: 1fr auto; gap: 8px 16px; padding-block: 14px; }
   .mypage-list--production article span, .mypage-list--production article time { grid-column: 1; }
+  .mypage-list--activity article time { grid-column: 1; grid-row: 2; }
+  .mypage-list--activity article .mypage-list__edit { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
   .mypage-status { grid-column: 2; grid-row: 1; }
 }

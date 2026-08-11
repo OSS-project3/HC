@@ -70,6 +70,11 @@
 }
 
 /* ---- Step shell ---------------------------------------------------------- */
+.step__eyebrow {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
 .step__heading {
   font-family: var(--font-serif);
   font-weight: 700;
@@ -183,7 +188,12 @@
   left: 0;
   color: var(--color-border-accent);
 }
-.notice__agree {
+/* Higher specificity than the base `.check { display: inline-flex }` rule
+   (which is bundled AFTER this file), so each consent line stacks vertically
+   on its own row instead of sitting inline next to the previous one. */
+.notice .notice__agree {
+  display: flex;
+  width: fit-content;
   margin-top: 18px;
 }
 
@@ -195,6 +205,10 @@
   /* Bottom-align items sharing a row so inputs line up neatly. */
   align-items: end;
   margin-bottom: 30px;
+}
+/* 개인 신청: 수량 칸이 없으므로 발급 유형만 단일 열로. */
+.form-grid--single {
+  grid-template-columns: 1fr;
 }
 .form-block {
   min-width: 0;
@@ -332,6 +346,12 @@
   gap: 14px;
   align-items: end;
 }
+/* 생년월일 · 출생시간처럼 항상 가로 한 줄로 유지해야 하는 행. 모바일 폭에서도
+   세로로 접히지 않는다. align-items: start 로 두어 오른쪽 칸의 '모름' 체크박스가
+   길어져도 두 입력칸 상단이 나란히 정렬된다. */
+.field-row--inline {
+  align-items: start;
+}
 .field__with-btn {
   display: flex;
   gap: 8px;
@@ -452,11 +472,15 @@
 
 /* ---- Step 4: review ------------------------------------------------------ */
 .review {
-  border: 1px solid var(--color-border-soft);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--color-surface-soft) 18%, #fff);
-  padding: 22px 24px;
-  margin-bottom: 16px;
+  /* 최종 확인 단계: 박스 외곽선/배경 없이, 항목 사이에 구분선만 둔다. */
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 24px 4px;
+  margin-bottom: 0;
+}
+.review + .review {
+  border-top: 1px solid var(--color-border-soft);
 }
 .review__head {
   display: flex;
@@ -470,15 +494,15 @@
   font-size: 17px;
 }
 .review__edit {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--color-primary);
-  border: 1px solid var(--color-border-soft);
-  border-radius: 5px;
-  padding: 5px 14px;
-  transition: border-color var(--ease);
+  border: 0;
+  background: transparent;
+  padding: 0;
 }
 .review__edit:hover {
-  border-color: var(--color-primary);
+  text-decoration: underline;
 }
 .review__grid {
   display: grid;
@@ -586,18 +610,23 @@
   font-size: 12px;
   color: var(--color-text-muted);
 }
-/* Two sample cards sit side by side in a single row. */
+/* Front and back samples stack vertically, one image per row. */
 .apply-preview__row {
   display: flex;
+  flex-direction: column;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   width: 100%;
 }
 .apply-preview__card {
-  flex: 1 1 0;
+  flex: none;
+  width: min(100%, 348px);
   min-width: 0;
-  max-width: 168px;
+  max-width: none;
+}
+.apply-preview__row--single .apply-preview__card {
+  width: min(100%, 348px);
 }
 .apply-preview__img {
   width: 100%;
@@ -605,6 +634,7 @@
   display: block;
   /* Transparent PNG — no box/shadow behind it. */
   background: transparent;
+  border-radius: var(--radius-card-preview);
 }
 .apply-preview__caption {
   text-align: center;
@@ -638,6 +668,10 @@
   }
   .field-row {
     grid-template-columns: 1fr;
+  }
+  /* 생년월일 · 출생시간은 좁은 화면에서도 가로 한 줄 유지. */
+  .field-row--inline {
+    grid-template-columns: 1fr 1fr;
   }
   .step__actions .btn {
     flex: 1;

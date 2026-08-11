@@ -3,8 +3,8 @@ import { Link, useLocation } from "react-router-dom";
 import { api, type CardDownload, type LookupResult } from "../services/api";
 import "./MobileCardPage.css";
 
-const CARD_FRONT = "/images/cards/design%20front1.png";
-const CARD_BACK = "/images/cards/design%20back%201.png";
+const CARD_FRONT = "/images/cards/width/kor-mouse-front.jpg";
+const CARD_BACK = "/images/cards/width/kor-mouse-back.jpg";
 
 export function MobileCardPage() {
   const location = useLocation();

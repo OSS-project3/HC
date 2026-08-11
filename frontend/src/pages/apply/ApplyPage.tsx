@@ -65,7 +65,7 @@ export function ApplyPage() {
 
   const saveLocalApplication = (num: string) => {
     const applications = loadApplications();
-    saveApplications([{ applicationNumber: num, applicantType: draft.applicantType === "organization" ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name, applicantEmail: draft.applicant.email, phone: draft.applicant.phone, quantity: draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10) }, ...applications]);
+    saveApplications([{ applicationNumber: num, applicantType: draft.applicantType === "organization" ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name || draft.applicant.englishName || "", applicantEmail: draft.applicant.email, phone: draft.applicant.phone, quantity: draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10) }, ...applications]);
     setApplicationNumber(num);
     goTo(4);
   };
@@ -82,7 +82,7 @@ export function ApplyPage() {
           cardTypeId: cardTypeIds[design.cardType], issueType: physical ? "MOBILE_AND_PHYSICAL" : "MOBILE",
           applicant: { name: draft.applicant.name || draft.applicant.englishName, phone: draft.applicant.phone },
           receiver: physical ? { sameAsApplicant: draft.recipient.sameAsApplicant, name: draft.recipient.name, phone: draft.recipient.phone, zipCode: draft.recipient.postalCode, address: draft.recipient.address, detailAddress: draft.recipient.addressDetail, deliveryRequest: draft.recipient.deliveryRequest } : undefined,
-          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: draft.applicant.nationality, birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: draft.applicant.gender?.toUpperCase(), studentId: draft.applicant.studentNumber, department: draft.applicant.department },
+          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: draft.applicant.nationality, birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: draft.applicant.gender?.toUpperCase(), entryDate: draft.applicant.koreaEntryDate || undefined, studentId: draft.applicant.studentNumber, department: draft.applicant.department },
         };
         const form = new FormData();
         form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));

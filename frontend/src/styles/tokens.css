@@ -31,8 +31,10 @@
   --color-primary: #263d5b;         /* buttons, links, active menu */
   --color-primary-hover: #324a66;   /* button / dropdown hover */
   --color-primary-foreground: #f7f0e9; /* text on navy (cream) */
+  --color-art-outline: #fff;          /* selected transparent artwork contour */
   --color-button-navy: #2b3c59;     /* main-design action buttons */
   --color-button-navy-hover: #263d58;
+  --color-accent-bar: #4D453E;      /* 제목 왼쪽 강조 바 (타이틀 액센트 바) */
 
   /* Accents */
   --color-icon-accent: #91683f;     /* check icons, accent icons (brown) */
@@ -47,6 +49,7 @@
   --header-height: 92px;
   --radius-card: 4px;
   --radius-panel: 8px;
+  --radius-card-preview: 14px;
   --radius-pill: 999px;
 
   /* Elevation — cards should look "lifted", never heavily shadowed */

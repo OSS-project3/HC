@@ -2,7 +2,7 @@
    placeholder (ImagePlaceholder) until the real card artwork is delivered. */
 .sample-card {
   width: 100%;
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-card-preview);
   box-shadow: var(--shadow-card);
   overflow: hidden;
 }

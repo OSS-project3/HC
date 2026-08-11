@@ -103,7 +103,12 @@ export function CompanyPage() {
       <section id="directions" className="company-location page-container anchor-section">
         <div className="company-section-kicker">위치</div>
         <h2>찾아오시는 길</h2>
-        <div className="company-location__map" role="img" aria-label="지도 이미지 영역" />
+        <img
+          className="company-location__map"
+          src="/images/common/map.jpg"
+          alt="한글과 세종 찾아오시는 길 약도"
+          loading="lazy"
+        />
         <div className="company-location__info">
           <div>
             <p>⌖ {companyInfo.address}</p>

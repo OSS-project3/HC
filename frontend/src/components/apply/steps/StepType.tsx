@@ -32,7 +32,7 @@ export function StepType({ draft, update, onNext }: StepTypeProps) {
               type="button"
               className={clsx("type-card", selected && "type-card--selected")}
               aria-pressed={selected}
-              onClick={() => update({ applicantType: opt.type })}
+              onClick={() => update({ applicantType: opt.type, quantity: opt.type === "personal" ? 1 : draft.quantity })}
             >
               {selected && (
                 <span className="type-card__check" aria-hidden="true">
@@ -50,7 +50,7 @@ export function StepType({ draft, update, onNext }: StepTypeProps) {
       <div className="notice">
         <p className="notice__title">ⓘ 안내사항</p>
         <ul className="notice__list">
-          <li>신청 유형(개인 / 법인 단체)에 따라 신청 양식이 구분되어 제공됩니다.</li>
+          <li>신청 유형(개인 / 법인·단체)에 따라 신청 양식이 구분되어 제공됩니다.</li>
           <li>원활한 제작 진행을 위해 제작 신청 전 사전 상담을 완료해 주시기 바랍니다.</li>
         </ul>
         <label className="check notice__agree">
@@ -61,10 +61,18 @@ export function StepType({ draft, update, onNext }: StepTypeProps) {
           />
           <span>위 안내사항을 확인하였으며, 사전 상담을 완료하였습니다.</span>
         </label>
+        <label className="check notice__agree">
+          <input
+            type="checkbox"
+            checked={draft.disclaimerConfirmed}
+            onChange={(e) => update({ disclaimerConfirmed: e.target.checked })}
+          />
+          <span>본 증서는 문화체험용 기념 증서로 제공되며, 법적 신분증으로 사용할 수 없습니다.</span>
+        </label>
       </div>
 
       <div className="step__actions step__actions--end">
-        <Button onClick={onNext} disabled={!draft.consultationConfirmed}>
+        <Button onClick={onNext} disabled={!draft.consultationConfirmed || !draft.disclaimerConfirmed}>
           다음 <ChevronRight width={16} height={16} />
         </Button>
       </div>

@@ -16,8 +16,10 @@ interface StepInfoProps {
 export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
   const addressDetailRef = useRef<HTMLInputElement>(null);
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
-  const isVisitor = draft.cardType === "visitor";
+  const isOrg = draft.applicantType === "organization";
   const isStudent = draft.cardType === "student";
+  // 학생증은 "법인·단체명" 대신 "학교명"을 사용한다.
+  const orgLabel = isStudent ? "학교명" : "법인·단체명";
 
   const setApplicant = (patch: Partial<ApplicantInfo>) =>
     update({ applicant: { ...draft.applicant, ...patch } });
@@ -41,10 +43,10 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
       // Copy applicant → recipient (only the shared identity fields).
       setRecipient({
         sameAsApplicant: true,
-        name: isVisitor ? draft.applicant.englishName ?? "" : draft.applicant.name,
+        name: isOrg ? draft.applicant.name : draft.applicant.englishName ?? "",
         phone: draft.applicant.phone,
-        organizationName: draft.applicant.organizationName,
-        department: draft.applicant.department,
+        organizationName: isOrg ? draft.applicant.organizationName : "",
+        department: isOrg ? draft.applicant.department : "",
       });
     } else {
       setRecipient({ sameAsApplicant: false });
@@ -53,9 +55,10 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
 
   return (
     <div className="step">
+      <p className="step__eyebrow">{isOrg ? "법인·단체 신청" : "개인 신청"}</p>
       <h2 className="step__heading">정보 입력</h2>
 
-      <div className="form-grid">
+      <div className={`form-grid ${isOrg ? "" : "form-grid--single"}`}>
         <fieldset className="form-block">
           <legend className="form-block__legend">발급 유형 선택</legend>
           <div className="radio-row">
@@ -80,26 +83,92 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
           </div>
         </fieldset>
 
-        <label className="field field--quantity">
-          <span className="field__label">신청 수량</span>
-          <div className="field__with-suffix">
-            <input
-              className="field__input"
-              type="number"
-              min={1}
-              value={draft.quantity}
-              onChange={(e) => update({ quantity: Math.max(1, Number(e.target.value) || 1) })}
-            />
-            <span className="field__suffix">매</span>
-          </div>
-        </label>
+        {/* 수량 선택은 법인·단체 신청에서만 노출한다. 개인 신청은 1매 고정. */}
+        {isOrg && (
+          <label className="field field--quantity">
+            <span className="field__label">신청 수량</span>
+            <div className="field__with-suffix">
+              <input
+                className="field__input"
+                type="number"
+                min={1}
+                value={draft.quantity}
+                onChange={(e) => update({ quantity: Math.max(1, Number(e.target.value) || 1) })}
+              />
+              <span className="field__suffix">매</span>
+            </div>
+          </label>
+        )}
       </div>
 
       <div className={`info-columns ${isPhysical ? "info-columns--two" : ""}`}>
         {/* Applicant */}
         <section className="info-col">
           <h3 className="info-col__title">신청인 정보</h3>
-          {isVisitor ? (
+          {isOrg ? (
+            <>
+              <label className="field">
+                <span className="field__label">
+                  이름<span className="req">*</span>
+                </span>
+                <input
+                  className="field__input"
+                  value={draft.applicant.name}
+                  onChange={(e) => setApplicant({ name: e.target.value })}
+                  placeholder="담당자 이름"
+                />
+              </label>
+              <div className="field-row">
+                <label className="field">
+                  <span className="field__label">
+                    {orgLabel}<span className="req">*</span>
+                  </span>
+                  <input
+                    className="field__input"
+                    value={draft.applicant.organizationName ?? ""}
+                    onChange={(e) => setApplicant({ organizationName: e.target.value })}
+                    placeholder={isStudent ? "학교명을 입력해 주세요" : "법인·단체명을 입력해 주세요"}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field__label">부서</span>
+                  <input
+                    className="field__input"
+                    value={draft.applicant.department ?? ""}
+                    onChange={(e) => setApplicant({ department: e.target.value })}
+                    placeholder="부서 (선택)"
+                  />
+                </label>
+              </div>
+              <label className="field">
+                <span className="field__label">
+                  연락처<span className="req">*</span>
+                </span>
+                <input
+                  className="field__input"
+                  inputMode="tel"
+                  value={draft.applicant.phone}
+                  onChange={(e) => setApplicant({ phone: e.target.value })}
+                  placeholder="010-1234-5678"
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">
+                  이메일<span className="req">*</span>
+                </span>
+                <input
+                  className="field__input"
+                  type="email"
+                  value={draft.applicant.email}
+                  onChange={(e) => setApplicant({ email: e.target.value })}
+                  placeholder="hong@example.com"
+                />
+              </label>
+              <p className="info-col__notice">
+                입력하신 연락처와 이메일로 발급된 모바일 카드를 조회할 수 있습니다.
+              </p>
+            </>
+          ) : (
             <>
               <label className="field">
                 <span className="field__label">
@@ -136,7 +205,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   />
                 </label>
               </div>
-              <div className="field-row">
+              <div className="field-row field-row--inline">
                 <label className="field">
                   <span className="field__label">
                     생년월일<span className="req">*</span>
@@ -188,32 +257,6 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   <option value="female">여성</option>
                 </select>
               </label>
-              <label className="field">
-                <span className="field__label">
-                  전화번호<span className="req">*</span>
-                </span>
-                <input
-                  className="field__input"
-                  inputMode="tel"
-                  value={draft.applicant.phone}
-                  onChange={(e) => setApplicant({ phone: e.target.value })}
-                  placeholder="010-1234-5678"
-                />
-              </label>
-            </>
-          ) : (
-            <>
-              <div className="field">
-                <span className="field__label">
-                  이름<span className="req">*</span>
-                </span>
-                <input
-                  className="field__input"
-                  value={draft.applicant.name}
-                  onChange={(e) => setApplicant({ name: e.target.value })}
-                  placeholder="홍 길 동"
-                />
-              </div>
               {isStudent && (
                 <div className="field-row">
                   <label className="field">
@@ -238,7 +281,18 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
               )}
               <label className="field">
                 <span className="field__label">
-                  연락처<span className="req">*</span>
+                  한국입국일<span className="req">*</span>
+                </span>
+                <input
+                  className="field__input"
+                  type="date"
+                  value={draft.applicant.koreaEntryDate ?? ""}
+                  onChange={(e) => setApplicant({ koreaEntryDate: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">
+                  전화번호<span className="req">*</span>
                 </span>
                 <input
                   className="field__input"
@@ -291,6 +345,28 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                 onChange={(e) => setRecipient({ name: e.target.value })}
               />
             </label>
+            {isOrg && (
+              <div className="field-row">
+                <label className="field">
+                  <span className="field__label">{orgLabel}</span>
+                  <input
+                    className="field__input"
+                    value={draft.recipient.organizationName ?? ""}
+                    onChange={(e) => setRecipient({ organizationName: e.target.value })}
+                    placeholder={isStudent ? "학교명 (선택)" : "법인·단체명 (선택)"}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field__label">부서</span>
+                  <input
+                    className="field__input"
+                    value={draft.recipient.department ?? ""}
+                    onChange={(e) => setRecipient({ department: e.target.value })}
+                    placeholder="부서 (선택)"
+                  />
+                </label>
+              </div>
+            )}
             <label className="field">
               <span className="field__label">
                 연락처<span className="req">*</span>

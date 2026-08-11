@@ -26,7 +26,6 @@ export function LookupPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [cardNumber, setCardNumber] = useState("");
-  const [applicationNumber, setApplicationNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const changeMethod = (next: LookupMethod) => {
@@ -42,7 +41,7 @@ export function LookupPage() {
     const cardMatches = normalizeCardNumber(cardNumber) === DEMO_CARD_NUMBER;
 
     try {
-      const result = await api.lookupApplication({ method: method === "card" ? "card" : "application", keyValue: method === "card" ? cardNumber : applicationNumber, phone: phone || undefined, email: email || undefined });
+      const result = await api.lookupApplication({ method: method === "card" ? "card" : "application", keyValue: method === "card" ? cardNumber : phone, phone: phone || undefined, email: email || undefined });
       sessionStorage.setItem("last-application-lookup", JSON.stringify(result));
       navigate("/mobile-card", { state: { application: result } });
       return;
@@ -94,7 +93,6 @@ export function LookupPage() {
         <form className="lookup__form" onSubmit={submit}>
           {method === "contact" ? (
             <>
-              <label className="field"><span className="field__label">신청번호<span className="req">*</span></span><input className="field__input" value={applicationNumber} onChange={(event) => setApplicationNumber(event.target.value)} placeholder="APP-2026-000001" required /></label>
               <label className="field">
                 <span className="field__label">전화번호<span className="req">*</span></span>
                 <input

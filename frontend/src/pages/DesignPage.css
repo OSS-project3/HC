@@ -41,9 +41,11 @@
   gap: 20px;
 }
 .design__cat-title {
+  padding-left: 14px;
+  border-left: 5px solid var(--color-wordmark);
   font-family: var(--font-serif);
   font-weight: 300;
-  color: var(--color-text-title);
+  color: var(--color-wordmark);
   font-size: clamp(22px, 2.8vw, 34px);
 }
 
@@ -144,20 +146,17 @@
   grid-template-columns: repeat(3, minmax(0, 350px));
   justify-content: space-between;
 }
-/* Portrait: front + reading pairs flow across the row (front1·reading1·front2·
-   reading2) so the section fills the same wide width as the ID cards above. */
+/* Portrait: 세로형도 가로형과 동일하게 3열(각 열: 앞면 위 / 뒷면 아래) 구성.
+   한 페이지에 앞면 3장(윗줄) + 뒷면 3장(아랫줄). */
 .carousel__track--portrait {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   align-items: start;
 }
-/* 방문증: reduce all four cards while preserving the row's outer edges and
-   redistribute the freed width as equal space between cards. */
+/* 방문증: 카드 크기를 줄이고 남는 폭을 카드 사이 간격으로 분배. */
 .design__cat--visitor .carousel__track--portrait {
-  grid-template-columns: repeat(4, minmax(0, 220px));
+  grid-template-columns: repeat(3, minmax(0, 220px));
   justify-content: space-between;
-}
-.carousel__track--portrait .carousel__slide {
-  display: contents;
+  column-gap: clamp(48px, 8vw, 132px);
 }
 .carousel__slide {
   display: grid;
@@ -179,7 +178,7 @@
   /* 가로 두 장은 크기를 더 줄이고(최대 360px) 두 장 사이 간격은 조금 더 넓혀 가운데로 모음. */
   grid-template-columns: repeat(2, minmax(0, 360px));
   justify-content: center;
-  gap: clamp(28px, 3.6vw, 56px);
+  gap: clamp(64px, 7vw, 120px);
 }
 .carousel__row--narrow {
   /* 세로 네 장은 크기를 줄이고(최대 220px) 남는 공간을 간격으로 벌려,
@@ -192,11 +191,13 @@
 .carousel__frame {
   position: relative;
   display: block;
+  overflow: hidden;
+  border-radius: var(--radius-card-preview);
 }
 .carousel__tint {
   position: absolute;
   inset: 0;
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-card-preview);
   pointer-events: none;
   transition: background var(--ease);
 }

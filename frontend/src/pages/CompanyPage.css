@@ -35,12 +35,14 @@
 .company-tree h2 { padding-bottom: 22px; border-bottom: 1px solid var(--color-border-soft); color: var(--color-wordmark); font-family: var(--font-serif); font-size: 32px; }
 .company-tree p { margin-top: 22px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.75; }
 .company-location { padding-block: clamp(76px, 10vw, 130px); }
-.company-location__map { width: 100%; aspect-ratio: 2.3 / 1; margin-top: 36px; border: 1px solid var(--color-border-soft); background: var(--color-surface-soft); }
+.company-location__map { display: block; width: 100%; height: auto; margin-top: 36px; border: 1px solid var(--color-border-soft); border-radius: var(--radius-card-preview); }
 .company-location__info { display: flex; align-items: center; justify-content: space-between; gap: 30px; padding: 24px 8px 0; }
 .company-location__info > div { display: flex; flex-wrap: wrap; gap: 14px 34px; }
 .company-location__info p { color: var(--color-text-secondary); font-size: 13px; }
 .company-location__info p:first-child { width: 100%; font-weight: 600; }
-.company-location__info a { flex: none; padding: 8px 40px; border: 1px solid var(--color-primary); color: var(--color-primary); font-size: 13px; font-weight: 600; }
+/* 메인 홈페이지 학생증 신청 버튼(.design-chip)과 동일한 디자인. */
+.company-location__info a { flex: none; padding: 11px 40px; border: 2px solid var(--color-button-navy); border-radius: 6px; background: var(--color-warm-beige); color: var(--color-button-navy); font-size: 13px; font-weight: 600; transition: background-color var(--ease), color var(--ease), border-color var(--ease); }
+.company-location__info a:hover, .company-location__info a:focus-visible { background: var(--color-button-navy); border-color: var(--color-button-navy); color: var(--color-primary-foreground); }
 @media (max-width: 820px) {
   .company-overview, .company-roadmap__columns, .company-tree__inner { grid-template-columns: 1fr; }
   .company-overview__lead { padding-right: 0; padding-bottom: 40px; border-right: 0; border-bottom: 1px solid var(--color-border-soft); }

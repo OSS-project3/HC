@@ -9,7 +9,7 @@
   color: var(--color-text-secondary);
 }
 .field__label .req {
-  color: var(--color-icon-accent);
+  color: var(--color-primary);
   margin-left: 3px;
 }
 

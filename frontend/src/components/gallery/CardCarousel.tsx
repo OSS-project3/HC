@@ -1,13 +1,12 @@
 // Card-design gallery for one category on the design page.
-// All cards are shown at once; the `page` prop (1–5) only changes the colour
-// overlay tinting the cards — page 1 is the plain art.
+// Cards are supplied page-by-page by DesignPage.
 import type { CardDesign } from "../../data/cards";
 import { SampleCard } from "../brand/SampleCard";
 
 interface CardCarouselProps {
   cards: CardDesign[];
   orientation: "landscape" | "portrait";
-  /** Active page (1–5) — drives the colour overlay. Page 1 = no tint. */
+  /** Optional colour variant page. The design catalogue currently uses page 1. */
   page?: number;
   /** "student" = bespoke two-row mix: a wide landscape pair over a portrait quartet. */
   layout?: "default" | "student";
@@ -43,12 +42,12 @@ function TintedCard({
 export function CardCarousel({ cards, orientation, page = 1, layout = "default" }: CardCarouselProps) {
   const tint = PAGE_TINTS[page] ?? "transparent";
 
-  // 학생증: card[0] is the 가로(landscape) design, card[1] the 세로(portrait) design.
+  // 학생증: card[0]은 가로 2장, card[1..]은 세로 4장에 사용한다.
   // Row 1 = the landscape pair (front + reading), spaced wide. Row 2 = the
   // portrait pair shown twice, filling four columns (2개씩 4장).
   if (layout === "student") {
     const wide = cards[0];
-    const tall = cards[1];
+    const tallCards = cards.slice(1);
     return (
       <div className="carousel carousel--student">
         <div className="carousel__row carousel__row--wide">
@@ -56,10 +55,10 @@ export function CardCarousel({ cards, orientation, page = 1, layout = "default" 
           <TintedCard design={wide} variant="reading" tint={tint} />
         </div>
         <div className="carousel__row carousel__row--narrow">
-          <TintedCard design={tall} variant="front" tint={tint} />
-          <TintedCard design={tall} variant="reading" tint={tint} />
-          <TintedCard design={tall} variant="front" tint={tint} />
-          <TintedCard design={tall} variant="reading" tint={tint} />
+          {tallCards.flatMap((design) => ([
+            <TintedCard key={`${design.id}-front`} design={design} variant="front" tint={tint} />,
+            <TintedCard key={`${design.id}-reading`} design={design} variant="reading" tint={tint} />,
+          ]))}
         </div>
       </div>
     );

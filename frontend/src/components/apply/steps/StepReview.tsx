@@ -17,27 +17,37 @@ const dash = "—";
 
 export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepReviewProps) {
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
-  const isVisitor = draft.cardType === "visitor";
+  const isOrg = draft.applicantType === "organization";
   const isStudent = draft.cardType === "student";
+  const orgLabel = isStudent ? "학교명" : "법인·단체명";
   const issuanceLabel = isPhysical ? "모바일 + 실물 발급" : "모바일 발급";
-  const typeLabel = draft.applicantType === "organization" ? "법인 단체 신청" : "개인 신청";
+  const typeLabel = isOrg ? "법인·단체 신청" : "개인 신청";
   const cardLabel = design ? cardTypeLabels[design.cardType] : draft.cardType ? cardTypeLabels[draft.cardType] : dash;
 
   return (
     <div className="step">
+      <p className="step__eyebrow">{typeLabel}</p>
       <h2 className="step__heading">최종 확인</h2>
 
       {/* Built from the same draft data — no re-typed values, so nothing is lost. */}
+      {/* 디자인은 랜덤 배정이므로 최종 확인에 노출하지 않는다. */}
       <ReviewSection title="신청 정보" onEdit={() => onEdit(0)}>
         <Item label="신청 유형" value={typeLabel} />
         <Item label="카드 종류" value={cardLabel} />
-        {design && <Item label="디자인" value={design.name} />}
         <Item label="발급 유형" value={issuanceLabel} />
-        <Item label="수량" value={`${draft.quantity}매`} />
+        {isOrg && <Item label="수량" value={`${draft.quantity}매`} />}
       </ReviewSection>
 
       <ReviewSection title="신청인 정보" onEdit={() => onEdit(1)}>
-        {isVisitor ? (
+        {isOrg ? (
+          <>
+            <Item label="이름" value={draft.applicant.name || dash} />
+            <Item label={orgLabel} value={draft.applicant.organizationName || dash} />
+            <Item label="부서" value={draft.applicant.department || dash} />
+            <Item label="연락처" value={draft.applicant.phone || dash} />
+            <Item label="이메일" value={draft.applicant.email || dash} />
+          </>
+        ) : (
           <>
             <Item label="영문 이름" value={draft.applicant.englishName || dash} />
             <Item label="국적" value={draft.applicant.nationality || dash} />
@@ -51,14 +61,10 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
               label="성별"
               value={draft.applicant.gender === "male" ? "남성" : draft.applicant.gender === "female" ? "여성" : dash}
             />
-            <Item label="전화번호" value={draft.applicant.phone || dash} />
-          </>
-        ) : (
-          <>
-            <Item label="이름" value={draft.applicant.name || dash} />
             {isStudent && <Item label="학번" value={draft.applicant.studentNumber || dash} />}
             {isStudent && <Item label="학과" value={draft.applicant.department || dash} />}
-            <Item label="연락처" value={draft.applicant.phone || dash} />
+            <Item label="한국입국일" value={draft.applicant.koreaEntryDate || dash} />
+            <Item label="전화번호" value={draft.applicant.phone || dash} />
             <Item label="이메일" value={draft.applicant.email || dash} />
           </>
         )}
@@ -67,6 +73,8 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
       {isPhysical && (
         <ReviewSection title="수령인 정보" onEdit={() => onEdit(1)}>
           <Item label="수령인" value={draft.recipient.name || dash} />
+          {isOrg && <Item label={orgLabel} value={draft.recipient.organizationName || dash} />}
+          {isOrg && <Item label="부서" value={draft.recipient.department || dash} />}
           <Item label="연락처" value={draft.recipient.phone || dash} />
           <Item
             label="주소"
@@ -81,20 +89,28 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
       )}
 
       <ReviewSection title="등록한 이미지 / 파일" onEdit={() => onEdit(2)}>
-        {isVisitor ? (
-          <FileItem label="본인 얼굴 사진" name={draft.faceFile?.name} preview={draft.faceFile?.previewUrl} />
-        ) : isStudent ? (
+        {isStudent ? (
+          isOrg ? (
+            <>
+              <FileItem label="학교 로고" name={draft.logoFile?.name} preview={draft.logoFile?.previewUrl} />
+              <FileItem label="학교 직인" name={draft.sealFile?.name} preview={draft.sealFile?.previewUrl} />
+              <FileItem label="첨부파일" name={draft.archiveFile?.name} />
+            </>
+          ) : (
+            <>
+              <FileItem label="본인 프로필 사진" name={draft.faceFile?.name} preview={draft.faceFile?.previewUrl} />
+              <FileItem label="학교 로고" name={draft.logoFile?.name} preview={draft.logoFile?.previewUrl} />
+              <FileItem label="학교 직인" name={draft.sealFile?.name} preview={draft.sealFile?.previewUrl} />
+            </>
+          )
+        ) : isOrg ? (
           <>
-            <FileItem label="본인 프로필 사진" name={draft.faceFile?.name} preview={draft.faceFile?.previewUrl} />
-            <FileItem label="학교 로고" name={draft.logoFile?.name} preview={draft.logoFile?.previewUrl} />
-            <FileItem label="학교 직인" name={draft.sealFile?.name} preview={draft.sealFile?.previewUrl} />
+            <FileItem label="법인·단체 로고 이미지" name={draft.logoFile?.name} preview={draft.logoFile?.previewUrl} />
+            <FileItem label="법인·단체 직인 이미지" name={draft.sealFile?.name} preview={draft.sealFile?.previewUrl} />
+            <FileItem label="첨부파일" name={draft.archiveFile?.name} />
           </>
         ) : (
-          <>
-            <FileItem label="로고 이미지" name={draft.logoFile?.name} preview={draft.logoFile?.previewUrl} />
-            <FileItem label="직인 이미지" name={draft.sealFile?.name} preview={draft.sealFile?.previewUrl} />
-            <FileItem label="제출 파일" name={draft.archiveFile?.name} />
-          </>
+          <FileItem label="프로필 사진" name={draft.faceFile?.name} preview={draft.faceFile?.previewUrl} />
         )}
       </ReviewSection>
 
@@ -124,7 +140,7 @@ function ReviewSection({
       <div className="review__head">
         <h3 className="review__title">{title}</h3>
         <button type="button" className="review__edit" onClick={onEdit}>
-          수정
+          수정 <span aria-hidden="true">›</span>
         </button>
       </div>
       <dl className="review__grid">{children}</dl>

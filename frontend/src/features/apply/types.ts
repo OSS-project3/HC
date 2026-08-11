@@ -13,6 +13,7 @@ export interface ApplicantInfo {
   birthTime?: string;
   birthTimeUnknown?: boolean;
   gender?: "male" | "female" | "";
+  koreaEntryDate?: string;
   organizationName?: string;
   department?: string;
   studentNumber?: string;
@@ -58,6 +59,7 @@ export interface ApplicationDraft {
   faceFile?: UploadFileInfo;
 
   consultationConfirmed: boolean;
+  disclaimerConfirmed: boolean;
   depositorName: string;
 }
 
@@ -70,6 +72,7 @@ export const emptyApplicant: ApplicantInfo = {
   birthTime: "",
   birthTimeUnknown: false,
   gender: "",
+  koreaEntryDate: "",
   organizationName: "",
   department: "",
   studentNumber: "",
@@ -97,6 +100,7 @@ export function createEmptyDraft(): ApplicationDraft {
     applicant: { ...emptyApplicant },
     recipient: { ...emptyRecipient },
     consultationConfirmed: false,
+    disclaimerConfirmed: false,
     depositorName: "",
   };
 }

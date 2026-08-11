@@ -29,19 +29,25 @@ export function MyPage() {
 
   return (
     <div className="mypage">
-      <header className="subpage-hero page-container">
+      <header className="mypage__hero subpage-hero page-container">
         <p className="eyebrow">MY PAGE</p>
         <h1 className="subpage-hero__title">마이페이지</h1>
         <p className="section-lead">{user.name}님의 제작 및 활동 내역을 확인할 수 있습니다.</p>
+        <img className="mypage__hero-art" src="/images/support/support-bg.png" alt="" aria-hidden="true" />
       </header>
 
+      <div className="mypage__actions page-container">
+        <button type="button" className="mypage__edit" onClick={() => setEditing(!editing)}>
+          수정 <span aria-hidden="true">›</span>
+        </button>
+        {user.source === "api" && <button type="button" className="mypage__edit mypage__edit--muted" onClick={async () => { if (!confirm("회원 탈퇴를 진행할까요?")) return; await api.withdraw(); logout(); }}>회원 탈퇴</button>}
+      </div>
       <section className="mypage__profile page-container">
         <div><span>이름</span><strong>{user.name}</strong></div>
         <div><span>이메일</span><strong>{user.email}</strong></div>
         <div><span>회원 유형</span><strong>{user.role === "admin" ? "관리자" : "일반 회원"}</strong></div>
-        {user.source === "api" && <div style={{ gridColumn: "1 / -1" }}><Button type="button" variant="outline" onClick={() => setEditing(!editing)}>프로필 수정</Button> <Button type="button" variant="ghost" onClick={async () => { if (!confirm("회원 탈퇴를 진행할까요?")) return; await api.withdraw(); logout(); }}>회원 탈퇴</Button></div>}
       </section>
-      {editing && <form className="mypage__profile page-container" onSubmit={async (event) => { event.preventDefault(); await api.updateMe(profile); await refreshProfile(); setEditing(false); }}>
+      {editing && <form className="mypage__profile page-container" onSubmit={async (event) => { event.preventDefault(); if (user.source === "api") { await api.updateMe(profile); await refreshProfile(); } setEditing(false); }}>
         <label className="field"><span className="field__label">이름</span><input className="field__input" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
         <label className="field"><span className="field__label">전화번호</span><input className="field__input" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} /></label>
         <label className="field"><span className="field__label">주소</span><input className="field__input" value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} /></label>
@@ -58,7 +64,7 @@ export function MyPage() {
 
       <MySection title="후기" action={<Link to="/reviews/new">후기 작성 ›</Link>}>
         <div className="mypage-list mypage-list--activity">
-          {myReviews.map((review) => <article key={review.id}><Link to={`/reviews/${encodeURIComponent(review.id)}`}><strong>{review.title}</strong></Link><time>{review.createdAt.replace(/-/g, ".")}</time></article>)}
+          {myReviews.map((review) => <article key={review.id}><Link to={`/reviews/${encodeURIComponent(review.id)}`}><strong>{review.title}</strong></Link><time>{review.createdAt.replace(/-/g, ".")}</time><Link className="mypage-list__edit" to={`/reviews/${encodeURIComponent(review.id)}/edit`} aria-label={`${review.title} 후기 수정`}>수정</Link></article>)}
           {myReviews.length === 0 && <p className="mypage-list__empty">작성한 후기가 없습니다.</p>}
         </div>
       </MySection>
