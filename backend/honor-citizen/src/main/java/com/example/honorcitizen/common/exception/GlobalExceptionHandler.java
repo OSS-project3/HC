@@ -9,6 +9,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
@@ -74,6 +75,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT.name(), "필수 요청 파트가 누락되었습니다."));
+    }
+
+    // 쿼리 파라미터가 enum 등 기대한 타입으로 변환 불가능할 때(예: ?searchType=WRONG) 발생.
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodArgumentTypeMismatchException(
+            MethodArgumentTypeMismatchException ex) {
+        log.warn("MethodArgumentTypeMismatchException: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT.name(), "요청 파라미터 형식이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
