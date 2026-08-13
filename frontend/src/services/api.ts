@@ -37,7 +37,7 @@ export interface CardDownload { applicationId: number; applicationType: "INDIVID
 
 export const api = {
   getMe: () => request<ApiUser>("/api/users/me"),
-  updateMe: (body: { name?: string; phone?: string; address?: string }) => request<ApiUser>("/api/users/me", { method: "PATCH", body: JSON.stringify(body) }),
+  updateMe: (body: { name?: string; phone?: string }) => request<ApiUser>("/api/users/me", { method: "PATCH", body: JSON.stringify(body) }),
   withdraw: () => request<void>("/api/users/me/withdraw", { method: "POST" }),
   agreeTerms: (body: { privacyAgreed: boolean; imageUploadAgreed: boolean; shippingAgreed: boolean }) => request("/api/auth/terms", { method: "POST", body: JSON.stringify(body) }),
   refresh: () => request<void>("/api/auth/refresh", { method: "POST" }),
