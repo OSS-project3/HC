@@ -122,3 +122,58 @@
 - 코드 파일이 충돌하면(예: 같은 Service 파일을 동시에 건드림) 상대방이 무엇을 하려 했는지 `HANDOFF.md`/`CHANGELOG.md` 최근 항목으로 먼저 파악한 뒤 수동으로 합친다 — 한쪽을 임의로 버리지 않는다(2026-08-06 `main` 통합 병합 때 실제로 이 방식으로 처리함, `CHANGELOG.md` 해당 날짜 항목 참고).
 - 협업 문서(`docs/collab/*`) 변경은 가능하면 코드/기능 변경과 **별도 커밋**으로 분리한다.
   예: `chore(collab): update handoff`
+
+---
+
+## 8. 테스트 작성 규칙 (2026-08-13 신규 — Review 도메인 구현 중 명문화)
+
+> 이전까지 이 문서에 테스트 방법론이 없어서, 기존 코드(`ApplicationServiceTest`, `ApplicationServiceLookupTest`, `ApplicationControllerTest` 등)를 관찰해서 따라온 관례를 여기서 처음 문서화한다. 아래 패턴과 다르게 작성된 기존 테스트를 발견해도 임의로 통일하지 않는다 — 새로 작성하는 테스트만 이 규칙을 따른다.
+
+**두 계층으로 나눠 작성한다:**
+
+1. **서비스 계층 통합테스트** (`domain/{도메인}/service/*Test.java`)
+   - `@SpringBootTest` + Spring Boot가 자동 구성하는 실제 H2 인메모리 DB 사용. `Repository`를 `@Autowired`로 주입받아 실제로 저장·조회하며 검증한다(Mock으로 대체하지 않는다).
+   - S3 등 외부 연동만 `@MockitoBean`으로 목킹한다(예: `StorageService`). 네트워크 호출이 실제로 나가면 안 되는 것만 목킹 대상이다.
+   - `@BeforeEach`에서 관련 Repository 전부 `deleteAll()`로 초기화해 테스트 간 데이터 격리를 보장한다.
+
+2. **컨트롤러 계층 API 테스트** (`api/*ControllerTest.java`)
+   - `@SpringBootTest` + `@AutoConfigureMockMvc`로 `MockMvc`를 통해 실제 HTTP 요청처럼 호출한다.
+   - 인증이 필요한 API는 `JwtTokenProvider`로 실제 accessToken을 발급해 `Authorization` 헤더에 실어 보낸다 — `JwtAuthFilter`/`SecurityConfig`까지 실제로 통과시켜 검증한다(인증 로직 자체를 목킹하지 않는다).
+   - multipart 바인딩, HTTP 상태 코드, `permitAll()` 대상 여부 등 서비스 단위 테스트로는 확인할 수 없는 계층을 검증하는 것이 목적이다. 서비스 로직 자체(비즈니스 규칙 분기 전부)를 컨트롤러 테스트에서 중복 검증하지 않는다 — 그건 1번(서비스 계층)의 역할이다.
+
+**작성 순서(TDD)**: 가능하면 테스트를 먼저 작성해 의도한 대로 실패하는지 확인한 뒤 최소 구현을 추가하고, 관련 테스트 스위트를 재실행해 통과를 확인한다. 구현 후에는 영향 범위의 전체 테스트(`./gradlew test` 또는 관련 `--tests` 범위)를 반드시 돌려 회귀를 확인한다.
+
+---
+
+## 9. 테스트 실행 및 로그 출력 규칙 (2026-08-13 신규)
+
+Spring Boot/Gradle 테스트는 로그가 매우 길어질 수 있으므로, 전체 테스트 실행 시 stdout/stderr 전체를 대화에 출력하지 않는다.
+
+### 전체 테스트 실행
+
+- 전체 테스트는 stdout/stderr를 로컬 로그 파일로 리다이렉트한다.
+- 로그 파일 전체를 대화나 컨텍스트에 출력하지 않는다.
+- 테스트 완료 후 먼저 아래 항목만 추출해 보고한다.
+  - 종료 코드
+  - 실행된 전체 테스트 수
+  - 실패한 테스트 수
+  - 실패한 테스트 이름
+  - 테스트 리포트 경로
+
+### 실패 원인 분석
+
+- 실패 원인 분석이 필요하면 실패한 테스트만 단독 실행한다.
+- 단독 실행 로그도 전체를 출력하지 않고, 예외 원인과 직접 관련된 부분만 확인한다.
+- 허용되는 출력 범위는 다음 정도로 제한한다.
+  - failure message
+  - exception type
+  - caused by
+  - 실패 line
+  - 실제 HTTP status / response body 중 실패 판단에 필요한 부분
+
+### 금지 사항
+
+- 전체 Gradle stdout/stderr를 대화에 그대로 출력하지 않는다.
+- 전체 XML/HTML 테스트 리포트를 통째로 읽거나 출력하지 않는다.
+- Hibernate SQL, Spring Boot context 로그, stack trace 전체를 대량 출력하지 않는다.
+- 실패와 무관한 로그를 근거 없이 컨텍스트에 올리지 않는다.

@@ -15,6 +15,24 @@
 
 ---
 
+## 2026-08-13 — Claude — `main` (Review 도메인 CRUD 5개 API 구현)
+
+- 변경: `docs/specs/review/{data-model,api}.md`에 설계된 Review 도메인을 실제로 구현했다. TDD로 진행(테스트 먼저 작성 → 실패 확인 → 구현 → 통과 확인)했으며, 신규 테스트 76개 전부 통과.
+  - **엔티티/리포지토리**: `Review`(`card_type_id`/`image_path`를 컬럼으로 직접 저장, join 엔티티 없음), `ReviewRepository extends JpaSpecificationExecutor<Review>`(이 프로젝트 첫 Specification 사용).
+  - **이미지 검증**: `ReviewImageValidator`(2MB, jpg/jpeg/png/webp, 해상도 하한 없음 — `ApplicationPhotoValidator`와 기준이 달라 재사용하지 않고 신규 작성). WEBP는 Java 표준 `ImageIO`가 디코딩을 지원하지 않아 `com.twelvemonkeys.imageio:imageio-webp:3.10.1` 의존성을 신규 추가(`build.gradle`) — 사람이 "WEBP 디코딩 라이브러리 추가"로 결정.
+  - **자격검증**: `ReviewEligibilityService` — (1) 로그인 사용자의 이메일이 `Applicant.email`(대표 제출자) 또는 `ApplicationMember.email`(단체 구성원 개인)과 매칭되는 `Application.status=COMPLETED` 건 중 `(application_type, card_type_id)` 조합이 일치해야 통과(`REVIEW_NOT_ELIGIBLE`), (2) ✅ 세션 중 신규 확정: 같은 사용자가 같은 조합으로 이미 작성한 후기가 있으면 거절(`REVIEW_ALREADY_EXISTS`, "조합당 1개" 정책 — `Review→Application` FK를 두지 않는 기존 설계를 유지하기 위해 판단 기준은 `(user_id, application_type, card_type_id)` 조합의 유일성), (3) ✅ 세션 중 신규 확정: 탈퇴(`WITHDRAWN`) 계정은 새 후기를 등록할 수 없음(`ALREADY_WITHDRAWN`) — 단 이 체크는 **등록에만** 적용하고 수정에는 적용하지 않음(원작성자가 나중에 탈퇴해도 관리자가 기존 후기를 계속 관리할 수 있어야 하므로).
+  - **API 1 등록** `POST /api/reviews`: multipart(`request` JSON + `image` 0~1개). `image` 파트 2개 이상 전송 시 `INVALID_INPUT`.
+  - **API 2 목록** `GET /api/reviews`: `cardTypeId`/`hasPhoto`/`searchType`+`keyword` 필터, 페이징(기본 size=9, 상한 100). `ReviewSpecifications`로 동적 쿼리 구현. **주의**: 이 프로젝트가 쓰는 Spring Data JPA 버전은 `Specification.where(null)`/`.and(null)`을 더 이상 허용하지 않고(과거 버전과 동작이 다름) `IllegalArgumentException`을 던지므로, 각 조건 메서드가 null 대신 `cb.conjunction()`(항상 참)을 반환하도록 작성해야 한다. 정렬은 `createdAt DESC`만으로는 동시 등록 시 밀리초 단위로 값이 같아질 수 있어(H2 등) `id DESC`를 2차 정렬키로 추가했다(초기 구현에서 실제로 플레이키 발생 후 수정).
+  - **API 3 단건조회** `GET /api/reviews/{id}`: 비로그인 공개 조회, `canEdit`/`canDelete`는 관리자 또는 작성자 본인만 `true`. `next`(다음 오래된 글)만 제공.
+  - **API 4 삭제** `DELETE /api/reviews/{id}`: 작성자 또는 관리자만 가능(`FORBIDDEN`). Review row 삭제 후 트랜잭션 commit 시점에 S3 이미지 객체 삭제(`TransactionSynchronizationManager.registerSynchronization`, `ApplicationService`의 기존 after-commit 패턴 재사용).
+  - **API 5 수정** `PATCH /api/reviews/{id}`: 등록과 동일 5개 필드 전체 재제출 + `removeImage`. 사진 처리 3가지 경우(교체/삭제/유지) 구현. `applicationType`/`cardTypeId` 변경 시 원작성자(`Review.userId`, 수정자 아님) 기준으로 자격 재검증.
+  - **공통**: `PageResponse<T>`(이 프로젝트 첫 페이징 응답 포맷) 신규. `ErrorCode`에 `REVIEW_NOT_FOUND`/`REVIEW_NOT_ELIGIBLE`/`REVIEW_ALREADY_EXISTS`/`INVALID_IMAGE_FILE` 추가(`INVALID_IMAGE_FILE`은 기존 `INVALID_IMAGE`가 "얼굴을 식별할 수 없습니다"라는 얼굴사진 전용 메시지라 Review에 그대로 재사용하면 오해의 소지가 있어 신규로 분리). `GlobalExceptionHandler`에 `MethodArgumentTypeMismatchException` 핸들러 추가(`?searchType=WRONG` 같은 잘못된 enum 쿼리 파라미터를 `INVALID_INPUT`으로 응답). `SecurityConfig`에 `GET /api/reviews`·`GET /api/reviews/{id}`만 `permitAll()` 추가(등록/수정/삭제는 기존 `hasAnyRole("USER","ADMIN")` 그대로 적용).
+  - **테스트 관례 명문화**: 서비스 계층(`@SpringBootTest`+실 H2)·컨트롤러 계층(`@AutoConfigureMockMvc`+`MockMvc`, 실제 JWT로 Security 필터체인까지 통과) 2계층 테스트 패턴을 처음으로 `docs/collab/RULES.md` §8에 문서화 — 기존 코드에 이미 있던 관례를 관찰해 따른 것이라 명문화만 함.
+- 파일: `Review.java`, `ReviewRepository.java`, `ReviewImageValidator.java`, `ReviewSpecifications.java`, `ReviewEligibilityService.java`, `ReviewService.java`, `ReviewController.java`, `ReviewCreateRequest/Response.java`, `ReviewUpdateRequest.java`, `ReviewListItemResponse.java`, `ReviewDetailResponse.java`, `CardTypeSummaryResponse.java`, `ReviewSearchType.java`, `PageResponse.java`, `ErrorCode.java`, `GlobalExceptionHandler.java`, `SecurityConfig.java`, `ApplicantRepository.java`/`ApplicationMemberRepository.java`(`findByEmail` 신규 추가), `build.gradle`(twelvemonkeys 의존성), 관련 테스트 8개 파일(신규), `docs/specs/review/{data-model,api}.md`, `docs/collab/RULES.md` §8(신규)
+- 테스트: Review 도메인 신규 76개 전부 통과(`ReviewTest`, `ReviewEligibilityServiceTest`, `ReviewImageValidatorTest`, `ReviewServiceCreateTest`, `ReviewServiceListTest`, `ReviewServiceDetailTest`, `ReviewServiceDeleteTest`, `ReviewServiceUpdateTest`, `ReviewControllerTest`, `PageResponseTest`). 전체 스위트 216개 중 기존과 동일하게 `UserControllerTest` 2건·`UserApplicationFlowTest` 1건(Redis 미기동)만 실패 — 회귀 없음.
+- 사유: `docs/specs/review/{data-model,api}.md`에 설계만 있고 구현이 없던 상태를 실제 동작하는 API로 완성. 구현 도중 발견한 정책 공백(후기 작성 개수 제한, 탈퇴 계정 처리) 2건은 임의로 결정하지 않고 사람에게 확인 후 문서(`api.md`/`data-model.md`)에 먼저 반영한 뒤 구현했다.
+- 관련: TODO "Review 도메인 구현" 행(완료로 갱신)
+
 ## 2026-08-09 — Codex — `main` (Redis 기동 후 전체 테스트 실패 재분류)
 
 - 변경: Redis 기동 후 기존 전체 테스트 실패 3건을 재실행해 실패 원인을 재분류했다. `UserControllerTest.withdrawMarksUserWithdrawnAndBlacklistsAccessToken`, `UserControllerTest.withdrawReturnsAlreadyWithdrawnOnSecondCall`은 통과했고, 이전 실패 원인은 Redis 미기동에 따른 `RedisConnectionFailureException`으로 확인했다. `UserApplicationFlowTest.fullUserApplicationFlow`는 Redis 연결 실패가 해소됐지만 신청 생성 단계에서 `TERMS_NOT_AGREED` 403으로 실패했다.
