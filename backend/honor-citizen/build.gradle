@@ -31,6 +31,8 @@ dependencies {
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    // Java 표준 ImageIO는 WEBP를 디코딩하지 못해 추가 — Review 이미지 검증(webp 포함)에서 사용.
+    implementation 'com.twelvemonkeys.imageio:imageio-webp:3.10.1'
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.h2database:h2'
