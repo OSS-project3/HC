@@ -1,0 +1,250 @@
+.events-page .page-container {
+  width: min(100% - clamp(48px, 15vw, 240px), var(--page-max));
+}
+.event-feature__head {
+  max-width: 760px;
+  margin-bottom: clamp(28px, 4vw, 48px);
+}
+.event-feature__head > p:last-child {
+  margin-top: 14px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.8;
+}
+/* ---- Event feed: 부스 운영 / 법인·단체 협업 (동일 디자인) ---------------- */
+.event-feed {
+  padding-block: clamp(48px, 7vw, 96px);
+}
+/* Title row: accent mark + title + long divider + tagline pinned to the right. */
+.event-feed__head {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 22px);
+  margin-bottom: clamp(24px, 3vw, 40px);
+}
+.event-feed__title {
+  flex: none;
+  padding-left: 14px;
+  border-left: 4px solid var(--color-accent-bar);
+  font-family: var(--font-serif);
+  color: var(--color-wordmark);
+  font-size: clamp(20px, 2.4vw, 30px);
+  line-height: 1.2;
+}
+.event-feed__rule {
+  flex: 1;
+  height: 2px;
+  min-width: 24px;
+  background: var(--color-surface-soft);
+}
+.event-feed__tagline {
+  flex: none;
+  max-width: 42%;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: right;
+  word-break: keep-all;
+}
+
+/* Featured (representative) record — distinct from the grid cards:
+   photo on the LEFT, text on the RIGHT (side by side).
+   Uses .event-card.event-card--wide so it beats the base `.event-card`
+   flex-column rule regardless of source order. */
+.event-card.event-card--wide {
+  display: grid;
+  grid-template-columns: 3fr 2fr; /* photo 60% / text 40% */
+  align-items: stretch;
+  min-height: clamp(300px, 34vw, 440px);
+  margin-bottom: clamp(18px, 2.4vw, 30px);
+}
+.event-card--wide .event-card__media { aspect-ratio: auto; height: 100%; }
+/* Text block on the right, vertically centered within the card height.
+   The "자세히 보기" button is pinned to the bottom-right corner instead, so it
+   sits out of the centered flow. */
+.event-card--wide .event-card__body {
+  position: relative;
+  justify-content: center;
+  padding: clamp(22px, 3vw, 42px);
+}
+.event-card--wide .event-card__more {
+  position: absolute;
+  right: clamp(22px, 3vw, 42px);
+  bottom: clamp(22px, 3vw, 42px);
+  margin: 0;
+  padding-top: 0;
+}
+.event-card--wide h3 { font-size: clamp(19px, 2.2vw, 26px); }
+.event-card__text--full { -webkit-line-clamp: 6; }
+
+/* Records as cards — 3 per row, photo on top / content below.
+   No border; cards are set apart by a soft background fill only. */
+.event-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(18px, 2.4vw, 30px);
+}
+.event-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--radius-card-preview);
+  overflow: hidden;
+  background: var(--color-warm-beige); /* #F2E9DF */
+}
+.event-card__media { aspect-ratio: 4 / 3; }
+.event-card__media img,
+.event-card__media .img-ph {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+}
+.event-card__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: clamp(16px, 1.8vw, 22px);
+}
+/* Date + tag sit below the title. */
+.event-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 0; }
+.event-card__meta time { font-size: 12.5px; color: var(--color-border-accent); } /* #BC996E */
+.event-card__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.event-card h3 { color: var(--color-wordmark); font-size: clamp(16px, 1.7vw, 19px); } /* #5D4533 */
+.event-card__place { margin-top: 5px; font-size: 13px; color: var(--color-text-secondary); }
+.event-card__text {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--color-text-secondary); /* #4D453E */
+  /* keep card heights tidy — clamp the preview text */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.event-card__more {
+  margin-top: auto;
+  align-self: flex-end;
+  padding-top: 16px;
+  color: var(--color-text-muted); /* #90867D */
+  font-weight: 600;
+  font-size: 13px;
+}
+.event-card__more:hover { text-decoration: underline; }
+
+/* ---- Detail popup — large, gallery (left) + info (right) ----------------- */
+.modal__dialog.event-modal {
+  width: min(100%, 1040px);
+  height: min(86vh, 680px);
+  max-height: 92vh;
+  background: var(--color-warm-beige); /* #F2E9DF — same as the grid cards */
+}
+/* Drop the header bar; float the close button over the top-right corner. */
+.event-modal .modal__header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 12px 14px;
+  border-bottom: 0;
+  z-index: 3;
+}
+.event-modal .modal__title { display: none; }
+.event-modal .modal__close { background: rgb(255 255 255 / 72%); }
+.event-modal .modal__body { flex: 1; min-height: 0; padding: 0; overflow: hidden; }
+
+.event-modal__grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Left: gallery */
+.event-modal__gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(14px, 1.6vw, 20px);
+  background: var(--color-warm-beige); /* #F2E9DF — same as the info side */
+}
+.event-modal__main {
+  flex: 1;
+  min-height: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--color-warm-beige);
+}
+.event-modal__main img,
+.event-modal__main .img-ph { width: 100%; height: 100%; object-fit: cover; }
+.event-modal__thumbs { display: flex; align-items: center; gap: 8px; }
+.event-modal__thumbs ul { display: flex; gap: 8px; overflow-x: auto; flex: 1; }
+.event-modal__arrow { flex: none; width: 26px; height: 40px; color: var(--color-text-muted); font-size: 24px; }
+.event-modal__arrow:hover { color: var(--color-wordmark); }
+.event-modal__thumb {
+  display: block;
+  width: 56px;
+  height: 42px;
+  border-radius: 3px;
+  overflow: hidden;
+  opacity: 0.5;
+  transition: opacity var(--ease);
+}
+.event-modal__thumb:hover { opacity: 0.8; }
+.event-modal__thumb.is-active { opacity: 1; outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.event-modal__thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Right: info */
+.event-modal__info {
+  min-height: 0;
+  overflow-y: auto;
+  padding: clamp(30px, 3.4vw, 54px) clamp(24px, 3vw, 44px);
+}
+.event-modal__kicker { color: var(--color-text-muted); font-size: 12px; letter-spacing: 0.02em; margin-bottom: 12px; }
+.event-modal__title { font-family: var(--font-serif); color: var(--color-wordmark); font-size: clamp(22px, 2.6vw, 32px); line-height: 1.25; }
+.event-modal__date { margin-top: 10px; color: var(--color-border-accent); font-size: 13px; }
+.event-modal__table { margin-top: 20px; }
+.event-modal__table > div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 12px;
+  padding: 7px 2px;
+  font-size: 14px;
+}
+.event-modal__table dt { color: var(--color-text-muted); }
+.event-modal__table dd { color: var(--color-text-secondary); }
+.event-modal__text { margin-top: 24px; color: var(--color-text-secondary); font-size: 14px; line-height: 1.9; }
+
+@media (max-width: 760px) {
+  .modal__dialog.event-modal { width: 100%; height: auto; max-height: 92vh; }
+  .event-modal .modal__body { overflow-y: auto; }
+  .event-modal__grid { grid-template-columns: 1fr; height: auto; }
+  .event-modal__main { aspect-ratio: 16 / 9; flex: none; }
+  .event-modal__info { overflow: visible; }
+}
+
+@media (max-width: 860px) {
+  .event-card-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 720px) {
+  .event-feed__head { flex-wrap: wrap; gap: 10px; }
+  .event-feed__rule { display: none; }
+  .event-feed__tagline { max-width: none; flex-basis: 100%; text-align: left; }
+  /* Stack the featured card on narrow screens. */
+  .event-card.event-card--wide { grid-template-columns: 1fr; min-height: 0; }
+  .event-card--wide .event-card__media { aspect-ratio: 16 / 9; height: auto; }
+}
+@media (max-width: 560px) {
+  .event-card-grid { grid-template-columns: 1fr; }
+}

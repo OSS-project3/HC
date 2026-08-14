@@ -55,9 +55,32 @@ body {
 
 /* Shared top treatment for every routed subpage. */
 .subpage-hero {
+  position: relative;
   padding-block: clamp(40px, 6vw, 76px) clamp(20px, 3vw, 36px);
   padding-inline: clamp(14px, 2vw, 28px);
   text-align: left;
+}
+/* Unified title divider: a full-width hairline directly under the hero,
+   with a thick navy accent set slightly in from the left. Every subpage
+   inherits this so the divider is identical in position and design. */
+.subpage-hero::after {
+  content: "";
+  position: absolute;
+  left: clamp(14px, 2vw, 28px);
+  right: clamp(14px, 2vw, 28px);
+  bottom: 0;
+  height: 2px;
+  background: var(--color-surface-soft);
+}
+.subpage-hero::before {
+  content: "";
+  position: absolute;
+  left: calc(clamp(14px, 2vw, 28px) + 32px);
+  bottom: 0;
+  width: 56px;
+  height: 3px;
+  background: var(--color-primary);
+  z-index: 1;
 }
 .subpage-hero .eyebrow {
   justify-content: flex-start;
@@ -75,6 +98,30 @@ body {
   margin: 10px 0 8px;
 }
 
+/* ---- Scroll reveal ------------------------------------------------------- */
+/* Content fades and slides up as it scrolls into view (see useScrollReveal). */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 620ms ease, transform 720ms cubic-bezier(.2, .72, .2, 1);
+  will-change: opacity, transform;
+}
+.reveal--visible {
+  opacity: 1;
+  transform: none;
+}
+/* Staggered children inside a .reveal-group (delay set inline by the hook). */
+.reveal-item {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 540ms ease, transform 620ms cubic-bezier(.2, .72, .2, 1);
+  will-change: opacity, transform;
+}
+.reveal-item--visible {
+  opacity: 1;
+  transform: none;
+}
+
 /* ---- Motion preferences -------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -84,6 +131,14 @@ body {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+  /* The scroll reveal is intentionally kept even when motion is reduced
+     (by request), so re-assert its transition over the blanket 0.01ms above. */
+  .reveal {
+    transition: opacity 620ms ease, transform 720ms cubic-bezier(.2, .72, .2, 1) !important;
+  }
+  .reveal-item {
+    transition: opacity 540ms ease, transform 620ms cubic-bezier(.2, .72, .2, 1) !important;
   }
 }
 

@@ -11,7 +11,7 @@
 한국을 방문/체류하는 외국인에게 **한글 오행(사주) 기반 한국 이름**을 지어주고, **명예한국인증·명예시민증·학생증·방문증** 4종 카드를 제작·발급하는 서비스형 홈페이지. 개인 신청과 법인/단체(엑셀+ZIP 일괄) 신청을 모두 지원하고, 무통장입금 결제와 관리자 검토·작명·카드 발급 워크플로를 거친다.
 
 ## 현재 구현 범위 (한 줄 요약)
-- **프론트**: 화면/디자인은 상당히 완성도 높게 만들어져 있으나, **서버 연동이 0%** (fetch/axios 호출이 코드 전체에 단 하나도 없음). 전부 정적 mock 데이터.
+- **프론트**: 화면/디자인 완성도 높음. **API 클라이언트(`src/services/api.ts`)가 생겼고 인증·신청 핵심 플로우는 실제 백엔드에 연동됨.** 다만 **후기·문의·관리자·마이페이지 목록·공지/FAQ·카드 카탈로그는 아직 localStorage 목데이터**(후기는 백엔드가 이미 있는데 미연동). 프론트 상세는 8절, 목→API 전환 목록은 `docs/FRONTEND_API_GAPS.md` 참고. (프론트 현황은 2026-08-14 기준으로 갱신됨)
 - **백엔드**: Spring Boot 프로젝트가 이미 상당 부분 구현되어 있으나, **이것과 완전히 다른 옛 도메인("사주 기반 외국인 등록증") 기준**으로 짜여 있고, **현재 컴파일조차 안 되는 상태**(4곳 미완성 리팩터링). 새로 확정한 설계(`DB.md`/`docs/api/README.md`)와 재사용 가능한 건 인증(OAuth/JWT) 인프라 정도뿐.
 - **DB/API 설계 문서**: `DB.md`, `docs/api/README.md`에 새 도메인 기준 엔티티·API 21개가 상세 설계되어 있음(코드는 아직 없음).
 
@@ -226,37 +226,44 @@
 
 ---
 
-# 8. 프론트 구현 현황
+# 8. 프론트 구현 현황  *(2026-08-14 갱신)*
 
-## 현재 구현된 화면
+> 이전 판(2026-07-31)의 "서버 연동 0%, fetch 호출 하나도 없음"은 **더 이상 사실이 아님.**
+> 현재 프론트는 `src/services/api.ts`(공통 응답 `{success,data,errorCode,errorMessage}` 파싱, 401→refresh 재시도, `credentials:"include"`)를 통해 인증·신청 핵심 플로우를 **실제 백엔드에 연동**했다. 남은 목데이터 전환 대상의 상세 목록은 **`docs/FRONTEND_API_GAPS.md`** 참조.
 
-| 경로 | 화면 | 완성도 |
-|---|---|---|
-| `/` | 홈(히어로/주요디자인/서비스핵심/기념품/상담문의/협력기관) | 시각적으로 완성, 전부 정적 |
-| `/design` | 카드 디자인 갤러리 | 시각적으로 완성, 정적 이미지(`cards.ts`) |
-| `/apply` | 제작신청 5단계 | UI는 있으나 필드 일부 누락(생년월일 등), 서버 제출 없음 |
-| `/lookup` | 신청 조회 | mock 결과만 표시, 반려/재업로드 기능 없음 |
-| `/support` | 고객지원(공지/FAQ/제작이야기/상담문의) | 정적 콘텐츠 |
-| `/login`, `/signup` | 로그인/회원가입 | 이메일+비밀번호 mock (정책은 OAuth라 교체 대상) |
-| `/admin` | 관리자 | **읽기 전용 테이블뿐**, 상세/액션 없음 |
+## 8.1 API 연동 상태 (실제 호출 기준)
 
-## Mock 상태인 부분
-- `src/data/*.ts` 전체: `cards.ts`, `zodiac.ts`, `partners.ts`, `merchandise.ts`, `social.ts`, `policies.ts`, `adminMock.ts` — 전부 정적 배열
-- `AuthContext.tsx`: localStorage 기반 mock 세션(`loginAsUser`/`loginAsAdmin` 데모 버튼 존재)
-- `useApplicationDraft.ts`: `sessionStorage`에만 신청 draft 저장
-- `ApplyPage.tsx`의 신청번호: 제출 시 프론트가 그 자리에서 `APP-2026-XXXXXX` 임의 생성
+| 영역 | 프론트 사용처 | 백엔드 | 상태 |
+|---|---|---|---|
+| OAuth 로그인(Google/Naver) | `LoginPage`(`api.oauthUrl`) | SecurityConfig | ✅ 연동 |
+| 내 정보 조회/수정/탈퇴 | `AuthContext.getMe`, `MyPage.updateMe/withdraw`, `SignupPage` | `UserController` | ✅ 연동 |
+| 약관 동의 / 로그아웃 / 토큰 refresh | `SignupPage`, `AuthContext` | `AuthController` | ✅ 연동 |
+| 신청 생성(개인/단체) | `ApplyPage.createApplication` | `ApplicationController` | ⚠️ 연동됨 + localStorage 미러 병행 |
+| 신청 조회(lookup) | `LookupPage.lookupApplication` | `ApplicationController` | ⚠️ 연동됨 + 목 교차확인 |
+| 사진 재업로드 / 카드 다운로드 | `MobileCardPage`, `LookupPage` | `ApplicationController` | ✅ 연동 |
+| **후기(Review)** | `ReviewsPage`/`ReviewDetailPage`/`ReviewEditorPage`/`MyPage` | **`ReviewController`(구현됨)** | ❌ **미연동 — `api.ts`에 메서드 없음, localStorage 사용** |
+| **1:1 문의(Inquiry)** | `InquiryPage`/`InquiryDetailPage`/`MyPage`/`AdminPage` | ❌ 없음 | ❌ 목 전용 |
+| **관리자(신청/문의 관리·통계)** | `AdminPage` | ❌ 없음 | ❌ 목 전용 |
+| **내 신청 목록** | `MyPage` | ❌ 없음(`/applications/me` 부재) | ❌ 목 전용 |
+| **공지/FAQ/이벤트** | `NoticesPage`/`FaqPage`/`EventsPage` + `ContentAdminPanel` | ❌ 없음 | ❌ 정적+localStorage |
+| **카드 종류·디자인 카탈로그** | `ApplyPage`/`DesignPage`/gallery(`cards.ts`) | 🟡 도메인만 존재, 공개 API 없음 | ❌ 정적 |
+| **한국이름 조회** | `ServiceCoreSection`(`nameResults.json` 215KB) | ❌ 없음 | ❌ 정적 번들 |
 
-## 실제 API 연결 여부
-**0%.** `fetch`/`axios` 호출이 프론트 코드 전체에 하나도 없음. `package.json`에도 HTTP 클라이언트 라이브러리 없음.
+## 8.2 아직 목(mock)인 부분
+- **동적인데 목**: `data/reviews.ts`(백엔드 있음·미연동), `data/inquiries.ts`, `data/adminMock.ts` — 전부 localStorage. `components/admin/ContentAdminPanel`의 `managed-content:*`도 localStorage.
+- **정적 마케팅**: `data/cards.ts`, `zodiac.ts`, `partners.ts`, `merchandise.ts`, `social.ts`, `policies.ts`, `config/company.ts`.
+- **대용량 정적**: `data/nameResults.json`(≈215KB) 클라이언트 번들 포함.
+- **하이브리드(실 API + 목 병행)**: `ApplyPage`(생성 후 `saveApplications` 미러), `LookupPage`(`loadApplications` 교차확인), `AuthContext`(실 세션 + `loginAsUser/loginAsAdmin` 데모 로컬 세션).
 
-## 추가 구현해야 하는 화면/기능
-- 개인 신청 폼: 생년월일·국적·출생시각·출생지역·성별·사진 입력란 (신규)
-- `StepFiles`/`StepInfo`: `applicantType`(개인/법인)에 따른 필드 분기
-- 로그인/회원가입: OAuth 버튼 방식으로 전면 교체
+## 8.3 페이지 구조 메모
+- 페이지는 폴더형 구조(`pages/<Name>/<Name>.tsx` + 동명 `.css`)로 정리됨. 신규: `InquiryDetailPage`, `components/ui/FlipCard`, `lib/cardDownload.ts`, `lib/useScrollReveal.ts`, `styles/ContentPages.css`.
+
+## 8.4 추가 구현해야 하는 화면/기능
+- **후기 API 연동(최우선)**: `api.ts`에 review 메서드 추가 + 화면 4개 교체 + `cardType` 문자열↔`cardTypeId` 매핑 (→ `docs/FRONTEND_API_GAPS.md` §2.1)
+- **문의·관리자·내 신청 목록 API 신규** 및 프론트 연동 (§1.1~1.3)
+- 개인 신청 폼: 생년월일·국적·출생시각·출생지역·성별·사진 입력란
+- `StepFiles`/`StepInfo`: `applicantType`(개인/법인)별 필드 분기
 - `StepComplete`: 입금자명 입력 활성화(`value`/`onChange`)
-- `/lookup`: `PHOTO_REJECTED` 상태 시 반려사유 표시 + "로그인 후 재업로드" 버튼 (신규)
-- 카드 다운로드 화면 (신규, 지금 어디에도 없음)
-- 관리자 상세/처리 화면 전체 (신규) — 입금확인/사진검토(승인·반려)/작명(구성원별)/카드발급 액션
-- 관리자 카드종류·카드디자인 관리 화면 (신규, 없어도 DB 시드로 대체 가능)
-- `FileUploadBox`: 실제 `File` 객체 보관하도록 구조 변경 (선행 조건)
-- `statusLabels`류 전부 새 status enum으로 교체 (`adminMock.ts`, `LookupPage.tsx`)
+- `FileUploadBox`: 실제 `File` 객체 보관 구조 확인(제출 파일 전송 전제)
+- **status enum 통일**: `adminMock.ts`/`LookupPage.tsx`의 옛 값 → 백엔드 확정 흐름(`PAYMENT_PENDING/RECEIVED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCING/COMPLETED/CANCELLED`)으로 교체
+- 하이브리드 목 미러링(8.2) 제거, 데모 로컬 로그인 제거

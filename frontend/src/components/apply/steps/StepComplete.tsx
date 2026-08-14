@@ -88,7 +88,8 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
         <Button
           onClick={() => {
             onDone();
-            navigate(`/lookup`);
+            // 신청/제작 내역은 마이페이지 제작내역에서 확인한다. (조회 페이지는 발급된 카드 확인 전용)
+            navigate(`/mypage#production`);
           }}
         >
           신청 내역 확인하기 <ChevronRight width={16} height={16} />

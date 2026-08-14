@@ -1,0 +1,93 @@
+/* Flip card: front/back mobile-card viewer with a 3D flip interaction. */
+.flipcard-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.flipcard {
+  width: min(92%, 620px);
+  aspect-ratio: 686 / 452;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  perspective: 900px;
+  perspective-origin: 50% 45%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.flipcard__inner {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform-origin: center center;
+  transition: transform 900ms cubic-bezier(.18, .72, .22, 1);
+  will-change: transform;
+  /* NOTE: do not add `filter`/`opacity`/`overflow` here — any of those force
+     transform-style to `flat`, which breaks backface-visibility and makes the
+     flipped card show a mirrored front instead of the back face. */
+}
+.flipcard--flipped .flipcard__inner {
+  transform: rotateY(180deg);
+}
+.flipcard__face {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 12px;
+  background: white;
+  box-shadow: var(--shadow-card);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+.flipcard__face--front {
+  transform: rotateY(0deg) translateZ(2px);
+}
+.flipcard__face--back {
+  transform: rotateY(180deg) translateZ(2px);
+}
+.flipcard__inner::after {
+  content: "";
+  position: absolute;
+  top: 3%;
+  bottom: 3%;
+  left: 50%;
+  width: 5px;
+  border-radius: 3px;
+  background: var(--color-border-accent);
+  transform: translateX(-50%) rotateY(90deg);
+  box-shadow: 0 0 8px rgb(80 60 30 / 18%);
+}
+.flipcard__face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+.flipcard:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 6px;
+}
+@media (hover: hover) {
+  .flipcard:hover .flipcard__inner {
+    transform: translateY(-4px) rotateY(-4deg);
+  }
+  .flipcard--flipped:hover .flipcard__inner {
+    transform: translateY(-4px) rotateY(184deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flipcard__inner {
+    /* Global a11y rule shortens all motion to 0.01ms; the flip is the requested
+       interaction, so keep it visible here. */
+    transition-property: transform !important;
+    transition-duration: 900ms !important;
+    transition-timing-function: cubic-bezier(.18, .72, .22, 1) !important;
+  }
+}

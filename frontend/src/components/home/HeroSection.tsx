@@ -7,13 +7,13 @@ import { Trigram } from "./Trigram";
 const HERO_CHANGE_DELAY = 4000;
 
 const HERO_LANDSCAPE = [
-  ["kor-tiger-front.jpg", "kor-tiger-back.jpg"],
+  ["kor-tiger-front.png", "kor-tiger-back.jpg"],
   ["city-dragon2-front.jpg", "city-dragon2-back.jpg"],
   ["stu-pig-front.png", "stu-pig-back.png"],
 ] as const;
 
 const HERO_PORTRAIT = [
-  ["student-horse-front.jpg", "student-horse-back.png"],
+  ["student-horse-front.png", "student-horse-back.png"],
   ["visit-tiger-front.jpg", "visit-tiger-back.jpg"],
 ] as const;
 

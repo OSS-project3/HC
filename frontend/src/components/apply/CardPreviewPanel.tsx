@@ -9,7 +9,7 @@ interface CardPreviewPanelProps {
 
 const sampleImages: Record<CardDesign["cardType"], { src: string; side: string }[]> = {
   "honorary-korean": [
-    { src: "/images/cards/width/kor-tiger-front.jpg", side: "앞면" },
+    { src: "/images/cards/width/kor-tiger-front.png", side: "앞면" },
     { src: "/images/cards/width/kor-tiger-back.jpg", side: "뒷면" },
   ],
   "honorary-citizen": [

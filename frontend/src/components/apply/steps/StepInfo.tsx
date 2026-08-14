@@ -62,23 +62,23 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
         <fieldset className="form-block">
           <legend className="form-block__legend">발급 유형 선택</legend>
           <div className="radio-row">
-            <label className="radio">
+            <label className="check">
               <input
                 type="radio"
                 name="issuance"
                 checked={draft.issuanceMethod === "mobile"}
                 onChange={() => setIssuance("mobile")}
               />
-              모바일 발급
+              <span>모바일 발급</span>
             </label>
-            <label className="radio">
+            <label className="check">
               <input
                 type="radio"
                 name="issuance"
                 checked={isPhysical}
                 onChange={() => setIssuance("mobile_and_physical")}
               />
-              모바일 + 실물 발급
+              <span>모바일 + 실물 발급</span>
             </label>
           </div>
         </fieldset>

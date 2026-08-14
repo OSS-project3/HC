@@ -62,12 +62,37 @@
   color: var(--color-text-secondary);
   line-height: 1.6;
 }
+/* Unified checkbox: navy-filled square with an ivory check.
+   Custom-drawn (appearance:none) so it renders identically across
+   browsers / iOS instead of relying on the native accent-color. */
 .check input {
+  appearance: none;
+  -webkit-appearance: none;
   margin-top: 2px;
   width: 18px;
   height: 18px;
-  accent-color: var(--color-primary);
   flex-shrink: 0;
+  border: 1.5px solid var(--color-border-soft);
+  border-radius: 4px;
+  background-color: #fff;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 12px;
+  cursor: pointer;
+  transition: background-color var(--ease), border-color var(--ease);
+}
+.check input:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f7f0e9' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E");
+}
+.check input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+.check input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .radio-row {

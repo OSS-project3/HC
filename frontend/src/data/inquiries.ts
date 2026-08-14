@@ -8,6 +8,10 @@ export interface InquiryRecord {
   content: string;
   createdAt: string;
   status: "PENDING" | "COMPLETED";
+  /** 관리자 답변 내용(답변 완료 시). */
+  answer?: string;
+  /** 답변 등록 일시(ISO). */
+  answeredAt?: string;
 }
 
 const STORAGE_KEY = "customer-inquiries";
@@ -28,4 +32,8 @@ export function loadInquiries(): InquiryRecord[] {
 
 export function saveInquiries(inquiries: InquiryRecord[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(inquiries));
+}
+
+export function findInquiry(id: string): InquiryRecord | undefined {
+  return loadInquiries().find((inquiry) => inquiry.id === id);
 }

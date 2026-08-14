@@ -97,12 +97,12 @@ export const honoraryKoreanCards = makeSeries(
   },
   monkeyReading,
   [
-    widthPair("kor-tiger"),
+    { front: "/images/cards/width/kor-tiger-front.png", back: "/images/cards/width/kor-tiger-back.jpg" },
     widthPair("kor-cow"),
     widthPair("kor-cow2"),
     widthPair("kor-rabbit"),
     widthPair("kor-monkey"),
-    widthPair("kor-mouse"),
+    { front: "/images/cards/width/kor-mouse-front.png", back: "/images/cards/width/kor-mouse-back.jpg" },
   ],
 );
 
@@ -172,7 +172,7 @@ export const studentCards = makeSeries(
   },
   [
     widthPair("stu-pig", "png"),
-    lengthPair("student-horse", "jpg", "png"),
+    lengthPair("student-horse", "png"),
     lengthPair("student-dog", "png"),
     widthPair("stu-dog", "png"),
     lengthPair("student-sheep", "png"),
@@ -180,6 +180,7 @@ export const studentCards = makeSeries(
     widthPair("stu-chicken", "png"),
     lengthPair("student-pig", "png"),
     lengthPair("student-monkey", "png"),
+    widthPair("stu-monkey", "png"), // 4페이지 가로 1열
   ],
 );
 
@@ -219,7 +220,7 @@ export const visitorCards = makeSeries(
       front: "/images/cards/length/visit-dragon-front.jpg",
       back: "/images/cards/length/visit-dragron-back.jpg",
     },
-    lengthPair("visit-mouse", "jpg"),
+    lengthPair("visit-mouse", "png", "jpg"),
   ],
 );
 
