@@ -4,5 +4,6 @@ public enum UploadFileType {
     PHOTO,
     EXCEL,
     ZIP,
-    CARD_IMAGE
+    CARD_IMAGE,
+    BOARD_ATTACHMENT
 }

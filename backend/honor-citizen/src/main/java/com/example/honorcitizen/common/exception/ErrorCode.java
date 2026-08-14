@@ -40,7 +40,10 @@ public enum ErrorCode {
     // Review
     REVIEW_NOT_FOUND(404, "존재하지 않는 후기입니다."),
     REVIEW_NOT_ELIGIBLE(403, "선택한 신청유형·카드종류에 대한 신청 이력이 없습니다."),
-    REVIEW_ALREADY_EXISTS(409, "이미 해당 신청유형·카드종류로 작성한 후기가 있습니다.");
+    REVIEW_ALREADY_EXISTS(409, "이미 해당 신청유형·카드종류로 작성한 후기가 있습니다."),
+
+    // Board
+    BOARD_NOT_FOUND(404, "존재하지 않는 게시글입니다.");
 
     private final int status;
     private final String message;

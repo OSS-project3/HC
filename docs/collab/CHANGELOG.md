@@ -15,6 +15,23 @@
 
 ---
 
+## 2026-08-14 — Claude — `main` (Board 도메인 신규 구현 — 공지사항/FAQ)
+
+- 변경: 프론트에 존재하지만 서버 API가 없던 공지사항/FAQ 게시판을 `Board`+`BoardType{NOTICE,FAQ}` enum 통합 모델로 신규 구현했다. 공개 조회 2개(목록/단건) + 관리자 전용 CRUD 3개(생성/수정/삭제) 총 5개 API.
+  - **`Board` 엔티티**: `boardType`/`title`/`content`/`createdByUserId`. FAQ는 title/content에 질문/답변을 저장(별도 Q/A 필드 없음, data-model.md §0에서 이미 확정한 방향). `arch.md` §5.1 원칙대로 `createdByUserId`는 `Long`만 참조(`User`와 JPA 연관관계 없음).
+  - **`BoardAttachment`** join 엔티티(`Board:UploadFile`=1:N, NOTICE 전용) — `UploadFile`이 "아무것도 참조하지 않는 공용 메타데이터 테이블"이라는 기존 원칙(`docs/api/upload-file.md`) 때문에 직접 1:N을 걸지 않는다. `(board_id,upload_file_id)`·`(board_id,display_order)` 유니크 제약.
+  - **`BoardAttachmentValidator`** 신규(패키지 프라이빗, `ApplicationPhotoValidator`와 분리) — 문서 위주 첨부(pdf/hwp/docx/xlsx 등)라 이미지 전용 검증기를 재사용할 수 없어 별도 컴포넌트로 만들었다. 최대 10개, 1개당 10MB, 확장자+MIME 허용목록, 이미지 확장자(jpg/png)에 한해서만 바이너리 시그니처 검증.
+  - **`BoardService`**: `create()`는 Review처럼 S3 업로드+DB 저장을 한 `@Transactional` 안에서 처리(파일 수가 적어 커넥션 점유가 문제되지 않음, Application처럼 별도 영속 서비스로 분리하지 않음), 실패 시 `uploadedKeys` 역순 보상 삭제(data-model.md §4.1). `delete()`는 `BoardAttachment`+`UploadFile`+`Board`를 한 트랜잭션에서 지우고 S3는 커밋 이후 삭제(§4.4, 순서를 바꾸면 롤백 시 DB·S3 불일치 발생). `update()`는 Review PATCH와 동일하게 전체 재제출이며 이번 패스에서는 첨부파일을 건드리지 않는다.
+  - **`SecurityConfig`**: `arch.md` §4.6에 이미 "`/api/admin/**`는 `ADMIN`만"이라는 원칙이 문서로는 있었으나 실제 코드는 `/admin/**`(API 프리픽스 없는 경로)만 막고 있던 공백을 이번에 메웠다 — `.requestMatchers("/api/admin/**").hasRole("ADMIN")` 신규 추가(이 프로젝트의 첫 관리자 전용 쓰기 API). `GET /api/boards`·`GET /api/boards/**`는 `permitAll()`. 라우트 레벨 강제만으로 충분해 컨트롤러/서비스에는 별도 권한 분기 코드가 없다(Review의 `canEdit`/`canDelete`처럼 리소스 소유권 판단이 필요한 경우와 다름).
+  - 세션 중 사용자와 함께 비즈니스 로직을 먼저 확정한 뒤 코드로 넘어갔다: (1) QnA(FAQ)는 관리자만 CRUD 가능 (2) `boardType=FAQ`인데 첨부파일이 오면 조용히 무시하지 않고 `INVALID_INPUT`으로 거절(FAQ는 첨부파일 개념 자체가 없음) (3) 관리자 CRUD 인가는 서비스 레벨이 아니라 라우트 레벨(`SecurityConfig`)로 강제.
+  - 구현 중 `docs/specs/board/api.md` 문서 불일치 발견 후 정리: API 4(수정)가 `multipart/form-data`로 초안 작성돼 있었는데 실제로는 `attachments` 파트 자체를 받지 않아(첨부파일 편집은 다음 패스로 명시적으로 미룸) Validation 표에 도달 불가능한 행이 남아있었다 — `application/json`으로 단순화하고 관련 행을 정리했다.
+- 파일: `common/enums/{BoardType,UploadFileType}.java`, `common/exception/ErrorCode.java`(`BOARD_NOT_FOUND`), `domain/board/entity/{Board,BoardAttachment}.java`, `domain/board/repository/{BoardRepository,BoardAttachmentRepository}.java`, `domain/board/service/{BoardAttachmentValidator,BoardService}.java`, `domain/board/dto/*`(6개), `api/{BoardController,BoardAdminController}.java`, `infra/security/SecurityConfig.java`, 테스트 6개 파일(아래), `docs/specs/board/api.md`, `docs/collab/TODO.md`
+- 테스트: TDD로 진행. 신규 34개 전부 통과 — `BoardTest`(2), `BoardAttachmentTest`(1), `BoardAttachmentValidatorTest`(6), `BoardServiceTest`(12, 생성/목록/단건/수정/삭제+검증 실패 케이스), `BoardControllerTest`(5, 공개 조회+검증), `BoardAdminControllerTest`(8, 관리자 CRUD+`ADMIN`/`USER`/비로그인 권한 3분기). 전체 스위트 258개 중 기존과 동일하게 `UserControllerTest` 2건·`UserApplicationFlowTest` 1건(Redis 미기동)만 실패 — 회귀 없음.
+- 사유: `docs/specs/board/data-model.md`(이전 세션에 작성만 되고 커밋 안 된 채 방치)와 신규 작성한 `api.md`로 설계를 먼저 확정한 뒤, "미완료 작업 조사" 요청으로 이 공백이 드러나 이번 세션에서 실제 동작하는 API로 완성했다.
+- 관련: TODO "Board 도메인(공지사항/FAQ) 구현" 행(완료로 갱신)
+
+---
+
 ## 2026-08-14 — Claude — `main` (학생증 신청 항목 추가 — 학교구분·가로형/세로형)
 
 - 변경: 학생증(STUDENT) 카드 신청 방식을 변경했다. 사용자 요청: 개인 신청은 대학교/고등학교 선택 + 가로형/세로형 선택을 새로 받고, 대학교를 선택했을 때만 학번·학과를 입력받는다(고등학교는 추가 입력 없음). 법인·단체 신청은 가로형/세로형 + 학교구분 선택만 추가하고, 학번·학과는 여전히 첨부 엑셀로만 받는다.

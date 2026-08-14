@@ -441,30 +441,46 @@ Admin은 독립된 업무 데이터 모듈이라기보다 여러 도메인의 �
 
 ## 4.7 Review 모듈
 
-✅ 2026-08-06: 후기 작성 요구사항이 확정되어 설계 완료(`docs/specs/review/{data-model,api}.md`). 이번 패스는 등록/목록조회/단건조회 API 설계까지만 — 구현은 아직 진행하지 않는다.
+✅ 2026-08-09 갱신: 모노레포에 동기화된 실제 프론트(카드종류 단일선택·사진 0~1장)를 기준으로 재설계 완료(`docs/specs/review/{data-model,api}.md`). CRUD 5개 API(등록/목록조회/단건조회/삭제/수정) 전부 설계 완료 — 구현 착수 대상.
 
 ### 책임
 
-- 로그인 사용자의 후기(제목/신청유형/카드종류/작성자 표시명/사진 0~N장/본문)를 저장한다.
+- 로그인 사용자의 후기(제목/신청유형/카드종류 1개/작성자 표시명/사진 0~1장/본문)를 저장한다.
 - 후기 목록·상세를 비로그인 포함 누구나 조회할 수 있게 한다.
+- 작성자 본인 또는 관리자가 수정·삭제할 수 있다.
 
 ### 소유 데이터
 
-- `Review`, `ReviewCardType`(`@ElementCollection`), `ReviewImage`
+- `Review` 단일 엔티티(join 엔티티 없음 — 카드종류·사진이 단일값이라 `ReviewCardType`/`ReviewImage`가 불필요해졌다)
 
 ### 규칙
 
 - `Review.user_id`(실제 작성 계정)와 `Review.author_display_name`(화면 표시용, 사용자가 직접 입력)은 별개다 — 로그인 이름을 자동으로 채우지 않는다.
-- `Review.application_type`/`ReviewCardType`는 실제 `Application` 레코드와 FK로 연결하지 않는 자기 신고(self-report) 값이다.
-- 사진은 `UploadFile`을 그대로 재사용하고 `ReviewImage`가 순서(`display_order`)를 포함한 N:1 연결을 담당한다(다른 도메인의 Entity를 직접 참조하지 않는다는 §5 원칙과 동일하게, 파일 메타데이터를 중복 저장하지 않음).
+- `Review.application_type`/`Review.card_type_id`는 실제 `Application` 레코드와 FK로 연결하지 않는 자기 신고(self-report) 값이다. 다만 `Application`과 동일하게 카드종류를 코드가 아니라 `CardType.id`(Long)로 직접 저장한다(§5.1 "모듈 간 영속 참조는 식별자를 기본으로 한다" 원칙과 동일).
+- 사진은 `UploadFile`을 거치지 않고 `Review.image_path`에 S3 key만 직접 저장한다 — `ApplicationMember.photo_path`와 동일한 패턴("그 Entity 자체가 사진 1장을 표현하는 로우"일 때 가능한 방식). 이번 갱신으로 Review는 File 모듈(`UploadFile`)에 더 이상 의존하지 않는다.
+- 등록 시점뿐 아니라 **수정 시점에도** `(application_type, card_type_id)` 조합의 자격검증을 다시 수행한다 — 수정 화면에서 이 두 값도 편집 가능하기 때문(`docs/specs/review/api.md` API 5 참고). 검증 기준은 항상 후기 작성자(`Review.user_id`) 본인의 신청 이력이며, 관리자가 대신 수정하는 경우에도 동일하다.
 
-## 4.8 Board(Post) 모듈
+## 4.8 Board 모듈
 
-Post(일반 게시판)는 요구사항과 화면이 확정되지 않았으므로 현재 구현 대상에서 제외한다. (Review는 위 4.7절로 분리됨)
+✅ 2026-08-14 갱신: 공지사항/FAQ CRUD 5개 API(목록/단건/생성/수정/삭제) 전부 구현+테스트 완료(`docs/specs/board/{data-model,api}.md`). (Review는 위 4.7절로 분리, 별도 도메인)
 
-- 다른 핵심 도메인이 Board를 참조하지 않는다.
-- 요구사항 확정 전 테이블, API, Repository를 선제 구현하지 않는다.
-- 추후 구현하더라도 Application 발급 흐름과 트랜잭션을 공유하지 않는다.
+### 책임
+
+- 관리자가 작성한 공지사항(NOTICE)·FAQ를 `BoardType` enum 하나로 통합 관리한다(신규 게시판 종류가 생기면 enum 값만 추가 — 테이블 추가 없음).
+- 게시글 목록·상세를 비로그인 포함 누구나 조회할 수 있게 한다.
+- 게시글 생성·수정·삭제는 관리자만 할 수 있다.
+
+### 소유 데이터
+
+- `Board`(작성 관리자 `created_by_user_id`는 `Long`으로만 참조, 공개 응답에는 노출하지 않음)
+- `BoardAttachment` — `Board:UploadFile` = 1:N join 엔티티, Review의 `ReviewImage`(구 설계)와 동일 성격. NOTICE만 사용, FAQ는 첨부파일 개념이 없음.
+
+### 규칙
+
+- Review와 달리 작성자 개념이 공개 응답에 없다 — `canEdit`/`canDelete` 같은 소유권 판단 필드 자체가 없다(프론트에 작성자 표시 UI가 없음, `data-model.md` §5.4).
+- `BoardAttachment`는 `UploadFile`을 직접 참조하지 않고 join 엔티티를 거친다 — `docs/api/upload-file.md`의 "`UploadFile`은 아무것도 참조하지 않는 공용 메타데이터 테이블" 원칙 때문(Review의 구 `ReviewImage` 설계와 동일 이유).
+- 관리자 CRUD 권한은 리소스 소유권이 아니라 "관리자냐 아니냐"만으로 결정되므로, Review의 `canEdit`/`canDelete`(서비스 레벨 판단)와 달리 `/api/admin/**` → `hasRole("ADMIN")` 라우트 레벨 강제(`SecurityConfig`) 하나로 충분하다. 컨트롤러·서비스에는 별도 권한 분기 코드가 없다. `arch.md` §4.6에 이미 있던 `/api/admin/**` 원칙이 실제 `SecurityConfig`에는 반영돼 있지 않던 공백을 이번 Board 구현에서 메웠다(이 프로젝트의 첫 관리자 전용 쓰기 API).
+- NOTICE 첨부파일의 교체/추가/삭제 흐름(수정 API에서)은 아직 미확정 — `docs/specs/board/data-model.md` §6 참고. 이번 패스는 QnA(FAQ) 기준 CRUD 골격만 확정했고, 수정 API는 boardType/title/content만 재제출한다(첨부파일은 생성 시에만 다룬다).
 
 ---
 
@@ -531,7 +547,8 @@ api → service → repository/entity
 | Card | File | 템플릿 및 발급 이미지 저장 |
 | Admin | Application/Payment/Card | 관리자 유스케이스 조정 |
 | Review | User | 작성자 계정 검증(표시 이름은 요청 값 그대로 저장, `User`를 조회는 하되 이름을 복사하진 않음) |
-| Review | File | 첨부 사진 저장(`UploadFile` 재사용, `ReviewImage`가 연결) |
+| Review | Card | 카드종류 존재 확인·표시명 조회(`CardType.id` 직접 참조, `Application`과 동일 패턴) |
+| Review | Application | 자격검증(등록·수정 시 `Applicant`/`ApplicationMember`의 이메일과 대조해 실제 카드 발급 이력 확인) |
 
 역방향 참조가 필요해지면 Entity나 Repository를 직접 공유하지 말고 다음 중 하나를 선택한다.
 
@@ -560,8 +577,6 @@ api → service → repository/entity
 | CardType | Card 독립 기준정보 |
 | CardDesign | CardType에 종속된 기준정보 |
 | UploadFile | File 모듈, 연결 주체가 사용 목적 보유 |
-| ReviewCardType | Review |
-| ReviewImage | Review |
 
 Application 삭제가 필요한 경우 하위 신청 데이터와 사진 정리 정책을 함께 적용한다. 결제·발급 이력이 있는 신청은 원칙적으로 물리 삭제하지 않고 상태로 보존한다.
 
