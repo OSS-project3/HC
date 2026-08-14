@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-14 — Codex — `main` (User 조회 문서 정합성 정리)
+
+- 변경: `docs/api/user.md`의 `GET /api/users/me` 과거 구현 전 문구를 현재 백엔드 구현 상태에 맞게 정리하고, API 상태를 구현 완료로 갱신했다.
+- 파일: `docs/api/user.md`, `docs/collab/TODO.md`, `docs/collab/CHANGELOG.md`, `docs/collab/HANDOFF.md`
+- 테스트: 코드 변경 없음. `rg`로 stale 문구 제거와 구현 근거 문구를 정적 검증했다.
+- 사유: `GET /api/users/me`는 현재 `UserController#getMe`로 구현되어 있으나 문서에는 과거 구현 전 문구가 남아 있어 정합성을 맞춤.
+- 관련: TODO "User 조회 문서 정합성 정리" 행(완료로 갱신)
+
 ## 2026-08-13 — Claude — `main` (Review 도메인 CRUD 5개 API 구현)
 
 - 변경: `docs/specs/review/{data-model,api}.md`에 설계된 Review 도메인을 실제로 구현했다. TDD로 진행(테스트 먼저 작성 → 실패 확인 → 구현 → 통과 확인)했으며, 신규 테스트 76개 전부 통과.

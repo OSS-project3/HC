@@ -1,11 +1,12 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-08-13
-- 작성자: Claude
+- 마지막 갱신: 2026-08-14
+- 작성자: Codex
 - 작성 브랜치: main
 
 ## 지금 어디까지 됐는가
 
+- **User 조회 문서 정합성 정리 완료** — `GET /api/users/me`는 현재 `UserController#getMe`로 구현되어 있으므로 `docs/api/user.md`의 과거 구현 전 문구를 현재 구현 기준으로 정리했다. 백엔드 코드 수정은 없다.
 - **Review 도메인 CRUD 5개 API 구현 완료** (등록/목록/단건조회/삭제/수정). 설계 문서(`docs/specs/review/{data-model,api}.md`)는 이미 2026-08-09에 프론트(카드종류 단일선택·사진 0~1장) 기준으로 재작성되어 있었고, 이번에 그 설계를 실제 코드로 구현했다. TDD로 진행(테스트 먼저 → 실패 확인 → 구현 → 통과)했고 신규 테스트 76개 전부 통과.
 - 구현 도중 발견해 사람에게 확인 후 새로 확정한 정책 2건(둘 다 문서에 반영 완료):
   1. **후기 작성 개수 제한** — 사용자 1명이 자격 있는 (신청유형, 카드종류) 조합마다 후기를 1개만 쓸 수 있다("한 신청당 한 개"). `Review→Application` FK를 두지 않는 기존 설계를 유지하기 위해 판단 기준은 실제 Application row가 아니라 `(user_id, application_type, card_type_id)` 조합의 유일성이다. 위반 시 `REVIEW_ALREADY_EXISTS`(409, 신규 ErrorCode).

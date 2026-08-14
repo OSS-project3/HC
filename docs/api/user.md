@@ -29,7 +29,7 @@
 
 ⚠️ 아직 TODO: refresh 토큰 rotation/재사용 감지를 위한 세션 저장소(기존 백엔드의 `refresh_token_sessions` 테이블 같은 것)를 이번 `.md`에도 추가할지는 별도 논의 필요 — 지금은 "JWT+HttpOnly 쿠키를 쓴다"는 방침만 확정, 세부 구현(DB 테이블 vs Redis 등)은 보류.
 
-### API 2 / 3 — 내 정보 조회 ⚠️ 확인필요 — `AuthContext.tsx`가 mock 세션이라 실제 호출 없음
+### API 2 / 3 — 내 정보 조회 (구현 완료)
 
 #### ④ Request/Response 설계
 
@@ -210,7 +210,7 @@ withdrawal_requested_at = NULL
 | # | API | 상태 |
 |---|---|---|
 | 1 | `GET /oauth2/authorization/{provider}` (+콜백) | 설계 완료 |
-| 2 | `GET /api/users/me` | 설계 완료 |
+| 2 | `GET /api/users/me` | 구현 완료 |
 | 3 | `POST /api/auth/logout` | 설계 완료 |
 | 4 | `POST /api/users/me/withdraw` (회원탈퇴, 소프트) | 설계 완료 |
 | 5 | `PATCH /api/users/me` (내 정보 수정) | 설계 완료 |
@@ -224,7 +224,7 @@ withdrawal_requested_at = NULL
 
 ✅ 2026-07-31 확인/추가:
 - **`POST /api/auth/terms`(약관동의) 유지 확정.** 기존 코드에 이미 구현되어 있고(신규가입 시 `/terms`로 리다이렉트), 새 설계에서도 계속 씀 — `DB.md` User 엔티티에 `terms_agreed` 등 필드 반영함
-- **`GET /api/users/me`(API 2)가 실제 코드(`AuthController`)엔 아직 없음** — 설계는 되어있지만 미구현 확인됨, 신규 구현 필요
+- **`GET /api/users/me`(API 2)는 구현 완료.** 실제 엔드포인트는 `UserController#getMe`에서 제공한다.
 
 ---
 User 도메인 완료.
