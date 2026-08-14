@@ -1,6 +1,8 @@
 package com.example.honorcitizen.domain.application.service;
 
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import com.example.honorcitizen.common.enums.Orientation;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
@@ -94,13 +96,20 @@ class ApplicationServiceBulkTest {
     }
 
     private BulkApplicationCreateRequest request(Long cardTypeId) {
+        return request(cardTypeId, null, null);
+    }
+
+    private BulkApplicationCreateRequest request(Long cardTypeId, Orientation orientation, SchoolType schoolType) {
         String json = """
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  %s
                   "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" }
                 }
-                """.formatted(cardTypeId);
+                """.formatted(cardTypeId,
+                (orientation == null ? "" : "\"orientation\": \"%s\",".formatted(orientation))
+                        + (schoolType == null ? "" : "\"schoolType\": \"%s\",".formatted(schoolType)));
         try {
             return objectMapper.readValue(json, BulkApplicationCreateRequest.class);
         } catch (Exception e) {
@@ -284,7 +293,8 @@ class ApplicationServiceBulkTest {
         MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
 
         assertThatThrownBy(() -> applicationService.createGroup(
-                user.getId(), request(studentCardType.getId()), logo, seal, submitFile))
+                user.getId(), request(studentCardType.getId(), Orientation.LANDSCAPE, SchoolType.UNIVERSITY),
+                logo, seal, submitFile))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
     }
@@ -299,7 +309,12 @@ class ApplicationServiceBulkTest {
         MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
 
         BulkApplicationCreateResponse response = applicationService.createGroup(
-                user.getId(), request(studentCardType.getId()), logo, seal, submitFile);
+                user.getId(), request(studentCardType.getId(), Orientation.LANDSCAPE, SchoolType.UNIVERSITY),
+                logo, seal, submitFile);
+
+        Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
+        assertThat(saved.getOrientation()).isEqualTo(Orientation.LANDSCAPE);
+        assertThat(saved.getSchoolType()).isEqualTo(SchoolType.UNIVERSITY);
 
         ApplicationMember member = applicationMemberRepository.findByApplicationId(response.getApplicationId()).get(0);
         assertThat(member.getStudentId()).isEqualTo("20261234");
@@ -315,11 +330,56 @@ class ApplicationServiceBulkTest {
         MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
 
         BulkApplicationCreateResponse response = applicationService.createGroup(
-                user.getId(), request(studentCardType.getId()), logo, null, submitFile);
+                user.getId(), request(studentCardType.getId(), Orientation.PORTRAIT, SchoolType.UNIVERSITY),
+                logo, null, submitFile);
 
         Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
         assertThat(saved.getLogoFileId()).isNotNull();
         assertThat(saved.getSealFileId()).isNull();
+    }
+
+    @Test
+    void createGroupRejectsStudentCardMissingOrientation() throws Exception {
+        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        byte[] excel = buildExcel(true, studentRow);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        assertThatThrownBy(() -> applicationService.createGroup(
+                user.getId(), request(studentCardType.getId(), null, SchoolType.UNIVERSITY), logo, seal, submitFile))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void createGroupRejectsStudentCardMissingSchoolType() throws Exception {
+        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        byte[] excel = buildExcel(true, studentRow);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        assertThatThrownBy(() -> applicationService.createGroup(
+                user.getId(), request(studentCardType.getId(), Orientation.LANDSCAPE, null), logo, seal, submitFile))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void createGroupRejectsOrientationOrSchoolTypeForNonStudentCard() throws Exception {
+        byte[] excel = buildExcel(false, ROW_1);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        assertThatThrownBy(() -> applicationService.createGroup(
+                user.getId(), request(honorKoreanCardType.getId(), Orientation.LANDSCAPE, null), logo, seal, submitFile))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }
 
     @Test

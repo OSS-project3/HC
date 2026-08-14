@@ -3,6 +3,8 @@ package com.example.honorcitizen.domain.application.service;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.Orientation;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
@@ -98,10 +100,17 @@ class ApplicationServiceTest {
 
     private ApplicationCreateRequest fromJson(Long cardTypeId, String issueType,
             Boolean sameAsApplicant, String studentId, String department) {
+        return fromJson(cardTypeId, issueType, sameAsApplicant, studentId, department, null, null);
+    }
+
+    private ApplicationCreateRequest fromJson(Long cardTypeId, String issueType,
+            Boolean sameAsApplicant, String studentId, String department,
+            Orientation orientation, SchoolType schoolType) {
         String json = """
                 {
                   "cardTypeId": %d,
                   "issueType": "%s",
+                  %s
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   %s
                   "member": {
@@ -114,6 +123,8 @@ class ApplicationServiceTest {
                 }
                 """.formatted(
                 cardTypeId, issueType,
+                (orientation == null ? "" : "\"orientation\": \"%s\",".formatted(orientation))
+                        + (schoolType == null ? "" : "\"schoolType\": \"%s\",".formatted(schoolType)),
                 sameAsApplicant == null ? "" : """
                         "receiver": {
                           "sameAsApplicant": %s,
@@ -285,7 +296,8 @@ class ApplicationServiceTest {
 
     @Test
     void createIndividualForStudentCardSucceedsWithAllRequiredFields() {
-        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과");
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과",
+                Orientation.LANDSCAPE, SchoolType.UNIVERSITY);
         MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
         MockMultipartFile seal = new MockMultipartFile("schoolSeal", "seal.png", "image/png", imageBytes(50, 50, "png"));
 
@@ -294,6 +306,8 @@ class ApplicationServiceTest {
         Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
         assertThat(saved.getLogoFileId()).isNotNull();
         assertThat(saved.getSealFileId()).isNotNull();
+        assertThat(saved.getOrientation()).isEqualTo(Orientation.LANDSCAPE);
+        assertThat(saved.getSchoolType()).isEqualTo(SchoolType.UNIVERSITY);
 
         ApplicationMember member = applicationMemberRepository.findByApplicationId(saved.getId()).get(0);
         assertThat(member.getStudentId()).isEqualTo("20261234");
@@ -302,7 +316,8 @@ class ApplicationServiceTest {
 
     @Test
     void createIndividualForStudentCardSucceedsWithoutSchoolSeal() {
-        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과");
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과",
+                Orientation.PORTRAIT, SchoolType.UNIVERSITY);
         MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
 
         var response = applicationService.createIndividual(user.getId(), request, photo(), logo, null);
@@ -313,8 +328,67 @@ class ApplicationServiceTest {
     }
 
     @Test
+    void createIndividualHighSchoolSucceedsWithoutStudentIdOrDepartment() {
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, null, null,
+                Orientation.LANDSCAPE, SchoolType.HIGH_SCHOOL);
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        var response = applicationService.createIndividual(user.getId(), request, photo(), logo, null);
+
+        Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
+        assertThat(saved.getSchoolType()).isEqualTo(SchoolType.HIGH_SCHOOL);
+        ApplicationMember member = applicationMemberRepository.findByApplicationId(saved.getId()).get(0);
+        assertThat(member.getStudentId()).isNull();
+        assertThat(member.getDepartment()).isNull();
+    }
+
+    @Test
+    void createIndividualRejectsHighSchoolWithStudentIdAndDepartmentPresent() {
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과",
+                Orientation.LANDSCAPE, SchoolType.HIGH_SCHOOL);
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void createIndividualRejectsStudentCardMissingOrientation() {
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과",
+                null, SchoolType.UNIVERSITY);
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void createIndividualRejectsStudentCardMissingSchoolType() {
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "20261234", "컴퓨터공학과",
+                Orientation.LANDSCAPE, null);
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void createIndividualRejectsOrientationOrSchoolTypeForNonStudentCard() {
+        ApplicationCreateRequest request = fromJson(honorKoreanCardType.getId(), "MOBILE", null, null, null,
+                Orientation.LANDSCAPE, null);
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), null, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
     void createIndividualRejectsStudentIdWithNonDigitCharacters() {
-        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "2026-1234", "컴퓨터공학과");
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "2026-1234", "컴퓨터공학과",
+                Orientation.LANDSCAPE, SchoolType.UNIVERSITY);
         MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
 
         assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, null))
@@ -324,7 +398,8 @@ class ApplicationServiceTest {
 
     @Test
     void createIndividualRejectsStudentIdLongerThanTenDigits() {
-        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "202612345678", "컴퓨터공학과");
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "202612345678", "컴퓨터공학과",
+                Orientation.LANDSCAPE, SchoolType.UNIVERSITY);
         MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
 
         assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, null))
@@ -425,7 +500,8 @@ class ApplicationServiceTest {
 
     @Test
     void createIndividualRejectsBlankStudentFieldsBeforeUploadOrSave() {
-        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "   ", "   ");
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null, "   ", "   ",
+                Orientation.LANDSCAPE, SchoolType.UNIVERSITY);
         MockMultipartFile logo = new MockMultipartFile(
                 "schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
         MockMultipartFile seal = new MockMultipartFile(

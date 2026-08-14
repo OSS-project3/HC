@@ -45,6 +45,8 @@ Content-Type: multipart/form-data
 {
   "cardTypeId": 1,
   "issueType": "MOBILE_AND_PHYSICAL",
+  "orientation": "LANDSCAPE",
+  "schoolType": "UNIVERSITY",
   "applicant": {
     "name": "홍길동",
     "email": "hong@example.com",
@@ -78,7 +80,8 @@ Content-Type: multipart/form-data
 - `logo`/`seal`/제출ZIP(회사용)은 이 API에 없음 — 개인 신청은 법인 전용 요소라 불필요. 단, **학생증(`CardType.code=STUDENT`)은 예외로 `schoolLogo`가 필수이고 `schoolSeal`은 선택**이다.
 - ⚠️ 2026-07-31 재정정: `member.birthTime`/`birthRegion`은 **선택 입력으로 정정**(NOT NULL이었던 걸 Nullable로 변경, "출생시간 모름" 체크 지원). `nationality`/`gender`/`birthDate`는 계속 필수
 - ✅ 2026-07-31 신규: `member.entryDate`(한국입국날짜, 선택) 추가
-- ✅ 2026-08-07 정정: `member.studentId`는 `cardTypeId`가 학생증일 때만 필수이며 최대 10자·숫자만 허용한다. `member.department`(학과)는 `APPLICATION.md`가 "현재 제외"로 적었으나 근거가 없어 사람이 미결정으로 확인 — 기존대로 학생증일 때만 필수로 유지한다(`PENDING_DECISIONS.md` 참고).
+- ✅ 2026-08-14 확정(값은 대문자 문자열, `gender`와 동일 관례 — 프론트가 내부적으로 소문자를 쓰더라도 전송 직전 `.toUpperCase()` 필요): `orientation`(`LANDSCAPE`/`PORTRAIT`, 가로형/세로형)과 `schoolType`(`UNIVERSITY`/`HIGH_SCHOOL`, 대학교/고등학교)을 최상위 필드로 신규 추가. 둘 다 `cardTypeId`가 학생증일 때만 필수이고 그 외 카드종류는 반드시 생략해야 한다.
+- ✅ 2026-08-14 조건 변경: `member.studentId`/`department`는 더 이상 "학생증이면 무조건 필수"가 아니라 **`schoolType=UNIVERSITY`일 때만** 필수다(최대 10자·숫자만 허용은 기존과 동일). `schoolType=HIGH_SCHOOL`이면 오히려 `studentId`/`department`를 보내면 안 된다(보내면 `INVALID_INPUT`). 이전 문서의 "학생증이면 무조건 필수" 서술(2026-08-07 정정분)은 이 조건으로 대체됨.
 
 **Response `201 Created`**
 ```json
@@ -110,8 +113,10 @@ Content-Type: multipart/form-data
 | `issueType=MOBILE_AND_PHYSICAL`인데 `receiver` 없음 | `INVALID_INPUT` | 400 |
 | ✅ 2026-08-07 신규: `issueType=MOBILE`인데 `receiver` 전달 | `INVALID_INPUT` | 400 |
 | `member.birthDate`/`nationality`/`gender` 중 하나라도 누락, `photo` 파일 누락 | `INVALID_INPUT` | 400 |
-| `cardTypeId`가 학생증인데 `studentId`/`department`/`schoolLogo` 중 하나라도 누락, 또는 학번이 10자 초과·숫자 외 문자 포함 | `INVALID_INPUT` | 400 |
-| `cardTypeId`가 학생증이 아닌데 `studentId`/`department`/`schoolLogo`/`schoolSeal`을 보냄 | `INVALID_INPUT` | 400 |
+| `cardTypeId`가 학생증인데 `orientation`/`schoolType`/`schoolLogo` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
+| `cardTypeId`가 학생증 + `schoolType=UNIVERSITY`인데 `studentId`/`department` 중 하나라도 누락, 또는 학번이 10자 초과·숫자 외 문자 포함 | `INVALID_INPUT` | 400 |
+| ✅ 2026-08-14 신규: `cardTypeId`가 학생증 + `schoolType=HIGH_SCHOOL`인데 `studentId`/`department` 중 하나라도 있음 | `INVALID_INPUT` | 400 |
+| `cardTypeId`가 학생증이 아닌데 `orientation`/`schoolType`/`studentId`/`department`/`schoolLogo`/`schoolSeal`을 보냄 | `INVALID_INPUT` | 400 |
 | 비로그인 | `UNAUTHORIZED` | 401 |
 
 - ✅ 2026-08-07 정정: `receiver.sameAsApplicant=true`여도 우편번호와 기본주소는 필수이며, 이름과 연락처만 복사된 기본값을 서버가 채우고 사용자가 수정할 수 있다.
@@ -125,6 +130,8 @@ Content-Type: multipart/form-data
 | cardTypeId | Application.card_type_id (⚠️ 2026-07-31 정정 — 기존 `cardDesignId` 대체) |
 | — | Application.card_design_id = `NULL`(관리자가 이후 배정, ⚠️ 2026-07-31 정정) |
 | issueType | Application.issue_type |
+| orientation | Application.orientation (✅ 2026-08-14 신규, 학생증 전용) |
+| schoolType | Application.school_type (✅ 2026-08-14 신규, 학생증 전용) |
 | applicant.name/phone | Applicant.name/phone |
 | applicant.email | Applicant.email (✅ 2026-08-07 정정 — 요청값 저장, `User.email`을 기본값으로 프리필하되 수정 가능) |
 | receiver.* | Receiver.* (receiver.name/phone → `Receiver.receiver_name`/`receiver_phone` 컬럼명 매핑 주의) |
@@ -135,8 +142,8 @@ Content-Type: multipart/form-data
 | member.birthRegion | ApplicationMember.birth_region (⚠️ 2026-07-31 Nullable로 정정) |
 | member.gender | ApplicationMember.gender |
 | member.entryDate | ApplicationMember.entry_date (✅ 2026-07-31 신규) |
-| member.studentId | ApplicationMember.student_id (✅ 2026-08-07 정정, 학생증 전용, 최대 10자·숫자만) |
-| member.department | ApplicationMember.department (✅ 2026-07-31 신규, 학생증 전용) |
+| member.studentId | ApplicationMember.student_id (✅ 2026-08-07 정정, 최대 10자·숫자만. ⚠️ 2026-08-14 조건 변경: 학생증+`schoolType=UNIVERSITY`일 때만 필수) |
+| member.department | ApplicationMember.department (✅ 2026-07-31 신규. ⚠️ 2026-08-14 조건 변경: 학생증+`schoolType=UNIVERSITY`일 때만 필수) |
 | photo(file) | ApplicationMember.photo_path |
 | schoolLogo(file) | UploadFile 생성 → Application.logo_file_id (✅ 2026-07-31 신규, 학생증 전용) |
 | schoolSeal(file) | 선택. 전달된 경우 UploadFile 생성 → Application.seal_file_id |
@@ -183,6 +190,8 @@ Content-Type: multipart/form-data
 {
   "cardTypeId": 1,
   "issueType": "MOBILE_AND_PHYSICAL",
+  "orientation": "LANDSCAPE",
+  "schoolType": "UNIVERSITY",
   "applicant": {
     "organizationName": "OO기업",
     "department": "인사팀",
@@ -208,6 +217,7 @@ Content-Type: multipart/form-data
 - ✅ 2026-08-07 정정: Receiver 규칙은 API 1과 같다 — `MOBILE`에서는 전달 금지(`INVALID_INPUT`), `MOBILE_AND_PHYSICAL`에서는 필수이며 `sameAsApplicant=true`면 이름·연락처만 복사한다.
 - `member`(개인 신청의 `birthDate` 등)는 이 요청에 없음 — 인원별 정보는 ZIP 안 엑셀에서 옴
 - ⚠️ 2026-07-31 정정: `cardDesignId` → `cardTypeId`로 교체(API 1과 동일 이유 — 디자인은 관리자 배정)
+- ✅ 2026-08-14 확정: `orientation`(`LANDSCAPE`/`PORTRAIT`)은 API 1과 동일하게 `cardTypeId`가 학생증일 때만 필수이고 신청서 전체에 1개다(엑셀 컬럼이 아니라 이 요청의 최상위 필드). **`schoolType`(`UNIVERSITY`/`HIGH_SCHOOL`)도 동일하게 신청서 전체에 1개로 신규 추가되지만, `studentId`/`department` 필수 여부에는 영향을 주지 않는다** — 단체는 여전히 학번·학과를 엑셀에서만 받고(§엑셀 템플릿 컬럼 표 참고, 변경 없음), 이 값은 두 카드종류(학생증/비학생증) 구분에만 쓰인다.
 
 **Response `201 Created`**
 ```json
@@ -233,6 +243,8 @@ Content-Type: multipart/form-data
 | `cardTypeId` 없음/비활성 | `NOT_FOUND` | 404 |
 | 일반 단체 신청에서 `logo` 또는 `seal` 누락 | `INVALID_INPUT` | 400 |
 | 학생증 단체 신청에서 `logo` 누락 | `INVALID_INPUT` | 400 |
+| ✅ 2026-08-14 신규: `cardTypeId`가 학생증인데 `orientation`/`schoolType` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
+| ✅ 2026-08-14 신규: `cardTypeId`가 학생증이 아닌데 `orientation`/`schoolType`을 보냄 | `INVALID_INPUT` | 400 |
 
 ✅ 2026-08-07 확정(`APPLICATION.md` 기준): 오류 하나라도 발생하면 **부분 성공 없이 신청 전체를 실패 처리**하고, 상세 오류를 `errors[]`(행 번호·필드·코드·메시지)로 함께 반환한다. 옛 "실패율 30% 룰"은 폐기(Legacy). 기존 `EXCEL_NOT_FOUND`/`EXCEL_PARSE_ERROR`/`ZIP_TOO_LARGE`는 `BULK_APPLICATION_VALIDATION_FAILED`로 흡수되며 개별 errorCode로는 더 쓰지 않는다. ZIP 최대 크기·Excel 최대 행 수·최대 신청 인원은 현재 제한하지 않는다([TBD], `PENDING_DECISIONS.md`).
 
@@ -249,6 +261,8 @@ Content-Type: multipart/form-data
 | cardTypeId | Application.card_type_id (⚠️ 2026-07-31 정정 — 기존 `cardDesignId` 대체) |
 | — | Application.card_design_id = `NULL`(관리자가 이후 배정, ⚠️ 2026-07-31 정정) |
 | issueType | Application.issue_type |
+| orientation | Application.orientation (✅ 2026-08-14 신규, 학생증 전용) |
+| schoolType | Application.school_type (✅ 2026-08-14 신규, 학생증 전용 — studentId/department 필수 여부와는 무관) |
 | applicant.* | Applicant.* (organizationName/department 포함) |
 | receiver.* | Receiver.* (organizationName/department 포함, receiver.name/phone → `receiver_name`/`receiver_phone` 컬럼명 매핑 주의) |
 | receiver.sameAsApplicant | Application.receiver_same_as_applicant |

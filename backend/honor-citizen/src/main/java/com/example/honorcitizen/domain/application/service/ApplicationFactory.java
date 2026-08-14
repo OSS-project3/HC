@@ -2,6 +2,8 @@ package com.example.honorcitizen.domain.application.service;
 
 import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.Orientation;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.domain.application.entity.Applicant;
 import com.example.honorcitizen.domain.application.entity.Application;
 import com.example.honorcitizen.domain.application.entity.ApplicationMember;
@@ -38,9 +40,10 @@ class ApplicationFactory {
      * 엔티티 생성 시점에 상태는 DRAFT로 초기화되며, 결제 완료 이후 PENDING으로 전이된다.
      */
     Application createIndividualApplication(Long userId, String applicationNumber, Long cardTypeId,
-            IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId) {
+            IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId,
+            Orientation orientation, SchoolType schoolType) {
         return Application.createIndividual(userId, applicationNumber, cardTypeId, issueType,
-                receiverSameAsApplicant, logoFileId, sealFileId);
+                receiverSameAsApplicant, logoFileId, sealFileId, orientation, schoolType);
     }
 
     /**

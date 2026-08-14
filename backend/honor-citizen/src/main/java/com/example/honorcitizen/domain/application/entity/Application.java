@@ -4,7 +4,9 @@ import com.example.honorcitizen.common.entity.BaseTimeEntity;
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.ApplicationType;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.PaymentStatus;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import jakarta.persistence.Column;
@@ -90,27 +92,57 @@ public class Application extends BaseTimeEntity {
     @Column(length = 500)
     private String photoRejectReason;
 
-    // 개인 신청: 대상자(ApplicationMember)는 항상 1명, submitFileId(제출 ZIP)는 없음
+    // 학생증(STUDENT)일 때만 값이 있다(개인·단체 공통, 신청서 전체에 1개) — 그 외 카드종류는 항상 null.
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Orientation orientation;
+
+    // 학생증(STUDENT)일 때만 값이 있다(개인·단체 공통). UNIVERSITY일 때만 ApplicationMember.studentId/department가 필수가 된다.
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private SchoolType schoolType;
+
+    // 기존 호출부(비학생증 픽스처 다수)와의 하위 호환용 — orientation/schoolType 없이 호출하면 둘 다 null로 생성한다.
     public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId) {
+        return createIndividual(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
+                logoFileId, sealFileId, null, null);
+    }
+
+    // 개인 신청: 대상자(ApplicationMember)는 항상 1명, submitFileId(제출 ZIP)는 없음
+    public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId,
+            Orientation orientation, SchoolType schoolType) {
         Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
         application.applicationType = ApplicationType.INDIVIDUAL;
         application.totalQuantity = 1;
         application.logoFileId = logoFileId;
         application.sealFileId = sealFileId;
+        application.orientation = orientation;
+        application.schoolType = schoolType;
         return application;
+    }
+
+    // 기존 호출부와의 하위 호환용 — orientation/schoolType 없이 호출하면 둘 다 null로 생성한다.
+    public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
+            Long logoFileId, Long sealFileId, Long submitFileId) {
+        return createGroup(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
+                totalQuantity, logoFileId, sealFileId, submitFileId, null, null);
     }
 
     // 단체 신청: 대상자는 제출 ZIP(엑셀) 행 수만큼(totalQuantity), submitFileId로 원본 ZIP을 추적
     public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
-            Long logoFileId, Long sealFileId, Long submitFileId) {
+            Long logoFileId, Long sealFileId, Long submitFileId, Orientation orientation, SchoolType schoolType) {
         Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
         application.applicationType = ApplicationType.GROUP;
         application.totalQuantity = totalQuantity;
         application.logoFileId = logoFileId;
         application.sealFileId = sealFileId;
         application.submitFileId = submitFileId;
+        application.orientation = orientation;
+        application.schoolType = schoolType;
         return application;
     }
 

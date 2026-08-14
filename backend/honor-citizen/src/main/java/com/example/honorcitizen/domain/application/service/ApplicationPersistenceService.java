@@ -79,7 +79,8 @@ class ApplicationPersistenceService {
 
         // 1. Application 루트 엔티티 저장 — 이 시점에 auto-increment ID가 생성된다.
         Application application = applicationFactory.createIndividualApplication(
-                userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant, logoFileId, sealFileId);
+                userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant, logoFileId, sealFileId,
+                request.getOrientation(), request.getSchoolType());
         applicationRepository.save(application);
 
         // 2. Applicant 저장 — application.getId()를 외래키로 사용하므로 1번 이후에 저장한다.
@@ -136,7 +137,7 @@ class ApplicationPersistenceService {
         // 1. Application 루트 엔티티 저장 — 단체는 totalQuantity, submitFileId가 추가된다.
         Application application = Application.createGroup(
                 userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant, totalQuantity,
-                logoFileId, sealFileId, submitFileId);
+                logoFileId, sealFileId, submitFileId, request.getOrientation(), request.getSchoolType());
         applicationRepository.save(application);
 
         // 2. Applicant 저장 — 단체 신청자는 개인과 달리 조직명·부서를 추가로 저장한다.

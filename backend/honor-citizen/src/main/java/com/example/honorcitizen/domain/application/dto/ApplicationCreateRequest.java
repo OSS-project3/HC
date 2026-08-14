@@ -2,6 +2,8 @@ package com.example.honorcitizen.domain.application.dto;
 
 import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.Orientation;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.domain.application.dto.validation.ValidNationality;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -26,6 +28,14 @@ public class ApplicationCreateRequest {
 
     @NotNull
     private IssueType issueType;
+
+    // 학생증(STUDENT)일 때만 사용 — 신청서 전체에 1개(개인·단체 공통). 비학생증이면 null이어야 한다.
+    // 서비스 레벨에서 isStudent 기준으로 조건부 필수 검증(validateStudentFields).
+    private Orientation orientation;
+
+    // 학생증(STUDENT)일 때만 사용 — 개인 신청도 단체 신청과 동일하게 Application 레벨 단일 필드.
+    // UNIVERSITY일 때만 MemberRequest.studentId/department가 필수가 된다.
+    private SchoolType schoolType;
 
     @NotNull
     @Valid

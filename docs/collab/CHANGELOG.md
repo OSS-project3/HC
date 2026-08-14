@@ -15,6 +15,22 @@
 
 ---
 
+## 2026-08-14 — Claude — `main` (학생증 신청 항목 추가 — 학교구분·가로형/세로형)
+
+- 변경: 학생증(STUDENT) 카드 신청 방식을 변경했다. 사용자 요청: 개인 신청은 대학교/고등학교 선택 + 가로형/세로형 선택을 새로 받고, 대학교를 선택했을 때만 학번·학과를 입력받는다(고등학교는 추가 입력 없음). 법인·단체 신청은 가로형/세로형 + 학교구분 선택만 추가하고, 학번·학과는 여전히 첨부 엑셀로만 받는다.
+  - **신규 enum**(`common/enums/`): `Orientation{LANDSCAPE,PORTRAIT}`, `SchoolType{UNIVERSITY,HIGH_SCHOOL}`. JSON 값은 대문자(이 프로젝트에 enum 케이스 변환 설정이 없어 Jackson 기본 동작 그대로 — `gender` 필드와 동일하게 프론트가 전송 직전 `.toUpperCase()` 필요).
+  - **`Application` 엔티티**에 `orientation`/`school_type` 컬럼 신규 추가 — 개인·단체 공통, 학생증 전용, 신청서 전체에 1개(단체도 엑셀 컬럼이 아니라 신청 폼 필드). `createIndividual`/`createGroup` 정적 팩토리는 새 2개 파라미터를 받는 버전을 추가하면서, 기존 시그니처(로고/직인까지만 받던 버전)를 **하위 호환 오버로드**로 남겨 `null, null`로 위임하게 했다 — 그 시그니처를 직접 호출하는 기존 테스트가 약 20개(Review 도메인 테스트 포함) 있어, 전부 고치는 대신 오버로드로 격리해 무관한 파일을 건드리지 않았다.
+  - **`ApplicationService.validateStudentFields`(개인)**: 기존 "학생증이면 학번·학과 무조건 필수" 규칙을 "학생증+`schoolType=UNIVERSITY`일 때만 필수, `HIGH_SCHOOL`이면 있으면 오히려 거절"로 변경. orientation·schoolType·로고는 학교구분과 무관하게 학생증이면 항상 필수. 신규 ErrorCode 없이 기존 `INVALID_INPUT` 재사용.
+  - **`ApplicationService.createGroup`(단체)**: 학생증이면 orientation·schoolType 둘 다 필수, 아니면 둘 다 없어야 함(`INVALID_INPUT`) — 학번·학과 검증은 그대로 `BulkExcelParser`(엑셀) 책임으로 남겨두고 이번 변경에서 건드리지 않았다.
+  - 세션 중 두 가지를 사용자에게 확인 후 확정: (1) 단체 신청도 처음엔 "학교구분 필드 없이 첨부 엑셀 자유기재"로 논의했으나, 프론트에 애초에 그런 UI가 없다는 걸 같이 확인한 뒤 "단체도 체크박스 추가"로 최종 확정 — 그 결과 schoolType을 `ApplicationMember`가 아니라 `Application` 레벨로 옮겨(orientation과 동일 위치) 개인·단체 모델을 통일했다. (2) orientation 값의 JSON 대소문자 계약을 명확히 확인 — 대문자, `gender` 필드와 동일 관례.
+  - 카드종류별 config/전략 추상화는 도입하지 않고 기존 `CardType.isStudentCard()`(`isStudent` boolean) 게이트를 그대로 재사용 — 재사용처가 1곳(학생증)뿐이라 새 추상화는 과설계라고 판단(이 저장소의 "재사용 2곳 이상 아니면 새 클래스 안 만든다" 원칙과 일치).
+- 파일: `Orientation.java`, `SchoolType.java`(신규), `ApplicationCreateRequest.java`, `BulkApplicationCreateRequest.java`, `Application.java`, `ApplicationFactory.java`, `ApplicationPersistenceService.java`, `ApplicationService.java`, `ApplicationServiceTest.java`(+7 신규 케이스), `ApplicationServiceBulkTest.java`(+5 신규 케이스), `ApplicationServiceUploadCompensationTest.java`(기존 학생증 픽스처에 orientation/schoolType 보정), `ApplicationFactoryTest.java`(시그니처 보정), `docs/specs/application/{data-model,api}.md`, `docs/collab/TODO.md`
+- 테스트: TDD로 진행(테스트 먼저 작성 → 의도대로 실패 확인 → 구현 → 통과). `ApplicationServiceTest`/`ApplicationServiceBulkTest` 신규 12개 케이스 전부 통과. 전체 스위트 224개 중 기존과 동일하게 `UserControllerTest` 2건·`UserApplicationFlowTest` 1건(Redis 미기동)만 실패 — 회귀 없음.
+- 사유: 학생증 신청 방식이 대학교/고등학교로 갈리도록 정책이 바뀌었고, 구현 전 `/plan`으로 변경범위(엔티티·DTO·검증 로직·기존 테스트 파급범위)를 먼저 확정한 뒤 착수했다.
+- 관련: TODO "학생증 신청 항목 추가" 행(완료로 갱신), 계획 파일 `C:\Users\gpdnj\.claude\plans\application-api-async-knuth.md`
+
+---
+
 ## 2026-08-14 — Codex — `main` (User 조회 문서 정합성 정리)
 
 - 변경: `docs/api/user.md`의 `GET /api/users/me` 과거 구현 전 문구를 현재 백엔드 구현 상태에 맞게 정리하고, API 상태를 구현 완료로 갱신했다.

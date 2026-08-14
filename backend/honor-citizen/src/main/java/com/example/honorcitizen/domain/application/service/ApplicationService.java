@@ -2,6 +2,8 @@ package com.example.honorcitizen.domain.application.service;
 
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.Orientation;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.UploadFileType;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
@@ -109,6 +111,7 @@ public class ApplicationService {
      */
     public ApplicationCreateResponse createIndividual(Long userId, ApplicationCreateRequest request,
             MultipartFile photo, MultipartFile schoolLogo, MultipartFile schoolSeal) {
+
         User user = findUser(userId);
         CardType cardType = findActiveCardType(request.getCardTypeId());
         boolean isStudent = cardType.isStudentCard();
@@ -156,8 +159,8 @@ public class ApplicationService {
             MultipartFile schoolLogo, MultipartFile schoolSeal, boolean isStudent) {
         validateReceiverPresence(request);
         applicationPhotoValidator.validateFacePhoto(photo);
-        validateStudentFields(isStudent, request.getMember().getStudentId(), request.getMember().getDepartment(),
-                schoolLogo, schoolSeal);
+        validateStudentFields(isStudent, request.getOrientation(), request.getSchoolType(),
+                request.getMember().getStudentId(), request.getMember().getDepartment(), schoolLogo, schoolSeal);
     }
 
     // 신청 자격 검증을 UserService에 위임한다.
@@ -198,6 +201,15 @@ public class ApplicationService {
         // 로고가 없으면 카드에 학교를 인증할 수단이 없으므로 항상 필수다.
         validateGroupReceiverPresence(request);
         if (!isPresent(logo) || (!isStudent && !isPresent(seal))) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        // orientation·schoolType은 개인 신청과 동일하게 신청서 전체에 1개, 학생증일 때만 필수(2026-08-14 신규).
+        // 학번·학과는 단체는 여전히 첨부 엑셀(BulkExcelParser)로만 받으므로 여기서는 검증하지 않는다.
+        boolean hasOrientationOrSchoolType = request.getOrientation() != null || request.getSchoolType() != null;
+        if (isStudent && (request.getOrientation() == null || request.getSchoolType() == null)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (!isStudent && hasOrientationOrSchoolType) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
@@ -625,12 +637,19 @@ public class ApplicationService {
     }
 
     /**
-     * 학생증 카드에만 요구되는 필드(학번·학과·로고·직인)를 검증한다.
+     * 학생증 카드에만 요구되는 필드(가로/세로형·학교구분·학번·학과·로고·직인)를 검증한다.
      *
-     * 두 방향으로 검증한다:
-     * 1. 학생증인데 필수 필드가 없는 경우 → INVALID_INPUT
-     * 2. 비학생 카드인데 학생 전용 필드가 있는 경우 → INVALID_INPUT
-     *    이유: 비학생 카드 신청에 학번·로고가 포함되면 데이터 오염이 발생하고
+     * ✅ 2026-08-14 확정: 학번·학과는 더 이상 "학생증이면 무조건 필수"가 아니라
+     * "학생증 + 대학교 선택 시에만" 필수다. 고등학교를 선택하면 오히려 학번·학과가 있으면 안 된다
+     * (대학교 특유의 식별정보라 고등학교엔 의미가 없기 때문). orientation·schoolType·로고는
+     * 학교구분과 무관하게 학생증이면 항상 필수다.
+     *
+     * 세 방향으로 검증한다:
+     * 1. 학생증인데 orientation/schoolType/로고가 없는 경우 → INVALID_INPUT
+     * 2. 학생증+대학교인데 학번·학과가 없거나 형식이 틀린 경우 → INVALID_INPUT
+     *    학생증+고등학교인데 학번·학과가 있는 경우 → INVALID_INPUT
+     * 3. 비학생 카드인데 학생 전용 필드(orientation/schoolType/학번/학과/로고/직인) 중 하나라도 있는 경우 → INVALID_INPUT
+     *    이유: 비학생 카드 신청에 이 값들이 포함되면 데이터 오염이 발생하고
      *          추후 카드 생성 로직에서 예기치 않은 동작을 유발할 수 있다.
      *
      * 학번 형식 검증(숫자만, 최대 10자)은 단순 정규식으로 처리하며 대학교마다 체계가 달라
@@ -640,28 +659,36 @@ public class ApplicationService {
      * validateFacePhoto와 달리 해상도 하한 검증이 없는 이유: 로고·직인은 카드에 비율 축소해 넣으므로
      * 300x400 기준이 의미가 없기 때문이다.
      */
-    private void validateStudentFields(boolean isStudent, String studentId, String department,
-            MultipartFile schoolLogo, MultipartFile schoolSeal) {
-        boolean anyStudentFieldPresent = hasText(studentId) || hasText(department)
-                || isPresent(schoolLogo) || isPresent(schoolSeal);
-        boolean allRequiredStudentFieldsPresent = hasText(studentId) && hasText(department)
-                && isPresent(schoolLogo);
+    private void validateStudentFields(boolean isStudent, Orientation orientation, SchoolType schoolType,
+            String studentId, String department, MultipartFile schoolLogo, MultipartFile schoolSeal) {
+        boolean anyStudentFieldPresent = orientation != null || schoolType != null
+                || hasText(studentId) || hasText(department) || isPresent(schoolLogo) || isPresent(schoolSeal);
 
-        if (isStudent && !allRequiredStudentFieldsPresent) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
-        }
-        if (!isStudent && anyStudentFieldPresent) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
-        }
-        if (isStudent && !isValidStudentId(studentId)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
-        }
-        if (isStudent) {
-            // 로고·직인은 파일 크기·MIME·바이너리 시그니처만 확인하고 해상도 하한 검증은 제외한다.
-            applicationPhotoValidator.validateSchoolAsset(schoolLogo);
-            if (isPresent(schoolSeal)) {
-                applicationPhotoValidator.validateSchoolAsset(schoolSeal);
+        if (!isStudent) {
+            if (anyStudentFieldPresent) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
             }
+            return;
+        }
+
+        if (orientation == null || schoolType == null || !isPresent(schoolLogo)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        boolean studentIdOrDepartmentPresent = hasText(studentId) || hasText(department);
+        if (schoolType == SchoolType.UNIVERSITY) {
+            if (!hasText(studentId) || !hasText(department) || !isValidStudentId(studentId)) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+        } else if (studentIdOrDepartmentPresent) {
+            // 고등학교는 학번·학과 자체가 없는 개념이라 값이 있으면 오류로 취급한다.
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        // 로고·직인은 파일 크기·MIME·바이너리 시그니처만 확인하고 해상도 하한 검증은 제외한다.
+        applicationPhotoValidator.validateSchoolAsset(schoolLogo);
+        if (isPresent(schoolSeal)) {
+            applicationPhotoValidator.validateSchoolAsset(schoolSeal);
         }
     }
 

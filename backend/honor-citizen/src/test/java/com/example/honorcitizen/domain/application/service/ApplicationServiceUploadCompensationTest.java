@@ -90,6 +90,8 @@ class ApplicationServiceUploadCompensationTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "orientation": "LANDSCAPE",
+                  "schoolType": "UNIVERSITY",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "member": {
                     "englishName": "Hong Gildong",

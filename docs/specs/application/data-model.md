@@ -25,6 +25,8 @@
 | seal_file_id | BIGINT | FK → UploadFile, NULL | 업로드한 직인. 일반 단체 신청에서는 필수이고 학생증 개인·단체 신청에서는 선택 |
 | submit_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 제출한 ZIP(엑셀+사진) |
 | photo_reject_reason | VARCHAR(500) | NULL | ✅ 2026-07-31 신규 확정: 관리자가 사진 반려 시 입력하는 사유. `status=PHOTO_REJECTED`일 때 사용자에게 노출(`/lookup` 조회 결과) |
+| orientation | ENUM | NULL | ✅ 2026-08-14 신규 확정: 카드 가로형/세로형(`LANDSCAPE`, `PORTRAIT`). **카드종류=학생증일 때만 사용**(그 외 카드종류는 NULL), 신청서 전체에 1개(개인·단체 공통 — 단체도 신청 폼 필드이며 엑셀 컬럼 아님) |
+| school_type | ENUM | NULL | ✅ 2026-08-14 신규 확정: 학교구분(`UNIVERSITY`, `HIGH_SCHOOL`). **카드종류=학생증일 때만 사용**, orientation과 동일하게 신청서 전체에 1개(개인·단체 공통). `UNIVERSITY`일 때만 `ApplicationMember.student_id`/`department`가 필수가 된다 — `HIGH_SCHOOL`이면 오히려 둘 다 NULL이어야 한다(있으면 거절). 단체는 학번·학과를 여전히 첨부 엑셀로만 받으므로 이 필드가 학번·학과 필수 여부에 영향을 주지 않는다(개인만 해당) |
 
 > ✅ 2026-07-31 확정(Admin 도메인 — 신청 상태 흐름, 사진검토/작명 분리 재정정):
 > ```
@@ -113,8 +115,8 @@
 | entry_date | DATE | NULL | ✅ 2026-07-31 신규 확정: 한국 입국날짜. 선택 입력. 단체 신청 시 엑셀의 "공통 입국날짜"(상단 셀) + "개별입국날짜"(행별, 예외자만) 2단 해석을 거친 **최종값만 저장** — "공통값" 자체는 별도 컬럼으로 안 둠(`docs/specs/application/requirements.md` 2-3절) |
 | email | VARCHAR(255) | NULL | ✅ 2026-07-31 신규 확정: 신청자 개인 이메일. **개인 신청은 항상 NULL**(로그인 계정=`Applicant.email`로 대체, 중복 저장 안 함) — **단체 신청에서만 엑셀 행별로 채워짐** |
 | phone | VARCHAR(20) | NULL | ✅ 2026-07-31 신규 확정: 신청자 개인 연락처. email과 동일 원칙 — 개인 신청은 NULL, 단체 신청만 엑셀 행별로 채움 |
-| student_id | VARCHAR(10) | NULL | ✅ 2026-08-07 정정(`APPLICATION.md` 기준): 학번. **카드종류=학생증일 때만 사용**(그 외 카드종류는 NULL), 최대 10자이며 숫자만 허용 |
-| department | VARCHAR(100) | NULL | ✅ 2026-07-31 신규 확정: 학과. 카드종류=학생증 전용. ⚠️ `Applicant`/`Receiver`의 `department`(부서명, 법인용)와는 다른 테이블의 다른 개념 — 이름만 같음, 혼동 주의 |
+| student_id | VARCHAR(10) | NULL | ✅ 2026-08-07 정정(`APPLICATION.md` 기준): 학번. **카드종류=학생증일 때만 사용**(그 외 카드종류는 NULL), 최대 10자이며 숫자만 허용. ⚠️ 2026-08-14 조건 변경: 개인 신청은 "학생증이면 무조건 필수"가 아니라 `Application.school_type=UNIVERSITY`일 때만 필수 — `HIGH_SCHOOL`이면 오히려 NULL이어야 함(있으면 거절). 단체 신청은 이 조건과 무관하게 기존처럼 엑셀에서만 채워짐(`BulkExcelParser`, 변경 없음) |
+| department | VARCHAR(100) | NULL | ✅ 2026-07-31 신규 확정: 학과. 카드종류=학생증 전용. ⚠️ `Applicant`/`Receiver`의 `department`(부서명, 법인용)와는 다른 테이블의 다른 개념 — 이름만 같음, 혼동 주의. ⚠️ 2026-08-14: student_id와 동일하게 개인 신청은 `school_type=UNIVERSITY`일 때만 필수 |
 | issue_date | DATE | NULL | 카드 발급일자 — 발급 시점에 채워짐 |
 | card_number | VARCHAR(30) | NULL, UNIQUE | 카드 발급 후 채워짐 (Application이 아니라 여기로 확정). ✅ 2026-07-31 확인: 형식 `ROK-XXXXX-XXXX`(5자리-4자리) — `시안.zip` 실물 카드번호 확인. 채번 로직(순차/무작위)은 미확정 |
 | card_front_path | VARCHAR(500) | NULL | ✅ 2026-07-31 신규 확정: 카드 발급(`PRODUCING`) 시 생성되는 **앞면 합성 결과 이미지** 경로. 사용자 다운로드용 |

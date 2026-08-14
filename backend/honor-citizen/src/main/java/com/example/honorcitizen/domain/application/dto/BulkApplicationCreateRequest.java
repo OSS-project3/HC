@@ -1,6 +1,8 @@
 package com.example.honorcitizen.domain.application.dto;
 
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.Orientation;
+import com.example.honorcitizen.common.enums.SchoolType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -18,6 +20,12 @@ public class BulkApplicationCreateRequest {
 
     @NotNull
     private IssueType issueType;
+
+    // 학생증(STUDENT)일 때만 사용 — 신청서 전체에 1개(개인 DTO와 동일 위치·의미).
+    private Orientation orientation;
+
+    // 학생증(STUDENT)일 때만 사용. 학번·학과는 이 필드와 무관하게 여전히 첨부 엑셀로만 받는다(BulkExcelParser).
+    private SchoolType schoolType;
 
     @NotNull
     @Valid
