@@ -482,6 +482,27 @@ Admin은 독립된 업무 데이터 모듈이라기보다 여러 도메인의 �
 - 관리자 CRUD 권한은 리소스 소유권이 아니라 "관리자냐 아니냐"만으로 결정되므로, Review의 `canEdit`/`canDelete`(서비스 레벨 판단)와 달리 `/api/admin/**` → `hasRole("ADMIN")` 라우트 레벨 강제(`SecurityConfig`) 하나로 충분하다. 컨트롤러·서비스에는 별도 권한 분기 코드가 없다. `arch.md` §4.6에 이미 있던 `/api/admin/**` 원칙이 실제 `SecurityConfig`에는 반영돼 있지 않던 공백을 이번 Board 구현에서 메웠다(이 프로젝트의 첫 관리자 전용 쓰기 API).
 - NOTICE 첨부파일의 교체/추가/삭제 흐름(수정 API에서)은 아직 미확정 — `docs/specs/board/data-model.md` §6 참고. 이번 패스는 QnA(FAQ) 기준 CRUD 골격만 확정했고, 수정 API는 boardType/title/content만 재제출한다(첨부파일은 생성 시에만 다룬다).
 
+## 4.9 Event 모듈
+
+✅ 2026-08-16 갱신: 행사사업(부스 운영/법인·단체 협업) CRUD 5개 API(목록/단건/생성/수정/삭제) 전부 구현+테스트 완료(`docs/specs/events/{data-model,api}.md`).
+
+### 책임
+
+- 관리자가 작성한 행사 기록(부스 운영/법인·단체 협업)을 `EventType` enum으로 구분해 관리한다.
+- 목록·상세를 비로그인 포함 누구나 조회할 수 있게 한다(단, `visible=false`인 글은 존재 자체를 숨긴다 — Board에는 없는 개념).
+- 게시글 생성·수정·삭제는 관리자만 할 수 있다.
+
+### 소유 데이터
+
+- `EventPost`(카드 목록용 대표 이미지 `thumbnail_image_path`를 직접 보유, `visible`/`display_order`로 공개 여부·수동 정렬 관리)
+- `EventImage` — 상세 갤러리 이미지. Board의 `BoardAttachment`(`UploadFile` join 엔티티)와 달리 `UploadFile`을 경유하지 않고 S3 key를 엔티티에 직접 저장한다 — Review의 `image_path` 직접 저장 패턴과 동일(파일이 순수 표시용 사진이라 관리자 재다운로드 용도가 없는 경우 join이 불필요하다는 점도 Review와 같음).
+
+### 규칙
+
+- `EventImage`에는 "대표 이미지" 플래그를 두지 않는다 — `EventPost.thumbnail_image_path`가 대표 이미지의 유일한 소스이고, 프론트가 상세 화면에서 `[썸네일, ...갤러리]`를 직접 이어붙이는 구조라 서버가 대표 여부를 별도로 추적할 이유가 없다(`docs/specs/events/data-model.md` §2).
+- 관리자 CRUD 권한은 Board와 동일하게 라우트 레벨(`/api/admin/**` → `hasRole("ADMIN")`) 강제 하나로 충분하다 — Board 구현 때 이미 추가된 규칙이라 `EventAdminController`는 `SecurityConfig` 변경 없이 자동 적용된다.
+- 관리자 전용 전체 목록 조회(`GET /api/admin/events`, `visible` 무관)는 필요성은 인정하나 이번 패스에서 구현하지 않는다 — 관리자는 v1에서 생성 직후 응답의 `id`로만 수정·삭제할 수 있다.
+
 ---
 
 ## 5. 도메인 간 참조 규칙

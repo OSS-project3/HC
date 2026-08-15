@@ -43,7 +43,10 @@ public enum ErrorCode {
     REVIEW_ALREADY_EXISTS(409, "이미 해당 신청유형·카드종류로 작성한 후기가 있습니다."),
 
     // Board
-    BOARD_NOT_FOUND(404, "존재하지 않는 게시글입니다.");
+    BOARD_NOT_FOUND(404, "존재하지 않는 게시글입니다."),
+
+    // Event
+    EVENT_NOT_FOUND(404, "존재하지 않는 행사입니다.");
 
     private final int status;
     private final String message;

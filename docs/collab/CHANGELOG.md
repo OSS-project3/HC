@@ -15,6 +15,24 @@
 
 ---
 
+## 2026-08-16 — Claude — `main` (Event 도메인 신규 구현 — 행사사업 부스 운영/법인·단체 협업)
+
+- 변경: 프론트 `/events` 페이지의 부스 운영·법인단체 협업 기록(정적 목데이터+URL 없는 모달)을 `EventPost`+`EventType{BOOTH,COLLABORATION}` 모델로 신규 구현했다. 공개 조회 2개(목록/단건) + 관리자 전용 CRUD 3개(생성/수정/삭제) 총 5개 API. Board 구현 때 만든 패턴(관리자 CRUD 라우트 레벨 인가, S3 업로드 보상삭제, 전체 재제출 PATCH)을 그대로 재사용해서 설계·구현 모두 빠르게 진행했다.
+  - **`EventPost` 엔티티**: `eventType`/`title`/`eventDate`/`eventDateText`/`place`/`host`/`cardLabel`/`content`/`thumbnailImagePath`/`visible`/`displayOrder`. Board와 달리 작성자 추적(`created_by_user_id`)이 요구사항에 없어 두지 않았다. `visible=false`는 상세·목록 양쪽에서 `EVENT_NOT_FOUND`로 존재 자체를 숨긴다 — Board에는 없던 "비공개 게시" 개념을 이번에 신규로 정했다.
+  - **`EventImage`**: 상세 갤러리 이미지. Board의 `BoardAttachment`(`UploadFile` join 엔티티)와 달리 **`UploadFile`을 경유하지 않고 S3 key를 엔티티에 직접 저장**한다 — Review의 `image_path` 직접 저장 패턴과 동일. 설계 단계에서 `representative`(대표 이미지) 플래그를 넣을지 고민했으나, `EventPost.thumbnail_image_path`가 이미 대표 이미지의 유일한 소스이고 실제 프론트(`EventsPage.tsx` 상세 모달)도 `[썸네일, ...갤러리]`를 클라이언트에서 직접 이어붙이는 구조라 서버가 대표 여부를 별도 추적할 필요가 없다고 판단해 **최종적으로 빼기로 확정**(사용자 확인 완료, `data-model.md` §2 갱신).
+  - **`EventPostRepository.findVisibleByEventType`**: 정렬 정책(`display_order ASC(NULL 맨 뒤) → event_date DESC(NULL 맨 뒤) → created_at DESC`)을 JPQL의 `ORDER BY ... NULLS LAST`로 고정 구현 — Pageable에는 정렬을 싣지 않고 페이지 범위만 넘긴다.
+  - **`EventService`**: `create()`는 Board와 동일하게 썸네일+갤러리 S3 업로드와 DB 저장을 한 트랜잭션에서 처리하고 실패 시 `uploadedKeys` 역순 보상삭제. `update()`는 텍스트 필드+`visible`+`displayOrder` 전체 재제출이며 갤러리 편집은 이번 패스에서 다루지 않고, 썸네일은 새 파일이 있을 때만 Review `applyImageChange`와 동일한 패턴(새 파일 업로드→교체→기존 파일은 커밋 이후 삭제)으로 교체한다. `delete()`는 `EventImage`+`EventPost`를 한 트랜잭션에서 지우고 썸네일+갤러리 전체를 커밋 이후 S3에서 정리한다.
+  - **신규 `EventImageValidator`**(package-private, `domain.event.service`): `ReviewImageValidator`와 검증 규칙이 완전히 동일(2MB, jpg/jpeg/png/webp, 크기→확장자/MIME→시그니처→디코딩 순)하지만 재사용하지 않고 새로 만들었다 — `ReviewImageValidator`가 package-private라 다른 패키지에서 애초에 주입이 불가능하고, 이 프로젝트는 이미 "검증기는 도메인마다 독립"이 관례(Board의 `BoardAttachmentValidator`도 동일 원칙으로 신규 제작).
+  - **`SecurityConfig`**: `/api/admin/events/**`는 Board 구현 때 이미 추가한 `/api/admin/**` → `hasRole("ADMIN")` 규칙에 코드 변경 없이 자동으로 편입된다. 이번에 추가한 건 공개 GET(`/api/events`, `/api/events/**`) `permitAll()` 하나뿐.
+  - 세션 중 사용자와 함께 확정한 2가지: (1) 위에서 설명한 `EventImage.representative` 제거 (2) 관리자 전용 전체 목록 API(`GET /api/admin/events`, `visible` 무관 — 관리자가 숨긴 글을 다시 찾으려면 필요)는 있어야 하는 건 맞지만 이번 패스에서는 제외하고 이후 별도 구현하기로 결정. v1에서 관리자는 생성 응답의 `id`로만 수정·삭제 가능.
+  - `EventDetailResponse`에는 Board/Review의 `next`(다음글)를 넣지 않았다 — 프론트에 애초에 상세 페이지 라우트가 없어(모달뿐) 이전/다음 이동 UI 자체가 없다(`data-model.md` §0에서 이미 범위 밖으로 명시).
+- 파일: `common/enums/EventType.java`(신규), `common/exception/ErrorCode.java`(`EVENT_NOT_FOUND`), `domain/event/entity/{EventPost,EventImage}.java`, `domain/event/repository/{EventPostRepository,EventImageRepository}.java`, `domain/event/service/{EventImageValidator,EventService}.java`, `domain/event/dto/*`(6개), `api/{EventController,EventAdminController}.java`, `infra/security/SecurityConfig.java`, 테스트 6개 파일(아래), `docs/specs/events/{data-model,api}.md`, `arch.md` §4.9(신규), `docs/collab/TODO.md`
+- 테스트: 설계를 먼저 사용자와 텍스트로 합의한 뒤 구현하는 방식으로 진행(Board와 동일한 협업 순서). 신규 39개 전부 통과 — `EventPostTest`(3), `EventImageTest`(1), `EventImageValidatorTest`(7), `EventServiceTest`(14, 생성/목록 정렬·필터/상세/수정/삭제+검증 실패 케이스), `EventControllerTest`(6, 공개 조회+비공개 글 숨김), `EventAdminControllerTest`(8, 관리자 CRUD+`ADMIN`/`USER`/비로그인 권한 3분기). 전체 스위트 297개 중 기존과 동일하게 `UserControllerTest` 2건·`UserApplicationFlowTest` 1건(Redis 미기동)만 실패 — 회귀 없음.
+- 사유: `docs/specs/events/data-model.md`(이전 세션에 작성만 되고 커밋 안 된 채 방치)를 발견한 뒤, 사용자에게 서비스 로직 제안을 먼저 드리고 두 가지 설계 결정(대표 이미지 플래그 제거, 관리자 목록 API 이월)을 확인받은 뒤 구현했다 — Board 때 확립한 "설계 문서 먼저 → 사용자 확인 → 코드" 순서를 그대로 재사용.
+- 관련: TODO "Event(행사) 도메인 구현" 행(완료로 갱신)
+
+---
+
 ## 2026-08-14 — Claude — `main` (Board 도메인 신규 구현 — 공지사항/FAQ)
 
 - 변경: 프론트에 존재하지만 서버 API가 없던 공지사항/FAQ 게시판을 `Board`+`BoardType{NOTICE,FAQ}` enum 통합 모델로 신규 구현했다. 공개 조회 2개(목록/단건) + 관리자 전용 CRUD 3개(생성/수정/삭제) 총 5개 API.

@@ -37,6 +37,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/reviews", "/api/reviews/**").permitAll()
                 // 공지사항/FAQ 목록·단건 조회도 비로그인 공개 조회다(board/api.md §API 1·2).
                 .requestMatchers(HttpMethod.GET, "/api/boards", "/api/boards/**").permitAll()
+                // 행사(부스 운영/법인·단체 협업) 목록·단건 조회도 비로그인 공개 조회다(events/api.md §API 1·2).
+                .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
                 // 관리자 전용 쓰기 API(board/api.md "관리자 권한 강제 방식") — /api/** 공통 규칙보다 먼저 와야
                 // ADMIN이 아닌 로그인 사용자가 USER 권한만으로 통과하는 것을 막는다.
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
