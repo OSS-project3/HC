@@ -33,6 +33,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -86,6 +87,8 @@ public class ApplicationService {
     private final UserService userService;
     // 트랜잭션 경계를 위한 별도 Bean — 위 클래스 주석의 self-invocation 문제 참고
     private final ApplicationPersistenceService applicationPersistenceService;
+    // 일일 신청 생성 횟수 제한(하루 3회, 개인/단체 합산) 전담 — APPLICATION.md §7
+    private final ApplicationDailyLimitService applicationDailyLimitService;
     // 사진 파일 크기·MIME·바이너리 시그니처·해상도 검증 전담 컴포넌트
     private final ApplicationPhotoValidator applicationPhotoValidator;
     private final StorageService storageService;
@@ -121,6 +124,11 @@ public class ApplicationService {
         // 리소스 소비가 있지만, S3 업로드보다는 훨씬 저렴하다.
         validateCreateIndividual(request, photo, schoolLogo, schoolSeal, isStudent);
 
+        // 하루 3회 제한(개인/단체 합산) — 파일 업로드 이전에 자리를 먼저 확정해 실패 시 슬롯 낭비 없이
+        // 빠르게 거절한다. 실패(아래 catch)하면 예약한 자리를 반환한다.
+        LocalDate today = ApplicationDailyLimitService.today();
+        reserveDailyLimitSlot(userId, today);
+
         String applicationNumber = generateApplicationNumber();
         // uploadedKeys: S3에 업로드된 객체 키 목록. DB 저장 실패 시 이 목록을 역순 순회해 삭제한다.
         List<String> uploadedKeys = new ArrayList<>();
@@ -147,7 +155,20 @@ public class ApplicationService {
             // DB 저장이 실패하면 이미 S3에 업로드한 파일들을 역순으로 제거해 고아 파일이 남지 않도록 한다.
             // 역순인 이유: 파일 간 의존 관계가 있을 경우(예: 메타데이터가 원본을 참조) 의존 역순으로 지워야 안전하다.
             deleteUploadedFilesQuietlyReversed(uploadedKeys);
+            applicationDailyLimitService.releaseSlot(userId, today);
             throw e;
+        }
+    }
+
+    // ApplicationDailyLimitService.reserveSlot()이 던지는 DataIntegrityViolationException은
+    // "오늘 첫 신청 row를 두 요청이 동시에 만들려다 유니크 제약이 충돌한" 경우다 — 새 트랜잭션으로
+    // 한 번만 재시도하면 먼저 커밋된 row를 보고 정상적으로 락을 잡고 증가시킨다(재시도도 실패하면
+    // 그대로 예외를 전파해 INTERNAL_ERROR로 처리한다 — 같은 충돌이 두 번 연속 나는 건 비정상 상황).
+    private void reserveDailyLimitSlot(Long userId, LocalDate today) {
+        try {
+            applicationDailyLimitService.reserveSlot(userId, today);
+        } catch (DataIntegrityViolationException e) {
+            applicationDailyLimitService.reserveSlot(userId, today);
         }
     }
 
@@ -218,6 +239,10 @@ public class ApplicationService {
         //   사용자가 한 번에 전체 오류를 파악하고 ZIP을 다시 만들 수 있게 UX를 개선하기 위해서다.
         List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, isStudent);
 
+        // 하루 3회 제한(개인/단체 합산) — 단체 신청도 개인 신청과 동일하게 파일 업로드 이전에 자리를 확정한다.
+        LocalDate today = ApplicationDailyLimitService.today();
+        reserveDailyLimitSlot(userId, today);
+
         String applicationNumber = generateApplicationNumber();
         List<String> uploadedKeys = new ArrayList<>();
 
@@ -250,6 +275,7 @@ public class ApplicationService {
         } catch (RuntimeException e) {
             // DB 저장 실패 시 업로드된 모든 파일(로고, 직인, ZIP, 멤버 사진 전부)을 역순 삭제한다.
             deleteUploadedFilesQuietlyReversed(uploadedKeys);
+            applicationDailyLimitService.releaseSlot(userId, today);
             throw e;
         }
     }

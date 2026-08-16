@@ -151,10 +151,8 @@ Factory, Validator, Context 등 새로운 클래스를 추가하기 전에 반�
 - [x] 탈퇴 회원 거절 — 신규 ErrorCode 추가 없음
 - [x] `USER` 권한 검증 — `FORBIDDEN` 재사용
 - [x] 필수 약관 전체 동의 검증 — `TERMS_NOT_AGREED` 재사용
-- [ ] [TBD] 하루 3회 제한 정책 확정 전 구현하지 않음
-- [ ] [TBD] 하루 3번째 신청 허용
-- [ ] [TBD] 하루 4번째 신청 거절
-- [ ] 생성 후 `CANCELLED`된 신청도 해당 날짜의 신청 횟수에 포함
+- [x] 하루 3번째 신청 허용, 4번째부터 거절 — 2026-08-16 구현 완료(하단 "일일 KST 3회 제한 DB 원자 처리" 항목 참고)
+- [x] 생성 후 `CANCELLED`된 신청은 해당 날짜의 신청 횟수에서 제외(취소 시 자리가 다시 빔) — `ApplicationDailyLimitService.releaseSlot`로 반환 가능하도록 구현. 다만 실제 "신청 취소" API 자체가 아직 없어(별도 TODO 항목) 이 release는 현재 실패 보상(파일 업로드·DB 저장 실패)에서만 호출되고, 취소 흐름에는 아직 연결되지 않음 — 취소 API 구현 시 그 Service 계층에서 이 메서드를 호출하면 됨
 - [x] 동일 사용자·동일 카드 종류의 중복 신청 허용 — 별도 차단 로직 추가하지 않음
 - [x] 진행 중인 같은 카드 신청이 있다는 이유만으로 차단하지 않음
 - [x] Application의 `UserRepository` 직접 의존 제거 및 `UserService` 공개 메서드 사용
@@ -331,6 +329,6 @@ Factory, Validator, Context 등 새로운 클래스를 추가하기 전에 반�
 
 - [x] `ApplicationPersistenceService` 신규 — §4 "ApplicationPersistenceService 분리" 항목에서 이미 구현됨(2026-08-07)
 - [x] `BULK_APPLICATION_VALIDATION_FAILED` + `errors[]` 응답 구조 — §4 "BulkExcelParser 학번 검증·errors[] 계약" 항목에서 이미 구현됨(2026-08-07)
-- [ ] 일일 KST 3회 제한 DB 원자 처리(정책 문서엔 "현재 리팩터링 범위 미구현"으로 명시돼 있어 우선순위 낮음) — §4/§5 통틀어 유일하게 남은 항목. 상세는 `PENDING_DECISIONS.md` 참고
+- [x] 일일 KST 3회 제한 DB 원자 처리 (2026-08-16 구현 완료) — §4/§5 통틀어 유일하게 남았던 항목. 신규 `ApplicationDailyLimit` 엔티티(사용자별·일자별 카운터, `UNIQUE(user_id, count_date)`) + `ApplicationDailyLimitService.reserveSlot/releaseSlot`. `reserveSlot`은 `findByUserIdAndCountDateForUpdate`(비관적 락 `PESSIMISTIC_WRITE`)로 기존 row를 잠그고 증가시키거나, 오늘 첫 신청이면 `saveAndFlush`로 INSERT 시도 — 두 요청이 동시에 "오늘 첫 신청"이면 `UNIQUE` 제약 충돌(`DataIntegrityViolationException`)이 나는데, 이건 `ApplicationService`가 새 트랜잭션으로 한 번 재시도해서 해소(같은 트랜잭션 안에서 재시도하면 이미 실패로 표시된 트랜잭션을 계속 쓰게 돼 불안정). `ApplicationService.createIndividual`/`createGroup`에 파일 업로드 이전(모든 검증 이후) 지점에서 호출, 실패(파일 업로드·DB 저장 실패) 시 `releaseSlot`으로 자리 반환. 신규 테스트 19개(`ApplicationDailyLimitTest` 5개, `ApplicationDailyLimitServiceTest` 9개 — 동시성 시나리오 2개 포함, `ApplicationServiceDailyLimitTest` 3개, `ApplicationServiceUploadCompensationTest`에 2개 추가) 전부 통과. 전체 스위트 316개 중 기존과 동일하게 Redis 미기동 3건만 실패(회귀 없음)
 - [x] `application_seq.nextval` 채번 — §4 "신청번호 DB Sequence 전환" 항목에서 이미 구현됨(2026-08-07)
 - [x] 업로드 추적 및 DB 실패 보상 삭제 — §4 "업로드 보상 삭제" 항목에서 이미 구현됨(2026-08-07, `uploadedKeys` 추적 + `storageService.delete` 역순 호출)

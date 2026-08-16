@@ -117,6 +117,7 @@ Content-Type: multipart/form-data
 | `cardTypeId`가 학생증 + `schoolType=UNIVERSITY`인데 `studentId`/`department` 중 하나라도 누락, 또는 학번이 10자 초과·숫자 외 문자 포함 | `INVALID_INPUT` | 400 |
 | ✅ 2026-08-14 신규: `cardTypeId`가 학생증 + `schoolType=HIGH_SCHOOL`인데 `studentId`/`department` 중 하나라도 있음 | `INVALID_INPUT` | 400 |
 | `cardTypeId`가 학생증이 아닌데 `orientation`/`schoolType`/`studentId`/`department`/`schoolLogo`/`schoolSeal`을 보냄 | `INVALID_INPUT` | 400 |
+| ✅ 2026-08-16 신규: 같은 사용자가 오늘(KST) 이미 3건 신청(개인·단체 합산, 취소분 제외) | `APPLICATION_LIMIT_EXCEEDED` | 429 |
 | 비로그인 | `UNAUTHORIZED` | 401 |
 
 - ✅ 2026-08-07 정정: `receiver.sameAsApplicant=true`여도 우편번호와 기본주소는 필수이며, 이름과 연락처만 복사된 기본값을 서버가 채우고 사용자가 수정할 수 있다.
@@ -245,6 +246,7 @@ Content-Type: multipart/form-data
 | 학생증 단체 신청에서 `logo` 누락 | `INVALID_INPUT` | 400 |
 | ✅ 2026-08-14 신규: `cardTypeId`가 학생증인데 `orientation`/`schoolType` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
 | ✅ 2026-08-14 신규: `cardTypeId`가 학생증이 아닌데 `orientation`/`schoolType`을 보냄 | `INVALID_INPUT` | 400 |
+| ✅ 2026-08-16 신규: 같은 사용자가 오늘(KST) 이미 3건 신청(개인·단체 합산, 취소분 제외) | `APPLICATION_LIMIT_EXCEEDED` | 429 |
 
 ✅ 2026-08-07 확정(`APPLICATION.md` 기준): 오류 하나라도 발생하면 **부분 성공 없이 신청 전체를 실패 처리**하고, 상세 오류를 `errors[]`(행 번호·필드·코드·메시지)로 함께 반환한다. 옛 "실패율 30% 룰"은 폐기(Legacy). 기존 `EXCEL_NOT_FOUND`/`EXCEL_PARSE_ERROR`/`ZIP_TOO_LARGE`는 `BULK_APPLICATION_VALIDATION_FAILED`로 흡수되며 개별 errorCode로는 더 쓰지 않는다. ZIP 최대 크기·Excel 최대 행 수·최대 신청 인원은 현재 제한하지 않는다([TBD], `PENDING_DECISIONS.md`).
 

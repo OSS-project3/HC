@@ -3,6 +3,7 @@ package com.example.honorcitizen.domain.application.service;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequest;
+import com.example.honorcitizen.domain.application.repository.ApplicationDailyLimitRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
 import com.example.honorcitizen.domain.user.entity.User;
@@ -52,6 +53,8 @@ class ApplicationServiceUploadCompensationTest {
     private UserRepository userRepository;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private ApplicationDailyLimitRepository applicationDailyLimitRepository;
 
     @MockitoBean
     private StorageService storageService;
@@ -64,6 +67,7 @@ class ApplicationServiceUploadCompensationTest {
 
     @BeforeEach
     void setUp() {
+        applicationDailyLimitRepository.deleteAll();
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -293,5 +297,37 @@ class ApplicationServiceUploadCompensationTest {
         List<String> expectedReversed = new ArrayList<>(uploadedKeys);
         Collections.reverse(expectedReversed);
         assertThat(deleteKeyCaptor.getAllValues()).isEqualTo(expectedReversed);
+    }
+
+    // 이 파일의 모든 테스트는 applicationPersistenceService가 항상 실패하도록 스텁돼 있다(setUp 참고) —
+    // 일일 3회 제한 슬롯이 실패 시 정상적으로 반환되는지 검증하기에 적합한 픽스처다.
+    @Test
+    void createIndividualReleasesDailyLimitSlotWhenPersistenceFails() {
+        ApplicationCreateRequest request = individualStudentRequest();
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+        MockMultipartFile seal = new MockMultipartFile("schoolSeal", "seal.png", "image/png", imageBytes(50, 50, "png"));
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, seal))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(applicationDailyLimitRepository
+                .findByUserIdAndCountDate(user.getId(), ApplicationDailyLimitService.today()))
+                .hasValueSatisfying(limit -> assertThat(limit.getCount()).isZero());
+    }
+
+    @Test
+    void createGroupReleasesDailyLimitSlotWhenPersistenceFails() throws Exception {
+        byte[] excel = buildExcel("1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul");
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+
+        assertThatThrownBy(() -> applicationService.createGroup(user.getId(), groupRequest(), logo, seal, submitFile))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(applicationDailyLimitRepository
+                .findByUserIdAndCountDate(user.getId(), ApplicationDailyLimitService.today()))
+                .hasValueSatisfying(limit -> assertThat(limit.getCount()).isZero());
     }
 }

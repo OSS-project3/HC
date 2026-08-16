@@ -213,7 +213,8 @@ Spring 자기호출 방식은 사용하지 않는다.
 - KST 기준
 00:00 ~ 23:59
 - 개인/단체 합산
-- 취소/반려 포함 여부 TBD
+- ✅ 2026-08-16 확정: 취소(`CANCELLED`)된 신청은 그날 카운트에서 제외한다 — 취소하면 그 자리가 다시 빈다. 반려(`PHOTO_REJECTED`)는 재시도가 사진 재업로드(`PATCH .../photo`)로 처리되어 새 `create()` 호출 자체가 없으므로 별도 포함/제외 결정이 필요 없다(생성 시점에 이미 카운트됨).
+- 카운트 대상은 `create()`(`createIndividual`/`createGroup`)로 새 `Application` row가 생성되는 시점뿐이다 — update성 재시도(사진 재업로드 등)는 새 row를 만들지 않으므로 카운트에 포함되지 않는다.
 - 동시 요청은 DB 수준에서 원자적으로 처리
 - APPLICATION_LIMIT_EXCEEDED ErrorCode 추가
 

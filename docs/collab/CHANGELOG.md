@@ -15,6 +15,21 @@
 
 ---
 
+## 2026-08-16 — Claude — `main` (일일 신청 3회 제한 구현 — Application 도메인 마지막 미구현 항목)
+
+- 변경: `checklist.md` §4·§5에서 유일하게 남아있던 미구현 항목("일일 KST 3회 제한")을 구현했다. 정책 자체는 `APPLICATION.md` §7에 이미 있었지만 "취소·반려 신청을 카운트에 포함할지"가 TBD로 막혀 있었는데, 이번에 사용자와 함께 확정(취소는 카운트 제외 — 취소하면 자리가 다시 빔, 반려는 재시도가 update성 사진 재업로드라 새 `create()` 자체가 없어 별도 결정 불필요)한 뒤 바로 구현까지 진행했다.
+  - **왜 단순 `COUNT` 쿼리가 아닌지**: "카운트 확인 → 저장" 사이에 동시 요청이 끼어들면 두 요청 모두 "아직 2건이니 통과"로 오판할 수 있는 경쟁 상태가 생긴다 — 신청번호 채번을 `count+1` 방식에서 `application_seq` DB 시퀀스로 바꾼 것과 같은 이유(`ApplicationService.java` 주석 참고)이지만, 이번엔 "상한이 있는" 카운터라 시퀀스 하나로는 안 되고 사용자별·일자별 카운터 행을 비관적 락으로 잠그는 방식이 필요했다.
+  - **신규 `ApplicationDailyLimit` 엔티티**(`user_id`+`count_date` UNIQUE): 별도 카운터 테이블을 둔 이유는 "취소하면 자리가 빈다"를 라이브 `COUNT(*) FROM applications` 집계로 구현하면 아직 DB에 저장되지 않은(파일 업로드 중인) 진행 중 요청을 반영할 수 없기 때문이다 — 파일 업로드 이전에 원자적으로 "자리"를 먼저 확정해야 동시 요청이 그 확정을 즉시 볼 수 있다.
+  - **신규 `ApplicationDailyLimitService.reserveSlot/releaseSlot`**: 각각 독립된 `@Transactional`이라 호출할 때마다 새 트랜잭션이 열리고 즉시 커밋된다(파일 업로드처럼 느린 작업 동안 락을 들고 있지 않기 위해). `reserveSlot`은 기존 row가 있으면 `PESSIMISTIC_WRITE` 락으로 잠그고 증가시키고, 오늘 첫 신청이면 `saveAndFlush`로 INSERT를 시도한다 — 두 요청이 동시에 "오늘 첫 신청"이면 `UNIQUE(user_id, count_date)` 위반(`DataIntegrityViolationException`)이 나는데, 이 예외는 `ApplicationService`가 새 트랜잭션으로 **한 번만 재시도**해서 해소한다(같은 트랜잭션 안에서 재시도하면 이미 rollback-only로 표시된 트랜잭션을 계속 쓰게 돼 불안정하다 — Spring AOP self-invocation 문제와 별개로, 실패한 트랜잭션 재사용 자체가 문제).
+  - **`ApplicationService.createIndividual`/`createGroup`**: 모든 검증(수령인/사진/학생필드/ZIP파싱 등) 이후, 파일 업로드 이전에 `reserveDailyLimitSlot()` 호출 — 한도 초과면 `APPLICATION_LIMIT_EXCEEDED`(429)로 파일 업로드 자체를 막는다. 기존 `uploadedKeys` 역순 삭제 catch 블록에 `releaseSlot()` 호출을 추가해, 파일 업로드나 DB 저장이 실패해도 슬롯이 낭비되지 않도록 했다.
+  - **"취소 시 자리 반환"은 이번 범위에서 절반만 구현됨**: `releaseSlot()`은 재사용 가능한 공개 메서드로 만들어뒀지만, 실제 "신청 취소" API 자체가 아직 없어(별도 TODO, 정책도 미확정) 지금은 실패 보상 경로에서만 호출된다. `Application.cancel()`은 Entity라 Service를 호출할 수 없으므로(arch.md 계층 규칙), 취소 API가 생기면 그 Service 계층에서 `releaseSlot()`을 호출하는 방식으로 연결해야 한다 — Entity 자체에서 미리 연결해둘 수 없는 구조적인 이유다.
+- 파일: `common/exception/ErrorCode.java`(`APPLICATION_LIMIT_EXCEEDED`), `domain/application/entity/ApplicationDailyLimit.java`(신규), `domain/application/repository/ApplicationDailyLimitRepository.java`(신규), `domain/application/service/{ApplicationDailyLimitService,ApplicationService}.java`, 테스트 4개 파일(아래), `docs/specs/application/{APPLICATION,api}.md`, `docs/collab/{TODO,PENDING_DECISIONS}.md`
+- 테스트: 신규 19개 전부 통과 — `ApplicationDailyLimitTest`(엔티티, 5개), `ApplicationDailyLimitServiceTest`(9개 — `ExecutorService`+`CountDownLatch`로 동시 요청을 재현하는 동시성 시나리오 2개 포함: 기존 카운터 row를 여러 요청이 동시에 다투는 경우, 오늘 첫 신청 row 자체를 동시에 만들려는 경우), `ApplicationServiceDailyLimitTest`(3개 — 4번째 신청 거절, 개인·단체 합산, 타 사용자 무관), `ApplicationServiceUploadCompensationTest`에 2개 추가(실패 시 슬롯 반환 검증 — 이 파일은 이미 모든 테스트가 DB 저장 실패를 스텁하고 있어 딱 맞는 픽스처였다). 전체 스위트 316개 중 기존과 동일하게 `UserControllerTest` 2건·`UserApplicationFlowTest` 1건(Redis 미기동)만 실패 — 회귀 없음. 기존 create 관련 테스트 중 같은 사용자로 4회 이상 생성하는 테스트가 있는지 사전에 grep으로 전수 확인(최대 2회)해 회귀 가능성을 미리 배제했다.
+- 사유: Application 도메인 리팩터링 로드맵의 마지막 미구현 항목. 사용자가 TODO를 보고 "이거 메서드 쿼리만 만들면 되는거 아님?"이라고 질문한 것을 계기로 동시성 문제를 설명하고, 남은 정책 TBD(취소분 포함 여부)를 대화로 확정한 뒤 바로 구현까지 이어갔다.
+- 관련: TODO "일일 KST 3회 제한 DB 원자 처리" 항목(완료로 갱신), `PENDING_DECISIONS.md` 관련 항목 2건 해결
+
+---
+
 ## 2026-08-16 — Claude — `main` (Event 도메인 신규 구현 — 행사사업 부스 운영/법인·단체 협업)
 
 - 변경: 프론트 `/events` 페이지의 부스 운영·법인단체 협업 기록(정적 목데이터+URL 없는 모달)을 `EventPost`+`EventType{BOOTH,COLLABORATION}` 모델로 신규 구현했다. 공개 조회 2개(목록/단건) + 관리자 전용 CRUD 3개(생성/수정/삭제) 총 5개 API. Board 구현 때 만든 패턴(관리자 CRUD 라우트 레벨 인가, S3 업로드 보상삭제, 전체 재제출 PATCH)을 그대로 재사용해서 설계·구현 모두 빠르게 진행했다.
