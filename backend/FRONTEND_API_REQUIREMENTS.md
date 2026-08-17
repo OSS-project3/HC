@@ -2,6 +2,8 @@
 
 작성 기준: 2026-08-05 현재 `frontend/src` 전체 라우트, 데이터 모듈, 폼 제출, `localStorage`/`sessionStorage` 사용처를 조사했다. 이 문서는 운영 빌드에서 브라우저 목데이터를 서버 데이터로 교체하기 위해 필요한 API를 정리한다. 경로는 제안이며 실제 구현 시 백엔드 규칙에 맞게 확정해야 한다.
 
+> ✅ 2026-08-17 갱신: 작성 이후 실제로 **구현 완료된 도메인 3개(후기 §8, 공지사항/FAQ §9, 이벤트 §10)** 를 실제 백엔드 코드 기준으로 다시 썼다. 나머지 섹션(마이페이지, 관리자 신청관리, 문의, 카드 카탈로그, CMS)은 여전히 이 문서 작성 시점의 제안 상태 그대로다 — 상세는 각 섹션 상단의 갱신 표시 참고. 실제 최신 계약은 항상 `docs/specs/{도메인}/api.md`(구현된 도메인) 또는 `docs/api/{도메인}.md`(설계만 있는 도메인)를 우선한다 — 이 문서는 "무엇이 왜 필요한가"를 정리한 요구사항 조사본이라 세부 계약의 최신 소스가 아니다.
+
 ## 1. 결론 및 우선순위
 
 ### P0 — 운영 전에 반드시 서버화
@@ -10,15 +12,15 @@
 2. 사용자별 신청 목록/상세
 3. 관리자 신청 목록/상세/상태 변경
 4. 1:1 문의 등록·사용자 조회·관리자 처리
-5. 후기 목록/상세/작성/수정/삭제
-6. 카드 종류·디자인 카탈로그 조회
+5. ~~후기 목록/상세/작성/수정/삭제~~ — ✅ 2026-08-13 구현 완료(§8 참고)
+6. 카드 종류·디자인 카탈로그 조회 — §4 결정대로 조회 API는 신설하지 않기로 확정(변경 없음)
 
 ### P1 — 관리자 콘텐츠 기능을 여러 사용자/기기에서 공유하려면 필수
 
-1. 공지사항 CRUD
-2. FAQ CRUD
-3. 이벤트 CRUD
-4. 콘텐츠 첨부파일/이미지 업로드
+1. ~~공지사항 CRUD~~ — ✅ 2026-08-14 구현 완료(Board 도메인, §9 참고. 원래 제안했던 `/api/notices`와 다른 경로로 구현됨)
+2. ~~FAQ CRUD~~ — ✅ 2026-08-14 구현 완료(공지사항과 동일 Board 도메인, `BoardType=FAQ`)
+3. ~~이벤트 CRUD~~ — ✅ 2026-08-16 구현 완료(§10 참고)
+4. 콘텐츠 첨부파일/이미지 업로드 — 공통 API로 만들지 않고 Board/Event가 각자 own 첨부 흐름을 가짐(§9·§10 참고, §11는 여전히 미구현)
 
 ### P2 — 운영 정책에 따라 CMS화
 
@@ -81,6 +83,41 @@
 | POST | `/api/auth/recovery/password/confirm` | 재설정 토큰으로 새 비밀번호 저장 | 없음 |
 | PATCH | `/api/users/me/password` | 로그인 사용자의 비밀번호 변경 | USER |
 
+### 일반 이메일 계정 정책 — 확정
+
+#### 로그인 식별자와 이메일 중복
+
+- 일반 계정의 로그인 아이디는 별도 `username`이 아니라 이메일이다.
+- 일반 회원가입, 이메일 중복 확인, 로그인, 아이디 찾기, 비밀번호 재설정, OAuth 로그인에서 동일한 이메일 정규화 규칙을 사용한다.
+- 정규화는 앞뒤 공백 제거 후 전체 소문자 변환으로 정의한다.
+- 현재 이메일 변경 API는 없지만 이후 추가할 경우에도 같은 정규화 함수와 중복 검증을 반드시 사용한다.
+- 회원가입 시 정규화된 이메일을 먼저 DB에서 조회하고, 이미 존재하면 가입을 거절한다.
+- DB에도 정규화된 이메일 기준 `UNIQUE` 제약을 적용한다. 애플리케이션의 사전 조회만으로 중복을 보장하지 않으며, 동시 요청의 충돌도 DB 제약으로 최종 차단한다.
+- OAuth가 반환한 이메일도 동일하게 정규화한다. 동일한 이메일의 일반 계정 또는 다른 OAuth 계정이 이미 있으면 계정을 자동 연결하거나 병합하지 않고 로그인을 거절한다.
+- 중복 시 프론트는 `EMAIL_ALREADY_EXISTS` 오류를 받아 `이미 가입된 이메일입니다.`라고 안내한다. OAuth 로그인 중 발생한 경우에도 로그인 화면에서 같은 내용을 명확히 알린다.
+
+#### 회원가입과 약관 동의
+
+- 일반 이메일 회원가입 요청에는 약관 동의 값을 포함하지 않는다.
+- 회원가입 성공 시 백엔드는 기존 OAuth 로그인과 같은 HttpOnly access/refresh token 쿠키를 발급하고, 프론트는 `/terms`로 이동한다.
+- `/terms`에서 사용자가 동의 내용을 직접 확인하고 기존 `POST /api/auth/terms`로 제출한다.
+- 약관 동의가 완료되기 전 계정은 로그인 상태이더라도 신청 등 필수 약관 동의가 필요한 기능을 사용할 수 없다.
+- 약관 동의 성공 후 `GET /api/users/me`로 사용자 정보를 갱신하고 홈(`/`)으로 이동한다.
+
+#### 탈퇴 계정 로그인과 영구 탈퇴
+
+- 소프트 탈퇴 후 7일 유예기간 안에 일반 이메일로 로그인하면 OAuth와 동일하게 계정을 자동 복구한다.
+- 자동 복구된 로그인 응답은 프론트가 구분할 수 있는 `restored: true` 값을 제공하고, 프론트는 `탈퇴한 계정이 복구되었습니다.`라고 명확히 안내한다.
+- 소프트 탈퇴 후 7일이 지나면 계정을 복구할 수 없는 영구 탈퇴로 처리한다.
+- 영구 탈퇴는 현재 구현된 개인정보 익명화와 다르게 실제 계정 삭제를 의미한다. 구현 전 신청·후기·감사 로그 등 기존 데이터의 참조 및 보존 의무에 미치는 영향을 먼저 검증해야 한다.
+
+#### 아이디 찾기와 비밀번호 재설정
+
+- 아이디 찾기는 이름과 전화번호로 계정을 확인하고, 로그인 아이디인 이메일을 마스킹하여 안내한다.
+- 비밀번호 재설정 안내는 SMS가 아니라 가입 이메일로 발송한다.
+- 비밀번호 재설정 요청은 현재 프론트 입력과 같이 이메일과 전화번호를 받되, 계정 존재 여부를 노출하지 않도록 성공·실패 여부와 관계없이 동일한 접수 응답을 반환한다.
+- 재설정 메일에는 만료시간과 일회성 사용을 적용한 토큰을 포함하고, 토큰 확인 후 새 비밀번호를 저장한다.
+
 회원가입 요청 예시:
 
 ```json
@@ -88,10 +125,7 @@
   "name": "홍길동",
   "email": "user@example.com",
   "phone": "01012345678",
-  "password": "server-never-logs-this",
-  "privacyAgreed": true,
-  "imageUploadAgreed": true,
-  "shippingAgreed": true
+  "password": "server-never-logs-this"
 }
 ```
 
@@ -101,7 +135,7 @@
 - 로그인 성공 후 역할은 클라이언트가 보낸 값을 신뢰하지 않고 서버 사용자 정보에서 결정한다.
 - 프론트의 데모 관리자 로그인은 운영 빌드에서 제거해야 한다.
 - 계정 존재 여부가 복구 API 응답으로 노출되지 않도록 동일한 성공 메시지를 사용한다.
-- 로그인 시도 제한, 재설정 토큰 만료·일회성 사용, 이메일/SMS 발송 기록이 필요하다.
+- 로그인 시도 제한, 재설정 토큰 만료·일회성 사용, 이메일 발송 기록이 필요하다.
 
 ## 4. 카드 종류·디자인 API
 
@@ -122,16 +156,27 @@
 - `POST /api/applications` — 개인 신청
 - `POST /api/applications/bulk` — 단체 신청
 - `POST /api/applications/lookup` — 신청번호/카드번호 조회
+- `POST /api/applications/{id}/cancel` — ✅ 2026-08-17 구현 완료(사용자 취소, 아래 새 섹션 참고)
 - `PATCH /api/applications/{id}/photo` — 사진/제출파일 재업로드
 - `GET /api/applications/{id}/cards/download` — 카드 다운로드 정보
 
-### 추가 필요
+### 신청 상태·취소·환불 — ✅ 2026-08-17 구현 완료 (관리자 API는 아직 별개, §6 참고)
+
+> `ApplicationStatus` enum이 이 문서 작성 시점(`PAYMENT_PENDING`/`RECEIVED` 포함)과 완전히 달라졌다. 최신 정책은 `docs/specs/application/APPLICATION.md` §16, 최신 계약은 `docs/specs/application/api.md`.
+
+- **`ApplicationStatus` 실제 값**: `SUBMITTED → REVIEWING ↔ PHOTO_REJECTED → NAME_EDITING → PRODUCTION_READY → PRODUCING → COMPLETED`, 각 단계에서 `CANCELLED`로 분기 가능(단 `NAME_EDITING` 이후는 취소 불가). `PAYMENT_PENDING`/`RECEIVED`는 더 이상 없다 — 입금 확인은 `PaymentStatus`(`WAITING`/`CONFIRMED`)만 바꾸고 `ApplicationStatus`는 그대로 둔다(입금 확인 자체로는 상태가 안 바뀜).
+- **`POST /api/applications/{id}/cancel`**(요청 본문 없음, 소유자 인증): `SUBMITTED`/`REVIEWING`/`PHOTO_REJECTED`에서만 가능. 이미 `CANCELLED`면 멱등 성공(재취소 시 값 변경 없음). 응답(`ApplicationCancelResponse`): `applicationId`,`status`,`paymentStatus`,`refundRequired`(입금 확인됐고 아직 환불 안 됐으면 `true`),`cancelledAt`.
+- **미입금 자동 취소**: 결제 안내 후 `paymentDueAt`(안내 시각+72시간) 지나도 미입금이면 스케줄러(`ApplicationPaymentTimeoutScheduler`, 기본 10분 간격 cron)가 자동 취소한다. 사용자 취소와 구분해 취소 이력에 `cancellationType=SYSTEM`으로 남는다.
+- **취소 이력**: `Application`에 `cancelledAt`,`cancellationType`(`USER`/`SYSTEM`/`ADMIN` — `ADMIN`은 아직 API 없음),`cancellationReason`(`USER_REQUEST`/`PAYMENT_TIMEOUT`/`ADMIN_DECISION`) 저장. 자유 형식 취소 사유는 사용자에게 받지 않는다.
+- **최소 환불 모델**: 신청당 1회 입금·전액 환불만 지원 — 별도 Refund 엔티티 없이 `Application.refundedAt`(nullable)만 사용. 환불 계좌는 API로 받지 않고 관리자가 별도(운영 절차로) 확인한다.
+- **일일 신청 3회 제한과의 연동**: 취소가 최초로 성공하면 그 신청이 차지했던 생성일(KST) 슬롯을 한 번 반환한다(§1 P0 항목과 연동, `ApplicationDailyLimitService.releaseSlot`).
+
+### 마이페이지 — 여전히 미구현
 
 | Method | 제안 경로 | 목적 | 인증 |
 |---|---|---|---|
 | GET | `/api/my/applications?page=&size=&status=` | 마이페이지 신청 목록 | USER |
 | GET | `/api/my/applications/{id}` | 신청 상세, 상태 이력, 결제·배송·카드 정보 | 소유자 |
-| POST | `/api/applications/{id}/cancel` | 허용 상태의 신청 취소 | 소유자 |
 | GET | `/api/my/bulk-applications/{id}/members` | 단체 신청 구성원/검증 결과 | 소유자 |
 | GET | `/api/my/bulk-applications/{id}/cards/download` | 단체 카드 ZIP 다운로드 | 소유자 |
 
@@ -162,7 +207,7 @@
 
 - 프론트는 신청자 이메일과 입금자명을 수집하지만 신청 DTO에는 없다.
 - 프론트는 디자인을 선택하지만 신청 DTO에는 `cardDesignId`가 없다.
-- 프론트 관리자 상태와 백엔드 `ApplicationStatus` 값이 다르다. 서버 enum을 기준으로 UI 매핑표를 확정해야 한다.
+- 프론트 관리자 상태와 백엔드 `ApplicationStatus` 값이 다르다. 서버 enum을 기준으로 UI 매핑표를 확정해야 한다 — 2026-08-17부로 서버 enum 자체가 `SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING/COMPLETED/CANCELLED`로 다시 바뀌었으니(위 새 섹션 참고) 기존에 봤던 매핑표가 있다면 다시 확인해야 한다.
 - 신청 완료 후 로컬 `admin-applications`에 복사하지 말고 서버 응답과 목록 조회 API를 사용해야 한다.
 - 다운로드 URL은 만료 시간이 있으므로 저장하지 말고 클릭 시마다 다시 발급받아야 한다.
 
@@ -228,60 +273,64 @@
 
 개인정보 동의 시각과 동의한 정책 버전도 서버에 기록해야 한다. 비회원 문의를 허용하면 조회용 인증 절차 또는 이메일 안내만 제공하고 다른 사용자의 문의가 노출되지 않게 해야 한다.
 
-## 8. 후기 API
+## 8. 후기 API — ✅ 2026-08-13 구현 완료
 
-현재 `review-posts`에 제목, 내용, 작성자 이름/이메일을 저장한다. 작성자 정보는 요청 값이 아니라 인증 사용자로부터 서버가 설정해야 한다.
+> 아래는 실제 `ReviewController`/`ReviewService`/DTO 기준(2026-08-17 확인). 최신 소스는 `docs/specs/review/api.md`.
 
-| Method | 제안 경로 | 목적 | 인증 |
+| Method | 실제 경로 | 목적 | 인증 |
 |---|---|---|---|
-| GET | `/api/reviews?page=&size=&searchBy=&keyword=` | 공개 후기 목록/검색 | 없음 |
-| GET | `/api/reviews/{id}` | 공개 후기 상세 | 없음 |
-| POST | `/api/reviews` | 후기 작성 | USER |
-| PATCH | `/api/reviews/{id}` | 본인 후기 수정 | 소유자 또는 ADMIN |
-| DELETE | `/api/reviews/{id}` | 본인 후기 삭제 | 소유자 또는 ADMIN |
-| GET | `/api/my/reviews` | 마이페이지 내 후기 | USER |
+| GET | `/api/reviews?cardTypeId=&hasPhoto=&searchType=&keyword=&page=(기본0)&size=(기본9)` | 공개 후기 목록/검색 | 없음(`permitAll`) |
+| GET | `/api/reviews/{id}` | 공개 후기 상세 | 없음(`permitAll`, 로그인 시 `canEdit`/`canDelete` 값만 달라짐) |
+| POST | `/api/reviews` | 후기 작성(멀티파트: `request` JSON + 선택 `image` 파트 0~1개) | USER |
+| PATCH | `/api/reviews/{id}` | 후기 전체 재수정(멀티파트: `request` JSON + 선택 `image`, `removeImage` 플래그로 사진 삭제) | 소유자 또는 ADMIN |
+| DELETE | `/api/reviews/{id}` | 후기 삭제(이미지·업로드 파일까지 완전 삭제) | 소유자 또는 ADMIN |
 
-최소 필드: `id`, `title`, `content`, `authorId`, `authorDisplayName`, `createdAt`, `updatedAt`. 이메일은 공개 응답에서 제외한다. 현재 프론트는 수정 권한을 관리자에게만 허용하지만 운영 정책에 따라 작성자 본인 수정·삭제도 지원하는 것이 자연스럽다.
+- `GET /api/my/reviews`(마이페이지 내 후기 전용 목록)는 **아직 없음** — 위 목록 API에 로그인 사용자로 좁히는 파라미터가 없어 마이페이지에서 쓰려면 별도 결정 필요(`docs/collab/TODO.md` "내 후기 목록 조회 API" 참고).
+- `ReviewCreateRequest`/`ReviewUpdateRequest` 필드: `title`(≤100자), `applicationType`, `cardTypeId`, `authorName`(≤50자, 로그인 이름 자동 아님 — 직접 입력), `content`. `Update`는 여기에 `removeImage`(boolean) 추가.
+- 응답(`ReviewDetailResponse`) 필드: `id`,`title`,`content`,`authorName`,`applicationType`,`cardType`(`{id,name}`),`imageUrl`,`createdAt`,`next`(`{id,title}`, 이전/다음 글),`canEdit`,`canDelete`. 목록(`ReviewListItemResponse`)은 `next`/`canEdit`/`canDelete` 없이 나머지 동일.
+- 이미지: 최대 2 MiB, `jpg/jpeg/png/webp`만 허용, 시그니처(매직바이트) 검증.
+- **본인 후기 여부에 따른 수정/삭제 노출**(2026-08-09 확정): `canEdit`/`canDelete`는 로그인 사용자가 `Review.user_id`와 일치할 때만 `true`. 단건 조회는 비로그인도 가능한 공개 API지만 로그인 여부에 따라 이 값이 달라지므로 백엔드가 `Authorization` 헤더를 선택적으로 파싱한다(없어도 401 아님).
+- 작성 자격 제한: 자격 있는 (신청유형, 카드종류) 조합당 후기 1개만 허용(`REVIEW_ALREADY_EXISTS`), 탈퇴 계정은 신규 작성 불가(`ALREADY_WITHDRAWN`, 수정에는 미적용).
 
-## 9. 공지사항 API
+## 9. 공지사항/FAQ API — ✅ 2026-08-14 구현 완료 (Board 도메인)
 
-| Method | 제안 경로 | 목적 | 인증 |
+> ⚠️ 원래 이 문서가 제안했던 `/api/notices`·`/api/faqs`(도메인 분리) 경로는 채택되지 않았다. 실제로는 **`Board`+`BoardType{NOTICE,FAQ}` enum 하나로 통합** 구현됐다 — 신규 게시판 종류가 생겨도 테이블 추가 없이 enum 값만 늘리는 구조. 최신 소스는 `docs/specs/board/api.md`.
+
+| Method | 실제 경로 | 목적 | 인증 |
 |---|---|---|---|
-| GET | `/api/notices?page=&size=&keyword=` | 공개 목록 | 없음 |
-| GET | `/api/notices/{id}` | 상세 및 첨부파일 | 없음 |
-| POST | `/admin/notices` | 작성 | ADMIN |
-| PATCH | `/admin/notices/{id}` | 수정 | ADMIN |
-| DELETE | `/admin/notices/{id}` | 삭제 또는 비공개 처리 | ADMIN |
+| GET | `/api/boards?type=NOTICE\|FAQ&page=(기본0)&size=(기본9)` | 공개 목록(타입 필수) | 없음(`permitAll`) |
+| GET | `/api/boards/{id}` | 공개 상세(첨부파일·다음글 포함) | 없음(`permitAll`) |
+| POST | `/api/admin/boards` | 작성(멀티파트: `request` JSON + 선택 `attachments` 0~10개, NOTICE 전용) | ADMIN |
+| PATCH | `/api/admin/boards/{id}` | 전체 재수정(멀티파트: `request` JSON + 선택 `attachments`) | ADMIN |
+| DELETE | `/api/admin/boards/{id}` | 삭제(첨부파일까지 완전 삭제) | ADMIN |
 
-필드: `id`, `title`, `content`, `pinned`, `published`, `publishedAt`, `authorId`, `attachments[]`, `createdAt`, `updatedAt`. 현재 data URI로 만드는 TXT 첨부는 실제 업로드 파일 메타데이터와 다운로드 URL로 교체해야 한다.
+- FAQ는 첨부파일 개념 자체가 없다 — `boardType=FAQ`인데 첨부파일을 보내면 `INVALID_INPUT`으로 거절(무시 안 함).
+- `BoardCreateRequest`/`BoardUpdateRequest` 필드: `boardType`,`title`(FAQ는 질문),`content`(FAQ는 답변). `Update`에는 `keepAttachmentIds`(List<Long>) 추가 — 유지할 기존 첨부파일 id 목록이며, 생략/빈 배열이면 기존 첨부파일 전부 삭제(전체 재제출 원칙).
+- 응답(`BoardDetailResponse`) 필드: `id`,`boardType`,`title`,`content`,`createdAt`,`attachments`(`{id,originalFileName,url}[]`),`next`(`{id,title}`, 같은 `boardType` 안에서만). 목록(`BoardListItemResponse`)은 `attachments`/`next` 없이 나머지 동일하며 본문(`content`)도 절삭 없이 그대로 내려준다(FAQ 아코디언이 목록에서 바로 펼쳐지는 화면 구조 때문).
+- 첨부파일: 최대 10개, 개당 10 MiB, 확장자 `pdf/hwp/hwpx/doc/docx/xls/xlsx/ppt/pptx/jpg/jpeg/png`(이미지 확장자만 매직바이트 시그니처 검증).
+- 관리자 인가는 라우트 레벨(`/api/admin/**` → `ADMIN`)에서만 강제하고 서비스 레벨 중복 검증은 없다 — 리소스 소유권 판단이 필요 없는 "관리자냐 아니냐"뿐이라서(Review의 `canEdit`/`canDelete`와 다른 이유).
+- `authorId`/`published`/`pinned` 같은 이 문서가 원래 제안했던 필드는 실제로 없다 — 작성 관리자(`created_by_user_id`)는 내부 감사용으로만 저장하고 공개 응답에 노출하지 않는다. "게시 여부"/"고정" 개념 자체가 요구사항에 없어 구현되지 않았다.
 
-## 10. FAQ API
+## 10. 이벤트(행사사업) API — ✅ 2026-08-16 구현 완료
 
-| Method | 제안 경로 | 목적 |
-|---|---|---|
-| GET | `/api/faqs?category=&active=` | 공개 FAQ 목록 |
-| POST | `/admin/faqs` | 작성 |
-| PATCH | `/admin/faqs/{id}` | 질문·답변·순서·노출 여부 수정 |
-| DELETE | `/admin/faqs/{id}` | 삭제 |
-| PATCH | `/admin/faqs/reorder` | 표시 순서 일괄 변경 |
+> 실제 경로·필드는 이 문서가 원래 제안했던 것과 상당히 다르다 — 부스 운영/법인단체 협업 두 화면을 `EventType{BOOTH,COLLABORATION}` enum 하나로 통합했고, `category`/`status`/`startAt`/`endAt`/`applicationUrl` 같은 필드는 실제 요구사항에 없어 구현되지 않았다. 최신 소스는 `docs/specs/events/api.md`.
 
-필드: `id`, `category`, `question`, `answer`, `displayOrder`, `active`, `createdAt`, `updatedAt`.
+| Method | 실제 경로 | 목적 | 인증 |
+|---|---|---|---|
+| GET | `/api/events?type=BOOTH\|COLLABORATION&page=(기본0)&size=(기본10)` | 공개 목록(타입 필수, `visible=true`만) | 없음(`permitAll`) |
+| GET | `/api/events/{id}` | 공개 상세(`visible=false`면 `EVENT_NOT_FOUND`로 존재 자체를 숨김) | 없음(`permitAll`) |
+| POST | `/api/admin/events` | 작성(멀티파트: `request` JSON + 선택 `thumbnail` 1개 + 선택 `images` 0~10개) | ADMIN |
+| PATCH | `/api/admin/events/{id}` | 전체 재수정(멀티파트: `request` JSON + 선택 `thumbnail` 교체) | ADMIN |
+| DELETE | `/api/admin/events/{id}` | 삭제(썸네일·갤러리 이미지까지 완전 삭제) | ADMIN |
 
-## 11. 이벤트 API
+- `EventCreateRequest`/`EventUpdateRequest` 필드: `eventType`,`title`,`eventDate`(선택, 정렬용),`eventDateText`(화면 표시용, 예 "2026. 12"),`place`,`host`,`cardLabel`(발급 카드 표시값, 예 "명예한국인증 · 방문증"),`content`,`visible`(생략 시 서버가 `true`로 채움),`displayOrder`(선택, 수동 정렬).
+- **PATCH는 갤러리(`images`) 편집을 다루지 않는다** — 이번 패스 범위 밖으로 명시적으로 미뤘다. 썸네일만 새 파일 제공 시 교체 가능.
+- 응답(`EventDetailResponse`) 필드: `id`,`eventType`,`title`,`eventDate`,`eventDateText`,`place`,`host`,`cardLabel`,`content`,`thumbnailImageUrl`,`images`(`{id,originalFileName,url}[]`, 갤러리, 썸네일은 미포함 — 프론트가 상세 화면에서 `[썸네일, ...갤러리]`로 직접 이어붙이는 구조). 목록(`EventListItemResponse`)은 `images` 대신 `displayOrder`를 내려주고 갤러리는 포함하지 않는다.
+- 정렬: `display_order ASC(NULL 맨 뒤) → event_date DESC(NULL 맨 뒤) → created_at DESC` 고정.
+- 이미지(썸네일·갤러리 공통): 최대 2 MiB, `jpg/jpeg/png/webp`, 매직바이트 시그니처 검증(Review와 동일 규칙, 별도 컴포넌트).
+- **관리자 전용 전체 목록 API(`GET /api/admin/events`, `visible` 무관)는 아직 없음** — 관리자가 숨긴(`visible=false`) 글을 다시 찾을 방법이 현재 없다. 필요성은 확인됐으나 이번 패스에서 제외, 별도 구현 예정.
 
-현재 이벤트 화면은 `tag`, `title`, `text`만 저장하고 일정·상세·이미지·게시 상태가 없다.
-
-| Method | 제안 경로 | 목적 |
-|---|---|---|
-| GET | `/api/events?page=&size=&status=` | 공개 이벤트 목록 |
-| GET | `/api/events/{id}` | 이벤트 상세 |
-| POST | `/admin/events` | 작성 |
-| PATCH | `/admin/events/{id}` | 수정 |
-| DELETE | `/admin/events/{id}` | 삭제/비공개 |
-
-권장 필드: `id`, `category`, `title`, `summary`, `content`, `thumbnailUrl`, `startAt`, `endAt`, `location`, `applicationUrl`, `status`, `publishedAt`, `createdAt`, `updatedAt`.
-
-## 12. 공통 미디어 API
+## 11. 공통 미디어 API
 
 공지 첨부, 이벤트 썸네일, 카드 디자인, 파트너 로고, 상품 이미지를 CMS에서 관리하려면 공통 파일 API가 필요하다.
 
@@ -293,7 +342,9 @@
 
 응답 필드: `fileId`, `originalName`, `contentType`, `size`, `url`, `createdAt`. 서버에서 MIME, 확장자, 크기, 이미지 디코딩 여부를 검증하고 공개/비공개 저장소를 구분해야 한다.
 
-## 13. 선택적 CMS/사이트 설정 API
+> ⚠️ 2026-08-17 확인: 이 범용 API는 만들어지지 않았고, 대신 Board(§9)·Event(§10)가 각자 자기 첨부파일 업로드 흐름을 독립적으로 구현했다(둘 다 파일 검증 규칙은 별도 컴포넌트, `UploadFile` 테이블 재사용 방식은 도메인마다 다름 — Board는 join 엔티티 경유, Event는 S3 key 직접 저장). 앞으로 새 도메인이 파일 업로드가 필요할 때도 이 패턴(도메인별 독립 구현)을 따를 가능성이 높다 — 공통 API로 통합할 계획은 없다.
+
+## 12. 선택적 CMS/사이트 설정 API
 
 다음 프론트 파일은 현재 정적 배열/객체다.
 
@@ -311,7 +362,7 @@
 
 약관은 일반 CMS 콘텐츠와 달리 `version`, `effectiveAt`, `publishedAt`, `required`를 관리하고 사용자 동의 기록이 어떤 버전을 대상으로 했는지 저장해야 한다. 계좌정보는 공개 범위와 수정 권한을 특히 엄격하게 제한해야 한다.
 
-## 14. 서버 API가 필요하지 않은 프론트 상태
+## 13. 서버 API가 필요하지 않은 프론트 상태
 
 다음은 서버 데이터로 옮기지 않아도 된다.
 
@@ -330,7 +381,7 @@
 
 draft에는 파일 원본을 브라우저 저장소에 넣지 말고 서버 임시 업로드 ID만 참조하며 만료 정책을 둔다.
 
-## 15. 공통 API 규칙
+## 14. 공통 API 규칙
 
 - 목록 API는 `page`, `size`, `sort`와 필터를 지원하고 일관된 페이지 응답을 사용한다.
 - 시간은 ISO 8601, 서버 저장은 UTC, 표시만 사용자 시간대로 변환한다.
@@ -342,13 +393,15 @@ draft에는 파일 원본을 브라우저 저장소에 넣지 말고 서버 임�
 - HttpOnly 쿠키 인증을 사용할 때 운영 환경은 HTTPS, `Secure`, 적절한 `SameSite` 및 CSRF 정책을 적용한다.
 - 관리자 통계는 프론트에서 전체 목록을 내려받아 계산하지 말고 집계 API에서 계산한다.
 
-## 16. 권장 구현 순서
+## 15. 권장 구현 순서
+
+> ✅ 2026-08-17 갱신: 5·6번은 완료됐고, 나머지는 작성 시점 순서 그대로 남아있다.
 
 1. 일반 회원가입/로그인/복구와 서버 권한 검증
 2. 카드 종류·디자인 조회 및 신청 요청의 ID 계약 확정
 3. 내 신청 목록/상세와 관리자 신청 목록/상태 변경
 4. 문의 사용자/관리자 흐름
-5. 후기 API
-6. 공지·FAQ·이벤트 및 공통 미디어 API
+5. ~~후기 API~~ — ✅ 완료(§8)
+6. ~~공지·FAQ·이벤트 API~~ — ✅ 완료(§9·§10). 공통 미디어 API(§11)는 도메인별 독립 구현으로 대체돼 더 이상 필요하지 않음.
 7. 회사 정보·약관·파트너·상품 등 선택적 CMS
 8. 프론트에서 목데이터 fallback과 데모 관리자 로그인 제거
