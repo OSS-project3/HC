@@ -61,8 +61,16 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
               label="성별"
               value={draft.applicant.gender === "male" ? "남성" : draft.applicant.gender === "female" ? "여성" : dash}
             />
-            {isStudent && <Item label="학번" value={draft.applicant.studentNumber || dash} />}
-            {isStudent && <Item label="학과" value={draft.applicant.department || dash} />}
+            {isStudent &&
+              ((draft.applicant.schoolLevel ?? "university") === "highschool" ? (
+                <Item label="학교명" value={draft.applicant.schoolName || dash} />
+              ) : (
+                <>
+                  <Item label="대학교명" value={draft.applicant.schoolName || dash} />
+                  <Item label="학번" value={draft.applicant.studentNumber || dash} />
+                  <Item label="학과" value={draft.applicant.department || dash} />
+                </>
+              ))}
             <Item label="한국입국일" value={draft.applicant.koreaEntryDate || dash} />
             <Item label="전화번호" value={draft.applicant.phone || dash} />
             <Item label="이메일" value={draft.applicant.email || dash} />

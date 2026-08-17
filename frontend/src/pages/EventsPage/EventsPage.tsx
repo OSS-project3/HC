@@ -2,8 +2,10 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { ContentAdminPanel, loadManagedContent, type ManagedContent } from "../../components/admin/ContentAdminPanel";
+import { EventFeedAdminPanel } from "../../components/admin/EventFeedAdminPanel";
 import { ImagePlaceholder } from "../../components/ui/ImagePlaceholder";
 import { Modal } from "../../components/ui/Modal";
+import { BOOTH_GALLERY, COLLAB_GALLERY, boothPosts, collabPosts, loadFeedPosts, saveFeedPosts, type FeedPost } from "../../data/eventFeedPosts";
 import "../../styles/ContentPages.css";
 import "./EventsPage.css";
 
@@ -15,56 +17,15 @@ const programs = [
 
 const process = ["상담 및 목적 확인", "참가자 정보 접수", "이름·카드 제작", "현장 운영 및 전달"];
 
-interface FeedPost {
-  date: string;
-  title: string;
-  place: string;
-  host: string;
-  cardLabel: string;
-  text: string;
-  image?: string;
-}
-
-// 부스 운영 — 실제 부스를 운영한 기록을 게시글처럼 올린다.
-// 가장 최근 행사가 맨 위(크게), 지난 행사는 아래로 순서대로.
-// 본문 문구는 동일한 틀을 쓰고, 행사명·일자·장소·카드 종류만 바뀐다.
-const BOOTH_TEXT =
-  "부스를 찾은 방문객에게 한글 오행으로 지은 한국 이름과 카드를 현장에서 제작해 전달했습니다. 참가자와 함께한 인증 사진과 현장 후기를 이곳에 기록으로 남깁니다.";
-const boothPosts: FeedPost[] = [
-  { date: "2026. 12", title: "서울공예트렌드페어", place: "서울 코엑스 Hall C", host: "(재)한국공예·디자인문화진흥원", cardLabel: "명예한국인증 · 방문증", text: BOOTH_TEXT, image: "/images/events/booth-hero.webp" },
-  { date: "2026. 10", title: "한국전통문화박람회", place: "경주 화백컨벤션센터", host: "문화체육관광부", cardLabel: "명예한국인증 · 학생증", text: BOOTH_TEXT, image: "/images/events/booth-calligraphy.webp" },
-  { date: "2026. 08", title: "한글주간 문화행사", place: "국립한글박물관", host: "국립한글박물관", cardLabel: "방문증", text: BOOTH_TEXT, image: "/images/events/booth-display.webp" },
-  { date: "2026. 06", title: "부산국제관광전", place: "부산 벡스코", host: "부산광역시", cardLabel: "방문증", text: BOOTH_TEXT, image: "/images/events/booth-card-delivery.webp" },
-];
-const BOOTH_GALLERY = [
-  "/images/events/booth-hero.webp",
-  "/images/events/booth-calligraphy.webp",
-  "/images/events/booth-display.webp",
-  "/images/events/booth-card-delivery.webp",
-];
-
-// 법인·단체 협업 — 해외 선수단·단체에 한국 이름과 카드를 발급하고 협업 사실을 기록한다.
-const COLLAB_TEXT =
-  "해외 참가자에게 한글 이름을 지어 방문증·명예한국인증을 발급하고, 함께한 인증 사진으로 협업을 기록합니다. 발급한 카드와 참여 인원은 협업 단위로 관리됩니다.";
-const collabPosts: FeedPost[] = [
-  { date: "2026. 11", title: "국제 태권도 협회 초청 선수단", place: "○○ 태권도 협회", host: "세계태권도연맹", cardLabel: "명예한국인증 · 방문증", text: COLLAB_TEXT, image: "/images/events/collaboration-3.webp" },
-  { date: "2026. 09", title: "해외 대학 교류 사절단", place: "△△ 대학교", host: "△△ 대학교 국제교류처", cardLabel: "학생증", text: COLLAB_TEXT, image: "/images/events/collaboration-2.webp" },
-  { date: "2026. 07", title: "글로벌 기업 임직원 초청", place: "□□ 컨퍼런스", host: "□□ 그룹", cardLabel: "명예시민증", text: COLLAB_TEXT, image: "/images/events/collaboration-7.webp" },
-  { date: "2026. 05", title: "국제 문화교류 사절단", place: "◇◇ 문화교류협회", host: "◇◇ 문화교류협회", cardLabel: "명예한국인증", text: COLLAB_TEXT, image: "/images/events/collaboration-5.webp" },
-];
-const COLLAB_GALLERY = [
-  "/images/events/collaboration-1.webp",
-  "/images/events/collaboration-2.webp",
-  "/images/events/collaboration-3.webp",
-  "/images/events/collaboration-5.webp",
-  "/images/events/collaboration-7.webp",
-];
-
 export function EventsPage() {
   const { isAdmin } = useAuth();
   const defaults: ManagedContent[] = programs.map((program, index) => ({ id: `event-${index}`, title: program.title, content: program.text, meta: program.tag }));
   const [managedPrograms, setManagedPrograms] = useState(() => loadManagedContent("events", defaults));
+  const [managedBoothPosts, setManagedBoothPosts] = useState(() => loadFeedPosts("booth-posts", boothPosts));
+  const [managedCollabPosts, setManagedCollabPosts] = useState(() => loadFeedPosts("collab-posts", collabPosts));
   const updatePrograms = (items: ManagedContent[]) => { localStorage.setItem("managed-content:events", JSON.stringify(items)); setManagedPrograms(items); };
+  const updateBoothPosts = (items: FeedPost[]) => { saveFeedPosts("booth-posts", items); setManagedBoothPosts(items); };
+  const updateCollabPosts = (items: FeedPost[]) => { saveFeedPosts("collab-posts", items); setManagedCollabPosts(items); };
   return (
     <div className="content-page events-page">
       <header className="subpage-hero page-container">
@@ -105,18 +66,23 @@ export function EventsPage() {
         </div>
       </section>
 
+      {isAdmin && <EventFeedAdminPanel label="부스 운영 게시글" items={managedBoothPosts} onChange={updateBoothPosts} />}
       <EventFeed
         title="부스 운영"
         tagline="현장에서 고객과 직접 만나 정성을 담은 서비스를 제공합니다"
-        posts={boothPosts}
+        posts={managedBoothPosts}
         gallery={BOOTH_GALLERY}
+        pageSize={4}
       />
 
+      {isAdmin && <EventFeedAdminPanel label="법인·단체 협업 게시글" items={managedCollabPosts} onChange={updateCollabPosts} showCompanyFields />}
       <EventFeed
         title="법인·단체 협업"
-        tagline="현장에서 고객과 직접 만나 정성을 담은 서비스를 제공합니다"
-        posts={collabPosts}
+        tagline="다양한 법인•단체와의 협업을 통해 한글 이름과 카드를 제공합니다"
+        posts={managedCollabPosts}
         gallery={COLLAB_GALLERY}
+        layout="collaboration"
+        pageSize={8}
       />
 
       <section className="event-inquiry page-container">
@@ -132,24 +98,40 @@ export function EventsPage() {
 }
 
 /** A single record card (photo on top, content below). */
-function EventCard({ post, onOpen, wide = false }: { post: FeedPost; onOpen: (post: FeedPost) => void; wide?: boolean }) {
+function EventCard({ post, onOpen, wide = false, compact = false }: { post: FeedPost; onOpen: (post: FeedPost) => void; wide?: boolean; compact?: boolean }) {
   return (
-    <article className={`event-card${wide ? " event-card--wide" : ""}`}>
+    <article className={`event-card${wide ? " event-card--wide" : ""}${compact ? " event-card--compact" : ""}`}>
       <div className="event-card__media">
         {post.image
           ? <img src={post.image} alt={`${post.title} 사진`} loading="lazy" />
           : <ImagePlaceholder label={`${post.title} 사진`} />}
       </div>
       <div className="event-card__body">
+        {compact && (
+          <span className={`event-card__logo${post.logoUrl ? ` event-card__logo--${post.logoUrl.split("/").pop()?.replace(".svg", "")}` : ""}`}>
+            {post.logoUrl ? <img src={post.logoUrl} alt={post.company ?? post.host} /> : post.company ?? post.cardLabel}
+          </span>
+        )}
         <h3>{post.title}</h3>
-        <div className="event-card__meta">
-          <time>{post.date}</time>
-          <span className="event-card__label">{post.cardLabel}</span>
-        </div>
+        {!compact && (
+          <div className="event-card__meta">
+            <time>{post.date}</time>
+            <span className="event-card__label">{post.cardLabel}</span>
+          </div>
+        )}
         <p className={`event-card__text${wide ? " event-card__text--full" : ""}`}>{post.text}</p>
-        <button type="button" className="event-card__more" onClick={() => onOpen(post)}>
-          자세히 보기<span aria-hidden="true"> →</span>
-        </button>
+        {compact ? (
+          <footer className="event-card__foot">
+            <time>{post.date}</time>
+            <button type="button" className="event-card__more" onClick={() => onOpen(post)}>
+              자세히 보기<span aria-hidden="true"> →</span>
+            </button>
+          </footer>
+        ) : (
+          <button type="button" className="event-card__more" onClick={() => onOpen(post)}>
+            자세히 보기<span aria-hidden="true"> →</span>
+          </button>
+        )}
       </div>
     </article>
   );
@@ -160,28 +142,55 @@ function EventCard({ post, onOpen, wide = false }: { post: FeedPost; onOpen: (po
  * 대표 기록 1개를 상단에 사진 60% / 글 40% 와이드 카드로, 나머지는 한 행에 3개 카드로 배열한다.
  * 카드 하단의 "자세히 보기"를 누르면 상세 팝업이 뜬다.
  */
-function EventFeed({ title, tagline, posts, gallery }: {
+function EventFeed({ title, tagline, posts, gallery, layout = "featured", pageSize }: {
   title: string;
   tagline: string;
   posts: FeedPost[];
   gallery: string[];
+  layout?: "featured" | "collaboration";
+  pageSize?: number;
 }) {
   const [active, setActive] = useState<FeedPost | null>(null);
-  const [featured, ...rest] = posts;
+  const [page, setPage] = useState(1);
+  const isCollaboration = layout === "collaboration";
+  const size = pageSize ?? (isCollaboration ? 8 : 4);
+  const totalPages = Math.max(1, Math.ceil(posts.length / size));
+  const currentPage = Math.min(page, totalPages);
+  const visiblePosts = posts.slice((currentPage - 1) * size, currentPage * size);
+  const [featured, ...rest] = visiblePosts;
 
   return (
-    <section className="event-feed page-container">
+    <section className={`event-feed page-container${isCollaboration ? " event-feed--collaboration" : ""}`}>
       <header className="event-feed__head">
         <h2 className="event-feed__title">{title}</h2>
         <span className="event-feed__rule" aria-hidden="true" />
         <p className="event-feed__tagline">{tagline}</p>
       </header>
 
-      {featured && <EventCard post={featured} onOpen={setActive} wide />}
+      {!isCollaboration && featured && <EventCard post={featured} onOpen={setActive} wide />}
 
-      <div className="event-card-grid">
-        {rest.map((post) => <EventCard key={post.title} post={post} onOpen={setActive} />)}
+      <div className={isCollaboration ? "event-card-grid event-card-grid--collaboration" : "event-card-grid"}>
+        {(isCollaboration ? visiblePosts : rest).map((post) => <EventCard key={`${post.title}-${post.date}`} post={post} onOpen={setActive} compact={isCollaboration} />)}
       </div>
+
+      {totalPages > 1 && (
+        <nav className="event-feed__pagination" aria-label={`${title} 페이지`}>
+          <button type="button" className="event-feed__page-arrow" aria-label="이전 페이지" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>‹</button>
+          <div className="event-feed__page-dots">
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => (
+              <button
+                type="button"
+                key={number}
+                className={number === currentPage ? "is-current" : ""}
+                aria-label={`${number}페이지로 이동`}
+                aria-current={number === currentPage ? "page" : undefined}
+                onClick={() => setPage(number)}
+              />
+            ))}
+          </div>
+          <button type="button" className="event-feed__page-arrow" aria-label="다음 페이지" disabled={currentPage === totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>›</button>
+        </nav>
+      )}
 
       <Modal open={active !== null} onClose={() => setActive(null)} title={active?.title ?? ""} className="event-modal">
         {active && <EventDetail key={active.title} post={active} sectionLabel={title} gallery={gallery} />}

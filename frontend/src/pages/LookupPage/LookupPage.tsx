@@ -18,8 +18,8 @@ const DEMO_CARD_NUMBER = "ROK-12345-6789";
 // 테스트용: 카드번호에 admin-test 를 입력하면 실제 발급 여부와 무관하게 데모 카드가 뜬다.
 // (실제 서비스에서는 API 조회 결과로 대체된다.)
 const TEST_CARD_NUMBER = "ADMIN-TEST";
-const DEMO_CARD_FRONT = "/images/cards/width/kor-mouse-front.png";
-const DEMO_CARD_BACK = "/images/cards/width/kor-mouse-back.jpg";
+const DEMO_CARD_FRONT = "/images/cards/width/kor-mouse-front.webp";
+const DEMO_CARD_BACK = "/images/cards/width/kor-mouse-back.webp";
 
 interface FoundCard {
   frontUrl: string;

@@ -54,7 +54,7 @@ export function MerchandiseSection() {
     <section className="merch page-container">
       <div className="merch__top">
         <div className="merch__gallery">
-          <img className="merch__gallery-img" src="/images/merchandise/cluster.png" alt="문화 체험 기념품" />
+          <img className="merch__gallery-img" src="/images/merchandise/cluster.webp" alt="문화 체험 기념품" loading="lazy" decoding="async" />
         </div>
 
         <div className="merch__copy">
@@ -95,7 +95,7 @@ export function MerchandiseSection() {
           label="디지털 카드 결과물 보기"
           summary={<>디지털<br />명예한국인증 · 명예시민증<br />학생증 · 방문증<br />결과물</>}
         >
-          <img className="info-card__result-image" src="/images/merchandise/sample.jpg" alt="디지털 카드 결과물" />
+          <img className="info-card__result-image" src="/images/common/sample-card.webp" alt="디지털 카드 결과물" loading="lazy" decoding="async" />
         </InfoCard>
 
         <InfoCard
@@ -105,7 +105,7 @@ export function MerchandiseSection() {
           label="실물 카드 결과물 보기"
           summary={<>실물<br />명예한국인증 · 명예시민증<br />학생증 · 방문증<br />결과물</>}
         >
-          <img className="info-card__result-image" src="/images/merchandise/sample2.png" alt="실물 카드 결과물" />
+          <img className="info-card__result-image" src="/images/merchandise/sample2.webp" alt="실물 카드 결과물" loading="lazy" decoding="async" />
         </InfoCard>
       </div>
     </section>

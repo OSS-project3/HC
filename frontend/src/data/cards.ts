@@ -36,14 +36,14 @@ export interface CardDesign {
   back?: string;
 }
 
-const widthPair = (name: string, extension: "jpg" | "png" = "jpg") => ({
-  front: `/images/cards/width/${name}-front.${extension}`,
-  back: `/images/cards/width/${name}-back.${extension}`,
+const widthPair = (name: string) => ({
+  front: `/images/cards/width/${name}-front.webp`,
+  back: `/images/cards/width/${name}-back.webp`,
 });
 
-const lengthPair = (name: string, frontExtension: "jpg" | "png", backExtension = frontExtension) => ({
-  front: `/images/cards/length/${name}-front.${frontExtension}`,
-  back: `/images/cards/length/${name}-back.${backExtension}`,
+const lengthPair = (name: string) => ({
+  front: `/images/cards/length/${name}-front.webp`,
+  back: `/images/cards/length/${name}-back.webp`,
 });
 
 const monkeyReading = {
@@ -97,12 +97,12 @@ export const honoraryKoreanCards = makeSeries(
   },
   monkeyReading,
   [
-    { front: "/images/cards/width/kor-tiger-front.png", back: "/images/cards/width/kor-tiger-back.jpg" },
+    { front: "/images/cards/width/kor-tiger-front.webp", back: "/images/cards/width/kor-tiger-back.webp" },
     widthPair("kor-cow"),
     widthPair("kor-cow2"),
     widthPair("kor-rabbit"),
     widthPair("kor-monkey"),
-    { front: "/images/cards/width/kor-mouse-front.png", back: "/images/cards/width/kor-mouse-back.jpg" },
+    { front: "/images/cards/width/kor-mouse-front.webp", back: "/images/cards/width/kor-mouse-back.webp" },
   ],
 );
 
@@ -171,16 +171,16 @@ export const studentCards = makeSeries(
     ],
   },
   [
-    widthPair("stu-pig", "png"),
-    lengthPair("student-horse", "png"),
-    lengthPair("student-dog", "png"),
-    widthPair("stu-dog", "png"),
-    lengthPair("student-sheep", "png"),
-    lengthPair("student-chicken", "png"),
-    widthPair("stu-chicken", "png"),
-    lengthPair("student-pig", "png"),
-    lengthPair("student-monkey", "png"),
-    widthPair("stu-monkey", "png"), // 4페이지 가로 1열
+    widthPair("stu-pig"),
+    lengthPair("student-horse"),
+    lengthPair("student-dog"),
+    widthPair("stu-dog"),
+    lengthPair("student-sheep"),
+    lengthPair("student-chicken"),
+    widthPair("stu-chicken"),
+    lengthPair("student-pig"),
+    lengthPair("student-monkey"),
+    widthPair("stu-monkey"), // 4페이지 가로 1열
   ],
 );
 
@@ -212,15 +212,15 @@ export const visitorCards = makeSeries(
     ],
   },
   [
-    lengthPair("visit-tiger", "jpg"),
-    lengthPair("visit-cow", "jpg"),
-    lengthPair("visit-rabbit", "jpg"),
-    lengthPair("visit-snake", "jpg"),
+    lengthPair("visit-tiger"),
+    lengthPair("visit-cow"),
+    lengthPair("visit-rabbit"),
+    lengthPair("visit-snake"),
     {
-      front: "/images/cards/length/visit-dragon-front.jpg",
-      back: "/images/cards/length/visit-dragron-back.jpg",
+      front: "/images/cards/length/visit-dragon-front.webp",
+      back: "/images/cards/length/visit-dragron-back.webp",
     },
-    lengthPair("visit-mouse", "png", "jpg"),
+    lengthPair("visit-mouse"),
   ],
 );
 

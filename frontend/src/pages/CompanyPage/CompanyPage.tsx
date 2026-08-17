@@ -94,7 +94,7 @@ export function CompanyPage() {
 
       <section className="company-tree reveal">
         <div className="company-tree__inner page-container">
-          <img src="/images/logo/tree-logo.png" alt="흰 꽃이 핀 이팝나무" />
+          <img src="/images/logo/tree.png" alt="흰 꽃이 핀 이팝나무" loading="lazy" decoding="async" />
           <div>
             <div className="company-section-kicker">상징수</div>
             <h2>이팝나무</h2>

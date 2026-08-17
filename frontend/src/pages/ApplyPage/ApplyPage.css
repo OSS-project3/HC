@@ -1,9 +1,4 @@
 /* Application (apply) flow styles. */
-/* 제작 신청 페이지는 상단 타이틀 구분선을 표시하지 않는다. */
-.subpage-hero.apply__page-head::before,
-.subpage-hero.apply__page-head::after {
-  content: none;
-}
 .apply {
   /* Grow naturally with content; keep footer from riding up on short steps. */
   min-height: calc(100vh - var(--header-height));
@@ -14,9 +9,42 @@
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   gap: clamp(28px, 4vw, 64px);
   align-items: start;
+  margin-top: clamp(28px, 4vw, 48px);
 }
 .apply__title {
-  margin: 10px 0 8px;
+  margin: 10px 0 12px;
+}
+.apply-login-required {
+  max-width: 760px;
+  margin-top: clamp(28px, 4vw, 48px);
+  margin-inline: auto;
+  padding: clamp(28px, 4vw, 46px);
+  background: var(--color-background);
+  text-align: center;
+}
+.apply-login-required h2 {
+  color: var(--color-wordmark);
+  font-family: var(--font-serif);
+  font-size: clamp(22px, 2.4vw, 30px);
+}
+.apply-login-required p {
+  margin-top: 12px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.apply-login-required a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 132px;
+  height: 44px;
+  margin-top: 26px;
+  border-radius: 6px;
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 /* ---- Stepper ------------------------------------------------------------- */
@@ -214,6 +242,11 @@
 /* 개인 신청: 수량 칸이 없으므로 발급 유형만 단일 열로. */
 .form-grid--single {
   grid-template-columns: 1fr;
+}
+/* 학생증 개인 신청: 발급 유형 + 카드 방향을 같은 행에 나란히. */
+.form-grid--pair {
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
 }
 .form-block {
   min-width: 0;
@@ -633,6 +666,15 @@
 .apply-preview__row--single .apply-preview__card {
   width: min(100%, 348px);
 }
+/* Portrait front/back samples sit side by side in one horizontal row. */
+.apply-preview__row--horizontal {
+  flex-direction: row;
+  align-items: flex-start;
+}
+.apply-preview__row--horizontal .apply-preview__card {
+  flex: 1 1 0;
+  width: auto;
+}
 .apply-preview__img {
   width: 100%;
   height: auto;
@@ -677,8 +719,19 @@
   /* 생년월일 · 출생시간은 좁은 화면에서도 가로 한 줄 유지. */
   .field-row--inline {
     grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  /* date/time 입력의 기본 min-width(auto)로 트랙이 넘치지 않도록 축소 허용. */
+  .field-row--inline .field {
+    min-width: 0;
   }
   .step__actions .btn {
     flex: 1;
+  }
+}
+@media (max-width: 400px) {
+  /* 계좌번호 + 복사 버튼이 좁은 화면에서 넘치면 줄바꿈. */
+  .deposit__val--account {
+    flex-wrap: wrap;
   }
 }

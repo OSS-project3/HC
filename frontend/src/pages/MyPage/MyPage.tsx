@@ -11,7 +11,7 @@ import { Button } from "../../components/ui/Button";
 export function MyPage() {
   const { user, refreshProfile, logout } = useAuth();
   const [editing, setEditing] = useState(false);
-  const [profile, setProfile] = useState(() => ({ name: user?.name || "", phone: user?.phone || "" }));
+  const [profile, setProfile] = useState(() => ({ name: user?.name || "", phone: user?.phone || "", address: user?.address || "" }));
 
   if (!user) {
     return (
@@ -47,9 +47,10 @@ export function MyPage() {
         <div><span>이메일</span><strong>{user.email}</strong></div>
         <div><span>회원 유형</span><strong>{user.role === "admin" ? "관리자" : "일반 회원"}</strong></div>
       </section>
-      {editing && <form className="mypage__profile page-container" onSubmit={async (event) => { event.preventDefault(); if (user.source === "api") { const updateBody = { name: profile.name, ...(profile.phone.trim() ? { phone: profile.phone } : {}) }; await api.updateMe(updateBody); await refreshProfile(); } setEditing(false); }}>
+      {editing && <form className="mypage__profile page-container" onSubmit={async (event) => { event.preventDefault(); if (user.source === "api") { await api.updateMe(profile); await refreshProfile(); } setEditing(false); }}>
         <label className="field"><span className="field__label">이름</span><input className="field__input" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
         <label className="field"><span className="field__label">전화번호</span><input className="field__input" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} /></label>
+        <label className="field"><span className="field__label">주소</span><input className="field__input" value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} /></label>
         <Button type="submit">저장</Button>
       </form>}
 

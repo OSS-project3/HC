@@ -4,10 +4,11 @@ import { notices } from "../SupportPage/SupportPage";
 import "../SupportPage/SupportPage.css";
 import { useAuth } from "../../features/auth/AuthContext";
 import { ContentAdminPanel, loadManagedContent, type ManagedContent } from "../../components/admin/ContentAdminPanel";
+import { SelectField } from "../../components/ui/SelectField";
 
 export function NoticesPage() {
   const { isAdmin } = useAuth();
-  const defaults: ManagedContent[] = notices.map((notice) => ({ id: notice.id, title: notice.title, content: notice.content, meta: notice.date }));
+  const defaults: ManagedContent[] = notices.map((notice) => ({ id: notice.id, title: notice.title, content: notice.content, meta: notice.date, attachment: notice.attachment }));
   const [managedNotices, setManagedNotices] = useState(() => loadManagedContent("notices", defaults));
   const updateNotices = (items: ManagedContent[]) => { localStorage.setItem("managed-content:notices", JSON.stringify(items)); setManagedNotices(items); };
   const [query, setQuery] = useState("");
@@ -30,15 +31,20 @@ export function NoticesPage() {
       </header>
 
       <section className="support__section page-container">
-        {isAdmin && <ContentAdminPanel label="공지사항" items={managedNotices} onChange={updateNotices} />}
+        {isAdmin && <ContentAdminPanel label="공지사항" items={managedNotices} onChange={updateNotices} allowAttachment />}
         <h2 className="support__heading">공지사항</h2>
 
         <form className="notice-search" onSubmit={(event) => event.preventDefault()}>
-          <select value={searchBy} onChange={(event) => setSearchBy(event.target.value)} aria-label="검색 조건">
-            <option>전체</option>
-            <option>제목</option>
-            <option>작성일</option>
-          </select>
+          <SelectField
+            ariaLabel="검색 조건"
+            value={searchBy}
+            onChange={setSearchBy}
+            options={[
+              { value: "전체", label: "전체" },
+              { value: "제목", label: "제목" },
+              { value: "작성일", label: "작성일" },
+            ]}
+          />
           <label>
             <span className="visually-hidden">검색어 입력</span>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="검색어를 입력하세요" />

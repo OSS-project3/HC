@@ -4,17 +4,17 @@ import { zodiacSigns } from "../../data/zodiac";
 import { ZodiacIcon } from "../brand/ZodiacIcon";
 import { Trigram } from "./Trigram";
 
-const HERO_CHANGE_DELAY = 4000;
+const HERO_CHANGE_DELAY = 7000;
 
 const HERO_LANDSCAPE = [
-  ["kor-tiger-front.png", "kor-tiger-back.jpg"],
-  ["city-dragon2-front.jpg", "city-dragon2-back.jpg"],
-  ["stu-pig-front.png", "stu-pig-back.png"],
+  ["kor-tiger-front.webp", "kor-tiger-back.webp"],
+  ["city-dragon2-front.webp", "city-dragon2-back.webp"],
+  ["stu-pig-front.webp", "stu-pig-back.webp"],
 ] as const;
 
 const HERO_PORTRAIT = [
-  ["student-horse-front.png", "student-horse-back.png"],
-  ["visit-tiger-front.jpg", "visit-tiger-back.jpg"],
+  ["student-horse-front.webp", "student-horse-back.webp"],
+  ["visit-tiger-front.webp", "visit-tiger-back.webp"],
 ] as const;
 
 interface FlipCardProps {
@@ -50,7 +50,7 @@ function FlipCard({ files, orientation, flipped, onFlip }: FlipCardProps) {
       aria-busy={turnPhase !== "idle"}
     >
       <span className={`hero__card-flip hero__card-flip--${turnPhase}`}>
-        <img className="hero__card-face" src={`/images/cards/${folder}/${files[visibleFlipped ? 1 : 0]}`} alt={`${orientation === "landscape" ? "가로" : "세로"} 카드 ${visibleFlipped ? "뒷면" : "앞면"}`} />
+        <img className="hero__card-face" src={`/images/cards/${folder}/${files[visibleFlipped ? 1 : 0]}`} alt={`${orientation === "landscape" ? "가로" : "세로"} 카드 ${visibleFlipped ? "뒷면" : "앞면"}`} decoding="async" fetchPriority="high" />
       </span>
     </button>
   );

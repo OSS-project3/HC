@@ -2,36 +2,36 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { zodiacSigns } from "../../data/zodiac";
 
-const DESIGN_CHANGE_DELAY = 4000;
+const DESIGN_CHANGE_DELAY = 7000;
 
 const LANDSCAPE_CARDS = [
-  ["kor-mouse-front.png", "kor-mouse-back.jpg"],
-  ["kor-cow-front.jpg", "kor-cow-back.jpg"],
-  ["kor-tiger-front.png", "kor-tiger-back.jpg"],
-  ["kor-rabbit-front.jpg", "kor-rabbit-back.jpg"],
-  ["city-dragon2-front.jpg", "city-dragon2-back.jpg"],
-  ["city-snake-front.jpg", "city-snake-back.jpg"],
-  ["city-horse-front.jpg", "city-horse-back.jpg"],
-  ["city-sheep-front.jpg", "city-sheep-back.jpg"],
-  ["stu-monkey-front.png", "stu-monkey-back.png"],
-  ["stu-chicken-front.png", "stu-chicken-back.png"],
-  ["stu-dog-front.png", "stu-dog-back.png"],
-  ["stu-pig-front.png", "stu-pig-back.png"],
+  ["kor-mouse-front.webp", "kor-mouse-back.webp"],
+  ["kor-cow-front.webp", "kor-cow-back.webp"],
+  ["kor-tiger-front.webp", "kor-tiger-back.webp"],
+  ["kor-rabbit-front.webp", "kor-rabbit-back.webp"],
+  ["city-dragon2-front.webp", "city-dragon2-back.webp"],
+  ["city-snake-front.webp", "city-snake-back.webp"],
+  ["city-horse-front.webp", "city-horse-back.webp"],
+  ["city-sheep-front.webp", "city-sheep-back.webp"],
+  ["stu-monkey-front.webp", "stu-monkey-back.webp"],
+  ["stu-chicken-front.webp", "stu-chicken-back.webp"],
+  ["stu-dog-front.webp", "stu-dog-back.webp"],
+  ["stu-pig-front.webp", "stu-pig-back.webp"],
 ] as const;
 
 const PORTRAIT_CARDS = [
-  ["visit-mouse-front.png", "visit-mouse-back.jpg"],
-  ["visit-cow-front.jpg", "visit-cow-back.jpg"],
-  ["visit-tiger-front.jpg", "visit-tiger-back.jpg"],
-  ["visit-rabbit-front.jpg", "visit-rabbit-back.jpg"],
-  ["visit-dragon-front.jpg", "visit-dragron-back.jpg"],
-  ["visit-snake-front.jpg", "visit-snake-back.jpg"],
-  ["student-horse-front.png", "student-horse-back.png"],
-  ["student-sheep-front.png", "student-sheep-back.png"],
-  ["student-monkey-front.png", "student-monkey-back.png"],
-  ["student-chicken-front.png", "student-chicken-back.png"],
-  ["student-dog-front.png", "student-dog-back.png"],
-  ["student-pig-front.png", "student-pig-back.png"],
+  ["visit-mouse-front.webp", "visit-mouse-back.webp"],
+  ["visit-cow-front.webp", "visit-cow-back.webp"],
+  ["visit-tiger-front.webp", "visit-tiger-back.webp"],
+  ["visit-rabbit-front.webp", "visit-rabbit-back.webp"],
+  ["visit-dragon-front.webp", "visit-dragron-back.webp"],
+  ["visit-snake-front.webp", "visit-snake-back.webp"],
+  ["student-horse-front.webp", "student-horse-back.webp"],
+  ["student-sheep-front.webp", "student-sheep-back.webp"],
+  ["student-monkey-front.webp", "student-monkey-back.webp"],
+  ["student-chicken-front.webp", "student-chicken-back.webp"],
+  ["student-dog-front.webp", "student-dog-back.webp"],
+  ["student-pig-front.webp", "student-pig-back.webp"],
 ] as const;
 
 interface DesignPreviewCardProps {
@@ -66,7 +66,7 @@ function DesignPreviewCard({ files, folder, animalName }: DesignPreviewCardProps
       aria-busy={turnPhase !== "idle"}
     >
       <span className={`design-group__flip design-group__flip--${turnPhase}`}>
-        <img className="design-group__img" src={`/images/cards/${folder}/${files[visibleFlipped ? 1 : 0]}`} alt={`${animalName} 카드 ${visibleFlipped ? "뒷면" : "앞면"}`} />
+        <img className="design-group__img" src={`/images/cards/${folder}/${files[visibleFlipped ? 1 : 0]}`} alt={`${animalName} 카드 ${visibleFlipped ? "뒷면" : "앞면"}`} loading="lazy" decoding="async" />
       </span>
     </button>
   );

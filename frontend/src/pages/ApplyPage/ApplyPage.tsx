@@ -1,6 +1,6 @@
 // Application page: orchestrates the multi-step create flow.
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";
 import { findCardDesign, honoraryKoreanCards, honoraryCitizenCards, studentCards, visitorCards, cardTypeLabels } from "../../data/cards";
 import { loadApplications, saveApplications } from "../../data/adminMock";
@@ -26,7 +26,7 @@ const cardTypeIds: Record<string, number> = {
 export function ApplyPage() {
   const { user } = useAuth();
   const [params] = useSearchParams();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const routeDesignId = pathname.endsWith("/visitor")
     ? visitorCards[0]?.id
     : pathname.endsWith("/honorary-citizen")
@@ -112,6 +112,23 @@ export function ApplyPage() {
   const logoOverlay = step >= 2 ? draft.logoFile?.previewUrl : undefined;
   const sealOverlay = step >= 2 ? draft.sealFile?.previewUrl : undefined;
 
+  if (!user) {
+    return (
+      <div className="apply">
+        <header className="apply__page-head subpage-hero page-container">
+          <p className="eyebrow">제작 신청</p>
+          <h1 className="apply__title subpage-hero__title">{title}</h1>
+          <p className="section-lead">제작 신청은 로그인 후 이용할 수 있습니다.</p>
+        </header>
+        <section className="apply-login-required page-container">
+          <h2>로그인이 필요합니다</h2>
+          <p>신청자 정보와 제작 진행 내역을 안전하게 관리하기 위해 로그인한 회원만 제작 신청을 진행할 수 있습니다.</p>
+          <Link to={`/login?returnTo=${encodeURIComponent(pathname + search)}`}>로그인하기</Link>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="apply">
       <header className="apply__page-head subpage-hero page-container">
@@ -152,7 +169,7 @@ export function ApplyPage() {
           </div>
         </div>
 
-        <CardPreviewPanel design={design} logoOverlay={logoOverlay} sealOverlay={sealOverlay} />
+        <CardPreviewPanel design={design} orientation={draft.cardOrientation} logoOverlay={logoOverlay} sealOverlay={sealOverlay} />
       </div>
     </div>
   );

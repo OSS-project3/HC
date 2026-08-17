@@ -5,4 +5,4 @@
 .review-detail__actions > div { position: absolute; right: 0; top: 34px; display: flex; gap: 8px; }
 .review-not-found { padding-block: 100px; text-align: center; }
 .review-not-found h1 { margin-bottom: 30px; color: var(--color-wordmark); }
-@media (max-width: 600px) { .review-detail__actions { padding-bottom: 108px; } .review-detail__actions > div { top: 92px; left: 0; right: 0; justify-content: center; } }
+@media (max-width: 600px) { .review-detail__meta { flex-wrap: wrap; gap: 6px 14px; } .review-detail__actions { padding-bottom: 108px; } .review-detail__actions > div { top: 92px; left: 0; right: 0; justify-content: center; } }

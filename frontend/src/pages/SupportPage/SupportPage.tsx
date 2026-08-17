@@ -3,12 +3,13 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { companyInfo } from "../../config/company";
 import { PhoneIcon, MailIcon, DocIcon, ChatIcon, ArrowUpRight } from "../../components/ui/icons";
 import { Modal } from "../../components/ui/Modal";
+import { useAuth } from "../../features/auth/AuthContext";
 import "./SupportPage.css";
 
 export const notices = [
   { id: "group-application", title: "단체 제작 신청 안내", date: "2027.02.05", content: "단체 카드 제작을 신청하실 경우 제작 신청 페이지에서 법인·단체 신청을 선택해 주세요. 담당자 확인 후 제작 일정과 필요한 자료를 안내드립니다.", attachment: "단체_카드_신청안내.txt" },
   { id: "application-form", title: "신청양식 다운로드", date: "2027.02.05", content: "단체 카드(명예 한국인증, 명예 시민증, 학생증, 방문증) 신청 시 필요한 신청양식입니다.\n아래 첨부파일을 다운로드하여 작성 후 신청 시 함께 첨부해 주세요.", attachment: "단체_카드_신청양식.txt" },
-  { id: "card-delivery", title: "모바일·실물 카드 수령 안내", date: "2027.01.26", content: "모바일 카드는 발급 완료 후 신청 조회 페이지에서 확인할 수 있습니다. 실물 카드를 함께 신청하신 경우 등록한 수령지로 순차 배송됩니다.", attachment: "카드_수령_안내.txt" },
+  { id: "card-delivery", title: "모바일·실물 카드 수령 안내", date: "2027.01.26", content: "모바일 카드는 발급 완료 후 신청 조회 페이지에서 확인할 수 있습니다. 실물 카드를 함께 신청하신 경우 등록한 수령지로 순차 배송됩니다." },
   { id: "service-guide", title: "공식 서비스 및 운영 안내", date: "2027.01.08", content: "한글과 세종 공식 서비스 운영 안내입니다. 서비스 이용과 제작 신청에 관한 문의는 고객지원 상담·문의 메뉴를 이용해 주세요.", attachment: "서비스_운영_안내.txt" },
 ];
 
@@ -44,6 +45,8 @@ const stories = [
 export function SupportPage() {
   const { hash } = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const inquiryPath = user ? "/inquiry" : `/login?returnTo=${encodeURIComponent("/inquiry")}`;
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -56,7 +59,7 @@ export function SupportPage() {
 
   return (
     <div className="support">
-      <header className="support__hero subpage-hero page-container">
+      <header className="support__hero support__hero--art subpage-hero page-container">
         <div className="support__hero-copy">
           <p className="eyebrow">고객지원</p>
           <h1 className="support__title subpage-hero__title">고객지원</h1>
@@ -119,7 +122,7 @@ export function SupportPage() {
             <a href={`mailto:${companyInfo.email}`} className="support__link">{companyInfo.email}</a>
           </ContactCard>
           <ContactCard icon={<DocIcon />} title="1:1 문의" lines={["문의를 남겨주시면", "영업일 기준 1~2일 내 답변 드립니다"]}>
-            <button className="support__link" onClick={() => navigate("/inquiry")}>1:1 문의하기　›</button>
+            <button className="support__link" onClick={() => navigate(inquiryPath)}>1:1 문의하기　›</button>
           </ContactCard>
           <ContactCard icon={<ChatIcon />} title="카카오톡 문의" lines={[companyInfo.businessHours, `(${companyInfo.lunchHours})`]}>
             <a href="https://pf.kakao.com/" target="_blank" rel="noreferrer noopener" className="support__link">

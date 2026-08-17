@@ -123,7 +123,7 @@ export const InstagramColorIcon = (p: IconProps) => (
         <stop offset="90%" stopColor="#285AEB" />
       </radialGradient>
     </defs>
-    <rect x="2" y="2" width="20" height="20" rx="5.5" fill="url(#ig-grad)" />
+    <rect width="24" height="24" rx="12" fill="url(#ig-grad)" />
     <rect x="6" y="6" width="12" height="12" rx="4" fill="none" stroke="#fff" strokeWidth="1.7" />
     <circle cx="12" cy="12" r="3.2" fill="none" stroke="#fff" strokeWidth="1.7" />
     <circle cx="16.4" cy="7.6" r="1.1" fill="#fff" />

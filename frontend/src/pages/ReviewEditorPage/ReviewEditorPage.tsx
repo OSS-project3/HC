@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { showToast } from "../../components/ui/toast";
-import { findReview, loadReviews, saveReviews } from "../../data/reviews";
+import { findReview, getReviewImageUrls, loadReviews, saveReviews } from "../../data/reviews";
 import { useAuth } from "../../features/auth/AuthContext";
 import { cardTypeLabels, type CardType } from "../../data/cards";
 import "./ReviewEditorPage.css";
@@ -14,7 +14,7 @@ export function ReviewEditorPage() {
   const { user, isAdmin } = useAuth();
   const editing = Boolean(reviewId);
   const review = editing ? findReview(reviewId) : undefined;
-  const [imageUrl, setImageUrl] = useState(review?.imageUrl ?? "");
+  const [imageUrls, setImageUrls] = useState<string[]>(review ? getReviewImageUrls(review) : []);
 
   if (!user) return (
     <main className="review-write-page">
@@ -34,13 +34,14 @@ export function ReviewEditorPage() {
     const applicantType = String(data.get("applicantType")) as "personal" | "organization";
     const cardType = String(data.get("cardType")) as CardType;
     const reviews = loadReviews();
+    const savedImages = imageUrls.length ? imageUrls : undefined;
     if (review) {
-      saveReviews(reviews.map((item) => item.id === review.id ? { ...item, title, content, author, applicantType, cardType, imageUrl: imageUrl || undefined } : item));
+      saveReviews(reviews.map((item) => item.id === review.id ? { ...item, title, content, author, applicantType, cardType, imageUrl: savedImages?.[0], imageUrls: savedImages } : item));
       showToast("후기가 수정되었습니다.");
       navigate(`/reviews/${review.id}`);
     } else {
       const id = crypto.randomUUID();
-      saveReviews([{ id, title, content, author, authorEmail: user.email, createdAt: new Date().toISOString().slice(0, 10), applicantType, cardType, imageUrl: imageUrl || undefined }, ...reviews]);
+      saveReviews([{ id, title, content, author, authorEmail: user.email, createdAt: new Date().toISOString().slice(0, 10), applicantType, cardType, imageUrl: savedImages?.[0], imageUrls: savedImages }, ...reviews]);
       showToast("후기가 등록되었습니다.");
       navigate(`/reviews/${id}`);
     }
@@ -55,8 +56,19 @@ export function ReviewEditorPage() {
           <fieldset className="review-write-form__choices"><legend>신청자 유형 <i className="req">*</i></legend><label className="check"><input type="radio" name="applicantType" value="personal" defaultChecked={review?.applicantType !== "organization"} /><span>개인</span></label><label className="check"><input type="radio" name="applicantType" value="organization" defaultChecked={review?.applicantType === "organization"} /><span>단체</span></label></fieldset>
           <fieldset className="review-write-form__choices"><legend>신청한 카드 <i className="req">*</i></legend>{(Object.entries(cardTypeLabels) as [CardType, string][]).map(([value, label]) => <label key={value} className="check"><input type="radio" name="cardType" value={value} defaultChecked={(review?.cardType ?? "honorary-korean") === value} /><span>{label}</span></label>)}</fieldset>
           <label className="field"><span className="field__label">작성자 이름 <i className="req">*</i></span><input className="field__input" name="author" required maxLength={40} defaultValue={review?.author ?? ""} placeholder="후기에 표시할 이름을 입력해 주세요" /></label>
-          <label className="field"><span className="field__label">사진 첨부</span><input className="field__input review-write-form__file" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 2 * 1024 * 1024) { showToast("사진은 2MB 이하로 첨부해 주세요."); event.target.value = ""; return; } const reader = new FileReader(); reader.onload = () => setImageUrl(String(reader.result)); reader.readAsDataURL(file); }} /></label>
-          {imageUrl && <div className="review-write-form__preview"><img src={imageUrl} alt="첨부 사진 미리보기" /><button type="button" onClick={() => setImageUrl("")}>사진 삭제</button></div>}
+          <label className="field"><span className="field__label">사진 첨부</span><input className="field__input review-write-form__file" type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            if (!files.length) return;
+            const oversized = files.find((file) => file.size > 2 * 1024 * 1024);
+            if (oversized) { showToast("사진은 각 2MB 이하로 첨부해 주세요."); event.target.value = ""; return; }
+            Promise.all(files.map((file) => new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result));
+              reader.readAsDataURL(file);
+            }))).then((urls) => setImageUrls((current) => [...current, ...urls]));
+            event.target.value = "";
+          }} /></label>
+          {imageUrls.length > 0 && <div className="review-write-form__preview">{imageUrls.map((url, index) => <figure key={`${url}-${index}`}><img src={url} alt={`첨부 사진 미리보기 ${index + 1}`} /><button type="button" onClick={() => setImageUrls((current) => current.filter((_, itemIndex) => itemIndex !== index))}>사진 삭제</button></figure>)}</div>}
           <label className="field"><span className="field__label">내용 <i className="req">*</i></span><textarea className="field__textarea" name="content" required maxLength={3000} defaultValue={review?.content ?? ""} placeholder="경험하신 내용을 자세히 들려주세요" /></label>
           <div className="review-write-form__actions"><Button type="button" variant="ghost" onClick={() => navigate(-1)}>취소</Button><Button type="submit">{editing ? "수정 완료" : "등록하기"}</Button></div>
         </form>

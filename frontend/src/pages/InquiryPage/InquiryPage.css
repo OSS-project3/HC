@@ -9,4 +9,26 @@
 .inquiry-form__privacy small { color: var(--color-text-muted); font-size: 12px; }
 .inquiry-form__actions { display: flex; justify-content: center; gap: 10px; }
 .inquiry-form__actions .btn { min-width: 140px; }
+.inquiry-login-required {
+  max-width: 760px;
+  margin-inline: auto;
+  padding: clamp(28px, 4vw, 46px);
+  background: var(--color-background);
+  text-align: center;
+}
+.inquiry-login-required h2 {
+  color: var(--color-wordmark);
+  font-family: var(--font-serif);
+  font-size: clamp(22px, 2.4vw, 30px);
+}
+.inquiry-login-required p {
+  margin: 12px auto 0;
+  max-width: 560px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.inquiry-login-required .btn {
+  margin-top: 26px;
+}
 @media (max-width: 640px) { .inquiry-form__grid { grid-template-columns: 1fr; } .inquiry-form { padding: 22px 18px; } }

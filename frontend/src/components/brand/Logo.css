@@ -67,7 +67,7 @@
   height: 47px;
   flex-shrink: 0;
   margin-left: 4px;
-  background: url("/images/logo/tree-logo.png") center bottom / contain no-repeat;
+  background: url("/images/logo/tree-logo.webp") center bottom / contain no-repeat;
   align-self: flex-end;
   transform: translateY(-2px);
 }

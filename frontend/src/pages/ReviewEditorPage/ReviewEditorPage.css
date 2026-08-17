@@ -6,9 +6,10 @@
 /* Options use the unified checkbox (.check) design, no bordered box. */
 .review-write-form__choices label { align-items: center; min-width: 112px; cursor: pointer; }
 .review-write-form__file { padding-block: 9px; }
-.review-write-form__preview { display: grid; justify-items: start; gap: 9px; }
-.review-write-form__preview img { width: min(100%, 420px); max-height: 260px; object-fit: cover; border-radius: var(--radius-panel); }
-.review-write-form__preview button { color: var(--color-primary); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.review-write-form__preview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.review-write-form__preview figure { display: grid; gap: 7px; min-width: 0; }
+.review-write-form__preview img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-panel); }
+.review-write-form__preview button { justify-self: start; color: var(--color-primary); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
 .review-write-form .field__textarea { min-height: 340px; line-height: 1.8; }
 .review-write-form__actions { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
 .review-write-form__actions .btn { min-width: 130px; }
@@ -16,4 +17,4 @@
 .review-write-page__login h2 { color: var(--color-wordmark); font-family: var(--font-serif); font-size: clamp(22px, 3vw, 30px); }
 .review-write-page__login p { margin: 12px 0 30px; color: var(--color-text-muted); }
 .review-write-page__login .btn { margin: 4px; }
-@media (max-width: 600px) { .review-write-form { padding-inline: 10px; } .review-write-form__choices label { flex: 1 1 130px; } }
+@media (max-width: 600px) { .review-write-form { padding-inline: 10px; } .review-write-form__choices label { flex: 1 1 130px; } .review-write-form__preview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

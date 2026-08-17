@@ -4,6 +4,7 @@ import { Button } from "../../ui/Button";
 import { ChevronLeft, ChevronRight } from "../../ui/icons";
 import { showToast } from "../../ui/toast";
 import { openPostcodeSearch } from "../../../lib/postcode";
+import { SelectField } from "../../ui/SelectField";
 import { useRef } from "react";
 
 interface StepInfoProps {
@@ -58,7 +59,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
       <p className="step__eyebrow">{isOrg ? "법인·단체 신청" : "개인 신청"}</p>
       <h2 className="step__heading">정보 입력</h2>
 
-      <div className={`form-grid ${isOrg ? "" : "form-grid--single"}`}>
+      <div className={`form-grid ${isOrg ? "" : isStudent ? "form-grid--pair" : "form-grid--single"}`}>
         <fieldset className="form-block">
           <legend className="form-block__legend">발급 유형 선택</legend>
           <div className="radio-row">
@@ -82,6 +83,33 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
             </label>
           </div>
         </fieldset>
+
+        {/* 학생증은 카드 방향(가로/세로)을 선택할 수 있고, 선택에 따라 견본 이미지가 바뀐다. */}
+        {isStudent && (
+          <fieldset className="form-block">
+            <legend className="form-block__legend">카드 방향</legend>
+            <div className="radio-row">
+              <label className="check">
+                <input
+                  type="radio"
+                  name="cardOrientation"
+                  checked={(draft.cardOrientation ?? "landscape") === "landscape"}
+                  onChange={() => update({ cardOrientation: "landscape" })}
+                />
+                <span>가로형</span>
+              </label>
+              <label className="check">
+                <input
+                  type="radio"
+                  name="cardOrientation"
+                  checked={(draft.cardOrientation ?? "landscape") === "portrait"}
+                  onChange={() => update({ cardOrientation: "portrait" })}
+                />
+                <span>세로형</span>
+              </label>
+            </div>
+          </fieldset>
+        )}
 
         {/* 수량 선택은 법인·단체 신청에서만 노출한다. 개인 신청은 1매 고정. */}
         {isOrg && (
@@ -241,43 +269,95 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   </label>
                 </div>
               </div>
-              <label className="field">
+              <div className="field">
                 <span className="field__label">
                   성별<span className="req">*</span>
                 </span>
-                <select
-                  className="field__select"
+                <SelectField
+                  ariaLabel="성별 선택"
+                  placeholder="성별을 선택해 주세요"
                   value={draft.applicant.gender ?? ""}
-                  onChange={(e) =>
-                    setApplicant({ gender: e.target.value as "male" | "female" | "" })
-                  }
-                >
-                  <option value="">성별을 선택해 주세요</option>
-                  <option value="male">남성</option>
-                  <option value="female">여성</option>
-                </select>
-              </label>
+                  onChange={(value) => setApplicant({ gender: value as "male" | "female" | "" })}
+                  options={[
+                    { value: "male", label: "남성" },
+                    { value: "female", label: "여성" },
+                  ]}
+                />
+              </div>
               {isStudent && (
-                <div className="field-row">
-                  <label className="field">
-                    <span className="field__label">학번<span className="req">*</span></span>
-                    <input
-                      className="field__input"
-                      value={draft.applicant.studentNumber ?? ""}
-                      onChange={(e) => setApplicant({ studentNumber: e.target.value })}
-                      placeholder="20260001"
-                    />
-                  </label>
-                  <label className="field">
-                    <span className="field__label">학과<span className="req">*</span></span>
-                    <input
-                      className="field__input"
-                      value={draft.applicant.department ?? ""}
-                      onChange={(e) => setApplicant({ department: e.target.value })}
-                      placeholder="학과를 입력해 주세요"
-                    />
-                  </label>
-                </div>
+                <>
+                  <fieldset className="form-block">
+                    <legend className="form-block__legend">
+                      학교 구분<span className="req">*</span>
+                    </legend>
+                    <div className="radio-row">
+                      <label className="check">
+                        <input
+                          type="radio"
+                          name="schoolLevel"
+                          checked={(draft.applicant.schoolLevel ?? "university") === "university"}
+                          onChange={() => setApplicant({ schoolLevel: "university" })}
+                        />
+                        <span>대학교</span>
+                      </label>
+                      <label className="check">
+                        <input
+                          type="radio"
+                          name="schoolLevel"
+                          checked={draft.applicant.schoolLevel === "highschool"}
+                          onChange={() =>
+                            // 고등학교 선택 시 대학교 전용 항목(학번·학과)은 비운다.
+                            setApplicant({ schoolLevel: "highschool", studentNumber: "", department: "" })
+                          }
+                        />
+                        <span>고등학교</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                  {draft.applicant.schoolLevel === "highschool" ? (
+                    <label className="field">
+                      <span className="field__label">학교명<span className="req">*</span></span>
+                      <input
+                        className="field__input"
+                        value={draft.applicant.schoolName ?? ""}
+                        onChange={(e) => setApplicant({ schoolName: e.target.value })}
+                        placeholder="학교명을 입력해 주세요"
+                      />
+                    </label>
+                  ) : (
+                    <>
+                      <label className="field">
+                        <span className="field__label">대학교명<span className="req">*</span></span>
+                        <input
+                          className="field__input"
+                          value={draft.applicant.schoolName ?? ""}
+                          onChange={(e) => setApplicant({ schoolName: e.target.value })}
+                          placeholder="대학교명을 입력해 주세요"
+                        />
+                      </label>
+                      <div className="field-row">
+                        <label className="field">
+                          <span className="field__label">학번<span className="req">*</span></span>
+                          <input
+                            className="field__input"
+                            value={draft.applicant.studentNumber ?? ""}
+                            onChange={(e) => setApplicant({ studentNumber: e.target.value })}
+                            placeholder="20260001"
+                          />
+                        </label>
+                        <label className="field">
+                          <span className="field__label">학과<span className="req">*</span></span>
+                          <input
+                            className="field__input"
+                            value={draft.applicant.department ?? ""}
+                            onChange={(e) => setApplicant({ department: e.target.value })}
+                            placeholder="학과를 입력해 주세요"
+                          />
+                        </label>
+                      </div>
+                    </>
+                  )}
+                </>
               )}
               <label className="field">
                 <span className="field__label">

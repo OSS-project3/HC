@@ -1,6 +1,7 @@
 // Home '상담 문의' section: phone / email / 1:1 / KakaoTalk contact channels.
 import { useNavigate } from "react-router-dom";
 import { companyInfo } from "../../config/company";
+import { useAuth } from "../../features/auth/AuthContext";
 import { PhoneIcon, MailIcon, DocIcon, ChatIcon, ChevronRight, ArrowUpRight } from "../ui/icons";
 
 /**
@@ -10,6 +11,8 @@ import { PhoneIcon, MailIcon, DocIcon, ChatIcon, ChevronRight, ArrowUpRight } fr
  */
 export function ContactSection() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const inquiryPath = user ? "/inquiry" : `/login?returnTo=${encodeURIComponent("/inquiry")}`;
 
   return (
     <section className="contact">
@@ -55,7 +58,7 @@ export function ContactSection() {
               <br />
               영업일 기준 1~2일 내 답변 드립니다
             </p>
-            <button className="contact__action contact__action--btn" onClick={() => navigate("/inquiry")}>
+            <button className="contact__action contact__action--btn" onClick={() => navigate(inquiryPath)}>
               1:1 문의하기 <ChevronRight width={15} height={15} />
             </button>
           </article>

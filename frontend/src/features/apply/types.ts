@@ -17,6 +17,10 @@ export interface ApplicantInfo {
   organizationName?: string;
   department?: string;
   studentNumber?: string;
+  /** 학생증 개인 신청: 대학교 / 고등학교 구분. */
+  schoolLevel?: "university" | "highschool";
+  /** 학생증 개인 신청: 대학교명 · 고등학교명. */
+  schoolName?: string;
   phone: string;
   email: string;
 }
@@ -46,6 +50,8 @@ export interface ApplicationDraft {
   applicantType: ApplicantType;
   designId?: string;
   cardType?: CardType;
+  /** 견본 이미지 방향(가로/세로). 미설정 시 디자인의 기본 방향을 따른다. */
+  cardOrientation?: "landscape" | "portrait";
 
   issuanceMethod: IssuanceMethod;
   quantity: number;
@@ -76,6 +82,8 @@ export const emptyApplicant: ApplicantInfo = {
   organizationName: "",
   department: "",
   studentNumber: "",
+  schoolLevel: "university",
+  schoolName: "",
   phone: "",
   email: "",
 };

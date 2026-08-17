@@ -1,5 +1,12 @@
-import { useState } from "react";
-import nameResults from "../../data/nameResults.json";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+interface NameResult {
+  number: number;
+  name: string;
+  hanja: string;
+  english: string;
+  meaning: string;
+}
 
 /**
  * "서비스 핵심" — two traditional-window cards. The lattice shutters open on
@@ -27,18 +34,55 @@ export function ServiceCoreSection() {
 }
 
 function WindowCard({ label, variant }: { label: string; variant: "names" | "principles" }) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
+  const [nameResults, setNameResults] = useState<NameResult[]>([]);
 
-  const open = () => setIsOpen(true);
+  const loadNameResults = useCallback(() => {
+    if (variant !== "names" || nameResults.length > 0) return;
+    void import("../../data/nameResults.json").then((module) => {
+      setNameResults(module.default as NameResult[]);
+    });
+  }, [nameResults.length, variant]);
+
+  useEffect(() => {
+    if (variant !== "names") return;
+    const node = buttonRef.current;
+    if (!node || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        loadNameResults();
+        observer.disconnect();
+      },
+      { rootMargin: "240px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadNameResults, variant]);
+
+  const open = () => {
+    loadNameResults();
+    setIsOpen(true);
+  };
+  const toggle = () => {
+    loadNameResults();
+    setIsOpen((value) => {
+      if (!value) return true;
+      setHasOpened(false);
+      return false;
+    });
+  };
 
   return (
     <button
+      ref={buttonRef}
       className={`window window--${variant}${isOpen ? " is-open" : ""}${hasOpened ? " has-opened" : ""}`}
       aria-label={`${label} — ${hasOpened ? "열림" : "열어보기"}`}
       onMouseEnter={open}
       onFocus={open}
-      onClick={open}
+      onClick={toggle}
     >
       {variant === "names" && (
         <span className="window__name-scroll" aria-hidden="true">

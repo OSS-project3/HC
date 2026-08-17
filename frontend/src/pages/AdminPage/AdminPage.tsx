@@ -4,6 +4,8 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 import { adminStatusLabels, loadApplications, saveApplications, type AdminApplication, type AdminStatus } from "../../data/adminMock";
 import { loadInquiries, saveInquiries, type InquiryRecord } from "../../data/inquiries";
+import { EventFeedAdminPanel } from "../../components/admin/EventFeedAdminPanel";
+import { boothPosts, collabPosts, loadFeedPosts, saveFeedPosts, type FeedPost } from "../../data/eventFeedPosts";
 import "./AdminPage.css";
 
 const statusClass: Record<string, string> = {
@@ -19,6 +21,8 @@ export function AdminPage() {
   const { isAdmin } = useAuth();
   const [applications, setApplications] = useState<AdminApplication[]>(loadApplications);
   const [inquiries, setInquiries] = useState(loadInquiries);
+  const [managedBoothPosts, setManagedBoothPosts] = useState(() => loadFeedPosts("booth-posts", boothPosts));
+  const [managedCollabPosts, setManagedCollabPosts] = useState(() => loadFeedPosts("collab-posts", collabPosts));
   const [openInquiryId, setOpenInquiryId] = useState<string | null>(null);
   const [openStatusMenu, setOpenStatusMenu] = useState<string | null>(null);
   useEffect(() => {
@@ -51,6 +55,8 @@ export function AdminPage() {
       return updated;
     });
   };
+  const updateBoothPosts = (items: FeedPost[]) => { saveFeedPosts("booth-posts", items); setManagedBoothPosts(items); };
+  const updateCollabPosts = (items: FeedPost[]) => { saveFeedPosts("collab-posts", items); setManagedCollabPosts(items); };
 
   const [answerDraft, setAnswerDraft] = useState<Record<string, string>>({});
   const answerInquiry = (id: string) => {
@@ -140,6 +146,15 @@ export function AdminPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="admin__event-posts">
+        <div className="admin__section-head">
+          <div><p className="eyebrow">행사사업</p><h2>부스 운영 · 법인단체 협업 게시글</h2></div>
+          <strong>총 {managedBoothPosts.length + managedCollabPosts.length}건</strong>
+        </div>
+        <EventFeedAdminPanel label="부스 운영 게시글" items={managedBoothPosts} onChange={updateBoothPosts} compact />
+        <EventFeedAdminPanel label="법인·단체 협업 게시글" items={managedCollabPosts} onChange={updateCollabPosts} showCompanyFields compact />
       </section>
     </section>
   );

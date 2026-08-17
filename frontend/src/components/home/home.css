@@ -6,22 +6,25 @@
 
 /* Tagline strip: flush under the header, led by a horizontal rule. */
 .home-tagline {
+  position: relative;
+  z-index: 70;
   display: flex;
   align-items: center;
   gap: clamp(12px, 1.4vw, 20px);
   padding-top: clamp(6px, 1vw, 12px);
   padding-bottom: clamp(2px, 0.6vw, 6px);
   font-size: clamp(13px, 1.2vw, 16px);
-  color: var(--color-text-secondary);
+  color: var(--color-wordmark);
   font-weight: 500;
   letter-spacing: 0.02em;
+  text-shadow: 0 1px 0 var(--color-bg-top), 0 0 6px var(--color-bg-top);
 }
 .home-tagline::before {
   content: "";
   flex: none;
   width: clamp(44px, 4.4vw, 84px);
   height: 1.5px;
-  background: var(--color-border-accent);
+  background: currentColor;
 }
 
 .home > section {
@@ -145,14 +148,14 @@
   z-index: -3;
   /* Reaches up behind the transparent header. Smaller letter texture, tiled. */
   top: -200px;
-  background: url("/images/background/main-bg-letter.png") center top / 40% auto repeat;
+  background: url("/images/background/main-bg-letter.webp") center top / 40% auto repeat;
   opacity: 0.1;
 }
 .hero__inner::after {
   z-index: -2;
   /* Full-width light wash that begins flush at the very top of the header. */
   top: calc(-125px - clamp(28px, 4vw, 56px));
-  background: url("/images/background/main-bg-shade.png") center top / 100% auto no-repeat;
+  background: url("/images/background/main-bg-shade.webp") center top / 100% auto no-repeat;
   opacity: 0.55;
 }
 /* 세종대왕 — behind the copy / cards, left of centre. The source PNG has ~144px
@@ -162,12 +165,12 @@
   --sejong-w: clamp(320px, 38vw, 600px);
   position: absolute;
   z-index: -1;
-  bottom: calc(-1 * (var(--band-gap) + var(--sejong-w) * 0.092) + 28px);
+  bottom: calc(-1 * (var(--band-gap) + var(--sejong-w) * 0.092));
   left: 37%;
   transform: translateX(-50%);
   width: var(--sejong-w);
   aspect-ratio: 1560 / 1122;
-  background: url("/images/background/sejong.png") center bottom / contain no-repeat;
+  background: url("/images/background/sejong.webp") center bottom / contain no-repeat;
   opacity: 0.5;
   pointer-events: none;
 }
@@ -177,11 +180,10 @@
   font-weight: 600;
   font-size: clamp(21px, 2.4vw, 33px);
   margin-bottom: 16px;
-  /* Outlined text: transparent fill inside, coloured stroke only. */
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: 1px var(--color-title-accent);
-  text-stroke: 1px var(--color-title-accent);
+  color: var(--color-wordmark);
+  -webkit-text-fill-color: var(--color-wordmark);
+  -webkit-text-stroke: 0;
+  text-stroke: 0;
 }
 .hero__title {
   font-family: var(--font-serif);
@@ -553,10 +555,10 @@
   transform-style: preserve-3d;
 }
 .window--names {
-  background-image: url("/images/common/hanok-window-names-bg.png");
+  background-image: url("/images/common/hanok-window-names-bg.webp");
 }
 .window--principles {
-  background-image: url("/images/common/hanok-window-principles-bg.png");
+  background-image: url("/images/common/hanok-window-principles-bg.webp");
 }
 .window__name-scroll {
   position: absolute;
@@ -648,7 +650,7 @@
   border: 0;
   /* Both shutters show one shared door image, cropped into exact left/right
      halves. This keeps the lattice continuous across the centre while closed. */
-  background-image: url("/images/common/hanok-window.png");
+  background-image: url("/images/common/hanok-window.webp");
   background-repeat: no-repeat;
   background-size: 200% 100%;
   backface-visibility: hidden;
@@ -985,6 +987,11 @@
   .merch__top {
     grid-template-columns: 1fr;
   }
+  /* 데스크톱에서 카드 행에 맞추려 올려둔 -92px가, 1열로 접히면 헤더/태그라인과
+     겹치므로 모바일에서는 해제한다. */
+  .hero__eyebrow {
+    margin-top: 0;
+  }
   .service-core__windows {
     grid-template-columns: 1fr;
   }
@@ -1016,6 +1023,10 @@
   .hero__card-float--portrait {
     width: 34%;
     margin-top: 28px;
+  }
+  /* 카드가 작아진 만큼 스테이지가 남기던 빈 여백을 없앤다. */
+  .hero__stage {
+    min-height: 0;
   }
 }
 

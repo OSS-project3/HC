@@ -6,16 +6,16 @@
   /* 고객 지원 페이지(.support__hero-art)와 동일한 위치: 우측 하단 앵커. */
   position: absolute;
   z-index: 0;
-  right: max(0px, calc((100% - 1180px) / 2));
-  bottom: calc(clamp(10px, 1.5vw, 20px) * -1);
-  height: clamp(170px, 22vw, 280px);
+  right: 0;
+  bottom: 0;
+  height: clamp(154px, 19.5vw, 252px);
   width: auto;
   object-fit: contain;
   opacity: .94;
   pointer-events: none;
 }
 /* Top-right actions above the profile info (수정 › text link, 회원 탈퇴). */
-.mypage__actions { max-width: 1100px; margin-inline: auto; margin-top: 14px; display: flex; justify-content: flex-end; align-items: center; gap: 22px; }
+.mypage__actions { max-width: 1100px; margin-inline: auto; margin-top: clamp(32px, 4vw, 48px); display: flex; justify-content: flex-end; align-items: center; gap: 22px; }
 .mypage__edit { color: var(--color-primary); font-weight: 700; font-size: 14px; }
 .mypage__edit:hover { text-decoration: underline; }
 .mypage__edit--muted { color: var(--color-text-muted); font-weight: 500; }
@@ -48,14 +48,27 @@
 .mypage--guest p { color: var(--color-text-muted); }
 .mypage--guest a { padding: 10px 34px; background: var(--color-primary); color: var(--color-primary-foreground); }
 @media (max-width: 680px) {
-  .mypage__hero-art { right: 0; height: clamp(110px, 26vw, 150px); width: auto; opacity: .55; }
+  .mypage__hero-art { right: 0; height: clamp(100px, 23vw, 136px); width: auto; opacity: .55; }
   .mypage__profile { grid-template-columns: 1fr; }
   .mypage__profile > div { border-right: 0; border-bottom: 1px solid var(--color-border-soft); }
   .mypage__profile > div:last-child { border-bottom: 0; }
+  .mypage__profile strong { overflow-wrap: anywhere; }
   .mypage-list__head { display: none; }
   .mypage-list--production article, .mypage-list--activity article { grid-template-columns: 1fr auto; gap: 8px 16px; padding-block: 14px; }
   .mypage-list--production article span, .mypage-list--production article time { grid-column: 1; }
   .mypage-list--activity article time { grid-column: 1; grid-row: 2; }
   .mypage-list--activity article .mypage-list__edit { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
   .mypage-status { grid-column: 2; grid-row: 1; }
+}
+
+@media (min-width: 1081px) and (max-width: 1480px) {
+  .mypage__hero-art {
+    right: 64px;
+  }
+}
+
+@media (min-width: 1481px) and (max-width: 1608px) {
+  .mypage__hero-art {
+    right: calc(84px - ((100vw - 1440px) / 2));
+  }
 }

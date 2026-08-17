@@ -44,6 +44,80 @@
   min-height: 88px;
 }
 
+/* Custom select — the trigger reuses .field__select box styling; the opened
+   options render in the site design (replaces the native <select> dropdown). */
+.select-field {
+  position: relative;
+}
+.select-field__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.select-field__trigger--placeholder {
+  color: var(--color-text-muted);
+}
+.select-field__trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.select-field__caret {
+  flex: none;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  transition: transform var(--ease);
+}
+.select-field.is-open .select-field__caret {
+  transform: rotate(180deg);
+}
+.select-field.is-open .select-field__trigger {
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-border-accent) 22%, transparent);
+}
+.select-field__options {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  box-shadow: var(--shadow-panel);
+}
+.select-field__option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--ease), color var(--ease);
+}
+.select-field__option:hover,
+.select-field__option.is-selected {
+  background: var(--color-surface-soft);
+  color: var(--color-wordmark);
+}
+.select-field__option > b {
+  flex: none;
+  color: var(--color-primary);
+  font-size: 13px;
+}
+
 .field-error {
   color: #b3402f;
   font-size: 13px;
@@ -112,4 +186,14 @@
   width: 18px;
   height: 18px;
   accent-color: var(--color-primary);
+}
+
+/* 모바일: 입력 폰트를 16px 이상으로 올려 iOS Safari가 포커스 시 화면을 확대(zoom)
+   하는 현상을 막는다. 데스크톱 레이아웃에는 영향을 주지 않는다. */
+@media (max-width: 600px) {
+  .field__input,
+  .field__select,
+  .field__textarea {
+    font-size: 16px;
+  }
 }

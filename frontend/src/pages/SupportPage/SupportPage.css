@@ -3,8 +3,6 @@
 }
 .support__hero {
   position: relative;
-  padding-block: clamp(34px, 5vw, 62px) clamp(4px, 0.8vw, 10px);
-  min-height: clamp(150px, 15vw, 210px);
 }
 .support__hero-copy {
   position: relative;
@@ -13,32 +11,23 @@
 .support__hero-art {
   position: absolute;
   z-index: 0;
-  right: max(0px, calc((100% - 1180px) / 2));
-  /* 지원 hero는 마이페이지 hero보다 낮다. 위치를 맞추되 아래 콘텐츠와 겹치지 않도록
-     살짝 위로 올리고, 겹침은 아래 섹션의 padding-top으로 해소한다. */
-  bottom: calc(clamp(24px, 3vw, 49px) * -1);
+  right: 0;
+  bottom: 0;
   /* 마이페이지 hero 이미지(.mypage__hero-art)와 동일한 크기. */
-  height: clamp(170px, 22vw, 280px);
+  height: clamp(154px, 19.5vw, 252px);
   width: auto;
   object-fit: contain;
   opacity: .94;
   pointer-events: none;
 }
 .support__title {
-  margin: 10px 0 8px;
+  margin: 10px 0 12px;
 }
 .support__section {
   padding-block: clamp(28px, 4vw, 54px);
   scroll-margin-top: 110px;
 }
-.support__hero + .support__section {
-  padding-top: clamp(10px, 1.5vw, 20px);
-}
-/* 고객지원 메인(SupportPage)만 hero에 이미지가 있다. 이미지가 아래로 내려오면서
-   구분선/공지사항과 겹치지 않도록 첫 섹션을 더 내린다. (공지사항 목록 .notices-page 제외) */
-.support:not(.notices-page) .support__hero + .support__section {
-  padding-top: clamp(40px, 5vw, 72px);
-}
+.support__hero + .support__section { padding-top: clamp(28px, 4vw, 54px); }
 .support-rule {
   position: relative;
   width: 100%;
@@ -104,12 +93,23 @@
 .notice-search input::placeholder {
   color: var(--color-text-muted);
 }
-.notice-search button {
+.notice-search label button {
   width: 58px;
   height: 100%;
   display: grid;
   place-items: center;
   color: var(--color-text-secondary);
+}
+/* 커스텀 셀렉트(SelectField)를 검색 조건 칸 크기에 맞춘다. */
+.notice-search .select-field {
+  min-width: 0;
+}
+.notice-search .select-field__trigger {
+  height: 48px;
+  padding-block: 0;
+  padding-inline: 20px;
+  border-color: var(--color-surface-soft);
+  font-size: 15px;
 }
 .notice-table {
   max-width: 1100px;
@@ -398,12 +398,20 @@
   }
   .support__hero-art {
     right: 0;
-    height: clamp(110px, 26vw, 150px);
+    height: clamp(100px, 23vw, 136px);
     width: auto;
     opacity: .55;
   }
   .notice-search {
     grid-template-columns: 1fr;
+  }
+  /* 제목이 길어져도 "더보기" 버튼이 밀려 넘치지 않도록 축소 방지. */
+  .notice-summary__head {
+    gap: 12px;
+  }
+  .notice-summary__head button {
+    flex: none;
+    white-space: nowrap;
   }
   .notice-table__head,
   .notice-table__row {
@@ -439,5 +447,17 @@
   }
   .ccard:last-child {
     border-bottom: 0;
+  }
+}
+
+@media (min-width: 1081px) and (max-width: 1480px) {
+  .support__hero-art {
+    right: 64px;
+  }
+}
+
+@media (min-width: 1481px) and (max-width: 1608px) {
+  .support__hero-art {
+    right: calc(84px - ((100vw - 1440px) / 2));
   }
 }

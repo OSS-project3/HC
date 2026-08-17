@@ -148,7 +148,18 @@
   transition: opacity var(--ease);
 }
 .social__hover {
+  position: absolute;
+  inset: 0;
   opacity: 0;
+}
+.social__hover svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.social:hover,
+.social:focus-visible {
+  border-color: transparent;
 }
 .social:hover .social__default,
 .social:focus-visible .social__default {
@@ -200,5 +211,10 @@
   }
   .footer__copyright {
     text-align: left;
+  }
+  /* 정책 링크 4개가 한 줄을 넘겨 가로 스크롤이 생기지 않도록 줄바꿈 허용. */
+  .footer__policies {
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
 }
