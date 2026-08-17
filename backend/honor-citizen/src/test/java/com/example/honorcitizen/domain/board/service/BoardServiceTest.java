@@ -180,7 +180,7 @@ class BoardServiceTest {
     void updateOverwritesFields() {
         Board board = boardRepository.save(Board.create(BoardType.NOTICE, "원래 제목", "원래 내용", ADMIN_USER_ID));
 
-        boardService.update(board.getId(), new BoardUpdateRequest(BoardType.FAQ, "새 제목", "새 내용"));
+        boardService.update(board.getId(), new BoardUpdateRequest(BoardType.FAQ, "새 제목", "새 내용", null), null);
 
         Board updated = boardRepository.findById(board.getId()).orElseThrow();
         assertThat(updated.getBoardType()).isEqualTo(BoardType.FAQ);
@@ -191,10 +191,94 @@ class BoardServiceTest {
 
     @Test
     void updateNotFoundThrows() {
-        assertThatThrownBy(() -> boardService.update(999L, new BoardUpdateRequest(BoardType.NOTICE, "t", "c")))
+        assertThatThrownBy(() -> boardService.update(999L, new BoardUpdateRequest(BoardType.NOTICE, "t", "c", null), null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.BOARD_NOT_FOUND);
+    }
+
+    @Test
+    void updateKeepsSelectedAttachmentsAndRemovesOthers() {
+        BoardCreateResponse created = boardService.create(
+                ADMIN_USER_ID, request(BoardType.NOTICE), List.of(pdfFile("a.pdf"), pdfFile("b.pdf"), pdfFile("c.pdf")));
+        List<BoardAttachment> before = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId());
+        Long keepA = before.get(0).getId();
+        Long keepC = before.get(2).getId();
+
+        boardService.update(created.getId(),
+                new BoardUpdateRequest(BoardType.NOTICE, "제목", "내용", List.of(keepA, keepC)), null);
+
+        List<BoardAttachment> after = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId());
+        assertThat(after).hasSize(2);
+        assertThat(after.get(0).getUploadFileId()).isEqualTo(before.get(0).getUploadFileId());
+        assertThat(after.get(1).getUploadFileId()).isEqualTo(before.get(2).getUploadFileId());
+        assertThat(after.get(0).getDisplayOrder()).isZero();
+        assertThat(after.get(1).getDisplayOrder()).isOne();
+        assertThat(uploadFileRepository.count()).isEqualTo(2);
+        verify(storageService, times(1)).delete(anyString());
+    }
+
+    @Test
+    void updateAddsNewAttachmentsAlongsideKept() {
+        BoardCreateResponse created = boardService.create(
+                ADMIN_USER_ID, request(BoardType.NOTICE), List.of(pdfFile("a.pdf")));
+        Long keepA = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId()).get(0).getId();
+
+        boardService.update(created.getId(),
+                new BoardUpdateRequest(BoardType.NOTICE, "제목", "내용", List.of(keepA)), List.of(pdfFile("new.pdf")));
+
+        List<BoardAttachment> after = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId());
+        assertThat(after).hasSize(2);
+        assertThat(after.get(0).getDisplayOrder()).isZero();
+        assertThat(after.get(1).getDisplayOrder()).isOne();
+        assertThat(uploadFileRepository.count()).isEqualTo(2);
+        verify(storageService, times(0)).delete(anyString());
+    }
+
+    @Test
+    void updateRemovesAllAttachmentsWhenKeepListOmitted() {
+        BoardCreateResponse created = boardService.create(
+                ADMIN_USER_ID, request(BoardType.NOTICE), List.of(pdfFile("a.pdf"), pdfFile("b.pdf")));
+
+        boardService.update(created.getId(), new BoardUpdateRequest(BoardType.NOTICE, "제목", "내용", null), null);
+
+        assertThat(boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId())).isEmpty();
+        assertThat(uploadFileRepository.count()).isZero();
+        verify(storageService, times(2)).delete(anyString());
+    }
+
+    @Test
+    void updateRejectsFaqWithKeptAttachments() {
+        BoardCreateResponse created = boardService.create(
+                ADMIN_USER_ID, request(BoardType.NOTICE), List.of(pdfFile("a.pdf")));
+        Long keepA = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId()).get(0).getId();
+
+        assertThatThrownBy(() -> boardService.update(created.getId(),
+                new BoardUpdateRequest(BoardType.FAQ, "제목", "내용", List.of(keepA)), null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        // 검증 실패는 커밋 전이라 기존 첨부파일이 그대로 남아 있어야 한다.
+        assertThat(boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId())).hasSize(1);
+    }
+
+    @Test
+    void updateRejectsWhenKeptPlusNewExceedsTen() {
+        BoardCreateResponse created = boardService.create(
+                ADMIN_USER_ID, request(BoardType.NOTICE), List.of(pdfFile("a.pdf"), pdfFile("b.pdf")));
+        List<BoardAttachment> existing = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId());
+        List<Long> keepIds = existing.stream().map(BoardAttachment::getId).toList();
+
+        List<MockMultipartFile> newFiles = java.util.stream.IntStream.range(0, 9)
+                .mapToObj(i -> pdfFile(i + ".pdf"))
+                .toList();
+
+        assertThatThrownBy(() -> boardService.update(created.getId(),
+                new BoardUpdateRequest(BoardType.NOTICE, "제목", "내용", keepIds), List.copyOf(newFiles)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
     @Test

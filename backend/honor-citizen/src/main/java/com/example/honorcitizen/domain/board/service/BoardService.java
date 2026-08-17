@@ -107,13 +107,59 @@ public class BoardService {
         }
     }
 
-    // 전체 재제출(api.md §API 4) — boardType/title/content만 갱신한다. 첨부파일 편집은 이번 패스 범위 밖.
+    // 전체 재제출(api.md §API 4) — boardType/title/content 갱신 + 첨부파일 재구성.
+    // 첨부파일은 "set"으로 목록을 덮어쓰지 않고 참조(uploadFileId)로 다시 이어붙인다: 유지 대상(keepAttachmentIds)도
+    // BoardAttachment row를 삭제 후 같은 uploadFileId로 새로 만든다 — 부분 삭제로 display_order에 구멍이
+    // 남지 않도록 0부터 다시 채우기 위함이다. 실제 파일(UploadFile 로우 + S3 객체)은 keepAttachmentIds에
+    // 없는 것만 삭제된다.
     @Transactional
-    public void update(Long id, BoardUpdateRequest request) {
+    public void update(Long id, BoardUpdateRequest request, List<MultipartFile> newAttachments) {
         Board board = boardRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.BOARD_NOT_FOUND));
 
-        board.update(request.getBoardType(), request.getTitle(), request.getContent());
+        List<MultipartFile> files = presentFiles(newAttachments);
+        List<Long> keepIds = request.getKeepAttachmentIds() == null ? List.of() : request.getKeepAttachmentIds();
+
+        // findByBoardIdOrderByDisplayOrderAsc라 toKeep은 이미 기존 노출 순서를 보존한 상태다.
+        List<BoardAttachment> existing = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(id);
+        List<BoardAttachment> toKeep = existing.stream().filter(a -> keepIds.contains(a.getId())).toList();
+        List<BoardAttachment> toRemove = existing.stream().filter(a -> !keepIds.contains(a.getId())).toList();
+
+        if (request.getBoardType() == BoardType.FAQ && (!toKeep.isEmpty() || !files.isEmpty())) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (toKeep.size() + files.size() > BoardAttachmentValidator.MAX_ATTACHMENT_COUNT) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        files.forEach(attachmentValidator::validate);
+
+        List<UploadFile> removedUploadFiles = uploadFileRepository.findAllById(
+                toRemove.stream().map(BoardAttachment::getUploadFileId).toList());
+
+        List<String> uploadedKeys = new ArrayList<>();
+        try {
+            board.update(request.getBoardType(), request.getTitle(), request.getContent());
+
+            // 기존 join row 전부를 지우고(유지분 포함) 순서를 0부터 다시 매겨 재생성한다 — deleteAll 직후
+            // flush로 UNIQUE(board_id, display_order)/(board_id, upload_file_id) 제약과 겹치지 않게 한다.
+            boardAttachmentRepository.deleteAll(existing);
+            boardAttachmentRepository.flush();
+
+            int displayOrder = 0;
+            for (BoardAttachment kept : toKeep) {
+                boardAttachmentRepository.save(BoardAttachment.create(id, kept.getUploadFileId(), displayOrder++));
+            }
+            for (MultipartFile file : files) {
+                UploadFile uploadFile = uploadAttachment(file, uploadedKeys);
+                boardAttachmentRepository.save(BoardAttachment.create(id, uploadFile.getId(), displayOrder++));
+            }
+
+            uploadFileRepository.deleteAll(removedUploadFiles);
+            deleteFilesAfterCommit(removedUploadFiles.stream().map(UploadFile::getFilePath).toList());
+        } catch (RuntimeException e) {
+            deleteUploadedFilesQuietlyReversed(uploadedKeys);
+            throw e;
+        }
     }
 
     // 게시글 삭제(data-model.md §4.4): BoardAttachment·UploadFile을 Board와 함께 한 트랜잭션에서 지우고,

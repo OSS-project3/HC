@@ -3,6 +3,7 @@ package com.example.honorcitizen.api;
 import com.example.honorcitizen.common.enums.BoardType;
 import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.domain.board.entity.Board;
+import com.example.honorcitizen.domain.board.entity.BoardAttachment;
 import com.example.honorcitizen.domain.board.repository.BoardAttachmentRepository;
 import com.example.honorcitizen.domain.board.repository.BoardRepository;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
@@ -15,16 +16,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -81,6 +85,8 @@ class BoardAdminControllerTest {
         userToken = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), UserRole.USER);
 
         when(storageService.upload(anyString(), any())).thenReturn("http://mock-storage/uploaded");
+        when(storageService.generatePresignedUrl(anyString(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(invocation -> "https://mock-storage/" + invocation.getArgument(0));
     }
 
     @Test
@@ -120,10 +126,11 @@ class BoardAdminControllerTest {
     @Test
     void updateSucceedsForAdmin() throws Exception {
         Board board = boardRepository.save(Board.create(BoardType.NOTICE, "원래 제목", "원래 내용", 1L));
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", "application/json", UPDATE_REQUEST_JSON.getBytes());
 
-        mockMvc.perform(patch("/api/admin/boards/{id}", board.getId())
-                        .contentType("application/json")
-                        .content(UPDATE_REQUEST_JSON)
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/admin/boards/{id}", board.getId())
+                        .file(requestPart)
                         .header("Authorization", adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -132,12 +139,64 @@ class BoardAdminControllerTest {
     @Test
     void updateReturnsForbiddenForNonAdmin() throws Exception {
         Board board = boardRepository.save(Board.create(BoardType.NOTICE, "원래 제목", "원래 내용", 1L));
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", "application/json", UPDATE_REQUEST_JSON.getBytes());
 
-        mockMvc.perform(patch("/api/admin/boards/{id}", board.getId())
-                        .contentType("application/json")
-                        .content(UPDATE_REQUEST_JSON)
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/admin/boards/{id}", board.getId())
+                        .file(requestPart)
                         .header("Authorization", userToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateReturnsUnauthorizedWithoutToken() throws Exception {
+        Board board = boardRepository.save(Board.create(BoardType.NOTICE, "원래 제목", "원래 내용", 1L));
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", "application/json", UPDATE_REQUEST_JSON.getBytes());
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/admin/boards/{id}", board.getId())
+                        .file(requestPart))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void updateKeepsSelectedAttachmentAndAddsNewOneForAdmin() throws Exception {
+        MockMultipartFile createRequestPart = new MockMultipartFile(
+                "request", "", "application/json", CREATE_REQUEST_JSON.getBytes());
+        MockMultipartFile originalAttachment = new MockMultipartFile(
+                "attachments", "original.pdf", "application/pdf", "dummy-pdf".getBytes());
+
+        mockMvc.perform(multipart("/api/admin/boards")
+                        .file(createRequestPart)
+                        .file(originalAttachment)
+                        .header("Authorization", adminToken))
+                .andExpect(status().isCreated());
+        Long boardId = boardRepository.findAll().get(0).getId();
+        Long keptAttachmentId = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(boardId).get(0).getId();
+
+        String updateRequestJson = """
+                {
+                  "boardType": "NOTICE",
+                  "title": "수정된 제목",
+                  "content": "수정된 내용",
+                  "keepAttachmentIds": [%d]
+                }
+                """.formatted(keptAttachmentId);
+        MockMultipartFile updateRequestPart = new MockMultipartFile(
+                "request", "", "application/json", updateRequestJson.getBytes());
+        MockMultipartFile newAttachment = new MockMultipartFile(
+                "attachments", "new.pdf", "application/pdf", "dummy-pdf-2".getBytes());
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/admin/boards/{id}", boardId)
+                        .file(updateRequestPart)
+                        .file(newAttachment)
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        List<BoardAttachment> attachments = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(boardId);
+        assertThat(attachments).hasSize(2);
+        assertThat(uploadFileRepository.count()).isEqualTo(2);
     }
 
     @Test
