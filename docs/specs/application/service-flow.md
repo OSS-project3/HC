@@ -36,8 +36,8 @@ Application 생성에는 서로 독립적인 세 가지 분기 축이 있다.
 #### GROUP
 
 - 구성원 정보는 `submitFile`의 Excel에서 입력한다.
-- 구성원 얼굴사진은 `submitFile` ZIP 내부에서 Excel ID와 매칭한다.
-- 유효한 Excel 행 수만큼 `ApplicationMember`를 생성한다.
+- 구성원 얼굴사진은 `submitFile` ZIP 내부에서 실제 입력된 행의 고정 사진 번호(`001`~`100`)와 매칭한다.
+- 사진 번호만 미리 채워진 행은 무시하고, 영문명 등 신청자 정보가 입력된 유효 행 수만큼 `ApplicationMember`를 생성한다.
 - 단체 공통 로고·직인은 Application 단위 파일로 처리한다.
 
 ### 2.2 IssueType

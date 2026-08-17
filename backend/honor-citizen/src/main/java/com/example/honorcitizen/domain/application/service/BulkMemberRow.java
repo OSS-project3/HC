@@ -29,9 +29,9 @@ import java.time.LocalTime;
  * - studentId, department: 학생증 카드(isStudent=true)에서만 값이 있고 나머지는 null
  */
 record BulkMemberRow(
-        // 엑셀 A열 식별자 — 사진 파일명(확장자 제외)과 대소문자 무시 비교로 매칭
-        // 예: id="1" ↔ 파일명="1.jpg", id="member001" ↔ 파일명="member001.PNG"
-        String id,
+        // 엑셀 A열의 고정 사진 번호 — 사진 파일명(확장자 제외)과 매칭
+        // 예: photoNumber="001" ↔ 파일명="001.jpg"
+        String photoNumber,
 
         String englishName,   // 카드에 인쇄될 영문 성명, 필수
         LocalDate birthDate,  // 생년월일, 필수

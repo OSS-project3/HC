@@ -21,7 +21,7 @@ class BulkExcelParserTest {
 
     private final BulkExcelParser parser = new BulkExcelParser();
 
-    // 컬럼 순서: ID|영문명|생년월일|국적|출생시간|출생지역|성별|개별입국날짜|이메일|전화번호|주소
+    // 컬럼 순서: 사진 번호|영문명|생년월일|국적|출생시간|출생지역|성별|개별입국날짜|이메일|전화번호|주소
     private static final String ROW_1 = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
     private static final String ROW_2 = "2|Mike Kim|1992-03-03|US|||MALE||mike@example.com|010-3333-4444|Busan";
 
@@ -31,7 +31,7 @@ class BulkExcelParserTest {
             Row commonRow = sheet.createRow(0);
             commonRow.createCell(0).setCellValue("공통 입국날짜");
             commonRow.createCell(1).setCellValue("2026-08-15");
-            sheet.createRow(2).createCell(0).setCellValue("ID");
+            sheet.createRow(2).createCell(0).setCellValue("사진 번호");
 
             int rowIndex = 3;
             for (String rowCsv : rows) {
@@ -59,7 +59,7 @@ class BulkExcelParserTest {
             Row commonRow = sheet.createRow(0);
             commonRow.createCell(0).setCellValue("공통 입국날짜");
             commonRow.createCell(1).setCellValue("2026-08-15");
-            sheet.createRow(2).createCell(0).setCellValue("ID");
+            sheet.createRow(2).createCell(0).setCellValue("사진 번호");
 
             Row row = sheet.createRow(3);
             row.createCell(0).setCellValue(numericId);
@@ -113,7 +113,7 @@ class BulkExcelParserTest {
         List<BulkMemberRow> rows = parser.parse(zip, false);
 
         assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).id()).isEqualTo("001");
+        assertThat(rows.get(0).photoNumber()).isEqualTo("001");
         assertThat(rows.get(0).photoFilename()).isEqualTo("001.jpg");
     }
 
@@ -137,7 +137,7 @@ class BulkExcelParserTest {
         List<BulkMemberRow> rows = parser.parse(zip, false);
 
         assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).id()).isEqualTo("1");
+        assertThat(rows.get(0).photoNumber()).isEqualTo("1");
         assertThat(rows.get(0).photoFilename()).isEqualTo("1.jpg");
     }
 
@@ -287,6 +287,43 @@ class BulkExcelParserTest {
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).englishName()).isEqualTo("John Doe");
         assertThat(rows.get(1).englishName()).isEqualTo("Mike Kim");
+    }
+
+    @Test
+    void parseSkipsRowsThatContainOnlyPrefilledPhotoNumber() throws Exception {
+        String photoNumberOnlyRow = "001||||||||||";
+        String applicantRow = "002|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
+        byte[] excel = buildExcel(photoNumberOnlyRow, applicantRow);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "002.jpg");
+
+        List<BulkMemberRow> rows = parser.parse(zip, false);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).photoFilename()).isEqualTo("002.jpg");
+    }
+
+    @Test
+    void parseRejectsPhotoForRowThatContainsOnlyPrefilledPhotoNumber() throws Exception {
+        String photoNumberOnlyRow = "001||||||||||";
+        String applicantRow = "002|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
+        byte[] excel = buildExcel(photoNumberOnlyRow, applicantRow);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg", "002.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("PHOTO_UNMATCHED"));
+    }
+
+    @Test
+    void parseTreatsWorkbookWithOnlyPrefilledPhotoNumbersAsEmpty() throws Exception {
+        byte[] excel = buildExcel("001||||||||||", "002||||||||||");
+        MockMultipartFile zip = zipOf(excel, "members.xlsx");
+
+        assertThatThrownBy(() -> parser.parse(zip, false))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").containsExactly("EMPTY_EXCEL"));
     }
 
     @Test

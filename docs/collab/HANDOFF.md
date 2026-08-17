@@ -1,11 +1,12 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-08-16
+- 마지막 갱신: 2026-08-18
 - 작성자: Claude
 - 작성 브랜치: main
 
 ## 지금 어디까지 됐는가
 
+- **단체 신청 Excel 사진 번호 고정 완료** — v1.1 양식 3종의 A열을 `사진 번호`로 바꾸고 001~100을 텍스트로 사전 입력·보호했다. `BulkExcelParser`는 번호만 있는 행을 빈 행으로 무시하고 B열 이후 입력이 있는 행만 신청자로 처리하며 실제 처리 행 사진만 매칭한다. 집중 테스트 19개와 워크북 자동·시각 검증을 통과했다.
 - **Board 도메인(공지사항/FAQ) CRUD 5개 API 구현 완료** — 공개 조회 2개(목록/단건) + 관리자 전용 3개(생성/수정/삭제). `Board`+`BoardType{NOTICE,FAQ}` enum 통합 관리, 첨부파일은 `BoardAttachment`(`UploadFile` join 엔티티, NOTICE 전용). 이 프로젝트 첫 관리자 전용 쓰기 API라 `SecurityConfig`에 `/api/admin/**` → `hasRole("ADMIN")` 라우트 규칙을 신규 추가(`arch.md` §4.6엔 이미 명시돼 있었지만 코드엔 없던 공백을 메움). 신규 테스트 34개 전부 통과. 상세: `docs/specs/board/{data-model,api}.md`, `CHANGELOG.md` 2026-08-14 항목.
 - **Event 도메인(행사사업 부스/협업) CRUD 5개 API 구현 완료** — Board와 동일 패턴 재사용(관리자 라우트는 `/api/admin/**` 규칙에 자동 편입, 신규 `SecurityConfig` 변경은 공개 GET `permitAll()` 뿐). `EventPost`(썸네일 직접 보유, `visible`/`displayOrder`)+`EventImage`(갤러리, `UploadFile` 미경유 — Review의 `image_path` 직접 저장 패턴). 설계 단계에서 사용자와 확정한 2가지: (1) `EventImage.representative` 플래그 없음(썸네일 컬럼이 유일한 대표 이미지 소스) (2) 관리자 전용 전체 목록 API(`GET /api/admin/events`)는 이번 패스 제외, 이후 별도 구현. 신규 테스트 39개 전부 통과. 상세: `docs/specs/events/{data-model,api}.md`, `CHANGELOG.md` 2026-08-16 항목("Event 도메인 신규 구현").
 - **일일 신청 3회 제한(`APPLICATION.md` §7) 구현 완료** — `checklist.md` §4·§5의 마지막 미구현 항목. 사용자별·일자별 카운터(`ApplicationDailyLimit`)를 비관적 락으로 잠그고 원자적으로 증가시켜, "카운트 확인 후 저장" 사이 경쟁 상태를 차단. 오늘 첫 신청 두 건이 동시에 도착해 유니크 제약이 충돌하면 새 트랜잭션으로 한 번 재시도. `createIndividual`/`createGroup`에 파일 업로드 이전 지점에서 연결, 실패 시 슬롯 반환. **취소하면 슬롯이 반환되도록 구현**(사용자 확인 완료) — 이후 누군가 `APPLICATION.md` §16(신청 상태 리팩터링·취소 API 정책)을 작성하면서 §16-3에 동일한 결론("최초 취소 성공 시에만 슬롯 반환")을 남겨 서로 일치함을 확인함. `releaseSlot()`은 재사용 가능한 공개 메서드지만, 실제 "신청 취소" API 자체가 아직 없어(TODO #64) 지금은 실패 보상 경로에서만 호출됨 — Entity(`Application.cancel()`)는 구조상 Service를 호출할 수 없어(arch.md 계층 규칙) 취소 API 구현 시 그 Service 계층에서 연결해야 함. 동시성 검증(`ExecutorService`+`CountDownLatch`) 포함 신규 테스트 19개 전부 통과. 상세: `CHANGELOG.md` 2026-08-16 항목("일일 신청 3회 제한 구현").

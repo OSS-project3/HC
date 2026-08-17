@@ -37,7 +37,7 @@ import java.util.zip.ZipInputStream;
  * [기대하는 ZIP 파일 구조]
  * ZIP 루트/
  *   ├── members.xlsx       ← 반드시 1개, 위치는 루트 폴더 직속
- *   ├── 1.jpg              ← 엑셀 ID 열 값과 파일명(확장자 제외)이 매칭
+ *   ├── 1.jpg              ← 엑셀 사진 번호 열 값과 파일명(확장자 제외)이 매칭
  *   ├── 2.png
  *   └── 3.jpg
  * (하위 폴더의 파일, __MACOSX, .DS_Store는 모두 무시)
@@ -49,7 +49,7 @@ import java.util.zip.ZipInputStream;
  *   4행~: 실제 데이터 (FIRST_DATA_ROW = 3, 0-indexed)
  *
  * [열 순서]
- *   0:ID  1:영문명  2:생년월일  3:국적  4:출생시간  5:출생지역  6:성별
+ *   0:사진 번호  1:영문명  2:생년월일  3:국적  4:출생시간  5:출생지역  6:성별
  *   7:개별입국날짜  8:이메일  9:전화번호  10:주소  [11:학번  12:학과]
  *   학번·학과는 학생증 카드(isStudent=true)일 때만 필수로 읽는다.
  *
@@ -83,12 +83,12 @@ class BulkExcelParser {
      * 2. 엑셀이 정확히 1개인지 검증한다.
      *    2개 이상이면 어느 파일이 기준인지 알 수 없어 전체 실패 처리한다.
      *
-     * 3. parseExcel()로 엑셀을 파싱하고 사진을 ID로 매칭한다.
+     * 3. parseExcel()로 엑셀을 파싱하고 사진을 사진 번호로 매칭한다.
      *
      * @param isStudent 학생증 카드 여부 — true이면 학번·학과 컬럼도 파싱·검증한다.
      */
     List<BulkMemberRow> parse(MultipartFile zipFile, boolean isStudent) {
-        // 사진을 ID → PhotoEntry 맵으로 관리해 엑셀 파싱 시 O(1) 매칭이 가능하게 한다.
+        // 사진을 사진 번호 → PhotoEntry 맵으로 관리해 엑셀 파싱 시 O(1) 매칭이 가능하게 한다.
         Map<String, PhotoEntry> photosById = new HashMap<>();
         List<byte[]> excelCandidates = new ArrayList<>();
 
@@ -108,13 +108,13 @@ class BulkExcelParser {
                     // 엑셀 템플릿을 .xlsx로 제공하므로 사용자가 .xlsx로 제출해야 한다.
                     excelCandidates.add(readAll(zipInputStream));
                 } else {
-                    // 파일명에서 확장자를 제거한 값을 ID 키로 사용한다.
+                    // 파일명에서 확장자를 제거한 값을 사진 번호 키로 사용한다.
                     // "1.jpg" → ID="1", "photo_001.PNG" → ID="photo_001"
-                    // toLowerCase()로 통일해 "1.JPG"와 "1.jpg"가 같은 ID로 처리되도록 한다.
+                    // toLowerCase()로 통일해 "1.JPG"와 "1.jpg"가 같은 사진 번호로 처리되도록 한다.
                     String id = stripExtension(name);
                     String normalizedId = id.toLowerCase();
                     if (photosById.containsKey(normalizedId)) {
-                        throw singleError(null, "photo", "PHOTO_DUPLICATE", "동일 ID에 대한 사진 파일이 2개 이상입니다.");
+                        throw singleError(null, "photo", "PHOTO_DUPLICATE", "동일 사진 번호에 대한 사진 파일이 2개 이상입니다.");
                     }
                     photosById.put(normalizedId, new PhotoEntry(name, readAll(zipInputStream)));
                 }
@@ -177,26 +177,38 @@ class BulkExcelParser {
             int lastRowNum = sheet.getLastRowNum();
             for (int rowIndex = FIRST_DATA_ROW; rowIndex <= lastRowNum; rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
-                String id = row == null ? null : stringValue(row, 0, formatter);
-                // ID가 없는 행은 데이터 없는 행으로 간주하고 건너뛴다.
-                if (id == null || id.isBlank()) {
+
+                // 사진 번호(A열)는 공식 양식에 001~100이 미리 채워져 있다.
+                // 따라서 A열 값만으로 신청자 행을 판단하지 않고, 사용자가 입력하는 B열 이후에
+                // 값이 하나라도 있는 행만 실제 신청 데이터로 검증·처리한다.
+                if (!hasApplicantInput(row, isStudent, formatter)) {
                     continue;
                 }
-                String normalizedId = id.toLowerCase();
-                if (!seenIds.add(normalizedId)) {
-                    errors.add(new ValidationErrorDetail(rowIndex + 1, "id", "DUPLICATE_ID", "엑셀 ID가 중복되었습니다."));
+
+                String photoNumber = stringValue(row, 0, formatter);
+                if (photoNumber == null || photoNumber.isBlank()) {
+                    errors.add(new ValidationErrorDetail(
+                            rowIndex + 1, "photoNumber", "REQUIRED", "사진 번호가 없습니다."));
+                    continue;
+                }
+
+                String normalizedPhotoNumber = photoNumber.toLowerCase();
+                if (!seenIds.add(normalizedPhotoNumber)) {
+                    errors.add(new ValidationErrorDetail(
+                            rowIndex + 1, "photoNumber", "DUPLICATE_ID", "사진 번호가 중복되었습니다."));
                     continue;
                 }
 
                 // parseRow는 오류가 있으면 errors에 누적하고 null을 반환한다.
-                BulkMemberRow parsed = parseRow(row, id, commonEntryDate, photosById, isStudent, formatter, errors);
+                BulkMemberRow parsed = parseRow(
+                        row, photoNumber, commonEntryDate, photosById, isStudent, formatter, errors);
                 if (parsed != null) {
                     rows.add(parsed);
                 }
             }
 
             for (PhotoEntry remainingPhoto : photosById.values()) {
-                errors.add(new ValidationErrorDetail(null, "photo", "PHOTO_UNMATCHED", "엑셀 ID와 매칭되지 않는 사진 파일입니다: " + remainingPhoto.fileName()));
+                errors.add(new ValidationErrorDetail(null, "photo", "PHOTO_UNMATCHED", "신청자 행의 사진 번호와 매칭되지 않는 사진 파일입니다: " + remainingPhoto.fileName()));
             }
 
             // 유효한 행도 없고 오류도 없으면 → 데이터가 없는 빈 파일
@@ -220,6 +232,26 @@ class BulkExcelParser {
     }
 
     /**
+     * 사진 번호를 제외한 사용자 입력 열에 값이 있는지 확인한다.
+     *
+     * 공식 양식은 4~103행 A열에 001~100을 미리 채우므로 사진 번호만 있는 행은 빈 행이다.
+     * 반면 B열 이후에 값이 하나라도 있으면 부분 작성 행으로 보고 parseRow에서 필수값 오류까지 수집한다.
+     */
+    private boolean hasApplicantInput(Row row, boolean isStudent, DataFormatter formatter) {
+        if (row == null) {
+            return false;
+        }
+
+        int lastApplicantColumn = isStudent ? 12 : 10;
+        for (int columnIndex = 1; columnIndex <= lastApplicantColumn; columnIndex++) {
+            if (stringValue(row, columnIndex, formatter) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * 엑셀의 단일 행을 파싱해 BulkMemberRow를 생성한다.
      *
      * [오류 누적 패턴]
@@ -234,11 +266,11 @@ class BulkExcelParser {
      * 개별 행의 입국날짜(7열)가 없으면 공통 입국날짜(1행 B열)로 대체한다.
      * 공통 날짜도 없으면 null로 저장되며, 이는 허용된 상태다(입국날짜는 선택 필드).
      *
-     * @param id    엑셀 A열의 ID 값 (사진 파일명 매칭 키)
+     * @param photoNumber 엑셀 A열의 사진 번호 (사진 파일명 매칭 키)
      * @param errors 오류를 누적할 리스트 (호출자와 공유됨)
      * @return 파싱 성공 시 BulkMemberRow, 필수 필드 오류 시 null
      */
-    private BulkMemberRow parseRow(Row row, String id, LocalDate commonEntryDate, Map<String, PhotoEntry> photosById,
+    private BulkMemberRow parseRow(Row row, String photoNumber, LocalDate commonEntryDate, Map<String, PhotoEntry> photosById,
             boolean isStudent, DataFormatter formatter, List<ValidationErrorDetail> errors) {
 
         // Apache POI의 getRowNum()은 0-based이므로 사용자에게 보여줄 1-based 행 번호로 변환한다.
@@ -279,11 +311,11 @@ class BulkExcelParser {
             department = checkMaxLength(department, 100, rowNumber, "department", errors);
         }
 
-        // ID로 사진 파일을 매칭한다. 대소문자를 무시하고 확장자는 이미 제거된 상태다.
-        // 예: 엑셀 ID="1", 사진 파일="1.jpg" → photosById.get("1") 으로 매칭
-        PhotoEntry photo = photosById.remove(id.toLowerCase());
+        // 실제 신청 데이터가 입력된 행의 사진 번호로 ZIP 루트 사진을 정확히 매칭한다.
+        // 번호만 미리 채워진 빈 행은 이 메서드에 도달하지 않으므로 해당 번호의 사진도 요구하지 않는다.
+        PhotoEntry photo = photosById.remove(photoNumber.toLowerCase());
         if (photo == null) {
-            errors.add(new ValidationErrorDetail(rowNumber, "photo", "PHOTO_NOT_FOUND", "ID에 매칭되는 사진을 찾을 수 없습니다."));
+            errors.add(new ValidationErrorDetail(rowNumber, "photo", "PHOTO_NOT_FOUND", "사진 번호에 매칭되는 사진을 찾을 수 없습니다."));
         }
 
         // 필수 필드 중 하나라도 null이면 이 행은 실패로 간주한다.
@@ -295,7 +327,7 @@ class BulkExcelParser {
             return null; // null을 반환해 이 행이 실패했음을 호출자에게 알린다.
         }
 
-        return new BulkMemberRow(id, englishName, birthDate, nationality, birthTime, birthRegion, gender,
+        return new BulkMemberRow(photoNumber, englishName, birthDate, nationality, birthTime, birthRegion, gender,
                 entryDate, email, phone, address, studentId, department, photo.bytes(), photo.fileName());
     }
 
