@@ -111,21 +111,11 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
           </fieldset>
         )}
 
-        {/* 수량 선택은 법인·단체 신청에서만 노출한다. 개인 신청은 1매 고정. */}
+        {/* 단체 수량은 업로드한 엑셀의 유효 인원 수로 서버가 산정한다(사용자 입력 없음). */}
         {isOrg && (
-          <label className="field field--quantity">
-            <span className="field__label">신청 수량</span>
-            <div className="field__with-suffix">
-              <input
-                className="field__input"
-                type="number"
-                min={1}
-                value={draft.quantity}
-                onChange={(e) => update({ quantity: Math.max(1, Number(e.target.value) || 1) })}
-              />
-              <span className="field__suffix">매</span>
-            </div>
-          </label>
+          <p className="field field--quantity info-col__notice">
+            신청 수량은 업로드한 엑셀의 인원 수에 따라 자동으로 산정됩니다.
+          </p>
         )}
       </div>
 
