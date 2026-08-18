@@ -1,6 +1,8 @@
 package com.example.honorcitizen.api;
 
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.domain.application.entity.Application;
 import com.example.honorcitizen.domain.application.repository.ApplicantRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
@@ -29,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -57,6 +60,7 @@ class ApplicationControllerTest {
     private StorageService storageService;
 
     private String token;
+    private User user;
     private CardType cardType;
 
     private static final String REQUEST_JSON = """
@@ -82,7 +86,7 @@ class ApplicationControllerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User user = User.createNewUser("app@example.com", "oauth-app-ctrl", "google", "Applicant");
+        user = User.createNewUser("app@example.com", "oauth-app-ctrl", "google", "Applicant");
         user.agreeTerms(true, true, true);
         user = userRepository.save(user);
         token = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
@@ -105,7 +109,7 @@ class ApplicationControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.applicationNumber").value(org.hamcrest.Matchers.startsWith("APP-")))
-                .andExpect(jsonPath("$.data.status").value("PAYMENT_PENDING"))
+                .andExpect(jsonPath("$.data.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.data.paymentStatus").value("WAITING"));
     }
 
@@ -134,6 +138,89 @@ class ApplicationControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+    }
+
+    @Test
+    void cancelReturnsConfirmedContractAndIsIdempotent() throws Exception {
+        Application application = applicationRepository.save(Application.createIndividual(
+                user.getId(), "APP-2026-CANCEL-1", cardType.getId(), IssueType.MOBILE, true, null, null));
+
+        mockMvc.perform(post("/api/applications/{applicationId}/cancel", application.getId())
+                        .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.applicationId").value(application.getId()))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.paymentStatus").value("WAITING"))
+                .andExpect(jsonPath("$.data.refundRequired").value(false))
+                .andExpect(jsonPath("$.data.cancelledAt").isNotEmpty());
+
+        mockMvc.perform(post("/api/applications/{applicationId}/cancel", application.getId())
+                        .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+    }
+
+    @Test
+    void cancelRequiresAuthentication() throws Exception {
+        Application application = applicationRepository.save(Application.createIndividual(
+                user.getId(), "APP-2026-CANCEL-2", cardType.getId(), IssueType.MOBILE, true, null, null));
+
+        mockMvc.perform(post("/api/applications/{applicationId}/cancel", application.getId()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void cancelReturnsRefundRequiredWhenPaymentWasConfirmed() throws Exception {
+        Application application = Application.createIndividual(
+                user.getId(), "APP-2026-CANCEL-PAID", cardType.getId(), IssueType.MOBILE, true, null, null);
+        application.confirmPayment();
+        application = applicationRepository.save(application);
+
+        mockMvc.perform(post("/api/applications/{applicationId}/cancel", application.getId())
+                        .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.paymentStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.refundRequired").value(true));
+    }
+
+    @Test
+    void cancelRejectsOtherOwner() throws Exception {
+        Application application = applicationRepository.save(Application.createIndividual(
+                user.getId(), "APP-2026-CANCEL-3", cardType.getId(), IssueType.MOBILE, true, null, null));
+        User other = User.createNewUser("other-owner@example.com", "oauth-other-owner", "google", "Other");
+        other.agreeTerms(true, true, true);
+        other = userRepository.save(other);
+        String otherToken = "Bearer " + jwtTokenProvider.generateAccessToken(other.getId(), other.getRole());
+
+        mockMvc.perform(post("/api/applications/{applicationId}/cancel", application.getId())
+                        .header("Authorization", otherToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    void cancelReturnsNotFoundForUnknownApplication() throws Exception {
+        mockMvc.perform(post("/api/applications/{applicationId}/cancel", 999999L)
+                        .header("Authorization", token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("APPLICATION_NOT_FOUND"));
+    }
+
+    @Test
+    void cancelRejectsApplicationAfterNamingStarted() throws Exception {
+        Application application = Application.createIndividual(
+                user.getId(), "APP-2026-CANCEL-4", cardType.getId(), IssueType.MOBILE, true, null, null);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application = applicationRepository.save(application);
+
+        mockMvc.perform(post("/api/applications/{applicationId}/cancel", application.getId())
+                        .header("Authorization", token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_STATUS_TRANSITION"));
     }
 
     @Test

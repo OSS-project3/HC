@@ -9,14 +9,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
 
 // 일일 신청 생성 횟수 제한(APPLICATION.md §7: 하루 3회, KST 00:00~23:59, 개인/단체 합산) 전담.
-// reserveSlot/releaseSlot 각각 독립된 @Transactional 메서드다 — ApplicationService가 이 두 메서드를
-// 호출하는 시점(호출부 자체는 트랜잭션이 아님)마다 매번 새 트랜잭션이 열리고 즉시 커밋된다.
-// 파일 업로드처럼 오래 걸리는 작업 이전에 자리를 먼저 원자적으로 확정해야, 동시에 들어온 다른 요청이
-// 그 확정을 곧바로 볼 수 있다(같은 트랜잭션 안에 계속 묶어두면 커밋 전까지 다른 트랜잭션이 못 본다).
+// reserveSlot/releaseSlot은 기본 REQUIRED 전파를 사용한다. 신청 생성처럼 트랜잭션 밖에서 호출하면
+// 각각 새 트랜잭션으로 즉시 커밋되고, 사용자 취소처럼 이미 열린 트랜잭션 안에서 호출하면 그 트랜잭션에
+// 합류한다. 이 차이로 생성 시 슬롯은 파일 업로드 전에 즉시 확정하고, 취소 시에는 Application의
+// CANCELLED 전이와 슬롯 반환을 함께 commit/rollback한다.
 @Service
 @RequiredArgsConstructor
 public class ApplicationDailyLimitService {
@@ -29,6 +30,12 @@ public class ApplicationDailyLimitService {
 
     public static LocalDate today() {
         return LocalDate.now(KST);
+    }
+
+    public static LocalDate toCountDate(LocalDateTime createdAt) {
+        return createdAt.atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(KST)
+                .toLocalDate();
     }
 
     // 신청 생성 직전(파일 업로드 이전)에 호출한다. 오늘 첫 신청이면 row가 없어 INSERT를 시도하는데,
@@ -49,10 +56,8 @@ public class ApplicationDailyLimitService {
         repository.saveAndFlush(ApplicationDailyLimit.createFirst(userId, countDate));
     }
 
-    // 신청 생성이 실패(파일 업로드·DB 저장 실패)했을 때 예약한 자리를 반환한다.
-    // 향후 "신청 취소" API가 생기면 취소 시점에도 이 메서드를 재사용해 자리를 반환할 수 있다 —
-    // 다만 Entity(Application.cancel())는 Service를 호출할 수 없으므로(arch.md §3.2 계층 규칙),
-    // 그 연결은 취소 기능을 실제로 구현하는 Service 계층에서 이 메서드를 호출하는 방식으로 이뤄져야 한다.
+    // 신청 생성 실패 보상과 최초 사용자 취소에 사용한다. 사용자 취소에서는 ApplicationService의
+    // 외부 트랜잭션에 합류하므로 상태 전이와 카운터 감소가 원자적으로 처리된다.
     @Transactional
     public void releaseSlot(Long userId, LocalDate countDate) {
         repository.findByUserIdAndCountDateForUpdate(userId, countDate)

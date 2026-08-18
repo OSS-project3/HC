@@ -143,4 +143,8 @@ public class ApplicationMember extends BaseTimeEntity {
     public void updatePhoto(String photoPath) {
         this.photoPath = photoPath;
     }
+
+    public void clearPhoto() {
+        this.photoPath = null;
+    }
 }

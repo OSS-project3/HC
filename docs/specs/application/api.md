@@ -90,7 +90,7 @@ Content-Type: multipart/form-data
   "data": {
     "applicationId": 1,
     "applicationNumber": "APP-2026-000123",
-    "status": "PAYMENT_PENDING",
+    "status": "SUBMITTED",
     "paymentStatus": "WAITING",
     "createdAt": "2026-07-29T10:00:00"
   }
@@ -152,7 +152,7 @@ Content-Type: multipart/form-data
 | — | Application.application_type = `INDIVIDUAL` (고정) |
 | — | Application.total_quantity = `1` (✅ 확정, `.md` 2.1절 반영) |
 | — | 결제 금액을 계산하거나 저장하지 않음. 상담 후 신청하고 신청 이후 별도 계좌이체 |
-| — | Application.status = `PAYMENT_PENDING`, payment_status = `WAITING` (기본값, ✅ 2026-07-31 정정 — Admin 도메인 상태 흐름 확정 반영) |
+| — | Application.status = `SUBMITTED`, payment_status = `WAITING` (모든 신청 생성 경로의 기본값) |
 | — | Application.application_number = 서버 생성 |
 | — | ApplicationMember 1건 자동 생성(개인 원칙) |
 
@@ -227,7 +227,7 @@ Content-Type: multipart/form-data
   "data": {
     "applicationId": 2,
     "applicationNumber": "APP-2026-000124",
-    "status": "PAYMENT_PENDING",
+    "status": "SUBMITTED",
     "paymentStatus": "WAITING",
     "totalQuantity": 42,
     "createdAt": "2026-07-29T10:05:00"
@@ -376,7 +376,7 @@ Content-Type: application/json
 | applicationNumber | Application.application_number |
 | applicantNameMasked | Applicant.name (마스킹 처리). ⚠️ 단체 신청은 이게 **신청 대표자**(예: 인사담당자) 이름이지, 카드번호로 조회한 그 개인(직원 등)의 이름이 아님 — 결과 화면에서 헷갈릴 수 있어 참고로 남김 |
 | cardType | Application.card_type_id → CardType.name |
-| status | Application.status — ✅ 2026-07-31 정정된 enum(PAYMENT_PENDING/RECEIVED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCING/COMPLETED/CANCELLED, ⚠️ 8개 — 사진검토/작명 분리로 `NAME_EDITING` 포함, 정합성 점검 중 누락 발견해 정정) 기준. 프론트 `statusLabels`도 이걸로 교체 필요(이미 알려진 프론트 갭) |
+| status | Application.status — `SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING/COMPLETED/CANCELLED` 기준 |
 | photoRejectReason | Application.photo_reject_reason (status=PHOTO_REJECTED일 때만) |
 | submittedAt | Application.created_at |
 
@@ -489,7 +489,7 @@ Cookie: accessToken={JWT}
 |---|---|---|
 | 비로그인 | `UNAUTHORIZED` | 401 |
 | `Application.user_id != 로그인한 유저` | `FORBIDDEN` | 403 |
-| `Application.status != COMPLETED` | `CARD_NOT_READY`(신규 코드) | 400 |
+| `Application.card_ready_at == null` | `CARD_NOT_READY` | 400 |
 | `applicationId` 없음 | `NOT_FOUND` | 404 |
 
 #### ⑥ DB 컬럼과 매핑 검증
@@ -508,7 +508,7 @@ Cookie: accessToken={JWT}
 
 ---
 
-### API 6 / 7 — 마이페이지 신청 목록 조회 (2026-08-06 추가, 로그인 필수) ⚠️ 설계만 — 아직 구현 안 됨
+### API 6 / 7 — 마이페이지 신청 목록 조회 (2026-08-06 추가, 로그인 필수) ✅ 2026-08-18 구현 완료
 
 > 지금까지 있던 `POST /api/applications/lookup`(API 3)은 **비로그인 공개 조회**로, 신청번호/카드번호+연락처 조합으로 딱 1건만 제한된 필드로 보여준다. 로그인한 사용자가 "내가 지금까지 신청한 것들"을 목록으로 훑어보는 기능은 별개로 없었음 — 이번에 신규 추가.
 
@@ -540,7 +540,7 @@ Cookie: accessToken={JWT}
         "cardTypeId": 1,
         "cardTypeName": "명예한국인증",
         "totalQuantity": 1,
-        "status": "PAYMENT_PENDING",
+        "status": "SUBMITTED",
         "paymentStatus": "WAITING",
         "createdAt": "2026-08-06T10:00:00"
       }
@@ -578,13 +578,13 @@ Cookie: accessToken={JWT}
 
 #### ⑦ 누락된 필드 확인
 
-`ApplicationRepository`에 `findByUserId(Long userId, Pageable pageable)`(+ status 필터 버전) 신규 필요 — 지금은 `findByApplicationNumber`/`countByApplicationNumberStartingWith`만 있음.
+없음 — `ApplicationRepository.findByUserId(Long, Pageable)`/`findByUserIdAndStatus(Long, ApplicationStatus, Pageable)` 신규 추가로 해결.
 
-**API 6 완료(설계).**
+**API 6 완료(구현, 커밋 보류 — `docs/collab/HANDOFF.md` 참고).**
 
 ---
 
-### API 7 / 7 — 마이페이지 신청 상세 조회 (2026-08-06 추가, 로그인 필수) ⚠️ 설계만 — 아직 구현 안 됨
+### API 7 / 7 — 마이페이지 신청 상세 조회 (2026-08-06 추가, 로그인 필수) ✅ 2026-08-18 구현 완료
 
 #### ④ Request/Response 설계
 
@@ -605,8 +605,16 @@ Cookie: accessToken={JWT}
     "cardTypeName": "명예한국인증",
     "issueType": "MOBILE",
     "totalQuantity": 1,
-    "status": "PAYMENT_PENDING",
+    "status": "SUBMITTED",
     "paymentStatus": "WAITING",
+    "paymentGuidedAt": null,
+    "paymentDueAt": null,
+    "cancelledAt": null,
+    "cancellationType": null,
+    "cancellationReason": null,
+    "refundedAt": null,
+    "cardReadyAt": null,
+    "physicalDispatchedAt": null,
     "photoRejectReason": null,
     "applicant": {
       "name": "홍길동",
@@ -623,7 +631,19 @@ Cookie: accessToken={JWT}
 ```
 
 - 단체(GROUP) 신청은 `ApplicationMember`가 N건이라 이 응답에 전부 담지 않는다 — `memberCount`(총원수)만 포함하고, 구성원 개별 목록은 `GET /api/my/bulk-applications/{id}/members`(이번 범위 밖, 별도 TODO — `docs/BACKEND_API_GAPS.md` P0-2 참고)로 분리.
-- `receiver`는 `issueType=MOBILE`이면 `null`.
+- `receiver`는 `issueType=MOBILE`이면 `null`. `MOBILE_AND_PHYSICAL`이면 아래 형태로 채워진다(✅ 2026-08-18 구현 시 확정 — 원 설계엔 `null` 예시만 있었음):
+  ```json
+  "receiver": {
+    "name": "홍길동",
+    "phone": "010-1234-5678",
+    "zipCode": "12345",
+    "address": "서울시 ...",
+    "detailAddress": "101호",
+    "deliveryRequest": null,
+    "organizationName": null,
+    "department": null
+  }
+  ```
 
 #### ⑤ Validation
 
@@ -646,7 +666,47 @@ Cookie: accessToken={JWT}
 
 없음(신청 목록 조회 API 6과 동일한 조회 조건 재사용).
 
-**API 7 완료(설계).**
+**API 7 완료(구현, 커밋 보류 — `docs/collab/HANDOFF.md` 참고).**
+
+---
+
+### API 8 / 8 — 사용자 신청 취소 (로그인 필수) ✅ 구현 완료
+
+```http
+POST /api/applications/{applicationId}/cancel
+Cookie: accessToken={JWT}
+```
+
+요청 본문은 없다. 로그인한 신청 소유자만 호출할 수 있다.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "data": {
+    "applicationId": 1,
+    "status": "CANCELLED",
+    "paymentStatus": "CONFIRMED",
+    "refundRequired": true,
+    "cancelledAt": "2026-08-17T15:00:00"
+  }
+}
+```
+
+- `SUBMITTED`, `REVIEWING`, `PHOTO_REJECTED`에서만 최초 취소할 수 있다.
+- `CANCELLED` 재호출은 기존 취소·결제·환불 값을 변경하지 않는 멱등 성공이다.
+- `WAITING`이면 `refundRequired=false`, `CONFIRMED + refundedAt=null`이면 `refundRequired=true`다.
+- 최초 취소 commit 직후 얼굴사진·로고·직인·제출 ZIP 등 신청 전용 S3 객체를 즉시 삭제한다. rollback 시에는 삭제하지 않는다.
+
+| 상황 | errorCode | HTTP |
+|---|---|---:|
+| 비로그인 | `UNAUTHORIZED` | 401 |
+| 신청 없음 | `APPLICATION_NOT_FOUND` | 404 |
+| 타인 신청 | `FORBIDDEN` | 403 |
+| `NAME_EDITING` 이후 취소 시도 | `INVALID_STATUS_TRANSITION` | 400 |
+
+**API 8 구현 완료.**
 
 ---
 
@@ -661,10 +721,11 @@ Cookie: accessToken={JWT}
 | 5 | `GET /api/applications/{applicationId}/cards/download` (카드 다운로드) | 설계 완료 |
 | 6 | `GET /api/my/applications` (마이페이지 목록 조회, 페이징) | 설계 완료 (2026-08-06, 구현 전) |
 | 7 | `GET /api/my/applications/{applicationId}` (마이페이지 상세 조회) | 설계 완료 (2026-08-06, 구현 전) |
+| 8 | `POST /api/applications/{applicationId}/cancel` (사용자 신청 취소, 멱등) | 구현 완료 (2026-08-17) |
 
 **프론트 반영 필요 항목(이번 도메인에서 새로 확인/누적된 것):**
 - `StepInfo.tsx`/`StepFiles.tsx`가 `applicantType`에 따라 분기 안 되어 있음 — 개인은 생년월일·국적·출생시각·출생지역·성별·사진 입력, 로고/직인/제출ZIP 숨김 / 법인은 반대
-- `LookupPage.tsx`의 `statusLabels`가 옛 status 값(SUBMITTED 등) 사용 중 — 새 enum(`PAYMENT_PENDING/RECEIVED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCING/COMPLETED/CANCELLED`)으로 교체 필요
+- 상태 라벨은 `SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING/COMPLETED/CANCELLED` 기준으로 맞춰야 한다.
 - 카드 다운로드 버튼/화면 신규 필요 (지금 프론트 어디에도 없음)
 - `/lookup`에 `PHOTO_REJECTED` 상태일 때 반려사유 + "로그인 후 재업로드" 버튼 신규 추가 필요
 - `LookupPage.tsx`의 카드번호 placeholder(`HN-KR-2609-1188`)가 틀린 형식 — `ROK-XXXXX-XXXX`로 교체 필요

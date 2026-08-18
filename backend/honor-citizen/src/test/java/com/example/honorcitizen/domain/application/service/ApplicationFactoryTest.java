@@ -19,7 +19,7 @@ class ApplicationFactoryTest {
 
         assertThat(application.getUserId()).isEqualTo(1L);
         assertThat(application.getApplicationNumber()).isEqualTo(text('A', 'P', 'P', '-', '1'));
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.PAYMENT_PENDING);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.SUBMITTED);
     }
 
     @Test

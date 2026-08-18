@@ -53,4 +53,5 @@ public class AdminActivityLog {
     public static final String CARD_ISSUE            = "CARD_ISSUE";
     public static final String PHOTO_REJECT          = "PHOTO_REJECT";
     public static final String TRACKING_REGISTER     = "TRACKING_REGISTER";
+    public static final String PAYMENT_CONFIRMED     = "PAYMENT_CONFIRMED";
 }

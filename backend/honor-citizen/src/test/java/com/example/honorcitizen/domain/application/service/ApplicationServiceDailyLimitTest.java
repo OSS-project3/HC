@@ -1,10 +1,13 @@
 package com.example.honorcitizen.domain.application.service;
 
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
+import com.example.honorcitizen.domain.application.dto.ApplicationCreateResponse;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequest;
+import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateResponse;
 import com.example.honorcitizen.domain.application.repository.ApplicantRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationDailyLimitRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
@@ -14,6 +17,7 @@ import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
+import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -24,6 +28,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import javax.imageio.ImageIO;
@@ -38,6 +44,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 // 일일 신청 생성 3회 제한(APPLICATION.md §7) — 개인/단체 합산 카운트를 실제 createIndividual/createGroup
 // 경로로 검증한다. 동시성 안전성 자체는 ApplicationDailyLimitServiceTest에서 별도로 검증한다.
@@ -61,7 +72,11 @@ class ApplicationServiceDailyLimitTest {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private UploadFileRepository uploadFileRepository;
+    @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @MockitoBean
     private StorageService storageService;
@@ -72,6 +87,7 @@ class ApplicationServiceDailyLimitTest {
     @BeforeEach
     void setUp() {
         applicationDailyLimitRepository.deleteAll();
+        uploadFileRepository.deleteAll();
         applicationMemberRepository.deleteAll();
         receiverRepository.deleteAll();
         applicantRepository.deleteAll();
@@ -182,14 +198,14 @@ class ApplicationServiceDailyLimitTest {
         return out.toByteArray();
     }
 
-    private void createGroupApplication() throws Exception {
+    private BulkApplicationCreateResponse createGroupApplication() throws Exception {
         byte[] excel = buildExcel("1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul");
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
         MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
         MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
 
-        applicationService.createGroup(user.getId(), groupRequest(), logo, seal, submitFile);
+        return applicationService.createGroup(user.getId(), groupRequest(), logo, seal, submitFile);
     }
 
     @Test
@@ -236,5 +252,101 @@ class ApplicationServiceDailyLimitTest {
         applicationService.createIndividual(anotherUser.getId(), individualRequest(), photo(), null, null);
 
         assertThat(applicationRepository.count()).isEqualTo(4);
+    }
+
+    @Test
+    void firstCancellationReleasesSlotOnlyOnce() {
+        ApplicationCreateResponse created = applicationService.createIndividual(
+                user.getId(), individualRequest(), photo(), null, null);
+
+        clearInvocations(storageService);
+        applicationService.cancelByUser(user.getId(), created.getApplicationId());
+        applicationService.cancelByUser(user.getId(), created.getApplicationId());
+
+        assertThat(applicationRepository.findById(created.getApplicationId()).orElseThrow().getStatus())
+                .isEqualTo(ApplicationStatus.CANCELLED);
+        assertThat(applicationDailyLimitRepository.findByUserIdAndCountDate(
+                user.getId(), ApplicationDailyLimitService.today()).orElseThrow().getCount())
+                .isZero();
+        assertThat(applicationMemberRepository.findByApplicationId(created.getApplicationId()).get(0).getPhotoPath())
+                .isNull();
+        verify(storageService, times(1)).delete(anyString());
+    }
+
+    @Test
+    void otherUserCannotCancelOrReleaseOwnersSlot() {
+        ApplicationCreateResponse created = applicationService.createIndividual(
+                user.getId(), individualRequest(), photo(), null, null);
+        User other = User.createNewUser("other-canceller@example.com", "oauth-other-canceller", "google", "Other");
+        other.agreeTerms(true, true, true);
+        other = userRepository.save(other);
+        Long otherUserId = other.getId();
+
+        assertThatThrownBy(() -> applicationService.cancelByUser(otherUserId, created.getApplicationId()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        assertThat(applicationRepository.findById(created.getApplicationId()).orElseThrow().getStatus())
+                .isEqualTo(ApplicationStatus.SUBMITTED);
+        assertThat(applicationDailyLimitRepository.findByUserIdAndCountDate(
+                user.getId(), ApplicationDailyLimitService.today()).orElseThrow().getCount())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void outerRollbackRestoresCancellationAndDailySlotTogether() {
+        ApplicationCreateResponse created = applicationService.createIndividual(
+                user.getId(), individualRequest(), photo(), null, null);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        clearInvocations(storageService);
+
+        assertThatThrownBy(() -> transaction.executeWithoutResult(ignored -> {
+            applicationService.cancelByUser(user.getId(), created.getApplicationId());
+            throw new IllegalStateException("force rollback");
+        })).isInstanceOf(IllegalStateException.class);
+
+        assertThat(applicationRepository.findById(created.getApplicationId()).orElseThrow().getStatus())
+                .isEqualTo(ApplicationStatus.SUBMITTED);
+        assertThat(applicationDailyLimitRepository.findByUserIdAndCountDate(
+                user.getId(), ApplicationDailyLimitService.today()).orElseThrow().getCount())
+                .isEqualTo(1);
+        assertThat(applicationMemberRepository.findByApplicationId(created.getApplicationId()).get(0).getPhotoPath())
+                .isNotNull();
+        verify(storageService, never()).delete(anyString());
+    }
+
+    @Test
+    void groupCancellationRemovesManagedFileRowsAndDeletesAllS3KeysAfterCommit() throws Exception {
+        BulkApplicationCreateResponse created = createGroupApplication();
+        assertThat(uploadFileRepository.count()).isEqualTo(3);
+        clearInvocations(storageService);
+
+        applicationService.cancelByUser(user.getId(), created.getApplicationId());
+
+        var cancelled = applicationRepository.findById(created.getApplicationId()).orElseThrow();
+        assertThat(cancelled.getLogoFileId()).isNull();
+        assertThat(cancelled.getSealFileId()).isNull();
+        assertThat(cancelled.getSubmitFileId()).isNull();
+        assertThat(uploadFileRepository.count()).isZero();
+        assertThat(applicationMemberRepository.findByApplicationId(created.getApplicationId()))
+                .allSatisfy(member -> assertThat(member.getPhotoPath()).isNull());
+        verify(storageService, times(4)).delete(anyString());
+    }
+
+    @Test
+    void s3DeleteFailureDoesNotRollbackCommittedCancellation() {
+        ApplicationCreateResponse created = applicationService.createIndividual(
+                user.getId(), individualRequest(), photo(), null, null);
+        clearInvocations(storageService);
+        doThrow(new IllegalStateException("S3 unavailable")).when(storageService).delete(anyString());
+
+        applicationService.cancelByUser(user.getId(), created.getApplicationId());
+
+        assertThat(applicationRepository.findById(created.getApplicationId()).orElseThrow().getStatus())
+                .isEqualTo(ApplicationStatus.CANCELLED);
+        assertThat(applicationDailyLimitRepository.findByUserIdAndCountDate(
+                user.getId(), ApplicationDailyLimitService.today()).orElseThrow().getCount())
+                .isZero();
     }
 }

@@ -55,8 +55,7 @@ public class ApplicationDailyLimit {
         this.count++;
     }
 
-    // 신청 생성 도중 실패(파일 업로드·DB 저장 실패)했을 때 예약한 자리를 반환한다.
-    // 향후 "신청 취소" 기능이 생기면 취소 시점에도 이 메서드로 자리를 반환할 수 있다.
+    // 신청 생성 도중 실패했거나 신청이 최초 취소됐을 때 예약한 자리를 반환한다.
     public void decrement() {
         if (this.count > 0) {
             this.count--;

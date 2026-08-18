@@ -15,8 +15,17 @@
 | user_id | BIGINT | FK → User | 신청한 회원 |
 | card_type_id | BIGINT | FK → CardType, NOT NULL | 카드 종류. ✅ 2026-07-31 명시: **신청 생성 API에서 사용자가 직접 선택해서 보내는 값**(4종 중 1개) — `card_design_id`가 사용자 입력에서 빠지면서, 이 컬럼이 신청 생성 요청에 실리는 유일한 "카드 관련" 식별자가 됨 |
 | application_type | ENUM | NOT NULL | INDIVIDUAL, GROUP |
-| status | ENUM | NOT NULL | ✅ 2026-07-31 재정정: `PAYMENT_PENDING, RECEIVED, REVIEWING, PHOTO_REJECTED, NAME_EDITING, PRODUCING, COMPLETED, CANCELLED` — 사진 승인과 작명 완료는 별개 문제라 `NAME_EDITING` 상태 신규 추가 (Admin 도메인 설계 중 확정, 아래 참고) |
+| status | ENUM | NOT NULL | `SUBMITTED, REVIEWING, PHOTO_REJECTED, NAME_EDITING, PRODUCTION_READY, PRODUCING, COMPLETED, CANCELLED` |
 | payment_status | ENUM | NOT NULL | WAITING, CONFIRMED |
+| payment_guided_at | DATETIME | NULL | 관리자가 최초 결제를 안내한 시각. 재안내 시 변경하지 않음 |
+| payment_due_at | DATETIME | NULL | 최초 결제 안내 시각 + 72시간. 10분 주기 자동 취소 조회 기준 |
+| cancelled_at | DATETIME | NULL | 최초 취소 완료 시각 |
+| cancellation_type | ENUM | NULL | `USER, SYSTEM, ADMIN`. 이번 구현은 USER/SYSTEM만 사용하고 ADMIN은 예약값 |
+| cancellation_reason | ENUM | NULL | `USER_REQUEST, PAYMENT_TIMEOUT, ADMIN_DECISION`. 이번 구현은 앞의 두 값만 사용 |
+| refunded_at | DATETIME | NULL | 관리자가 외부 전액 환불을 완료한 시각. `CANCELLED + CONFIRMED`에서만 기록 |
+| card_ready_at | DATETIME | NULL | 신청의 모든 카드 파일 생성 완료 시각. 모바일 다운로드 허용 기준 |
+| physical_dispatched_at | DATETIME | NULL | `MOBILE_AND_PHYSICAL` 신청을 택배사에 인계한 시각 |
+| version | BIGINT | NOT NULL DEFAULT 0 | 주요 상태 전이 동시성 충돌 감지용 낙관적 락 버전 |
 | receiver_same_as_applicant | BOOLEAN | NOT NULL DEFAULT TRUE | 신청자와 수령인이 동일한지 여부 |
 | total_quantity | INT | NOT NULL | 신청 인원 수 |
 | issue_type | ENUM | NOT NULL | MOBILE, MOBILE_AND_PHYSICAL — ✅ 2026-07-25 확인: Application 테이블에 반드시 있어야 함 (누락이었음) |
@@ -28,22 +37,29 @@
 | orientation | ENUM | NULL | ✅ 2026-08-14 신규 확정: 카드 가로형/세로형(`LANDSCAPE`, `PORTRAIT`). **카드종류=학생증일 때만 사용**(그 외 카드종류는 NULL), 신청서 전체에 1개(개인·단체 공통 — 단체도 신청 폼 필드이며 엑셀 컬럼 아님) |
 | school_type | ENUM | NULL | ✅ 2026-08-14 신규 확정: 학교구분(`UNIVERSITY`, `HIGH_SCHOOL`). **카드종류=학생증일 때만 사용**, orientation과 동일하게 신청서 전체에 1개(개인·단체 공통). `UNIVERSITY`일 때만 `ApplicationMember.student_id`/`department`가 필수가 된다 — `HIGH_SCHOOL`이면 오히려 둘 다 NULL이어야 한다(있으면 거절). 단체는 학번·학과를 여전히 첨부 엑셀로만 받으므로 이 필드가 학번·학과 필수 여부에 영향을 주지 않는다(개인만 해당) |
 
-> ✅ 2026-07-31 확정(Admin 도메인 — 신청 상태 흐름, 사진검토/작명 분리 재정정):
+> ✅ 2026-08-17 확정(Application 상태와 입금 상태 분리):
 > ```
-> PAYMENT_PENDING(결제전)
->    │  ※ 신청일로부터 3일 이내 미입금 시 스케줄러가 자동 CANCELLED 처리
+> SUBMITTED + WAITING
+>    │  결제 안내: paymentGuidedAt, paymentDueAt(+72시간)
+>    │  입금 확인: status 유지, payment_status만 CONFIRMED
 >    ▼
-> RECEIVED(접수완료)   ← 관리자가 입금 확인(payment_status: WAITING→CONFIRMED)
+> SUBMITTED + CONFIRMED
+>    │  관리자 검토 시작
 >    ▼
-> REVIEWING(검토중 — 사진/내용 검토)
+> REVIEWING + CONFIRMED
 >    ├─ 반려 → PHOTO_REJECTED(사진반려) → 사용자 재업로드 → REVIEWING(복귀)
->    └─ 승인 → NAME_EDITING(작명중)   ← 사진 승인과 작명은 별개 문제라 상태 분리
->                  │  관리자가 ApplicationMember별 이름/한자/뜻/풀이 입력
->                  ▼  (전원 작명 완료)
->              PRODUCING(카드발급중) → COMPLETED(발급완료)
-> (모든 단계에서 → CANCELLED 가능)
+>    └─ 승인 → NAME_EDITING(작명·편집중)
+>                  ▼  편집 완료
+>              PRODUCTION_READY(제작 승인 대기)
+>                  ▼  관리자 제작 승인
+>              PRODUCING(카드 제작중)
+>                  ▼  카드 파일 생성 완료: cardReadyAt 기록
+>              MOBILE: COMPLETED
+>              MOBILE_AND_PHYSICAL: 택배사 인계 후 physicalDispatchedAt 기록, COMPLETED
 > ```
-> - **이번 범위는 `MOBILE`(웹/디지털 발급)만 다룸.** `MOBILE_AND_PHYSICAL`의 실물 배송(SHIPPING/DELIVERED, 운송장 처리)은 이번 Admin 설계 범위 밖 — `issue_type` enum 값 자체는 유지, 배송 처리 흐름은 추후 별도 설계.
+> - 사용자 취소는 `SUBMITTED, REVIEWING, PHOTO_REJECTED`에서만 가능하다. `NAME_EDITING` 이후에는 불가능하며 `CANCELLED` 재호출은 멱등 성공이다.
+> - 미입금 자동 취소는 `SUBMITTED + WAITING + payment_due_at<=now`만 대상으로 하며 스케줄러 기본 주기는 10분(설정 가능)이다.
+> - 배송사·운송장·배송 중·배송 완료 상태는 저장하지 않고 택배사 인계 시각만 기록한다.
 > - **단체(GROUP) 신청은 구성원별이 아니라 Application 단위로 검토/발급/작명 진행.** 예: 125명 중 25명 사진 반려 → 나머지 100명 먼저 발급 안 하고 `Application` 전체가 `PHOTO_REJECTED`로 전환. 사용자가 수정 ZIP(또는 반려 사진)을 재제출 → 관리자 재검토 완료 시 `REVIEWING`으로 복귀. **전원 통과해야만 `NAME_EDITING`, 전원 작명 완료해야만 `PRODUCING`으로 진행.** → `ApplicationMember`별 개별 status는 불필요.
 > 십이간지 캐릭터는 card_design_id와 별개 — 저장하지 않고 렌더링 시 `ApplicationMember.birth_date`로 계산 (6절 참고)
 > ✅ 2026-07-29 확인(API 명세 작성 중): `application_type=INDIVIDUAL`이면 `total_quantity`는 항상 `1`로 고정. 프론트 `StepInfo.tsx`의 "신청 수량" 입력은 법인/단체 신청에서만 의미가 있음(docs/api/README.md Application 도메인 참고).

@@ -219,7 +219,7 @@
 ### 7-5. Application 생성 시 서버 값 책임
 
 - 신청번호는 클라이언트가 보내지 않으며 Application Service가 생성한다. 번호 생성 전략의 분리는 Task 6에서 다룬다.
-- 초기 신청 상태 `PAYMENT_PENDING`과 초기 결제 상태 `WAITING`은 모든 생성 경로에 공통인 Application 불변조건이므로 Entity가 설정한다.
+- 초기 신청 상태 `SUBMITTED`와 초기 결제 상태 `WAITING`은 모든 생성 경로에 공통인 Application 불변조건이므로 Entity가 설정한다.
 - 수령인 동일 여부는 Request 자체에서 계산 가능한 단순 파생값이다. ✅ 2026-08-07 정정(`APPLICATION.md` 기준): `MOBILE_AND_PHYSICAL`에서 `sameAsApplicant=true`이면 **이름과 연락처만** 복사하며(배송지는 복사하지 않고 Receiver가 항상 입력), 복사 후 수정할 수 있다.
 - 결제 금액과 구성원별 사진 파일 ID는 Application 생성 시 서버 준비값에 포함하지 않는다.
 - 위 값들은 하나의 준비 객체로 함께 전달할 필요가 없으므로 현재는 Context, Plan, `prepareServerValues()`를 추가하지 않는다.
@@ -234,21 +234,38 @@
 
 ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 순서는 [service-flow.md](service-flow.md)를 기준으로 한다.
 
-#### 입금 기한
+#### 신청·결제 진행
 
-- 사용자는 **신청일로부터 3일 이내**에 입금해야 한다.
-- 기한 내 입금되지 않은 신청은 `CANCELLED` 처리한다.
+- 상담은 신청 전에 완료한다.
+- 신청서 제출 시 `SUBMITTED + WAITING`으로 생성한다.
+- 관리자가 결제를 안내한 최초 시각을 `paymentGuidedAt`에 기록하고 `paymentDueAt=paymentGuidedAt+72시간`으로 설정한다.
+- 결제 안내를 다시 보내도 기존 기한은 초기화하거나 연장하지 않는다.
+- 입금 확인은 ApplicationStatus를 변경하지 않고 PaymentStatus만 `CONFIRMED`로 변경한다.
+- 이미 `CONFIRMED`인 신청의 입금 확인 재호출은 값을 변경하지 않는 멱등 성공으로 처리한다.
+- 사진·내용 검토는 `SUBMITTED + CONFIRMED`에서만 시작할 수 있다.
 
-#### 환불 정책
+#### 사용자 취소·환불
 
-| 신청 상태 | 환불 가능 여부 | 사유 |
-|---|---|---|
-| `RECEIVED` | ✅ 전액 환불 | 아직 제작 전 |
-| `REVIEWING` | ✅ 전액 환불 | 검토 중 |
-| `PHOTO_REJECTED` | ✅ 전액 환불 | 사용자 재업로드 또는 취소 가능 |
+| 신청 상태 | 사용자 취소 | 결제 상태 처리 |
+|---|---:|---|
+| `SUBMITTED` | 가능 | `WAITING` 또는 `CONFIRMED` 유지 |
+| `REVIEWING` | 가능 | 정책상 `CONFIRMED` 유지 |
+| `PHOTO_REJECTED` | 가능 | 정책상 `CONFIRMED` 유지 |
+| `NAME_EDITING` 이후 | 불가 | 변경 없음 |
+| `CANCELLED` | 멱등 성공 | 기존 값과 취소 이력 유지 |
 
-- `PAYMENT_PENDING`은 아직 입금이 확인되지 않은 상태이므로 환불 대상이 아니라 신청 취소 대상으로 처리한다.
-- `NAME_EDITING` 이후 상태의 환불 가능 여부와 환불 금액은 [TBD]다.
+- `CANCELLED + WAITING`은 미입금 취소이므로 환불이 필요 없다.
+- `CANCELLED + CONFIRMED + refundedAt=null`은 전액 환불 대기다.
+- `CANCELLED + CONFIRMED + refundedAt!=null`은 관리자가 외부에서 전액 환불한 사실을 기록한 상태다.
+- PaymentStatus는 실제 입금 확인 이력이므로 취소·환불 후에도 변경하지 않는다.
+- 관리자 직접 취소는 이번 구현 범위에서 제외한다.
+
+#### 미입금 자동 취소
+
+- 자동 취소 대상은 `SUBMITTED + WAITING + paymentDueAt<=now`인 신청이다.
+- 스케줄러는 기본 10분 주기로 실행하며 설정값으로 변경 가능하게 한다.
+- 자동 취소 후 늦은 입금이 확인돼도 신청을 재활성화하지 않고 `CANCELLED + CONFIRMED` 환불 대상으로 관리한다.
+- 사용자 취소와 미입금 자동 취소가 최초 commit되면 신청 전용 S3 파일은 commit 직후 바로 삭제한다. rollback 시에는 삭제하지 않는다.
 
 ---
 
@@ -259,8 +276,8 @@ ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 
 | **Create** | `POST /api/applications` — JSON 1명분 | `POST /api/applications/bulk` — ZIP(엑셀+사진), **필수** |
 | **Read(사용자)** | `POST /api/applications/lookup`(비로그인, 신청번호+연락처) / `GET /api/my/applications`(로그인) | 동일 API — phone 대조 로직은 2절 하단 [TBD] 참고 |
 | **Read(관리자)** | `GET /api/admin/applications`, `GET /api/admin/applications/{id}` | 동일, `members` 배열로 N명 페이지네이션 |
-| **Update(사용자)** | 사진 재업로드(`PATCH .../photo`, `PHOTO_REJECTED` 상태에서만) / 입금자명 등록(`PATCH .../payment`) | 동일 API — 단체는 엑셀+ZIP 전체 재제출 |
-| **Update(관리자)** | 입금확인/사진검토/작명/카드발급 (Admin API) | Application 전체 단위로 동일하게 적용(개별 멤버 단위 아님) |
+| **Update(사용자)** | 사진 재업로드(`PATCH .../photo`, `PHOTO_REJECTED` 상태에서만) / 신청 취소(`POST .../cancel`) / 입금자명 등록(`PATCH .../payment`) | 동일 API — 단체는 엑셀+ZIP 전체 재제출 |
+| **Update(관리자)** | 결제안내/입금확인/사진검토/작명·편집/제작승인/카드준비/실물 인계/환불완료 (Admin API) | Application 전체 단위로 동일하게 적용(개별 멤버 단위 아님) |
 | **Delete** | 명시적 삭제 API 없음 — `status=CANCELLED` 전이로 대체(소프트) | 동일 |
 
 **신청 내용 자체(카드종류/인적사항 등) 수정 API는 없음** — 한번 제출하면 재작성 불가, 반려된 사진만 재업로드 가능. [TBD] 이 방침이 맞는지(오타 등으로 인한 수정 요청은 고객센터 문의로 처리하는 건지) 확인 필요.

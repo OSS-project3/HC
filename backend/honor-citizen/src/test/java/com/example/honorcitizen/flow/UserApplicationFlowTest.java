@@ -143,7 +143,7 @@ class UserApplicationFlowTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.applicationNumber").value(org.hamcrest.Matchers.startsWith("APP-")))
-                .andExpect(jsonPath("$.data.status").value("PAYMENT_PENDING"))
+                .andExpect(jsonPath("$.data.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.data.paymentStatus").value("WAITING"))
                 .andReturn().getResponse().getContentAsString();
 
@@ -180,7 +180,7 @@ class UserApplicationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.applicationId").value(applicationId))
-                .andExpect(jsonPath("$.data.status").value("PAYMENT_PENDING"))
+                .andExpect(jsonPath("$.data.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.data.applicantNameMasked").value("홍*동"));
 
         // ── 5) 신청 수정 (수정 API 없음 → 관리자 검토·반려를 엔티티 레벨로 재현) ────────────

@@ -1,30 +1,34 @@
-## Admin 도메인 — 흐름 확정 (2026-07-31)
+## Admin 도메인 — 신청·결제 흐름 확정 (2026-08-17)
 
 > 참고 화면(대학교 학생증 관리자 UI 스크린샷)은 **확정 UI 아님 — 구조 참고용 목업.** 실제 화면은 아래 흐름을 기준으로 새로 설계.
 
-### 신청 상태 흐름 (`.md` 2.1절에 반영 완료, 2026-07-31 사진검토/작명 분리 재정정)
+### 신청 상태 흐름
 
 ```
-PAYMENT_PENDING(결제전)
-   │  ※ 신청일로부터 3일 이내 미입금 시 스케줄러가 자동 CANCELLED
+SUBMITTED + WAITING
+   │  결제 안내: paymentGuidedAt 기록, paymentDueAt=안내 시각+72시간
+   │  입금 확인: ApplicationStatus 유지, PaymentStatus만 CONFIRMED
    ▼
-RECEIVED(접수완료)   ← 관리자가 입금 확인 (payment_status도 동시에 CONFIRMED)
+SUBMITTED + CONFIRMED
+   │  관리자 검토 시작
    ▼
-REVIEWING(검토중 — 사진/내용 검토)
+REVIEWING + CONFIRMED
    ├─ 반려 → PHOTO_REJECTED(사진반려) → 사용자 재업로드 → REVIEWING(복귀)
-   └─ 승인 → NAME_EDITING(작명중)   ← 사진 승인과 작명 완료는 별개 문제라 상태 분리
+   └─ 승인 → NAME_EDITING(작명·편집중)
                 │  관리자가 ApplicationMember별 이름/한자/뜻/풀이 입력
                 ▼ (전원 작명 완료)
-            PRODUCING(카드발급중) → COMPLETED(발급완료)
-(모든 단계에서 → CANCELLED 가능)
+            PRODUCTION_READY(제작 승인 대기)
+                ▼ 관리자 제작 승인
+            PRODUCING(카드 제작중) → 카드 준비/실물 인계 기준에 따라 COMPLETED
 ```
 
 ### 확정된 스코프 / 설계 원칙
 
-- **이번 범위는 `MOBILE`(웹/디지털 발급)만.** `MOBILE_AND_PHYSICAL`의 실물 배송(SHIPPING/DELIVERED)은 범위 밖 — 나중에 별도 설계.
+- `MOBILE`은 카드 파일 생성 완료 시 `COMPLETED`, `MOBILE_AND_PHYSICAL`은 택배사 인계 시 `COMPLETED`로 처리한다. 배송사·운송장·배송 중·배송 완료 상태는 저장하지 않는다.
 - **단체(GROUP) 신청은 구성원별이 아니라 Application 전체 단위로 검토/발급/작명 진행.** 일부만 반려돼도 Application 전체가 `PHOTO_REJECTED`. 전원 통과해야 `NAME_EDITING`, 전원 작명 완료해야 `PRODUCING` 진행. → `ApplicationMember`별 개별 status 불필요.
 - **"승인" 액션은 이제 `NAME_EDITING`으로 감 (`PRODUCING`으로 바로 안 감).** 예전에 "승인 시 작명 여부를 검사해서 막을지" 질문드렸던 건 이 상태 분리로 해결됨 — 별도 검사 불필요.
-- **신청일로부터 3일 이내 미입금 시 자동취소** — 스케줄러/배치 필요 (`StepComplete.tsx` 기존 안내문구와 일치)
+- **최초 결제 안내 후 72시간 미입금 시 자동취소** — 기본 10분 주기이며 설정으로 변경 가능하다.
+- 관리자 직접 취소는 이번 구현 범위에서 제외한다.
 - **사진 재업로드** — ✅ 확정, Application 도메인 API 4로 설계 완료(로그인 필수, 본인 확인)
 
 ### ✅ 이름 작명 방식 확정 (2026-07-31)
@@ -53,10 +57,12 @@ REVIEWING(검토중 — 사진/내용 검토)
 
 1. 신청 목록 조회
 2. 신청 상세 조회
-3. 입금 확인 (`PAYMENT_PENDING→RECEIVED`)
-4. 사진 검토 — 승인/반려
-5. 이름 작명 저장
-6. 카드 발급 (`PRODUCING→COMPLETED`)
+3. 결제 안내(`paymentGuidedAt`, `paymentDueAt` 기록)
+4. 입금 확인(PaymentStatus만 `CONFIRMED`, 멱등)
+5. 사진·내용 검토 시작 및 승인/반려
+6. 이름 작명·편집 저장 및 편집 완료
+7. 제작 승인·카드 준비·실물 인계
+8. 환불 완료 기록
 
 ⚠️ **[TBD] 7번째 액션 — 카드 디자인 배정 API 필요 (2026-07-31 신규 이슈).** `docs/specs/application/requirements.md` 6절 확정으로 `Application.card_design_id`는 이제 사용자가 아니라 관리자가 채우는데, 위 6개 API 어디에도 이 값을 채우는 액션이 없음. 신청 접수 직후/사진검토 통과 후/작명 단계 중 **언제** 배정하는지부터 정해야 API로 설계 가능 — 아직 미설계.
 
@@ -230,7 +236,22 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
 
 ---
 
-### API 3 / 6 — 입금 확인 ⚠️ 확인필요 — 액션 버튼 자체가 프론트에 없음(신규)
+### API 3-A — 결제 안내 ⚠️ Service 구현 완료, HTTP API 구현 전
+
+```http
+POST /api/admin/applications/{applicationId}/payment-guide
+Cookie: accessToken={JWT}  (role=ADMIN 필요)
+```
+
+최초 호출 시 서버 시각을 `paymentGuidedAt`에 기록하고 `paymentDueAt=paymentGuidedAt+72시간`으로 설정한다. 재호출은 기존 시각과 기한을 변경하지 않는 멱등 성공이다.
+
+자동 취소 스케줄러는 기본 10분 주기로 `SUBMITTED + WAITING + paymentDueAt<=now`를 조회하며 실행 주기는 설정값으로 변경할 수 있다.
+
+백엔드 Service는 구현 완료됐다. 최초 안내만 시각과 기한을 기록하며 재호출은 값을 변경하지 않는다. 결제 안내는 `AdminActivityLog`에 별도 기록하지 않는다.
+
+---
+
+### API 3-B — 입금 확인 ⚠️ Service 구현 완료, HTTP API 구현 전
 
 #### ④ Request/Response 설계
 
@@ -246,7 +267,7 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
   "success": true,
   "data": {
     "applicationId": 1,
-    "status": "RECEIVED",
+    "status": "SUBMITTED",
     "paymentStatus": "CONFIRMED"
   }
 }
@@ -258,21 +279,22 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
 |---|---|---|
 | `role != ADMIN` | `FORBIDDEN` | 403 |
 | `applicationId` 없음 | `NOT_FOUND` | 404 |
-| `Application.status != PAYMENT_PENDING` | `INVALID_STATUS_TRANSITION` | 400 |
-| `Payment` row가 아예 없음(사용자가 입금자명도 안 넣은 상태) | `NOT_FOUND` | 404 |
+| `Application.status`가 `SUBMITTED`, `CANCELLED` 중 하나가 아님 | `INVALID_STATUS_TRANSITION` | 400 |
 | 비로그인 | `UNAUTHORIZED` | 401 |
+
+별도 `Payment` row 존재 여부를 입금 확인의 선행조건으로 사용하지 않는다. Source of Truth인 `APPLICATION.md` §16에 따라 `Application.paymentStatus`만 실제 입금 확인 이력으로 관리한다. 최초 `WAITING → CONFIRMED` 변경에만 `AdminActivityLog.PAYMENT_CONFIRMED`를 한 건 기록하고, 중복 확인은 추가 로그 없이 멱등 성공한다.
 
 #### ⑥ DB 컬럼과 매핑 검증
 
 | — | 변경되는 컬럼 |
 |---|---|
-| — | `Application.status`: `PAYMENT_PENDING` → `RECEIVED` |
+| — | `Application.status`: 변경하지 않음 (`SUBMITTED` 또는 자동 취소 후 `CANCELLED` 유지) |
 | — | `Application.payment_status`: `WAITING` → `CONFIRMED` |
 | — | `Payment.confirmed_at` = 현재 시각 |
 
 #### ⑦ 누락된 필드 확인
 
-없음.
+이미 `CONFIRMED`이면 값을 변경하지 않고 `200 OK` 멱등 성공으로 응답한다. 자동 취소 후 늦은 입금이면 `CANCELLED + CONFIRMED + refundedAt=null` 환불 대상으로 남긴다.
 
 **API 3 완료.**
 

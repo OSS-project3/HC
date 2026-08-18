@@ -95,8 +95,9 @@ class ApplicationServiceCardDownloadTest {
         application.confirmPayment();
         application.startReview();
         application.approveToNaming();
+        application.completeNaming();
         application.startProducing();
-        application.complete();
+        application.markCardReady(java.time.LocalDateTime.now());
         return applicationRepository.save(application);
     }
 
@@ -127,8 +128,9 @@ class ApplicationServiceCardDownloadTest {
         application.confirmPayment();
         application.startReview();
         application.approveToNaming();
+        application.completeNaming();
         application.startProducing();
-        application.complete();
+        application.markCardReady(java.time.LocalDateTime.now());
         applicationRepository.save(application);
 
         ApplicationCardDownloadResponse response = applicationService.getCardDownload(1L, application.getId());

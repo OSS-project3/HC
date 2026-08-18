@@ -5,10 +5,13 @@ import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.UploadFileType;
+import com.example.honorcitizen.common.enums.UserRole;
+import com.example.honorcitizen.common.enums.UserStatus;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.enums.LookupMethod;
 import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
+import com.example.honorcitizen.domain.application.dto.ApplicationCancelResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationLookupRequest;
@@ -16,16 +19,23 @@ import com.example.honorcitizen.domain.application.dto.ApplicationLookupResponse
 import com.example.honorcitizen.domain.application.dto.ApplicationPhotoReuploadResponse;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateResponse;
+import com.example.honorcitizen.domain.application.dto.MyApplicationDetailResponse;
+import com.example.honorcitizen.domain.application.dto.MyApplicationListItemResponse;
 import com.example.honorcitizen.domain.application.entity.Applicant;
 import com.example.honorcitizen.domain.application.entity.Application;
 import com.example.honorcitizen.domain.application.entity.ApplicationMember;
+import com.example.honorcitizen.domain.application.entity.Receiver;
 import com.example.honorcitizen.domain.application.repository.ApplicantRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
+import com.example.honorcitizen.domain.application.repository.ReceiverRepository;
+import com.example.honorcitizen.common.response.PageResponse;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
 import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
+import com.example.honorcitizen.domain.log.entity.AdminActivityLog;
+import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.service.UserService;
 import com.example.honorcitizen.infra.storage.StorageService;
@@ -34,6 +44,10 @@ import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -43,9 +57,13 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 //S3 작업에는 DB 트랜잭션을 걸고 싶지 않고 DB 저장 부분에만 @Transactional을 걸고 싶은데, 같은 ApplicationService
@@ -79,11 +97,16 @@ public class ApplicationService {
     // 기간이 너무 짧으면 알림 수신 후 즉시 접속하지 않으면 만료되는 UX 문제가 생긴다.
     private static final long CARD_DOWNLOAD_URL_EXPIRY_SECONDS = 7 * 24 * 60 * 60L;
 
+    // 마이페이지 신청 목록(api.md API 6) 페이지 크기 상한 — Board/Event와 동일한 관례.
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final ApplicationRepository applicationRepository;
     private final ApplicantRepository applicantRepository;
     private final ApplicationMemberRepository applicationMemberRepository;
+    private final ReceiverRepository receiverRepository;
     private final CardTypeRepository cardTypeRepository;
     private final UploadFileRepository uploadFileRepository;
+    private final AdminActivityLogRepository adminActivityLogRepository;
     private final UserService userService;
     // 트랜잭션 경계를 위한 별도 Bean — 위 클래스 주석의 self-invocation 문제 참고
     private final ApplicationPersistenceService applicationPersistenceService;
@@ -116,12 +139,13 @@ public class ApplicationService {
             MultipartFile photo, MultipartFile schoolLogo, MultipartFile schoolSeal) {
 
         User user = findUser(userId);
+        //학생증이라면, 로고가 필요하고 직인 선택, 학번 학과 검증이 되어야 함.
         CardType cardType = findActiveCardType(request.getCardTypeId());
         boolean isStudent = cardType.isStudentCard();
 
         // 입력 검증을 S3 업로드 이전에 먼저 수행한다.
         // 사진 검증(ApplicationPhotoValidator)은 파일을 통째로 메모리에 읽어야 하므로
-        // 리소스 소비가 있지만, S3 업로드보다는 훨씬 저렴하다.
+        // 리소스 소비가 있지만, S3 업로드보다는 훨씬 저렴하다. -> S3업로드 되면, 다시 삭제해야하는 불편함 발생.
         validateCreateIndividual(request, photo, schoolLogo, schoolSeal, isStudent);
 
         // 하루 3회 제한(개인/단체 합산) — 파일 업로드 이전에 자리를 먼저 확정해 실패 시 슬롯 낭비 없이
@@ -278,6 +302,181 @@ public class ApplicationService {
             applicationDailyLimitService.releaseSlot(userId, today);
             throw e;
         }
+    }
+
+    /**
+     * 마이페이지 신청 목록(api.md API 6) — 로그인 사용자 본인 신청만 페이지네이션 조회.
+     *
+     * 정렬은 항상 createdAt DESC로 고정한다(id DESC를 tie-breaker로 추가해 동일 시각 생성분의
+     * 순서를 안정적으로 보장). status는 선택 필터이며 null이면 전체 상태를 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<MyApplicationListItemResponse> listMyApplications(Long userId, ApplicationStatus status,
+            int page, int size) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        Page<Application> applications = status == null
+                ? applicationRepository.findByUserId(userId, pageable)
+                : applicationRepository.findByUserIdAndStatus(userId, status, pageable);
+
+        // 카드종류명은 Application에 직접 없어 배치 조회 후 매핑한다(Review 패턴과 동일).
+        Map<Long, CardType> cardTypeById = cardTypeRepository
+                .findAllById(applications.getContent().stream().map(Application::getCardTypeId).collect(Collectors.toSet()))
+                .stream().collect(Collectors.toMap(CardType::getId, Function.identity()));
+
+        return PageResponse.from(applications, application ->
+                MyApplicationListItemResponse.of(application, cardTypeById.get(application.getCardTypeId()).getName()));
+    }
+
+    /**
+     * 마이페이지 신청 상세(api.md API 7) — 본인 소유 신청만 조회 가능.
+     *
+     * receiver는 issueType=MOBILE_AND_PHYSICAL일 때만 존재하며, 그 외에는 null을 응답한다.
+     * 단체 신청은 구성원 개별 목록 대신 memberCount만 노출한다(별도 API로 분리 예정).
+     */
+    @Transactional(readOnly = true)
+    public MyApplicationDetailResponse getMyApplicationDetail(Long userId, Long applicationId) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        if (!application.isOwnedBy(userId)) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+
+        CardType cardType = cardTypeRepository.findById(application.getCardTypeId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        Applicant applicant = applicantRepository.findByApplicationId(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        Receiver receiver = application.getIssueType() == IssueType.MOBILE_AND_PHYSICAL
+                ? receiverRepository.findByApplicationId(applicationId).orElse(null)
+                : null;
+        long memberCount = applicationMemberRepository.countByApplicationId(applicationId);
+
+        return MyApplicationDetailResponse.of(application, cardType.getName(), applicant, receiver, memberCount);
+    }
+
+    /**
+     * 로그인 사용자가 본인 신청을 취소한다.
+     *
+     * Application 상태 변경과 일일 신청 슬롯 반환은 하나의 트랜잭션에서 처리한다.
+     * 따라서 낙관적 락 충돌이나 commit 실패가 발생하면 CANCELLED 전이와 카운터 감소가 함께 롤백된다.
+     * 이미 취소된 신청은 Entity가 false를 반환하며, 이 경우 슬롯을 다시 반환하지 않는 멱등 성공이다.
+     *
+     * S3 파일 정리는 DB commit 이후에만 실행해야 하므로 이번 DB 전이 단위에는 포함하지 않는다.
+     * 후속 단위에서 최초 취소 성공 여부를 기준으로 after-commit 정리를 연결한다.
+     */
+    @Transactional
+    public ApplicationCancelResponse cancelByUser(Long userId, Long applicationId) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+
+        // 멱등 여부보다 소유권을 먼저 확인해 타인에게 신청의 존재·취소 상태가 노출되지 않도록 한다.
+        if (!application.isOwnedBy(userId)) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+
+        boolean firstCancellation = application.cancelByUser(LocalDateTime.now());
+        if (firstCancellation) {
+            completeCancellation(application);
+        }
+
+        return ApplicationCancelResponse.from(application);
+    }
+
+    @Transactional
+    public Application guidePayment(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        Application application = findApplication(applicationId);
+        application.guidePayment(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS));
+        return application;
+    }
+
+    @Transactional
+    public Application confirmPayment(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        Application application = findApplication(applicationId);
+        boolean firstConfirmation = application.confirmPayment();
+        if (firstConfirmation) {
+            adminActivityLogRepository.save(AdminActivityLog.create(
+                    adminId, AdminActivityLog.PAYMENT_CONFIRMED, applicationId, "Payment confirmed"));
+        }
+        return application;
+    }
+
+    @Transactional
+    public boolean cancelForPaymentTimeout(Long applicationId, LocalDateTime cancelledAt) {
+        Application application = findApplication(applicationId);
+        boolean firstCancellation = application.cancelForPaymentTimeout(cancelledAt);
+        if (firstCancellation) {
+            completeCancellation(application);
+        }
+        return firstCancellation;
+    }
+
+    private Application findApplication(Long applicationId) {
+        return applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+    }
+
+    private void validateAdmin(Long adminId) {
+        User admin = userService.findById(adminId);
+        if (admin.getStatus() != UserStatus.ACTIVE || admin.getRole() != UserRole.ADMIN) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private void completeCancellation(Application application) {
+        List<String> fileKeysToDelete = clearCancellationFileReferences(application);
+        applicationDailyLimitService.releaseSlot(
+                application.getUserId(), ApplicationDailyLimitService.toCountDate(application.getCreatedAt()));
+        registerCancellationS3CleanupAfterCommit(fileKeysToDelete);
+    }
+
+    private List<String> clearCancellationFileReferences(Application application) {
+        List<String> fileKeys = new ArrayList<>();
+        List<Long> uploadFileIds = new ArrayList<>();
+        if (application.getLogoFileId() != null) {
+            uploadFileIds.add(application.getLogoFileId());
+        }
+        if (application.getSealFileId() != null) {
+            uploadFileIds.add(application.getSealFileId());
+        }
+        if (application.getSubmitFileId() != null) {
+            uploadFileIds.add(application.getSubmitFileId());
+        }
+
+        List<UploadFile> managedFiles = uploadFileRepository.findAllById(uploadFileIds);
+        managedFiles.stream()
+                .map(UploadFile::getFilePath)
+                .filter(this::hasText)
+                .forEach(fileKeys::add);
+
+        List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(application.getId());
+        members.stream()
+                .map(ApplicationMember::getPhotoPath)
+                .filter(this::hasText)
+                .forEach(fileKeys::add);
+
+        application.clearManagedFileReferences();
+        members.forEach(ApplicationMember::clearPhoto);
+        uploadFileRepository.deleteAll(managedFiles);
+        return fileKeys;
+    }
+
+    private void registerCancellationS3CleanupAfterCommit(List<String> fileKeys) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new IllegalStateException("Cancellation S3 cleanup requires an active transaction");
+        }
+
+        List<String> fileKeysSnapshot = List.copyOf(fileKeys);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                deleteUploadedFilesQuietlyReversed(fileKeysSnapshot);
+            }
+        });
     }
 
     /**

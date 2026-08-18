@@ -63,7 +63,7 @@ Content-Type: application/json
 | (path) applicationId | Payment.application_id |
 | depositorName | Payment.depositor_name |
 | — | Payment.confirmed_at = NULL (관리자 확인 전) |
-| — | Application.payment_status는 그대로 `WAITING` 유지(등록만으론 안 바뀜). 관리자가 입금 확인하면 `payment_status: WAITING→CONFIRMED`와 `status: PAYMENT_PENDING→RECEIVED`가 **동시에** 전이(Admin 도메인에서 설계) |
+| — | Application.payment_status는 그대로 `WAITING` 유지(입금자명 등록만으로는 변경하지 않음). 관리자 입금 확인 시 `payment_status`만 `WAITING→CONFIRMED`로 바뀌고 Application.status는 `SUBMITTED`를 유지한다. 자동 취소 후 늦은 입금 확인이면 `CANCELLED`를 유지한다. |
 
 #### ⑦ 누락된 필드 확인
 

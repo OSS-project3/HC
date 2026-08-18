@@ -101,7 +101,7 @@ class ApplicationServiceLookupTest {
         assertThat(response.getApplicationId()).isEqualTo(individualApplication.getId());
         assertThat(response.getApplicantNameMasked()).isEqualTo("이*신");
         assertThat(response.getCardType()).isEqualTo("명예한국인증-lookup");
-        assertThat(response.getStatus().name()).isEqualTo("PAYMENT_PENDING");
+        assertThat(response.getStatus().name()).isEqualTo("SUBMITTED");
     }
 
     @Test

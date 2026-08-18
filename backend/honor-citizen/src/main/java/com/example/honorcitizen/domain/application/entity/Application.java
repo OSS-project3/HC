@@ -3,6 +3,8 @@ package com.example.honorcitizen.domain.application.entity;
 import com.example.honorcitizen.common.entity.BaseTimeEntity;
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.ApplicationType;
+import com.example.honorcitizen.common.enums.CancellationReason;
+import com.example.honorcitizen.common.enums.CancellationType;
 import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.PaymentStatus;
@@ -17,9 +19,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
 
 // 신청의 중심 엔티티. Applicant/ApplicationMember/Receiver는 JPA 연관관계(@OneToMany 등) 없이
 // applicationId(Long) 컬럼으로만 이 엔티티를 참조한다 — 조회는 각 Repository의 findByApplicationId로 직접 수행.
@@ -50,7 +55,7 @@ public class Application extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private ApplicationType applicationType;
 
-    // 신청 진행 상태(PAYMENT_PENDING → RECEIVED → REVIEWING → ... ). 전이 규칙은 transitionTo/ApplicationStatus 참고
+    // 신청 업무 진행 상태. 결제 확인 여부는 paymentStatus로 독립 관리한다.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ApplicationStatus status;
@@ -58,6 +63,30 @@ public class Application extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PaymentStatus paymentStatus;
+
+    private LocalDateTime paymentGuidedAt;
+
+    private LocalDateTime paymentDueAt;
+
+    private LocalDateTime cancelledAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private CancellationType cancellationType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private CancellationReason cancellationReason;
+
+    private LocalDateTime refundedAt;
+
+    private LocalDateTime cardReadyAt;
+
+    private LocalDateTime physicalDispatchedAt;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     // 신청 시점 sameAsApplicant 요청값을 기록만 하는 스냅샷 — 저장 이후 어떤 로직도 이 필드를 다시 읽지 않는다.
     // 실제 배송지 복사 여부/범위는 저장 시점에 ApplicationPersistenceService가 receiverRequest로 바로 결정한다.
@@ -155,7 +184,7 @@ public class Application extends BaseTimeEntity {
         application.issueType = issueType;
         application.receiverSameAsApplicant = receiverSameAsApplicant;
         application.cardDesignId = null;
-        application.status = ApplicationStatus.PAYMENT_PENDING;
+        application.status = ApplicationStatus.SUBMITTED;
         application.paymentStatus = PaymentStatus.WAITING;
         return application;
     }
@@ -172,14 +201,34 @@ public class Application extends BaseTimeEntity {
         this.totalQuantity = totalQuantity;
     }
 
-    // 아래 confirmPayment~cancel까지는 전부 상태 전이(transitionTo)를 감싸는 것 — 허용되는 전이 경로는
-    // ApplicationStatus.canTransitionTo에 정의돼 있고, 여기서 벗어나면 INVALID_STATUS_TRANSITION.
-    public void confirmPayment() {
-        transitionTo(ApplicationStatus.RECEIVED);
+    public boolean guidePayment(LocalDateTime guidedAt) {
+        requireTimestamp(guidedAt);
+        if (this.paymentGuidedAt != null) {
+            return false;
+        }
+        if (this.status != ApplicationStatus.SUBMITTED || this.paymentStatus != PaymentStatus.WAITING) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.paymentGuidedAt = guidedAt;
+        this.paymentDueAt = guidedAt.plusDays(3);
+        return true;
+    }
+
+    public boolean confirmPayment() {
+        if (this.paymentStatus == PaymentStatus.CONFIRMED) {
+            return false;
+        }
+        if (this.status != ApplicationStatus.SUBMITTED && this.status != ApplicationStatus.CANCELLED) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
         this.paymentStatus = PaymentStatus.CONFIRMED;
+        return true;
     }
 
     public void startReview() {
+        if (this.status != ApplicationStatus.SUBMITTED || this.paymentStatus != PaymentStatus.CONFIRMED) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
         transitionTo(ApplicationStatus.REVIEWING);
     }
 
@@ -200,16 +249,103 @@ public class Application extends BaseTimeEntity {
         transitionTo(ApplicationStatus.NAME_EDITING);
     }
 
+    public void completeNaming() {
+        transitionTo(ApplicationStatus.PRODUCTION_READY);
+    }
+
     public void startProducing() {
+        if (this.paymentStatus != PaymentStatus.CONFIRMED) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
         transitionTo(ApplicationStatus.PRODUCING);
     }
 
-    public void complete() {
-        transitionTo(ApplicationStatus.COMPLETED);
+    public boolean markCardReady(LocalDateTime readyAt) {
+        requireTimestamp(readyAt);
+        if (this.cardReadyAt != null) {
+            return false;
+        }
+        if (this.status != ApplicationStatus.PRODUCING) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.cardReadyAt = readyAt;
+        if (this.issueType == IssueType.MOBILE) {
+            transitionTo(ApplicationStatus.COMPLETED);
+        }
+        return true;
     }
 
-    public void cancel() {
+    public boolean markPhysicalDispatched(LocalDateTime dispatchedAt) {
+        requireTimestamp(dispatchedAt);
+        if (this.physicalDispatchedAt != null) {
+            return false;
+        }
+        if (this.issueType != IssueType.MOBILE_AND_PHYSICAL
+                || this.status != ApplicationStatus.PRODUCING
+                || this.cardReadyAt == null) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.physicalDispatchedAt = dispatchedAt;
+        transitionTo(ApplicationStatus.COMPLETED);
+        return true;
+    }
+
+    public boolean canCancelByUser() {
+        return this.status == ApplicationStatus.SUBMITTED
+                || this.status == ApplicationStatus.REVIEWING
+                || this.status == ApplicationStatus.PHOTO_REJECTED;
+    }
+
+    public boolean cancelByUser(LocalDateTime cancelledAt) {
+        if (this.status == ApplicationStatus.CANCELLED) {
+            return false;
+        }
+        requireTimestamp(cancelledAt);
+        if (!canCancelByUser()) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        cancel(cancelledAt, CancellationType.USER, CancellationReason.USER_REQUEST);
+        return true;
+    }
+
+    public boolean cancelForPaymentTimeout(LocalDateTime cancelledAt) {
+        if (this.status == ApplicationStatus.CANCELLED) {
+            return false;
+        }
+        requireTimestamp(cancelledAt);
+        if (this.status != ApplicationStatus.SUBMITTED
+                || this.paymentStatus != PaymentStatus.WAITING
+                || this.paymentDueAt == null
+                || cancelledAt.isBefore(this.paymentDueAt)) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        cancel(cancelledAt, CancellationType.SYSTEM, CancellationReason.PAYMENT_TIMEOUT);
+        return true;
+    }
+
+    public boolean markRefunded(LocalDateTime refundedAt) {
+        if (this.refundedAt != null) {
+            return false;
+        }
+        requireTimestamp(refundedAt);
+        if (this.status != ApplicationStatus.CANCELLED || this.paymentStatus != PaymentStatus.CONFIRMED) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.refundedAt = refundedAt;
+        return true;
+    }
+
+    public void clearManagedFileReferences() {
+        this.logoFileId = null;
+        this.sealFileId = null;
+        this.submitFileId = null;
+    }
+
+    private void cancel(LocalDateTime cancelledAt, CancellationType type, CancellationReason reason) {
         transitionTo(ApplicationStatus.CANCELLED);
+        this.cancelledAt = cancelledAt;
+        this.cancellationType = type;
+        this.cancellationReason = reason;
     }
 
     private void transitionTo(ApplicationStatus next) {
@@ -217,5 +353,11 @@ public class Application extends BaseTimeEntity {
             throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
         this.status = next;
+    }
+
+    private void requireTimestamp(LocalDateTime value) {
+        if (value == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
     }
 }

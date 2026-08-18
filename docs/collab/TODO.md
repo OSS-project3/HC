@@ -60,20 +60,139 @@
 | ⚪ | 프론트: `ReviewEditorPage.tsx` 등 Review 요구사항 변경 반영 | 프론트 담당자 | `main` | `docs/specs/review/api.md` §② | 현재 `author: user.name`으로 로그인 이름 자동 사용 중 — "작성자 직접 입력"으로 변경 필요. 신청유형/카드종류/사진 다중첨부 입력 UI 전체 신규 필요 |
 | ⚪ | Codex: `arch.md` 3절 패키지 구조 예시 최신화 | Codex | `feature/application-domain-docs` | `arch.md` | `api/admin`·`infra/toss`는 삭제됨, `domain/uploadfile`·`domain/log`는 예시에 없음, `ApplicationResponse.java`는 이제 `ApplicationCreateResponse` 등으로 분리됨 |
 | ✅ | 마이페이지 신청 목록/상세 조회 API 6·7 설계 | Claude | `main` | `docs/specs/application/api.md` API 6/7 | `GET /api/my/applications`(페이징 목록)·`GET /api/my/applications/{id}`(상세, 소유권 검증) 설계만 완료, 구현 안 됨. 기존 `lookup`(API 3)은 비로그인 공개 조회라 별개 |
-| ⚪ | 마이페이지 신청 목록/상세 조회 API 6·7 구현 | 미정 | - | `docs/specs/application/api.md` API 6/7 | `ApplicationRepository.findByUserId(...)` 신규 필요, 공용 `PageResponse<T>` 신설 필요(Review 목록조회와 공유) |
-| ⚪ | 사용자 신청 취소 정책 문서 확정 | 미정 | `main` | `docs/specs/application/{requirements,api}.md` | ✅ 허용 상태 확정: 신청 소유자는 `PAYMENT_PENDING`, `PHOTO_REJECTED`에서만 취소 가능하며 `RECEIVED` 및 그 이후 상태에서는 취소 불가. 구현 전 취소 후 상태, 소유권 검증, 중복 취소의 멱등성, 허용되지 않은 상태의 ErrorCode, 환불·3일 자동취소 정책과의 관계를 문서로 확정 |
-| ⚪ | 사용자 신청 취소 API 구현 | 미정 | `main` | `docs/specs/application/{requirements,api}.md` | 위 정책 문서 확정 후 Controller/Service/Repository와 테스트 구현. 기존 `Application.cancel()`의 상태 전이와 허용 상태를 재검증하고, 본인 신청만 취소 가능하도록 소유권 검증. 정상 취소·권한 없음·신청 없음·허용되지 않은 상태·중복 요청을 테스트 |
+| ✅ | 마이페이지 신청 목록/상세 조회 API 6·7 구현 (2026-08-18) | Claude | `main` | `docs/specs/application/api.md` API 6/7 | `GET /api/my/applications`(목록, `status` 선택 필터·`createdAt DESC` 고정 정렬)·`GET /api/my/applications/{id}`(상세) 구현+테스트 완료. `ApplicationRepository.findByUserId`/`findByUserIdAndStatus`, `ApplicationMemberRepository.countByApplicationId` 신규. 신규 DTO `MyApplicationListItemResponse`/`MyApplicationDetailResponse`(중첩 `ApplicantSummary`/`ReceiverSummary`), 기존 `PageResponse<T>`(Review에서 처음 도입) 재사용. `receiver`는 `issueType=MOBILE_AND_PHYSICAL`일 때만 채워지고 그 외엔 `null`. `MyApplicationController` 신규(`SecurityConfig` 변경 없음 — 기존 `/api/**` → `hasAnyRole("USER","ADMIN")` 규칙에 자동 편입). 신규 테스트 13개(`ApplicationServiceMyApplicationsTest` 7개, `MyApplicationControllerTest` 6개) 전부 통과. 전체 스위트 361개 중 기존과 동일하게 UserControllerTest 2건+Redis 미기동 1건만 실패(회귀 없음). ⚠️ **커밋 보류**: 응답 DTO(`MyApplicationDetailResponse`)가 `Application.paymentGuidedAt/cancelledAt/cancellationType/cancellationReason/refundedAt/cardReadyAt/physicalDispatchedAt`(Codex의 미커밋 상태 리팩터링 신규 필드) 게터를 그대로 쓰고 있어, 지금 HEAD엔 없는 필드라 이 작업만 단독 커밋하면 컴파일이 깨짐 — Codex의 "신청 상태 리팩터링" 커밋이 먼저 들어간 뒤에 이 작업을 커밋한다 |
+| ✅ | 신청 상태·취소·환불 정책 문서 정합성 반영 | Codex | `main` | `docs/specs/application/APPLICATION.md` §16, `docs/collab/TODO.md` 상세 체크리스트 | requirements/data-model/api/service-flow/admin/payment/PENDING 문서를 확정 정책으로 동기화. 초기 `SUBMITTED+WAITING`, 최초 결제 안내+72시간, 10분 설정형 자동취소, 취소 commit 직후 S3 삭제 반영 |
+| ⚪ | 신청 상태 리팩터링 및 사용자 취소 API 구현 | 미정 | `main` | `docs/specs/application/APPLICATION.md` §16, `docs/collab/TODO.md` 상세 체크리스트 | `PAYMENT_PENDING/RECEIVED` 제거, `SUBMITTED/PRODUCTION_READY` 추가, 결제 확인과 상태 전이 분리, 취소 이력·3일 자동 취소·일일 슬롯 반환·최소 환불 모델·다운로드/실물 발송 기준을 체크리스트 순서대로 구현하고 통합 테스트 |
 | ✅ | 학생증 신청 항목 추가(학교구분·가로형/세로형, 2026-08-14) | Claude | `main` | `docs/specs/application/{data-model,api}.md`, 계획: `C:\Users\gpdnj\.claude\plans\application-api-async-knuth.md` | 구현+테스트 완료. `Application`에 `orientation`(LANDSCAPE/PORTRAIT)·`school_type`(UNIVERSITY/HIGH_SCHOOL) 컬럼 신규 추가(개인·단체 공통, 학생증 전용, 신청서 전체에 1개). `ApplicationMember.student_id`/`department` 필수 조건을 "학생증이면 무조건"→"학생증+`school_type=UNIVERSITY`일 때만"으로 변경(HIGH_SCHOOL이면 있으면 오히려 거절). 단체는 학번·학과를 여전히 엑셀로만 받음(`BulkExcelParser` 변경 없음), orientation/schoolType만 신청 폼 필드로 추가. 카드종류별 config 추상화 없이 기존 `isStudent` boolean 게이트 재사용. `Application.createIndividual`/`createGroup` 팩토리 메서드는 기존 시그니처를 하위호환 오버로드로 유지해 무관한 기존 테스트 ~20개는 손대지 않음. 신규 ErrorCode 없음(`INVALID_INPUT` 재사용). 신규 테스트 12개(`ApplicationServiceTest` 7개, `ApplicationServiceBulkTest` 5개) 전부 통과, 기존 테스트 3개(`ApplicationServiceUploadCompensationTest`) 픽스처 보정 후 통과. 전체 스위트 224개 중 기존과 동일하게 Redis 미기동 3건만 실패(회귀 없음). 프론트(`StepInfo.tsx` 등)는 프론트 담당자 영역이라 미착수 |
 | ✅ | Board 도메인(공지사항/FAQ) 구현 (2026-08-14) | Claude | `main` | `docs/specs/board/{data-model,api}.md`, `arch.md` §4.8 | CRUD 5개 API(목록/단건/생성/수정/삭제) 전부 구현+테스트 완료. `Board`+`BoardType{NOTICE,FAQ}` enum 통합 관리, `BoardAttachment` join 엔티티(`Board:UploadFile`=1:N, NOTICE 전용). 신규 `BoardAttachmentValidator`(최대 10개, 1개당 10MB, 문서+이미지 확장자/MIME 허용목록, 이미지만 시그니처 검증). `BoardService`/`BoardController`(공개 GET, `/api/boards`)/`BoardAdminController`(관리자 CRUD, `/api/admin/boards`) 신규. `SecurityConfig`에 `arch.md` §4.6이 이미 명시했으나 코드로는 없었던 `/api/admin/**` → `hasRole("ADMIN")` 신규 추가(이 프로젝트 첫 관리자 전용 쓰기 API), `GET /api/boards`·`GET /api/boards/**` `permitAll()` 추가. 서비스 레벨 권한 분기 없음 — 라우트 레벨 강제로 충분(리소스 소유권 판단이 필요없는 "관리자냐 아니냐"뿐이라 Review의 `canEdit`/`canDelete`와 다름). `ErrorCode.BOARD_NOT_FOUND` 신규. FAQ+첨부파일 요청은 `INVALID_INPUT`으로 거절(2026-08-14 사용자 확인). API 4(수정)는 첨부파일 편집을 이번 패스 범위 밖으로 명시적으로 미루고 `application/json`으로 단순화(당초 `multipart/form-data` 초안에 실체 없는 `attachments` 파트가 남아있던 문서 불일치를 구현 중 발견해 함께 정리). 신규 테스트 34개(`BoardTest` 2개, `BoardAttachmentTest` 1개, `BoardAttachmentValidatorTest` 6개, `BoardServiceTest` 12개, `BoardControllerTest` 5개, `BoardAdminControllerTest` 8개) 전부 통과. 전체 스위트 258개 중 기존과 동일하게 Redis 미기동 관련 3건만 실패(회귀 없음). NOTICE 첨부파일 교체/추가/삭제 흐름과 프론트 업로드 UI는 다음 패스로 이월 |
 | ⚪ | Inquiry(1:1 문의) 도메인 신규 구현 | 미정 | `main` | `docs/FRONTEND_API_GAPS.md` §1.1, `docs/FRONTEND_USER_FLOW_AUDIT.md`(Codex, 2026-08-14) "공지·FAQ·문의·행사" | 백엔드에 도메인 자체가 없음(`Inquiry` 엔티티/Controller 전무) — Codex 감사에서도 동일 지적, `InquiryPage`/`InquiryDetailPage`/`MyPage`/`AdminPage`가 전부 `localStorage["customer-inquiries"]` 사용 확인. 데이터 계약(`InquiryRecord`): `category, name, email, phone, title, content, status(PENDING/COMPLETED), answer, answeredAt`. 착수 전 결정 필요: 비회원 문의 등록·조회 허용 여부(Codex 감사도 동일하게 미확정으로 지적) |
 | ✅ | Event(행사) 도메인 구현 (2026-08-16) | Claude | `main` | `docs/specs/events/{data-model,api}.md` | CRUD 5개 API(목록/단건/생성/수정/삭제) 전부 구현+테스트 완료. `EventPost`(`EventType{BOOTH,COLLABORATION}`, `visible`/`display_order` 포함)+`EventImage`(상세 갤러리, `UploadFile` 미경유·S3 key 직접 저장 — Review `image_path`와 동일 패턴, Board `BoardAttachment`의 UploadFile join과는 다름). `EventController`(공개 GET, `/api/events`)/`EventAdminController`(관리자 CRUD, `/api/admin/events`) 신규 — `/api/admin/events/**`는 Board 때 추가한 `/api/admin/**` → `hasRole("ADMIN")` 규칙에 코드 변경 없이 자동 편입, `SecurityConfig`엔 공개 GET `permitAll()`만 추가. 서비스 로직: 생성(썸네일+갤러리 S3 업로드 후 DB 트랜잭션, `uploadedKeys` 역순 보상삭제 — Board `create()`와 동일 골격) / 목록(`EventPostRepository.findVisibleByEventType`가 JPQL `ORDER BY display_order ASC NULLS LAST, event_date DESC NULLS LAST, created_at DESC` 고정 정렬 전담, `visible=true`만) / 상세(`visible=false`면 `EVENT_NOT_FOUND`로 존재 자체를 숨김, `next` 없음 — 프론트에 상세 페이지 라우트 자체가 없어 이전/다음 이동 UI가 없음) / 수정(텍스트 필드+`visible`+`displayOrder` 전체 재제출, 썸네일은 새 파일 있을 때만 교체(Review `applyImageChange`와 동일 패턴), 갤러리 편집은 이번 패스 제외) / 삭제(`EventImage`+`EventPost` 한 트랜잭션 삭제 후 커밋 이후 S3 정리, 썸네일도 함께). 신규 `EventImageValidator`(`ReviewImageValidator`와 규칙 동일: 2MB, jpg/jpeg/png/webp — package-private라 재사용 불가 + 도메인별 검증기 독립이 기존 관례라 신규 제작), 신규 ErrorCode `EVENT_NOT_FOUND`. 설계 단계에서 확정한 2가지: (1) `EventImage.representative` 플래그 제거 — `EventPost.thumbnail_image_path`가 대표 이미지 유일 소스 (2) 관리자 전용 전체 목록 API(`GET /api/admin/events`, `visible` 무관)는 이번 패스 제외, 이후 별도 구현. 신규 테스트 39개(`EventPostTest` 3개, `EventImageTest` 1개, `EventImageValidatorTest` 7개, `EventServiceTest` 14개, `EventControllerTest` 6개, `EventAdminControllerTest` 8개) 전부 통과. 전체 스위트 297개 중 기존과 동일하게 Redis 미기동 관련 3건만 실패(회귀 없음) |
-| ⚪ | 관리자(Admin) 신청 목록·상태변경·통계 API | 미정 | `main` | `docs/FRONTEND_API_GAPS.md` §1.2, `docs/FRONTEND_USER_FLOW_AUDIT.md` "관리자 의존성" | 기존 "Admin 도메인(사진검토/작명/카드발급/CardDesign 배정)" 행과 별개 — `GET /api/admin/applications`(목록, 상태·유형 필터), `GET /api/admin/applications/{id}`, `PATCH .../status`, `GET /api/admin/stats` 전부 없어 관리자 페이지가 `localStorage["admin-applications"]`로만 동작. 착수 전 확인 필요: 프론트 status enum(`SUBMITTED/CONSULTING/PAYMENT_PENDING/IN_PRODUCTION/COMPLETED/CANCELLED`)이 백엔드 실제 흐름(`PAYMENT_PENDING→RECEIVED→REVIEWING↔PHOTO_REJECTED→NAME_EDITING→PRODUCING→COMPLETED/CANCELLED`)과 달라 매핑 정리 먼저 필요 |
+| ⚪ | 관리자(Admin) 신청 목록·상태변경·통계 API | 미정 | `main` | `docs/FRONTEND_API_GAPS.md` §1.2, `docs/FRONTEND_USER_FLOW_AUDIT.md` "관리자 의존성" | `GET /api/admin/applications`(목록, 상태·유형 필터), `GET /api/admin/applications/{id}`, 상태별 명령 API, `GET /api/admin/stats`가 아직 없음. 백엔드 확정 상태는 `SUBMITTED→REVIEWING↔PHOTO_REJECTED→NAME_EDITING→PRODUCTION_READY→PRODUCING→COMPLETED/CANCELLED`이며 PaymentStatus는 별도 관리 |
 | ⚪ | "내 후기" 목록 조회 API | 미정 | `main` | `docs/FRONTEND_USER_FLOW_AUDIT.md` "후기" | `ReviewController`/`ReviewService.list()`에 로그인 사용자 범위로 좁히는 파라미터가 없음(`cardTypeId`/`hasPhoto`/`searchType`/`keyword`/`page`/`size`뿐, 작성자 필터 없음) — 코드로 확인 완료. 마이페이지 "내 후기" 목록에 필요. `GET /api/reviews/me` 신설 또는 기존 목록에 `mine=true`(로그인 필요) 파라미터 추가 중 택1 |
 | ⚪ | 단체신청 Excel 양식 다운로드 API 필요 여부 확정 | 미정 | `main` | `docs/FRONTEND_USER_FLOW_AUDIT.md` "신청" | 백엔드에 template 관련 엔드포인트가 확인되지 않음(코드 검색 결과 없음) — 프론트에도 양식 다운로드 버튼 자체가 없음. 신규 API가 필요한 건지, 정적 파일 제공으로 충분한지 정책 확인부터 필요 |
 
 > 아래 "Task 1~4" 4행 요약은 이 로드맵이 Task 1~6(5-A/5-B 포함)으로 세분화되기 전의 옛 버전이라 삭제함 — 최신 진행 상태는 바로 아래 "Application 개인 신청 리팩터링 로드맵" 절 참고.
 
 ---
+
+## 신청 상태·취소·환불 구조 변경 체크리스트
+
+> 기준: 2026-08-17 확정 정책. `origin/main` `26ac036`에는 일일 KST 3회 제한만 구현되어 있으며 아래 항목은 미구현 상태다.
+
+### 1. 정책 문서 정합성
+
+- [x] `requirements.md`의 `PAYMENT_PENDING → RECEIVED → REVIEWING` 선형 흐름을 새 상태 구조로 교체
+- [x] `data-model.md`에 새 상태 enum과 취소·환불·결제기한·카드준비·실물발송 필드 반영
+- [x] `api.md`의 생성·조회·재업로드·다운로드 상태 예시에서 `PAYMENT_PENDING`, `RECEIVED` 제거
+- [x] `docs/api/admin.md`, `docs/api/payment.md`의 `PAYMENT_PENDING → RECEIVED` 계약과 관리자 액션을 새 결제·상태 분리 정책으로 교체
+- [x] `service-flow.md`의 일일 신청 제한 미구현 문구와 상태 관련 주석을 현재 구현·정책 기준으로 갱신
+- [x] 해결된 신청·결제 선후 관계와 3일 자동 취소 항목을 `PENDING_DECISIONS.md`에서 정리
+- [x] 취소 파일 30일 보관/Cleanup Scheduler TBD를 “취소 commit 직후 S3 삭제” 확정 정책으로 `PENDING_DECISIONS.md`에서 정리
+- [ ] 프론트 상태 라벨·관리자 필터 및 `backend/FRONTEND_API_REQUIREMENTS.md` 동기화는 프론트 작업 범위로 별도 전달
+
+### 2. Enum 및 Application 필드
+
+- [x] `ApplicationStatus`를 `SUBMITTED, REVIEWING, PHOTO_REJECTED, NAME_EDITING, PRODUCTION_READY, PRODUCING, COMPLETED, CANCELLED`로 변경
+- [x] `PaymentStatus`는 입금 확인 이력인 `WAITING, CONFIRMED`만 유지
+- [x] `CancellationType`에 `USER, SYSTEM, ADMIN` 정의
+- [x] `CancellationReason`에 `USER_REQUEST, PAYMENT_TIMEOUT, ADMIN_DECISION` 정의
+- [x] `Application`에 nullable `cancelledAt`, `cancellationType`, `cancellationReason`, `refundedAt` 추가
+- [x] `Application`에 nullable `paymentGuidedAt`, `paymentDueAt` 추가
+- [x] 모바일 다운로드 기준 `cardReadyAt`, 실물 발송 여부 `physicalDispatchedAt` 반영
+- [ ] `Application`에 동시 상태 변경 감지를 위한 `@Version` 필드 추가하고 DB 컬럼·기존 row 초기화 방식 반영 — Entity 필드는 추가 완료, 운영 DB 기존 row 초기화·배포 절차는 미완료
+- [ ] 기존 데이터 변환 정의: `PAYMENT_PENDING → SUBMITTED`, `RECEIVED → SUBMITTED + CONFIRMED`, 나머지 상태 유지
+- [ ] nullable 신규 컬럼과 enum 변경의 운영 배포 순서 검증
+
+### 3. Entity 상태 전이와 불변조건
+
+- [x] 생성 초기값을 `SUBMITTED + WAITING`으로 변경
+- [x] `confirmPayment()`는 ApplicationStatus를 변경하지 않고 `CONFIRMED`만 기록하며, 자동 취소 후 늦은 입금(`CANCELLED + WAITING`)도 재활성화 없이 허용
+- [x] 이미 `CONFIRMED`인 입금 확인 재호출은 값을 변경하지 않는 멱등 성공으로 처리
+- [x] 결제 안내 최초 처리만 `paymentGuidedAt`, `paymentDueAt`을 기록하고 재안내는 기한을 초기화·연장하지 않도록 보장
+- [x] `startReview()`는 `SUBMITTED + CONFIRMED`에서만 허용
+- [x] `REVIEWING → PHOTO_REJECTED → REVIEWING` 반려·재업로드 전이 유지
+- [x] 관리자 검토 승인 시 `REVIEWING → NAME_EDITING` 전이
+- [x] 작명 완료 시 `NAME_EDITING → PRODUCTION_READY` 전이 추가
+- [x] 제작 시작은 `PRODUCTION_READY + CONFIRMED`에서 관리자 승인으로만 허용
+- [ ] 카드 파일 생성 완료를 `markCardReady()` 같은 명시적 전이로 분리하고, 단체는 모든 Member의 앞·뒷면 파일 준비 완료 후 한 번만 `cardReadyAt` 기록
+- [x] `MOBILE`은 카드 준비 완료와 함께 `COMPLETED`, `MOBILE_AND_PHYSICAL`은 카드 준비 후 `PRODUCING`을 유지하다 택배사 인계 시 `physicalDispatchedAt` 기록 후 `COMPLETED`로 전이
+- [x] `physicalDispatchedAt`은 `MOBILE_AND_PHYSICAL + cardReadyAt!=null`에서만 기록하고 배송사·운송장·배송완료 상태는 Application에 추가하지 않음
+- [x] 사용자 취소 가능 상태를 `SUBMITTED, REVIEWING, PHOTO_REJECTED`로 제한
+- [x] `cancelByUser()`는 최초 1회만 `CANCELLED`, `cancelledAt`, `USER_REQUEST` 기록; PaymentStatus 유지
+- [x] 이미 `CANCELLED`이면 값을 다시 변경하지 않고 멱등 성공
+- [x] `cancelForPaymentTimeout()`은 `SUBMITTED + WAITING + paymentDueAt 경과`에서만 허용하고 `PAYMENT_TIMEOUT` 기록
+- [x] 현재 모든 비취소 상태를 취소할 수 있는 범용 `cancel()`을 제거/비공개화하고 이번 범위에서는 `cancelByUser()`, `cancelForPaymentTimeout()`만 각각 허용 상태를 검증하도록 분리
+- [x] 관리자 직접 취소 API·Service 메서드는 구현하지 않고 `ADMIN`, `ADMIN_DECISION` 값만 향후 확장용으로 예약
+- [x] `cancellationType`과 `cancellationReason`의 허용 조합(`USER/USER_REQUEST`, `SYSTEM/PAYMENT_TIMEOUT`, `ADMIN/ADMIN_DECISION`) 불변조건 보장
+- [x] `markRefunded()`는 `CANCELLED + CONFIRMED`에서만 `refundedAt`을 한 번 기록
+- [x] `refundedAt != null`이면 반드시 `CANCELLED + CONFIRMED` 불변조건 보장
+- [x] 자동 취소 후 늦은 입금은 재활성화하지 않고 `CANCELLED + CONFIRMED + refundedAt=null` 유지
+
+### 4. Service 및 트랜잭션
+
+- [x] 사용자 취소를 `조회 → 소유권 → 멱등 확인 → 상태 검증 → 취소 → 일일 슬롯 반환` 순서로 처리
+- [x] 취소 상태 저장과 `releaseSlot()`을 동일 트랜잭션에서 commit/rollback
+- [x] 최초 `CANCELLED` 전이에만 신청 생성일 KST 슬롯 반환; 중복 요청에서는 반환 금지
+- [x] 사용자 취소에 `@Version` 낙관적 락 적용 — 입금 확인·자동 취소 Service 연결은 후속 단위
+- [x] 결제 안내 시 `paymentGuidedAt`, `paymentDueAt=paymentGuidedAt+3일` 기록
+- [x] 관리자 결제 안내와 입금 확인을 호출할 Application Service 명령을 추가하고 관리자 권한을 검증; 최초 입금 확인에만 `PAYMENT_CONFIRMED` 감사로그 1건 기록
+- [ ] 결제 안내/입금 확인/검토 시작/검토 승인/편집 완료/제작 승인/제작 완료가 새 Entity 메서드만 통해 전이되도록 관리자 Application 처리 흐름 연결
+- [x] 자동 취소 스케줄러는 `SUBMITTED + WAITING + paymentDueAt<=now` 조회 후 처리 직전 Entity에서 재검증
+- [x] 자동 취소 스케줄러 기본 주기를 10분(`0 */10 * * * *`)으로 두고 `application.payment-timeout-scheduler.cron` 설정으로 변경 가능하게 구현
+- [ ] `ApplicationRepository`에 자동 취소 대상과 환불 대기 대상 조회를 추가하고, 상태 변경용 조회에는 선택한 낙관적/비관적 잠금 정책을 일관되게 적용 — 자동 취소 대상 조회·`@Version` 적용 완료, 환불 대기 조회는 후속
+- [x] 스케줄러와 관리자 입금 확인이 같은 신청을 처리할 때 낙관적 락 충돌을 감지하고 스케줄러가 해당 stale 후보를 건너뛰도록 처리
+- [x] 늦은 입금 확인은 환불 대상 조합으로만 바꾸고 Application 상태를 복구하지 않음
+- [x] 최초 사용자/자동 취소 commit 직후 `afterCommit`에서 얼굴사진·로고·직인·제출 ZIP 등 Application 전용 S3 객체를 즉시 삭제; 중복 취소에서는 재삭제하지 않음
+- [x] 사용자 취소 DB 트랜잭션에서 `logoFileId`, `sealFileId`, `submitFileId`, `ApplicationMember.photoPath` 등 삭제 대상 참조와 해당 UploadFile metadata row를 함께 정리하고 Application/Applicant/Receiver/Member 이력 row는 유지
+- [x] 사용자 취소 DB rollback/commit 실패 시 S3 삭제를 실행하지 않고 기존 파일을 보존
+- [x] 사용자 취소 after-commit S3 삭제 실패는 취소 결과를 되돌리거나 원 예외로 바꾸지 않고 실패 key를 오류 로그로 남겨 운영자가 수동 재삭제
+- [ ] 환불 완료 처리 시 기존 `AdminActivityLog`에 관리자·신청·처리 시각 기록
+- [ ] `AdminActivityLog`에 환불 완료 action type을 추가하고 최초 완료 때만 로그가 한 건 생성되도록 보장
+- [x] `ApplicationDailyLimitService`의 “향후 취소 구현” 주석을 실제 취소 트랜잭션 연결 방식으로 갱신
+
+### 5. API 및 조회 계약
+
+- [x] `POST /api/applications/{applicationId}/cancel` 추가; 로그인 본인 신청만 허용
+- [x] 요청 본문 없이 ApplicationStatus, PaymentStatus, 환불 필요 여부 응답
+- [x] 신청 없음, 타인 신청, 취소 불가 상태, 중복 취소의 HTTP/ErrorCode 계약 구현·검증
+- [ ] 관리자 결제 안내 API/명령과 입금 확인 API 계약을 분리하고, 안내 시각·기한 및 실제 입금 이력을 각각 응답에 반영
+- [ ] 입금 확인 최초 호출과 중복 호출 모두 `200 OK`; 중복 호출은 `CONFIRMED` 유지와 “이미 입금 확인 완료” 안내를 기존 `ApiResponse` 형식으로 반환
+- [ ] 관리자 상태 변경 API가 임의 status 문자열 덮어쓰기가 아니라 검토 시작·승인·편집 완료·제작 승인·제작 완료 명령을 호출하도록 계약 정리
+- [ ] 카드 파일 준비 완료와 `MOBILE_AND_PHYSICAL` 택배사 인계를 기록하는 관리자 API/명령을 분리하고, 인계 API는 배송사·운송장 정보를 받지 않도록 계약
+- [ ] 낙관적 락 충돌을 409 등 일관된 ErrorCode/HTTP 응답으로 매핑
+- [ ] `CANCELLED + CONFIRMED + refundedAt=null`은 환불 대기, `refundedAt!=null`은 환불 완료로 조회
+- [ ] 관리자 환불 대상 조건을 `CANCELLED + CONFIRMED + refundedAt IS NULL`로 정의
+- [ ] 관리자 환불 완료 API 또는 내부 관리 명령에서만 `markRefunded()` 호출
+- [ ] 카드 다운로드 조건을 `COMPLETED` 단독 검사에서 `cardReadyAt` 기준으로 변경
+- [ ] `MOBILE`은 카드 파일 준비 시 완료, `MOBILE_AND_PHYSICAL`은 `physicalDispatchedAt` 기록 시 완료
+- [ ] 배송사·운송장·배송 중·배송 완료 상태는 저장하거나 제공하지 않음
+
+### 6. 테스트
+
+- [x] 새 ApplicationStatus 정상 전이와 역방향·건너뛰기 거절 Entity 테스트
+- [x] 기존 테스트 픽스처의 `PAYMENT_PENDING → confirmPayment() → startReview()` 전제를 `SUBMITTED + CONFIRMED → startReview()` 정책에 맞게 일괄 수정
+- [ ] 생성 API 응답의 초기값이 개인·단체 모두 `SUBMITTED + WAITING`인지 검증
+- [x] 결제 안내 최초 시각+72시간 기한, 재안내 시 기한 불변, 입금 확인 시 ApplicationStatus 불변을 검증
+- [ ] `CONFIRMED` 입금 확인 재호출이 200 멱등 성공하고 상태·시각·이력을 중복 변경하지 않는지 검증
+- [ ] 카드 준비 시 IssueType별 상태 전이와 `cardReadyAt`, `physicalDispatchedAt`, 조기 다운로드 허용 조건 검증
+- [x] `WAITING` 취소는 `CANCELLED + WAITING`, `CONFIRMED` 취소는 `CANCELLED + CONFIRMED + refundedAt=null` 검증
+- [ ] `SUBMITTED, REVIEWING, PHOTO_REJECTED` 취소 성공과 `NAME_EDITING` 이후 거절 검증
+- [x] 중복 취소가 멱등 성공하고 일일 슬롯을 한 번만 반환하는지 검증
+- [x] 타인 신청 취소 403, 신청 없음 404 검증
+- [ ] 환불 완료 선행조건·멱등성·환불 대기 목록 제외 검증
+- [ ] 결제 안내 전, 3일 미경과는 자동 취소하지 않고 기한 경과 건만 취소하는지 검증
+- [ ] 자동 취소와 입금 확인 동시 실행 통합 테스트
+- [x] 자동 취소 후 늦은 입금이 신청을 재활성화하지 않는지 검증
+- [x] 취소 실패 시 Application 상태와 일일 카운터가 함께 rollback되는 실제 DB 통합 테스트
+- [x] 사용자 취소 commit 전에는 S3를 삭제하지 않고 commit 성공 후 한 번만 삭제하며, rollback/commit 실패에서는 삭제하지 않는 트랜잭션 생명주기 테스트
+- [x] S3 삭제 실패에도 취소 상태와 일일 슬롯 반환이 유지되는지 검증하고 실패 key 오류 로그 유지
+- [ ] 조회·사진 재업로드·카드 다운로드·Review 작성 자격 테스트 전체 회귀 검증
+
+### 7. 최소 환불 모델 운영 한계
+
+- [ ] `refundedAt`은 환불 누락과 중복 완료 기록은 방지하지만 외부 계좌이체 중복 송금까지 보장하지 못함을 운영 문서에 명시
+- [ ] 초기 운영은 환불 대기 목록 + 관리자 완료 처리 + `AdminActivityLog`로 관리
+- [ ] 다중 관리자 중복 송금 문제가 실제 발생할 때만 `refundProcessingAt`, `refundedBy` 또는 Refund 엔티티 재검토
 
 ## Application 개인 신청 리팩터링 로드맵
 
@@ -153,7 +272,7 @@ Factory, Validator, Context 등 새로운 클래스를 추가하기 전에 반�
 - [x] `USER` 권한 검증 — `FORBIDDEN` 재사용
 - [x] 필수 약관 전체 동의 검증 — `TERMS_NOT_AGREED` 재사용
 - [x] 하루 3번째 신청 허용, 4번째부터 거절 — 2026-08-16 구현 완료(하단 "일일 KST 3회 제한 DB 원자 처리" 항목 참고)
-- [x] 생성 후 `CANCELLED`된 신청은 해당 날짜의 신청 횟수에서 제외(취소 시 자리가 다시 빔) — `ApplicationDailyLimitService.releaseSlot`로 반환 가능하도록 구현. 다만 실제 "신청 취소" API 자체가 아직 없어(별도 TODO 항목) 이 release는 현재 실패 보상(파일 업로드·DB 저장 실패)에서만 호출되고, 취소 흐름에는 아직 연결되지 않음 — 취소 API 구현 시 그 Service 계층에서 이 메서드를 호출하면 됨
+- [x] 생성 후 `CANCELLED`된 신청은 해당 날짜의 신청 횟수에서 제외(취소 시 자리가 다시 빔) — 사용자 취소 API가 최초 취소 시 `ApplicationDailyLimitService.releaseSlot`을 같은 트랜잭션에서 호출하도록 연결 완료
 - [x] 동일 사용자·동일 카드 종류의 중복 신청 허용 — 별도 차단 로직 추가하지 않음
 - [x] 진행 중인 같은 카드 신청이 있다는 이유만으로 차단하지 않음
 - [x] Application의 `UserRepository` 직접 의존 제거 및 `UserService` 공개 메서드 사용

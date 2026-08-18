@@ -15,12 +15,74 @@
 
 ---
 
+## 2026-08-18 — Claude — `main` (마이페이지 신청 목록/상세 조회 API 6·7 구현)
+
+- 변경: `docs/specs/application/api.md`에 설계만 있던 API 6(`GET /api/my/applications`, 목록)·API 7(`GET /api/my/applications/{id}`, 상세)을 구현했다. 목록은 로그인 사용자 본인 신청만 `createdAt DESC` 고정 정렬로 페이지네이션하며, `status`(`ApplicationStatus`) 선택 필터를 지원한다. 상세는 `application.isOwnedBy(userId)`로 소유권을 검증하고(타인이면 `FORBIDDEN`), `receiver`는 `issueType=MOBILE_AND_PHYSICAL`일 때만 채우고 그 외엔 `null`을 반환한다. 단체 신청은 구성원 개별 목록 대신 `memberCount`만 노출한다.
+- 파일: `ApplicationRepository.java`(+`findByUserId`/`findByUserIdAndStatus`), `ApplicationMemberRepository.java`(+`countByApplicationId`), `MyApplicationListItemResponse.java`/`MyApplicationDetailResponse.java`(신규 DTO), `ApplicationService.java`(+`listMyApplications`/`getMyApplicationDetail`, `ReceiverRepository` 신규 주입), `MyApplicationController.java`(신규), `ApplicationServiceMyApplicationsTest.java`/`MyApplicationControllerTest.java`(신규), `docs/specs/application/api.md`
+- 테스트: 신규 테스트 13개(서비스 7개, 컨트롤러 6개) 전부 통과. 전체 스위트 361개 중 기존과 동일하게 `UserControllerTest` 2건+Redis 미기동 1건만 실패(회귀 없음).
+- 사유: 마이페이지 신청 목록/상세는 프론트가 이미 mock으로 화면을 그려둔 상태라 데이터 소스만 교체하면 되는 상태였고, 백엔드 설계가 이미 완료돼 있어 사용자 확인("응 그럼 구현") 후 바로 착수했다.
+- ⚠️ 커밋 보류: `MyApplicationDetailResponse`가 `Application.paymentGuidedAt/cancelledAt/cancellationType/cancellationReason/refundedAt/cardReadyAt/physicalDispatchedAt`을 그대로 읽는데, 이 필드들은 Codex가 진행 중인 "신청 상태 리팩터링"(TODO #64)의 미커밋 `Application` 엔티티 변경분에만 존재한다. 지금 HEAD의 `Application`엔 없어 이 작업만 단독 커밋하면 컴파일이 깨진다 — Codex의 리팩터링 커밋이 먼저 들어간 뒤 이 작업을 커밋하기로 결정(사용자 확인 완료).
+
 ## 2026-08-18 — Codex — `main` (단체 신청 Excel 사진 번호 고정)
 
 - 변경: Excel `ID` 열을 사용자 입력이 아닌 `사진 번호`로 변경하고, v1.1 양식 3종의 A4:A103에 텍스트 `001`~`100`을 수식 없이 사전 입력했다. 사진 번호 셀은 잠금·구분 색상·메모를 적용했다. `BulkExcelParser`는 사진 번호만 있는 행을 빈 행으로 무시하고 B열 이후 신청자 정보가 있는 행만 처리하며, 실제 처리 행의 사진만 ZIP과 매칭한다.
 - 파일: `outputs/bulk-excel-templates-20260818/*_v1.1.xlsx`, `BulkExcelParser.java`, `BulkMemberRow.java`, `BulkExcelParserTest.java`, Application 정책 문서
 - 테스트: 신규 테스트 3개를 기존 구현에서 실패 확인 후 `BulkExcelParserTest` 19개 전체 통과. 워크북 3종 자동 검증 및 전 시트 렌더링 통과.
 - 사유: 사용자가 사진 매칭용 번호를 직접 입력하면서 발생할 수 있는 선행 0·중복·오입력 문제를 제거하고, 빈 템플릿 행을 신청자로 오인하지 않도록 하기 위함.
+
+## 2026-08-17 — Codex — `main` (결제 안내·입금 확인 Service 및 자동취소 스케줄러)
+
+- 변경: 관리자 결제 안내·입금 확인 Service 명령을 추가했다. 최초 안내만 `paymentGuidedAt`과 72시간 기한을 기록하고 재호출은 값을 유지한다. 입금 확인은 ApplicationStatus를 바꾸지 않으며 최초 `WAITING → CONFIRMED`에만 `AdminActivityLog.PAYMENT_CONFIRMED` 한 건을 기록한다.
+- 자동취소: `SUBMITTED + WAITING + paymentDueAt<=now` 후보 ID를 조회해 신청별 별도 트랜잭션에서 재검증·취소한다. 기본 cron은 10분(`0 */10 * * * *`)이며 `application.payment-timeout-scheduler.cron`으로 변경할 수 있다. 자동취소도 슬롯 반환, DB 파일 참조 정리, commit 후 S3 삭제를 재사용한다.
+- 동시성: `Application.@Version` 충돌 시 스케줄러가 stale 후보를 건너뛴다. 자동취소 후 늦은 입금 확인은 ApplicationStatus를 복구하지 않고 `CANCELLED + CONFIRMED` 환불 대기 조합으로 유지한다.
+- 문서 정리: `docs/api/admin.md`의 구 `Payment row 필수` 조건을 제거했다. Source of Truth에 따라 별도 Payment row 없이 Application의 입금 확인 이력만 사용한다. 관리자 HTTP API는 아직 구현 전이다.
+- 테스트: `ApplicationPaymentWorkflowTest` 5개 통과. 안내 기한 멱등성, 최초 입금 확인 로그 1건, 비관리자 거절, 자동취소·슬롯·S3 정리, 늦은 입금 비재활성화를 검증했다. 로그: `backend/honor-citizen/build/logs/application-payment-workflow.log`.
+- 관련: TODO “신청 상태·취소·환불 구조 변경 체크리스트” §4·§6
+
+---
+
+## 2026-08-17 — Codex — `main` (사용자 취소 S3 정리·HTTP API 구현)
+
+- 변경: 최초 사용자 취소 트랜잭션에서 로고·직인·제출 ZIP의 `UploadFile` 행과 Application 파일 ID, 멤버 `photoPath`를 정리하고 실제 S3 객체는 commit 성공 후 `afterCommit()`에서만 삭제하도록 연결했다. rollback·중복 취소에서는 삭제하지 않으며 S3 삭제 실패는 key와 예외를 경고 로그로 남기고 취소 결과를 유지한다. `POST /api/applications/{applicationId}/cancel`과 `ApplicationCancelResponse`를 추가했다.
+- API: 요청 본문 없음. `applicationId`, `status`, `paymentStatus`, `refundRequired`, `cancelledAt` 반환. 비로그인 401, 타인 403, 없음 404, `NAME_EDITING` 이후 400, 중복 취소 200 멱등 성공.
+- 파일: `Application.java`, `ApplicationMember.java`, `ApplicationService.java`, `ApplicationCancelResponse.java`, `ApplicationController.java`, `ApplicationServiceDailyLimitTest.java`, `ApplicationControllerTest.java`, `docs/specs/application/api.md`, `docs/collab/{TODO,HANDOFF}.md`
+- 테스트: 취소 S3/DB 통합 테스트 8개 통과. 취소 API Controller 테스트 11개 통과. 단체 취소 시 UploadFile 3행과 S3 4개 key 정리, rollback 시 파일 보존, S3 삭제 실패 격리, WAITING/CONFIRMED 환불 필요 응답을 검증했다. 로그: `backend/honor-citizen/build/logs/application-cancel-{s3-cleanup,api}.log`.
+- 사유: 확정된 사용자 취소 정책의 파일 생명주기와 외부 HTTP 계약을 완성하기 위함.
+- 관련: TODO “신청 상태·취소·환불 구조 변경 체크리스트” §4~6
+
+---
+
+## 2026-08-17 — Codex — `main` (사용자 취소 DB 전이·일일 슬롯 원자 처리)
+
+- 변경: `ApplicationService.cancelByUser()`를 추가해 신청 조회, 소유권 확인, Entity 멱등 취소, 신청 생성일 KST 슬롯 반환을 하나의 `@Transactional` 경계에서 처리했다. 최초 취소에만 슬롯을 반환하며 중복 취소는 카운터를 다시 감소시키지 않는다. `ApplicationDailyLimitService.releaseSlot()`은 생성 실패 경로에서는 독립 트랜잭션, 취소 경로에서는 외부 트랜잭션에 합류한다는 실제 REQUIRED 전파 의미로 주석을 정리했다.
+- 파일: `domain/application/service/{ApplicationService,ApplicationDailyLimitService}.java`, `domain/application/entity/ApplicationDailyLimit.java`, `ApplicationServiceDailyLimitTest.java`, `docs/collab/{TODO,HANDOFF}.md`
+- 테스트: `ApplicationServiceDailyLimitTest` 6개 통과. 강제 outer rollback 시 `ApplicationStatus.SUBMITTED`와 일일 카운터 1이 함께 복구되는 실제 Spring/Test DB 검증 포함. Entity·일일 제한 직접 회귀 21개 통과. 로그: `backend/honor-citizen/build/logs/application-user-cancel-{transaction,regression}.log`.
+- 범위: S3 파일 after-commit 삭제와 HTTP 취소 API는 포함하지 않았으며 각각 후속 논리 단위로 연결한다.
+- 사유: 취소 상태와 일일 신청 슬롯이 서로 다른 트랜잭션에서 부분 반영되는 것을 방지하기 위함.
+- 관련: TODO “신청 상태·취소·환불 구조 변경 체크리스트” §4·§6
+
+---
+
+## 2026-08-17 — Codex — `main` (Application 상태 enum·Entity 전이 구현)
+
+- 변경: `ApplicationStatus`에서 `PAYMENT_PENDING`/`RECEIVED`를 제거하고 `SUBMITTED`/`PRODUCTION_READY`를 추가했다. `Application`에 결제안내·취소·환불·카드준비·실물인계 시각과 취소 분류, 낙관적 락 버전을 추가하고, 초기 `SUBMITTED + WAITING`부터 입금 확인·검토·작명·제작·완료·사용자/자동취소·환불완료까지 확정된 Entity 전이를 구현했다.
+- 파일: `ApplicationStatus.java`, `CancellationType.java`, `CancellationReason.java`, `Application.java`, `ApplicationStateTransitionTest.java` 및 새 전이를 직접 사용하는 기존 Application/Review 테스트 픽스처, `docs/collab/TODO.md`
+- 테스트: `ApplicationStateTransitionTest` 6개 통과. 상태 전이를 직접 사용하는 Application/Review 회귀 테스트 71개 통과. 로그: `backend/honor-citizen/build/logs/application-state-transition.log`, `application-state-dependent-regression.log`.
+- 주의: 운영 DB 마이그레이션 도구가 없고 `schema.sql`은 시퀀스만 관리한다. `@Version` 및 신규 nullable 컬럼의 기존 운영 DB 반영·구 상태 데이터 변환은 별도 배포 단위로 남겼다.
+- 사유: enum과 Entity 전이를 분리하면 중간 상태가 컴파일되지 않으므로, 독립 빌드·검증 가능한 하나의 논리 단위로 구현했다.
+- 관련: TODO “신청 상태·취소·환불 구조 변경 체크리스트” §2~3
+
+---
+
+## 2026-08-17 — Codex — `main` (신청 상태·결제·취소 정책 문서 정합성)
+
+- 변경: `APPLICATION.md` §16 확정 정책을 Application 요구사항·데이터 모델·API·서비스 흐름과 Admin/Payment 계약에 동기화했다. 초기 상태를 `SUBMITTED + WAITING`으로 변경하고 ApplicationStatus와 PaymentStatus를 분리했다. 최초 결제 안내부터 72시간, 기본 10분·설정형 자동 취소 스케줄러, 입금 확인 멱등 성공, 사용자/자동 취소 commit 직후 S3 삭제, 최소 `refundedAt` 환불 모델을 문서에 반영했다.
+- 파일: `docs/specs/application/{APPLICATION,requirements,data-model,api,service-flow}.md`, `docs/api/{admin,payment}.md`, `docs/collab/{TODO,PENDING_DECISIONS}.md`
+- 검증: 대상 문서에서 `PAYMENT_PENDING`, `RECEIVED`, 신청일 기준 3일, `COMPLETED` 단독 다운로드 조건 잔존 여부를 검색해 0건 확인. `git diff --check` 통과. 문서 전용 변경이라 Gradle 테스트는 실행하지 않았다.
+- 사유: 코드 구현 전에 상충하는 구 상태·결제 계약을 제거하고 확정 정책을 Source of Truth 문서 체계에 전파하기 위함.
+- 관련: TODO “신청 상태·취소·환불 정책 문서 정합성 반영” 완료
+
+---
 
 ## 2026-08-16 — Claude — `main` (일일 신청 3회 제한 구현 — Application 도메인 마지막 미구현 항목)
 

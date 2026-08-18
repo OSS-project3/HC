@@ -82,7 +82,7 @@ __MACOSX
 
 최대 인원
 
-현재 제한 없음
+신청 1건당 100명
 
 ZIP 최대 크기
 
@@ -220,7 +220,7 @@ Spring 자기호출 방식은 사용하지 않는다.
 - 동시 요청은 DB 수준에서 원자적으로 처리
 - APPLICATION_LIMIT_EXCEEDED ErrorCode 추가
 
-현재 리팩터링 범위에서는 구현하지 않는다.
+✅ 2026-08-16 구현 완료. 취소가 최초로 성공하면 해당 신청이 차지한 생성일 KST 슬롯을 한 번만 반환한다.
 
 ---
 
@@ -296,7 +296,6 @@ TBD
 - 학생증 공백 문자열 정책
 - 학교명 필드 추가 여부
 - quantity 정책(개인 신청 프론트 입력 유지 여부)
-- 취소/반려 신청의 일일 횟수 포함 여부
 
 ---
 
@@ -394,39 +393,228 @@ Applicant.email은
 
 ---
 
-# 16. Payment 정책
+# 16. 신청·결제·취소·환불 정책
 
-현재 신청 흐름은
+## 16-1. 신청·결제 업무 흐름
 
-상담
+상담은 신청 전에 완료한다. 사진·내용 검토와 작명은 입금 확인 후에만 시작한다.
 
-↓
+```text
+사전 상담
+→ 신청서 제출: SUBMITTED + WAITING
+→ 결제 안내: paymentGuidedAt 기록, paymentDueAt = 안내 시각 + 72시간
+→ 입금 확인: SUBMITTED + CONFIRMED
+→ 검토 시작: REVIEWING + CONFIRMED
+→ 사진 반려: PHOTO_REJECTED + CONFIRMED
+→ 사진 재업로드: REVIEWING + CONFIRMED
+→ 검토 승인: NAME_EDITING + CONFIRMED
+→ 편집 완료: PRODUCTION_READY + CONFIRMED
+→ 관리자 제작 승인: PRODUCING + CONFIRMED
+→ 제작 완료: COMPLETED + CONFIRMED
+```
 
-금액 결정
+ApplicationStatus는 신청 업무 진행 단계를, PaymentStatus는 실제 입금 확인 이력을 나타낸다. 입금 확인만으로 ApplicationStatus를 변경하지 않는다.
 
-↓
+입금 확인은 멱등하게 처리한다. 이미 `PaymentStatus.CONFIRMED`인 신청에 입금 확인을 다시 요청하면 상태와 입금 이력을 변경하지 않고 `200 OK` 성공 응답을 반환한다. 중복 호출을 오류로 처리하거나 `PaymentStatus`를 다른 값으로 바꾸지 않는다. 성공 응답에는 필요하면 `이미 입금 확인이 완료된 신청입니다.`라는 안내를 포함하되, 기존 공통 `ApiResponse` 형식 안에서 제공한다.
 
-계좌이체
+```java
+status == ApplicationStatus.SUBMITTED
+        && paymentStatus == PaymentStatus.CONFIRMED
+```
 
-↓
+`startReview()`는 위 조건에서만 실행할 수 있다.
 
-관리자 확인
+신청 생성 시 Payment 엔티티를 생성하거나 `totalPrice`를 계산하지 않는다. 상담으로 결정한 금액과 계좌이체 확인은 현재 운영 절차로 처리하며, 향후 온라인 결제가 필요할 때 Payment 도메인을 확장한다.
 
-이다.
+## 16-2. ApplicationStatus
 
-신청 생성 시
+| 상태 | 운영 의미 |
+|---|---|
+| `SUBMITTED` | 신청서 제출 완료, 입금·검토 시작 전 |
+| `REVIEWING` | 입금 확인 후 사진·내용 검토 중 |
+| `PHOTO_REJECTED` | 사진 보완 대기 |
+| `NAME_EDITING` | 검토 승인 후 실제 작명·편집 작업 중 |
+| `PRODUCTION_READY` | 검토·작명·편집 완료, 관리자 제작 승인 대기 |
+| `PRODUCING` | 카드 제작 중 |
+| `COMPLETED` | 발급 완료 |
+| `CANCELLED` | 취소 완료 |
 
-Payment 생성
+`PaymentStatus`는 `WAITING`, `CONFIRMED`만 사용하며 취소 또는 환불 후에도 기존 입금 확인 이력을 변경하지 않는다.
 
-totalPrice 계산
+## 16-3. 사용자 취소
 
-은 수행하지 않는다.
+| 신청 상태 | 사용자 취소 | 가능한 결제 상태 |
+|---|---:|---|
+| `SUBMITTED` | 가능 | `WAITING`, `CONFIRMED` |
+| `REVIEWING` | 가능 | 정책상 `CONFIRMED` |
+| `PHOTO_REJECTED` | 가능 | 정책상 `CONFIRMED` |
+| `NAME_EDITING` 이후 | 불가 | 관계없음 |
+| `CANCELLED` | 멱등 성공 | 기존 값 유지 |
 
-다만
+취소 가능 여부는 ApplicationStatus만으로 판단한다.
 
-향후 온라인 결제 기능을 구현할 예정이므로
+```java
+public boolean canCancelByUser() {
+    return status == ApplicationStatus.SUBMITTED
+            || status == ApplicationStatus.REVIEWING
+            || status == ApplicationStatus.PHOTO_REJECTED;
+}
+```
 
-Payment Entity와 관련 도메인은 삭제하지 않는다.
+```text
+SUBMITTED + WAITING
+→ CANCELLED + WAITING
+→ 환불 불필요
+```
+
+```text
+SUBMITTED/REVIEWING/PHOTO_REJECTED + CONFIRMED
+→ CANCELLED + CONFIRMED + refundedAt=null
+→ 전액 환불 필요
+```
+
+```text
+관리자가 외부에서 전액 환불 완료
+→ CANCELLED + CONFIRMED + refundedAt!=null
+```
+
+이미 `CANCELLED`인 신청에 취소 API가 다시 호출되면 PaymentStatus, 취소 이력, `refundedAt`을 변경하지 않고 멱등 성공으로 처리한다. 최초 취소 성공 시에만 생성일 KST 기준 일일 신청 슬롯을 한 번 반환한다.
+
+사용자 취소 API는 요청 본문 없이 제공한다.
+
+```http
+POST /api/applications/{applicationId}/cancel
+```
+
+## 16-4. 취소 이력
+
+취소 시각, 실행 주체, 사유를 저장한다.
+
+```java
+private LocalDateTime cancelledAt;
+
+@Enumerated(EnumType.STRING)
+private CancellationType cancellationType;
+// USER, SYSTEM, ADMIN
+
+@Enumerated(EnumType.STRING)
+private CancellationReason cancellationReason;
+// USER_REQUEST, PAYMENT_TIMEOUT, ADMIN_DECISION
+```
+
+허용 조합은 `USER + USER_REQUEST`, `SYSTEM + PAYMENT_TIMEOUT`, `ADMIN + ADMIN_DECISION`이다. 이번 구현 범위는 사용자 취소와 미입금 자동 취소만이다. `ADMIN`과 `ADMIN_DECISION`은 향후 확장을 위해 값만 예약하며, 관리자 직접 취소 API·Service 메서드·허용 상태는 이번에 구현하지 않는다.
+
+## 16-5. 최소 환불 모델
+
+신청당 한 번 입금하고 전액 환불만 지원하므로 별도 Refund 엔티티와 환불 상태 enum을 만들지 않는다. Application에 nullable `refundedAt`만 저장한다.
+
+```java
+@Column
+private LocalDateTime refundedAt;
+```
+
+| 조건 | 의미 |
+|---|---|
+| `CANCELLED + WAITING` | 미입금 취소, 환불 불필요 |
+| `CANCELLED + CONFIRMED + refundedAt=null` | 전액 환불 대기 |
+| `CANCELLED + CONFIRMED + refundedAt!=null` | 전액 환불 완료 |
+
+환불 대상은 다음 조건으로 조회한다.
+
+```sql
+status = 'CANCELLED'
+AND payment_status = 'CONFIRMED'
+AND refunded_at IS NULL
+```
+
+환불 완료는 `CANCELLED + CONFIRMED`에서만 허용하고, `refundedAt`이 이미 있으면 값을 바꾸지 않는 멱등 성공으로 처리한다. 환불 시각은 요청값이 아니라 서버 시각을 기록한다.
+
+환불 완료 API는 계좌이체를 실행하지 않는다. 관리자가 외부 운영 절차로 전액 환불한 사실만 기록한다.
+
+```http
+POST /api/admin/applications/{applicationId}/refund-complete
+```
+
+최초 환불 완료 시에만 기존 `AdminActivityLog`에 처리 관리자, 대상 신청, 처리 시각을 기록한다. `refundedAt`은 환불 누락과 중복 완료 기록을 관리하지만 외부 계좌이체의 동시 중복 송금까지 보장하지는 않는다. 초기 운영에서는 별도 Refund 엔티티, `refundProcessingAt`, `refundedBy`를 추가하지 않는다.
+
+## 16-6. 결제 안내와 3일 미입금 자동 취소
+
+결제 기한은 신청일이 아니라 최초 결제 안내 시각부터 정확히 72시간이다.
+
+```java
+paymentGuidedAt = now;
+paymentDueAt = paymentGuidedAt.plusDays(3);
+```
+
+결제 안내를 재발송해도 기존 `paymentGuidedAt`, `paymentDueAt`을 초기화하거나 연장하지 않는다. 별도 기한 연장 기능은 현재 구현하지 않는다.
+
+자동 취소 대상은 다음 조건이다.
+
+```sql
+status = 'SUBMITTED'
+AND payment_status = 'WAITING'
+AND payment_due_at IS NOT NULL
+AND payment_due_at <= :now
+```
+
+자동 취소 스케줄러는 기본 10분 주기로 실행한다. 실행 주기는 코드에 하드코딩하지 않고 애플리케이션 설정값으로 관리하여 환경별로 변경할 수 있게 한다.
+
+```properties
+application.payment-timeout-scheduler.cron=0 */10 * * * *
+```
+
+스케줄러가 10분마다 실행되므로 실제 자동 취소 처리는 `paymentDueAt` 직후부터 최대 약 10분 늦어질 수 있다. 기한 판정 자체는 스케줄 실행 시각이 아니라 저장된 `paymentDueAt <= now` 조건을 사용한다.
+
+자동 취소 결과는 다음과 같다.
+
+```text
+ApplicationStatus = CANCELLED
+PaymentStatus = WAITING 유지
+cancelledAt = 서버 현재 시각
+cancellationType = SYSTEM
+cancellationReason = PAYMENT_TIMEOUT
+```
+
+자동 취소 후 늦은 입금이 확인되면 ApplicationStatus를 복구하지 않는다. PaymentStatus만 실제 입금 이력에 맞게 `CONFIRMED`로 변경하여 `CANCELLED + CONFIRMED + refundedAt=null` 환불 대상으로 관리한다.
+
+계좌이체 확인이 수동인 동안에는 실제 기한 내 입금이 관리자 확인 지연으로 자동 취소되지 않도록 스케줄러 실행 전에 입금 대조 운영 절차를 완료해야 한다.
+
+## 16-7. 동시성 및 트랜잭션
+
+다음 작업은 동시에 실행될 수 있다.
+
+- 입금 확인과 미입금 자동 취소
+- 사용자 취소와 관리자 검토 시작
+- 사용자 취소와 다른 상태 전이
+- 환불 완료 API 중복 호출
+
+Application 주요 상태 전이에 `@Version` 낙관적 락 또는 동일 수준의 잠금 정책을 적용한다. 환불 완료는 트랜잭션 안에서 신청을 잠그고 처리한다.
+
+사용자 취소의 Application 상태 변경과 일일 신청 슬롯 반환은 동일 트랜잭션에서 처리한다. 취소·환불 메서드는 실제 값이 처음 변경됐는지를 반환하고, 최초 변경일 때만 슬롯 반환과 감사 로그를 수행한다.
+
+## 16-8. 모바일 카드와 실물 발송 완료
+
+- 모바일 카드 파일 생성 완료 시 `cardReadyAt`을 기록하고 다운로드를 허용한다.
+- `MOBILE`은 카드 파일 생성 완료 시 `COMPLETED`로 전이한다.
+- `MOBILE_AND_PHYSICAL`은 카드 파일 생성 후에도 모바일 다운로드를 허용하며, 택배사 인계 시 `physicalDispatchedAt`을 기록하고 `COMPLETED`로 전이한다.
+- 배송사, 운송장, 배송 중, 배송 완료 상태는 이 서비스에서 저장하지 않는다.
+
+## 16-9. 취소 신청 파일 정리
+
+사용자 취소와 미입금 자동 취소가 최초로 성공하면 해당 신청이 소유한 S3 파일을 별도 보관 기간 없이 바로 삭제한다. 중복 취소 요청에서는 삭제를 다시 수행하지 않는다.
+
+삭제 대상은 다음과 같다.
+
+- 개인·단체 구성원의 얼굴사진
+- 학교·기관 로고와 직인
+- 단체 신청 원본 제출 ZIP
+- 그 밖에 해당 Application 전용으로 생성된 S3 객체
+
+S3 삭제는 취소 DB 트랜잭션 안에서 먼저 실행하지 않는다. 트랜잭션이 rollback되면 신청은 유효한데 파일만 사라질 수 있으므로, 취소 상태·취소 이력·일일 슬롯 반환·파일 참조 정리를 같은 DB 트랜잭션에서 완료하고 실제 commit이 성공한 직후 `afterCommit`에서 S3 객체를 삭제한다. 이 정책에서 말하는 “바로 삭제”는 보관 기간이나 지연 삭제 배치를 두지 않고 commit 직후 삭제한다는 뜻이다.
+
+DB에서는 `Application`의 `logoFileId`, `sealFileId`, `submitFileId`와 `ApplicationMember.photoPath`처럼 삭제된 S3 객체를 가리키는 참조를 함께 정리한다. Application, Applicant, Receiver, ApplicationMember 및 취소·결제 이력 자체는 운영·환불 확인을 위해 삭제하지 않는다.
+
+S3 삭제 실패가 취소 commit을 되돌리지는 않는다. 원래 취소 결과를 유지하고 실패 key를 오류 로그로 남긴다. 초기 운영에서는 별도 파일 정리 스케줄러나 재시도 테이블을 추가하지 않으며, 실패 건은 운영 로그를 통해 수동 재삭제한다.
 
 ---
 

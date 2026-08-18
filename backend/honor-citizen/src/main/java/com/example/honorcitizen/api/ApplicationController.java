@@ -2,6 +2,7 @@ package com.example.honorcitizen.api;
 
 import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
+import com.example.honorcitizen.domain.application.dto.ApplicationCancelResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationLookupRequest;
@@ -62,6 +63,14 @@ public class ApplicationController {
     public ResponseEntity<ApiResponse<ApplicationLookupResponse>> lookup(
             @Valid @RequestBody ApplicationLookupRequest request) {
         return ResponseEntity.ok(ApiResponse.success(applicationService.lookup(request)));
+    }
+
+    @PostMapping("/{applicationId}/cancel")
+    public ResponseEntity<ApiResponse<ApplicationCancelResponse>> cancel(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.cancelByUser(userId, applicationId)));
     }
 
     @PatchMapping("/{applicationId}/photo")

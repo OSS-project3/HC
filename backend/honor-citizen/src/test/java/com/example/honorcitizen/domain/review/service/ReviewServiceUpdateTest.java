@@ -96,8 +96,9 @@ class ReviewServiceUpdateTest {
         application.confirmPayment();
         application.startReview();
         application.approveToNaming();
+        application.completeNaming();
         application.startProducing();
-        application.complete();
+        application.markCardReady(java.time.LocalDateTime.now());
         applicationRepository.save(application);
         applicantRepository.save(Applicant.createIndividual(
                 application.getId(), user.getName(), user.getEmail(), "010-1111-2222"));

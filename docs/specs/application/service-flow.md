@@ -128,7 +128,11 @@ Application 생성에는 서로 독립적인 세 가지 분기 축이 있다.
 - USER 권한 검증
 - 필수 약관 동의 검증
 
-일일 신청 제한은 정책 확정 전까지 구현하지 않는다.
+일일 신청 제한은 사용자별 KST 하루 3회로 구현되어 있다. 개인·단체 신청을 합산하며 생성 전에 `ApplicationDailyLimitService.reserveSlot()`으로 원자적으로 예약하고, 생성 실패 또는 최초 취소 성공 시 생성일 KST 슬롯을 한 번 반환한다.
+
+신청 생성 직후 상태는 개인·단체 모두 `SUBMITTED + WAITING`이다. 결제 안내·입금 확인·검토·취소·환불·자동 취소 흐름은 [APPLICATION.md](APPLICATION.md) §16을 따르며, 자동 취소 스케줄러는 기본 10분 주기를 설정값으로 제공한다.
+
+결제 안내와 입금 확인 Application Service 명령은 구현되어 있다. 결제 안내 재호출은 최초 안내 시각과 72시간 기한을 유지하고, 입금 확인 재호출은 `CONFIRMED`를 유지한다. 최초 입금 확인에만 `AdminActivityLog.PAYMENT_CONFIRMED`를 한 건 남긴다. 자동 취소 스케줄러는 대상 ID를 조회한 뒤 각 신청을 별도 트랜잭션으로 재검증하며, 최초 자동 취소에 사용자 취소와 동일한 슬롯 반환·DB 파일 참조 정리·after-commit S3 삭제를 적용한다.
 
 ### Validator
 

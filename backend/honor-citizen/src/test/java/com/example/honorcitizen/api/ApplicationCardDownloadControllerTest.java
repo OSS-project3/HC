@@ -93,8 +93,9 @@ class ApplicationCardDownloadControllerTest {
         application.confirmPayment();
         application.startReview();
         application.approveToNaming();
+        application.completeNaming();
         application.startProducing();
-        application.complete();
+        application.markCardReady(java.time.LocalDateTime.now());
         applicationRepository.save(application);
 
         when(storageService.generatePresignedUrl(anyString(), anyLong())).thenReturn("http://mock-storage/presigned");
