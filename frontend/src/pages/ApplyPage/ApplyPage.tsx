@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";
-import { findCardDesign, honoraryKoreanCards, honoraryCitizenCards, studentCards, visitorCards, cardTypeLabels } from "../../data/cards";
+import { findCardDesign, honoraryKoreanCards, honoraryCitizenCards, studentCards, visitorCards, cardTypeLabels, cardTypeIds } from "../../data/cards";
+import { toGender, toIssueType, toOrientation, toSchoolType } from "../../features/apply/mappers";
 import { loadApplications, saveApplications } from "../../data/adminMock";
 import { Stepper } from "../../components/apply/Stepper";
 import { CardPreviewPanel } from "../../components/apply/CardPreviewPanel";
@@ -13,15 +14,8 @@ import { StepReview } from "../../components/apply/steps/StepReview";
 import { StepComplete } from "../../components/apply/steps/StepComplete";
 import "./ApplyPage.css";
 import { useAuth } from "../../features/auth/AuthContext";
-import { api } from "../../services/api";
+import { api, ApiError } from "../../services/api";
 import { showToast } from "../../components/ui/toast";
-
-const cardTypeIds: Record<string, number> = {
-  "honorary-korean": Number(import.meta.env.VITE_CARD_TYPE_HONOR_KOREAN_ID ?? 1),
-  "honorary-citizen": Number(import.meta.env.VITE_CARD_TYPE_HONOR_CITIZEN_ID ?? 2),
-  visitor: Number(import.meta.env.VITE_CARD_TYPE_VISITOR_ID ?? 3),
-  student: Number(import.meta.env.VITE_CARD_TYPE_STUDENT_ID ?? 4),
-};
 
 export function ApplyPage() {
   const { user } = useAuth();
@@ -63,9 +57,9 @@ export function ApplyPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const saveLocalApplication = (num: string) => {
+  const saveLocalApplication = (num: string, serverQuantity?: number) => {
     const applications = loadApplications();
-    saveApplications([{ applicationNumber: num, applicantType: draft.applicantType === "organization" ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name || draft.applicant.englishName || "", applicantEmail: draft.applicant.email, phone: draft.applicant.phone, quantity: draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10) }, ...applications]);
+    saveApplications([{ applicationNumber: num, applicantType: draft.applicantType === "organization" ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name || draft.applicant.englishName || "", applicantEmail: draft.applicant.email, phone: draft.applicant.phone, quantity: serverQuantity ?? draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10) }, ...applications]);
     setApplicationNumber(num);
     goTo(4);
   };
@@ -74,32 +68,52 @@ export function ApplyPage() {
     if (user?.source === "api") {
       try {
         const physical = draft.issuanceMethod === "mobile_and_physical";
-        const request = draft.applicantType === "organization" ? {
-          cardTypeId: cardTypeIds[design.cardType], issueType: physical ? "MOBILE_AND_PHYSICAL" : "MOBILE",
-          applicant: { organizationName: draft.applicant.organizationName, department: draft.applicant.department, name: draft.applicant.name, phone: draft.applicant.phone },
-          receiver: physical ? { sameAsApplicant: draft.recipient.sameAsApplicant, organizationName: draft.recipient.organizationName, department: draft.recipient.department, name: draft.recipient.name, phone: draft.recipient.phone, zipCode: draft.recipient.postalCode, address: draft.recipient.address, detailAddress: draft.recipient.addressDetail, deliveryRequest: draft.recipient.deliveryRequest } : undefined,
+        const isOrg = draft.applicantType === "organization";
+        const isStudent = design.cardType === "student";
+        // 학생증만 orientation/schoolType를 전송한다(일반 카드는 학생증 필드를 보내면 안 됨).
+        const orientation = isStudent ? toOrientation(draft.cardOrientation ?? design.orientation) : undefined;
+        const schoolType = isStudent ? toSchoolType(draft.applicant.schoolLevel) : undefined;
+        const isUniversity = schoolType === "UNIVERSITY";
+        const receiver = physical
+          ? { sameAsApplicant: draft.recipient.sameAsApplicant, ...(isOrg ? { organizationName: draft.recipient.organizationName, department: draft.recipient.department } : {}), name: draft.recipient.name, phone: draft.recipient.phone, zipCode: draft.recipient.postalCode, address: draft.recipient.address, detailAddress: draft.recipient.addressDetail, deliveryRequest: draft.recipient.deliveryRequest }
+          : undefined;
+        const request = isOrg ? {
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType,
+          applicant: { organizationName: draft.applicant.organizationName, department: draft.applicant.department, name: draft.applicant.name, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
+          receiver,
         } : {
-          cardTypeId: cardTypeIds[design.cardType], issueType: physical ? "MOBILE_AND_PHYSICAL" : "MOBILE",
-          applicant: { name: draft.applicant.name || draft.applicant.englishName, phone: draft.applicant.phone },
-          receiver: physical ? { sameAsApplicant: draft.recipient.sameAsApplicant, name: draft.recipient.name, phone: draft.recipient.phone, zipCode: draft.recipient.postalCode, address: draft.recipient.address, detailAddress: draft.recipient.addressDetail, deliveryRequest: draft.recipient.deliveryRequest } : undefined,
-          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: draft.applicant.nationality, birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: draft.applicant.gender?.toUpperCase(), entryDate: draft.applicant.koreaEntryDate || undefined, studentId: draft.applicant.studentNumber, department: draft.applicant.department },
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType,
+          applicant: { name: draft.applicant.name || draft.applicant.englishName, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
+          receiver,
+          // 학번·학과는 대학교(UNIVERSITY)에서만 전송한다(고등학교·비학생증은 미전송).
+          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: draft.applicant.nationality, birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: toGender(draft.applicant.gender), entryDate: draft.applicant.koreaEntryDate || undefined, studentId: isStudent && isUniversity ? draft.applicant.studentNumber : undefined, department: isStudent && isUniversity ? draft.applicant.department : undefined },
         };
         const form = new FormData();
         form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
-        if (draft.applicantType === "organization") {
-          if (!draft.logoFile?.file || !draft.sealFile?.file || !draft.archiveFile?.file) throw new Error("로고, 직인, 제출 ZIP 파일을 다시 선택해 주세요.");
-          form.append("logo", draft.logoFile.file); form.append("seal", draft.sealFile.file); form.append("submitFile", draft.archiveFile.file);
+        if (isOrg) {
+          // logo·submitFile은 항상, seal은 일반 카드 필수·학생증 선택.
+          if (!draft.logoFile?.file || !draft.archiveFile?.file) throw new Error("로고와 제출 ZIP 파일을 다시 선택해 주세요.");
+          if (!isStudent && !draft.sealFile?.file) throw new Error("직인 파일을 다시 선택해 주세요.");
+          form.append("logo", draft.logoFile.file); form.append("submitFile", draft.archiveFile.file);
+          if (draft.sealFile?.file) form.append("seal", draft.sealFile.file);
         } else {
           if (!draft.faceFile?.file) throw new Error("본인 사진을 다시 선택해 주세요.");
+          if (isStudent && !draft.logoFile?.file) throw new Error("학교 로고 파일을 선택해 주세요.");
           form.append("photo", draft.faceFile.file);
           if (draft.logoFile?.file) form.append("schoolLogo", draft.logoFile.file);
           if (draft.sealFile?.file) form.append("schoolSeal", draft.sealFile.file);
         }
-        const result = await api.createApplication(form, draft.applicantType === "organization");
-        saveLocalApplication(result.applicationNumber);
+        const result = await api.createApplication(form, isOrg);
+        // 단체 수량은 사용자 입력이 아니라 서버가 계산한 totalQuantity를 표시한다.
+        saveLocalApplication(result.applicationNumber, result.totalQuantity);
         return;
       } catch (error) {
-        showToast(error instanceof Error ? error.message : "신청 API 호출에 실패했습니다.");
+        if (error instanceof ApiError && error.errors?.length) {
+          const detail = error.errors.slice(0, 3).map((e) => `${e.row != null ? `${e.row}행 ` : ""}${e.field}: ${e.message}`).join(" / ");
+          showToast(`${error.message}${detail ? ` — ${detail}` : ""}`);
+        } else {
+          showToast(error instanceof Error ? error.message : "신청 API 호출에 실패했습니다.");
+        }
         return;
       }
     }
