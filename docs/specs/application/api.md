@@ -343,6 +343,7 @@ Content-Type: application/json
   "success": true,
   "data": {
     "applicationId": 1,
+    "applicationType": "INDIVIDUAL",
     "applicationNumber": "APP-2026-000123",
     "applicantNameMasked": "이*하",
     "cardType": "명예한국인증",
@@ -373,6 +374,7 @@ Content-Type: application/json
 | Response 필드 | 출처 |
 |---|---|
 | applicationId | Application.id |
+| applicationType | Application.application_type (`INDIVIDUAL`, `GROUP`) |
 | applicationNumber | Application.application_number |
 | applicantNameMasked | Applicant.name (마스킹 처리). ⚠️ 단체 신청은 이게 **신청 대표자**(예: 인사담당자) 이름이지, 카드번호로 조회한 그 개인(직원 등)의 이름이 아님 — 결과 화면에서 헷갈릴 수 있어 참고로 남김 |
 | cardType | Application.card_type_id → CardType.name |

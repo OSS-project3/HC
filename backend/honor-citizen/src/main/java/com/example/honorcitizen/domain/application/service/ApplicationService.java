@@ -709,6 +709,7 @@ public class ApplicationService {
 
         return new ApplicationLookupResponse(
                 application.getId(),
+                application.getApplicationType(),
                 application.getApplicationNumber(),
                 maskName(applicant.getName()), // 개인정보 보호를 위해 성명 가운데 마스킹
                 cardType.getName(),

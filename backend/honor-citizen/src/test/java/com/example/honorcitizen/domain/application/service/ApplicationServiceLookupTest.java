@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.application.service;
 
+import com.example.honorcitizen.common.enums.ApplicationType;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
@@ -99,6 +100,7 @@ class ApplicationServiceLookupTest {
                 """));
 
         assertThat(response.getApplicationId()).isEqualTo(individualApplication.getId());
+        assertThat(response.getApplicationType()).isEqualTo(ApplicationType.INDIVIDUAL);
         assertThat(response.getApplicantNameMasked()).isEqualTo("이*신");
         assertThat(response.getCardType()).isEqualTo("명예한국인증-lookup");
         assertThat(response.getStatus().name()).isEqualTo("SUBMITTED");
@@ -165,6 +167,7 @@ class ApplicationServiceLookupTest {
                 { "method": "card", "keyValue": "ROK-00002-0002" }
                 """));
         assertThat(response.getApplicationId()).isEqualTo(groupApplication.getId());
+        assertThat(response.getApplicationType()).isEqualTo(ApplicationType.GROUP);
     }
 
     @Test

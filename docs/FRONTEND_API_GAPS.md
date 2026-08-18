@@ -12,7 +12,7 @@
 |---|---|---|---|
 | OAuth 로그인·약관·세션·회원정보 | ✅ 실 API | ✅ 구현 | **연동 완료** (데모 로컬 로그인만 운영빌드에서 제거 필요) |
 | 신청 생성(개인/단체) | ✅ 실 API | ✅ 구현 | **연동 완료** — 학생증 `orientation`/`schoolType`·대학교만 학번/학과·서버 `totalQuantity`·파일 파트(logo/seal/submitFile) 계약 반영, enum 공통 매퍼(`features/apply/mappers.ts`) |
-| 신청 조회/카드다운로드 | ✅ 실 API | ⚠️ 부분 | 조회는 연동. **개인 사진 재업로드**만 연동, **단체 재제출은 §1.10로 차단**. 카드다운로드는 소유자 로그인 전용(비로그인 조회는 데모 폴백) |
+| 신청 조회/카드다운로드 | ✅ 실 API | ✅ 준비 | 조회 응답에 `applicationType`이 포함돼 개인 `photo`/단체 `submitFile` 재제출 분기 가능. 단체 재제출 UI 연결만 남음. 카드다운로드는 소유자 로그인 전용(비로그인 조회는 데모 폴백) |
 | 후기(Review) CRUD + 내 후기 | ✅ 실 API | ✅ 구현 | **연동 완료** |
 | 공지/FAQ(Board) | ✅ 실 API | ✅ 구현 | **연동 완료** |
 | 행사(Event) | ✅ 실 API | ✅ 구현 | **연동 완료** (`company`/`logoUrl` 필드 갭 §1.6) |
@@ -94,11 +94,10 @@
 - **회원정보**: `GET /api/users/me`는 `address`를 반환하지만 `PATCH /api/users/me`는 `name`,`phone`만 처리(주소 수정 경로 없음). → 프론트 `MyPage` 편집폼에서 **주소 입력을 제거**(오해 방지)해 둠. 주소 수정이 확정 요구면 Request/Entity 보강 필요.
 - **학생증**: 화면의 `schoolName`을 저장·조회할 백엔드 필드가 없음(`FRONTEND_API_INTEGRATION_SPEC.md` §3.3). 프론트는 입력받되 신청 request에는 보내지 않음. 실제 발급 정보라면 DTO/Entity 추가 필요.
 
-### 1.10 신청 조회 응답에 `applicationType` 없음 → 단체 사진 재제출 UI 불가 (PARTIAL)
+### 1.10 신청 조회 응답 `applicationType` — ✅ 백엔드 해결, 프론트 연동 가능
 - **배경**: 스펙 §3.7은 사진 재업로드 시 **프론트가 ApplicationType에 따라 part를 분리**(개인 `photo` / 단체 `submitFile`)하라고 요구한다.
-- **백엔드 현황**: `ApplicationLookupResponse`(및 조회 흐름)에 `applicationType`(INDIVIDUAL/GROUP)이 없다. 카드 다운로드 응답에는 있으나 다운로드는 `COMPLETED` 상태 전용이라 재업로드 대상 상태(`PHOTO_REJECTED`)에서는 얻을 수 없다.
-- **결과**: 현재 `MobileCardPage`는 **개인 사진 재업로드만** 제공. 단체 재제출 UI는 개인/단체 구분 불가로 미구현.
-- **필요**: `ApplicationLookupResponse`에 `applicationType` 추가(또는 조회 응답에 재제출용 타입 노출). 그러면 프론트가 part·안내문구를 분기해 단체 재제출 UI를 붙일 수 있다.
+- **백엔드 현황**: `ApplicationLookupResponse.applicationType`(`INDIVIDUAL`/`GROUP`) 구현 완료.
+- **남은 작업**: 프론트 `MobileCardPage`가 `applicationType`에 따라 개인 `photo`/단체 `submitFile` 파트와 안내문구를 분기한다.
 
 ### 1.11 신청 폼이 수집하나 백엔드가 저장하지 않는 입력 (프론트 유지 · 백엔드 보강)
 프론트 화면에는 입력/표시가 있으나 백엔드 request DTO·도메인에 대응이 없어 값이 서버에 남지 않는 항목. **프론트 UI는 그대로 유지**하고 백엔드 보강 시 연결한다. 상세·조치는 `BACKEND_API_GAPS.md P1-4`.
