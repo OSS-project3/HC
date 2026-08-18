@@ -1,6 +1,6 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
-> **갱신: 2026-08-18.** 초판(2026-08-14)은 이후 Review·Board·Event·My-Review 구현/연동을 반영하지 못해 전면 갱신했다. 프론트 연동 계약 종합은 `docs/FRONTEND_API_INTEGRATION_SPEC.md`, 백엔드 미구현 상세는 `docs/BACKEND_API_GAPS.md`와 함께 본다. 프론트의 목데이터/localStorage 사용 자체는 결함이 아니라, 백엔드가 준비된 화면부터 순차 교체하는 방식이다.
+> **갱신: 2026-08-19.** 초판(2026-08-14)은 이후 Review·Board·Event·My-Review 구현/연동을 반영하지 못해 전면 갱신했다(2026-08-18). 이번 갱신은 §1.2(내 신청 목록·상세)·§1.5(신청 취소)가 `main`에 커밋·푸시(`b5f6140`)된 것만 반영한다. 프론트 연동 계약 종합은 `docs/FRONTEND_API_INTEGRATION_SPEC.md`, 백엔드 미구현 상세는 `docs/BACKEND_API_GAPS.md`와 함께 본다. 프론트의 목데이터/localStorage 사용 자체는 결함이 아니라, 백엔드가 준비된 화면부터 순차 교체하는 방식이다.
 
 > 대상: `frontend/src` 전체 · 근거: `services/api.ts`(실제 호출) ↔ `backend/honor-citizen/.../api/*Controller.java`(실구현) 상호 대조(현재 워킹 트리·`main` 기준).
 
@@ -17,10 +17,10 @@
 | 공지/FAQ(Board) | ✅ 실 API | ✅ 구현 | **연동 완료** |
 | 행사(Event) | ✅ 실 API | ✅ 구현 | **연동 완료** (`company`/`logoUrl` 필드 갭 §1.6) |
 | **일반 이메일 회원가입·로그인·복구** | ❌ 목/로컬 | ❌ 없음 | **백엔드 신규 구현 필요** (§1.1) |
-| **내 신청 목록·상세(마이페이지)** | ❌ 목(localStorage) | 🟡 워킹트리 존재·`main` 미반영 | **커밋·푸시 후 연동** (§1.2) |
+| **내 신청 목록·상세(마이페이지)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.2) |
 | **1:1 문의(Inquiry)** | ❌ 목(localStorage) | ❌ 없음 | **도메인 신규 구현** (§1.3) |
 | **관리자 신청관리·통계** | ❌ 목(localStorage) | ❌ 없음 | **도메인 신규 구현** (§1.4) |
-| **신청 취소** | ⚠️ 진입점만 | 🟡 워킹트리 존재·`main` 미반영 | **커밋·푸시 후 연동** (§1.5) |
+| **신청 취소** | ⚠️ 진입점만 | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.5) |
 | 행사 회사/로고·관리자 전체목록 | ⚠️ 부분 | ⚠️ 필드/엔드포인트 없음 | **백엔드 필드·API 보강** (§1.6) |
 | 공지 서버 검색 | ⚠️ 클라 검색 | ❌ keyword 파라미터 없음 | 필요 시 검색 파라미터 추가 (§1.7) |
 | 후기 다중 이미지 | ⚠️ 단일로 축소 | 단일만 지원 | 정책 확정(단일 유지 vs 확장) (§1.8) |
@@ -49,10 +49,10 @@
   | `PATCH /api/users/me/password` | 비밀번호 변경 | USER |
 - **정책**: 로그인 아이디=이메일(정규화 trim+소문자, DB UNIQUE), 비밀번호 단방향 해시, role은 서버 결정, 복구 응답은 계정 존재 비노출, **운영 빌드에서 데모 로그인 제거**.
 
-### 1.2 내 신청 목록·상세(마이페이지) — `main` 미반영
+### 1.2 내 신청 목록·상세(마이페이지) — ✅ `main` 반영 완료, 연동 가능
 - **프론트 사용처**: `pages/MyPage` 제작 내역 — 현재 `data/adminMock.ts` localStorage(`applicantEmail === user.email` 필터).
-- **백엔드 현황**: `FRONTEND_API_INTEGRATION_SPEC.md` §3.6 기준 `MyApplicationController`(`GET /api/my/applications`, `/{id}`)가 **워킹 트리에 존재하나 아직 커밋·푸시되지 않음** → `main`에는 없음.
-- **조치**: 백엔드 커밋·푸시 확인 후 `MyPage` 제작 내역을 연동. 응답 필드: 목록 `applicationId, applicationNumber, applicationType, cardTypeId, cardTypeName, totalQuantity, status, paymentStatus, createdAt` / 상세 `issueType, paymentGuidedAt, paymentDueAt, cancelled*, refundedAt, cardReadyAt, physicalDispatchedAt, photoRejectReason, applicant, receiver, memberCount`.
+- **백엔드 현황**: `MyApplicationController`(`GET /api/my/applications`, `GET /api/my/applications/{id}`) 구현 완료, `main`에 커밋·푸시됨(`b5f6140`, 2026-08-19). `FRONTEND_API_INTEGRATION_SPEC.md` §3.6 계약과 동일.
+- **조치**: 이제 `MyPage` 제작 내역을 `data/adminMock.ts` localStorage 대신 이 API로 연동 가능. 응답 필드: 목록 `applicationId, applicationNumber, applicationType, cardTypeId, cardTypeName, totalQuantity, status, paymentStatus, createdAt` / 상세 `issueType, paymentGuidedAt, paymentDueAt, cancelled*, refundedAt, cardReadyAt, physicalDispatchedAt, photoRejectReason, applicant, receiver, memberCount`.
 
 ### 1.3 1:1 문의(Inquiry) — 도메인 전체 없음 (BLOCKED)
 - **프론트 사용처**: `pages/InquiryPage`(작성), `pages/InquiryDetailPage`(상세), `pages/MyPage`(내 문의), `pages/AdminPage`(관리자 목록+답변). 저장소 `data/inquiries.ts`(`localStorage["customer-inquiries"]`).
@@ -71,10 +71,10 @@
 - **⚠️ status enum 불일치**: 프론트 `adminMock.ts`(옛 값 `SUBMITTED/CONSULTING/PAYMENT_PENDING/IN_PRODUCTION/COMPLETED/CANCELLED`)와 백엔드 실제 enum(`SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING/COMPLETED/CANCELLED`, 결제상태 별도 `WAITING/CONFIRMED`)이 다름 → 연동 전 매핑 확정 필요.
 - **인가**: 현재 프론트 `loginAsAdmin` 데모 버튼 의존 → 실제 `role=ADMIN` 서버 검증 필요.
 
-### 1.5 신청 취소 — `main` 미반영
+### 1.5 신청 취소 — ✅ `main` 반영 완료, 연동 가능
 - **프론트 사용처**: 마이페이지/모바일 카드에서 취소 진입점 필요.
-- **백엔드 현황**: `FRONTEND_API_INTEGRATION_SPEC.md` §3.7의 `POST /api/applications/{id}/cancel`은 워킹 트리 기준으로 설명돼 있으나 **현재 `main`의 `ApplicationController`에는 없음**(생성/bulk/lookup/photo/cards-download만 존재).
-- **조치**: 백엔드 커밋·푸시 확인 후 연동. 가능 상태 `SUBMITTED/REVIEWING/PHOTO_REJECTED`, 이미 취소면 멱등 성공, 응답 `applicationId,status,paymentStatus,refundRequired,cancelledAt`.
+- **백엔드 현황**: `POST /api/applications/{id}/cancel`이 `ApplicationController`에 구현 완료, `main`에 커밋·푸시됨(`b5f6140`, 2026-08-19). `FRONTEND_API_INTEGRATION_SPEC.md` §3.7 계약과 동일.
+- **조치**: 이제 연동 가능. 가능 상태 `SUBMITTED/REVIEWING/PHOTO_REJECTED`, 이미 취소면 멱등 성공, 응답 `applicationId,status,paymentStatus,refundRequired,cancelledAt`.
 
 ### 1.6 행사(Event) — 회사/로고 필드·관리자 전체목록 없음 (PARTIAL)
 - **프론트 사용처**: `pages/EventsPage` 협업 카드가 `company`/`logoUrl`로 로고 표시. 관리자 패널이 숨긴(`visible=false`) 글 재편집 필요.
@@ -171,7 +171,7 @@
 ## 6. 권장 진행 순서
 
 1. **일반 이메일 인증(§1.1)** — 로그인/가입 mock 제거의 전제.
-2. **내 신청 목록·상세(§1.2)** + **신청 취소(§1.5)** — 백엔드 커밋·푸시부터.
+2. **내 신청 목록·상세(§1.2)** + **신청 취소(§1.5)** — ✅ 백엔드 커밋·푸시 완료, 바로 연동 가능.
 3. **관리자 신청관리(§1.4)** — status enum 프론트/백 일치 확정 후.
 4. **문의 도메인(§1.3)** — 신규 CRUD.
 5. **행사 필드·공지 검색(§1.6/§1.7)**, **후기 다중이미지(§1.8)**, **회원 address·학생증 schoolName(§1.9)** — 정책 확정 후 보강.

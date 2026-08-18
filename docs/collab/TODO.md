@@ -75,6 +75,113 @@
 
 ---
 
+## 백엔드 API 연동 체크리스트 (2026-08-19 감사 기준)
+
+> 근거: `docs/FRONTEND_API_INTEGRATION_SPEC.md`/`backend/FRONTEND_API_REQUIREMENTS.md`/`docs/FRONTEND_API_GAPS.md`/`docs/BACKEND_API_GAPS.md` 4개 문서를 실제 백엔드 코드와 전수 대조한 감사(`C:\Users\gpdnj\.claude\plans\application-api-async-knuth.md`) 결과를 작업 단위로 분해한 것. **관리자 신청관리 페이지는 이번 범위 밖**이라 관련 항목은 전부 제외했고(아래 "현재 범위에서 제외된 관리자 기능" 참고), 정책이 확정 안 된 항목은 구현에 넣지 않고 "정책 결정이 필요한 항목"으로 뺐다.
+
+### 작업그룹 A — 일반 이메일 회원가입·로그인·계정 복구
+
+> 화면 근거: `pages/LoginPage`·`SignupPage`·`AccountRecoveryPage`가 이미 존재하고 현재 mock/데모 로그인으로만 동작 중(`FRONTEND_API_GAPS.md` §1.1). 핵심 정책(로그인 식별자=이메일, 정규화 규칙, DB UNIQUE, 서버가 role 결정, 소프트탈퇴 7일 자동복구)은 `backend/FRONTEND_API_REQUIREMENTS.md` §3에 이미 확정돼 있어 구현 대상에 포함한다. 단, 비밀번호 재설정/아이디찾기(이메일 발송이 필요한 두 개)는 이메일 발송 인프라 자체가 전무해(`spring-boot-starter-mail`/`JavaMailSender` 없음, `EmailLog`도 실사용처 없는 미사용 엔티티) 별도 인프라 결정이 선행돼야 하므로 이번 체크리스트에서 제외하고 "정책 결정이 필요한 항목"으로 뺐다.
+
+- [ ] **AUTH-1** User 엔티티 password 필드 + 이메일 정규화 공통 유틸
+  - 변경 내용: `User`에 `password`(단방향 해시 저장, OAuth 전용 계정은 `null`) 컬럼 추가. 이메일 정규화(trim+소문자) 공통 유틸을 만들어 신규 이메일 가입 경로뿐 아니라 기존 OAuth 콜백에도 동일 적용(`backend/FRONTEND_API_REQUIREMENTS.md` §3 요구사항). `email` 컬럼 DB `UNIQUE` 제약 여부 확인 후 없으면 추가.
+  - 대상 파일: `domain/user/entity/User.java`, 신규 이메일 정규화 유틸(또는 `User` 정적 메서드), `infra/security/OAuth2SuccessHandler.java`
+  - 선행 작업: 없음
+  - 완료 조건: `password` 필드 존재(nullable), 정규화 유틸이 OAuth·이메일 가입 양쪽에서 재사용됨, `email` UNIQUE 제약 확인/적용
+  - 검증할 테스트: 정규화 유틸 단위 테스트, 기존 OAuth 로그인 플로우 회귀(`UserTest`, 관련 통합 테스트)
+  - 우선순위: P0(이 그룹 나머지 전부의 선행)
+
+- [ ] **AUTH-2** 이메일 중복 확인 API (`POST /api/auth/email/check`)
+  - 변경 내용: 정규화된 이메일로 기존 계정(OAuth 계정 포함) 존재 여부만 반환, 계정 상세는 노출하지 않음.
+  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/repository/UserRepository.java`(정규화 이메일 조회 메서드)
+  - 선행 작업: AUTH-1
+  - 완료 조건: 중복/미중복 각각 정상 응답, OAuth로 이미 가입된 이메일도 중복으로 판정
+  - 검증할 테스트: 신규 컨트롤러 테스트(중복/미중복/OAuth 계정과 충돌)
+  - 우선순위: P1
+
+- [ ] **AUTH-3** 이메일 회원가입 API (`POST /api/auth/signup`)
+  - 변경 내용: 이름·이메일(정규화)·전화·비밀번호를 받아 계정 생성, 비밀번호는 단방향 해시 저장, 사전 중복확인 후에도 DB `UNIQUE` 위반 시 `EMAIL_ALREADY_EXISTS`로 동시요청 최종 방어, 성공 시 기존 OAuth와 동일한 HttpOnly access/refresh 쿠키 발급(약관 동의는 이 API에 포함하지 않고 이후 `/terms`에서 기존 `POST /api/auth/terms`로 별도 처리).
+  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/entity/User.java`(이메일 가입 전용 팩토리 메서드 — 기존 `createNewUser`는 OAuth 전용 유지), 신규 `SignupRequest` DTO
+  - 선행 작업: AUTH-1 (AUTH-2는 병렬 가능 — DB UNIQUE가 최종 방어선이라 강한 의존 아님)
+  - 완료 조건: 정상 가입 시 쿠키 발급+DB 저장 확인, 중복 이메일 거절(사전조회 케이스·동시요청 UNIQUE 충돌 케이스 둘 다), 비밀번호 평문 미저장 확인
+  - 검증할 테스트: 신규 `AuthControllerTest`(정상가입/중복거절/동시요청 충돌)
+  - 우선순위: P0
+
+- [ ] **AUTH-4** 이메일 로그인 API (`POST /api/auth/login`) + 소프트탈퇴 자동복구
+  - 변경 내용: 정규화 이메일+비밀번호 검증 후 쿠키 발급. 소프트탈퇴 7일 유예기간 내 계정이면 자동 복구하고 응답에 `restored:true` 포함, 유예기간 경과 계정은 로그인 거절.
+  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, 신규 `LoginRequest`/`LoginResponse` DTO
+  - 선행 작업: AUTH-1, AUTH-3(계정이 있어야 실제 로그인 통합테스트 가능 — 로직 자체는 독립 개발 가능)
+  - 완료 조건: 정상 로그인 성공, 비밀번호 불일치 거절, 유예기간 내 자동복구+`restored:true`, 유예기간 경과 후 거절
+  - 검증할 테스트: 신규 로그인 테스트(성공/실패/자동복구/영구탈퇴 후 거절)
+  - 우선순위: P0
+
+- [ ] **AUTH-5** 비밀번호 변경 API (`PATCH /api/users/me/password`)
+  - 변경 내용: 로그인 사용자의 현재 비밀번호 확인 후 새 비밀번호로 교체. OAuth 전용 계정(`password=null`)은 이 API 자체를 차단.
+  - 대상 파일: `api/UserController.java`, `domain/user/service/UserService.java`, 신규 `PasswordUpdateRequest` DTO
+  - 선행 작업: AUTH-1, AUTH-4
+  - 완료 조건: 정상 변경, 현재 비밀번호 불일치 거절, OAuth 전용 계정 거절
+  - 검증할 테스트: 신규 테스트(성공/현재비번불일치/OAuth계정거절)
+  - 우선순위: P1
+
+### 작업그룹 B — 신청 조회 응답 보강
+
+- [ ] **LOOKUP-1** `ApplicationLookupResponse`에 `applicationType` 필드 추가
+  - 변경 내용: 응답 DTO에 `applicationType`(INDIVIDUAL/GROUP) 추가. `Application` 엔티티엔 이미 있는 값을 `ApplicationService.lookup()`이 DTO 생성 시 안 넘기고 있을 뿐이라 필드+생성자 호출부만 수정하면 됨.
+  - 대상 파일: `domain/application/dto/ApplicationLookupResponse.java`, `domain/application/service/ApplicationService.java`(`lookup()`)
+  - 선행 작업: 없음(완전 독립)
+  - 완료 조건: 신청번호 조회·카드번호 조회 응답 둘 다 `applicationType` 포함
+  - 검증할 테스트: 기존 lookup 테스트에 필드 검증 케이스 추가(`ApplicationServiceLookupTest`, 관련 컨트롤러 테스트)
+  - 우선순위: P1 — 완료되면 위 진행 보드 "단체 재제출 UI(`MobileCardPage.tsx`) 추가"(프론트 담당자 행)가 실제로 착수 가능해짐(현재는 백엔드가 `applicationType`을 안 줘서 프론트가 개인/단체를 구분할 방법이 없었음)
+
+### 작업 순서 (의존관계 기준)
+
+```
+AUTH-1 ──┬─→ AUTH-2 ─┐
+         └─→ AUTH-3 ─┴─→ AUTH-4 ─→ AUTH-5
+
+LOOKUP-1 (완전 독립, 아무때나 착수 가능)
+```
+
+### 정책 결정이 필요한 항목
+
+- **계정 복구**(아이디 찾기, 비밀번호 재설정 이메일 발송): 이메일 발송 인프라(SMTP/SES 등) 자체가 없음 — 발송 수단부터 결정 필요. 결정 후 AUTH-1~5와 별도 작업으로 분리.
+- **이메일 인증 여부·비밀번호 해시 알고리즘·로그인 시도 제한 구체값**: AUTH-3 착수 전 확정 필요(정책 골격은 있으나 세부 수치/알고리즘 미지정).
+- **단체 신청 구성원별 상세·카드 ZIP 다운로드 API**(`/api/my/bulk-applications/{id}/members`, `/cards/download`): 프론트 `MyPage`/`MobileCardPage` 어디에도 이 데이터를 쓰는 화면이 없음을 확인함 — 실제로 필요한 화면인지부터 확인 필요. 필요 시 `MyApplicationController`에 신규 엔드포인트+`ApplicationMemberRepository` 조회 추가.
+- **카드 다운로드 가능 기준(`COMPLETED` vs `cardReadyAt`)**: 문서(`FRONTEND_API_INTEGRATION_SPEC.md`)는 `cardReadyAt` 기준이 확정 정책이라 하지만 실제 코드(`ApplicationService.getCardDownload()`)는 `COMPLETED` 단독 검사 — 이미 위 "신청 상태·취소·환불 구조 변경 체크리스트" §5(라인 166)에 동일 항목이 있음, 중복 추가하지 않고 그 항목을 그대로 참조. 관리자 API 미구현으로 `PRODUCING`/`markPhysicalDispatched` 상태에 실제로 도달시킬 방법이 없어 실질적으로 검증도 안 되는 상태.
+- **Event `company`/`logoUrl` 필드**: `host`(주최자 텍스트)로 대체 가능한지 먼저 결정. 결정 시 `EventPost`+DTO 4종에 필드 추가.
+- **Payment 도메인(입금자명 저장·확인)**: 도메인 신설 여부 자체가 미정.
+- **학생증 `schoolName` 저장 필드**: 실제 카드 발급에 필요한 정보인지 확인 필요.
+- **신청 건별 동의 이력(상담확인·유의사항) 저장**: 단순 UX 게이트로 충분한지, 이력 저장이 필요한지 결정 필요.
+- **후기 다중 이미지**: 현재 API·DB 둘 다 1장으로 확정 동작 중 — 다중 유지 여부 결정 필요.
+- **게시판 서버 검색(keyword/searchType)**: 현재 데이터량에서 클라이언트 검색으로 충분한지, Review 검색 패턴을 재사용해 지금 만들지 결정 필요.
+- **한국이름 조회 API**: 서버 API로 옮길지, 외부 링크아웃으로 대체할지 결정 필요.
+
+### 프론트엔드 담당 작업
+
+- 위 LOOKUP-1 완료 후 착수 가능한 "단체 재제출 UI(`MobileCardPage.tsx`) 추가"는 이미 진행 보드에 있음(라인 43) — 별도 행 신설 안 함.
+- 그 외 프론트 전담 항목은 기존 진행 보드(라인 43·44·60)에 이미 등록돼 있어 중복 추가하지 않음.
+
+### 문서만 수정할 항목 (백엔드 작업 아님)
+
+- `FRONTEND_API_INTEGRATION_SPEC.md`/`BACKEND_API_GAPS.md`/`backend/FRONTEND_API_REQUIREMENTS.md`의 마이페이지 신청 목록·상세, 신청 취소 "미커밋" 표기 → `main` 커밋 완료(`b5f6140`, 2026-08-19)로 갱신 필요(`docs/FRONTEND_API_GAPS.md`는 이미 갱신함).
+- 신청 조회 phone+email 서술 정정: 문서가 "phone+email만으로 조회 가능"처럼 서술하지만 실제 코드는 `keyValue`(신청번호)가 항상 `@NotBlank` 필수이고 phone/email은 부가 일치 검증일 뿐 — 서술을 "신청번호+phone+email 조합" 기준으로 명확화.
+- 회원정보 `address` 수정 불가: 문서에 여전히 열린 갭처럼 적혀 있지만 `UserUpdateRequest.java` 코드 주석에 "확정 정책(2026-08-08): address는 이 API로 수정하지 않는다"고 명시돼 있음 — 갭이 아니라 확정 정책이라는 사실을 문서에 반영.
+
+### 이미 구현되어 제외된 항목
+
+- 마이페이지 신청 목록·상세(`GET /api/my/applications`, `/{id}`) — 구현+커밋 완료(`b5f6140`), 위 진행 보드 라인 63 참고.
+- 사용자 신청 취소(`POST /api/applications/{id}/cancel`) — 구현+커밋 완료(`b5f6140`).
+- 카드 종류·디자인 카탈로그 조회 API — 신설 안 함으로 이미 확정(2026-08-06), 코드도 그에 맞게 구현됨(`CardTypeSeeder`).
+
+### 현재 범위에서 제외된 관리자 기능 (이번 체크리스트 대상 아님)
+
+- **관리자 신청 관리 전체**(`AdminApplicationController` — 목록/상세/상태전이/결제안내/입금확인/사진반려/한국이름등록/카드발급/배송추적/상태이력/통계): 관리자 신청 관리 페이지 자체가 이번 구현 범위 밖이라 제외. 위 진행 보드 라인 70에 이미 등록돼 있어 중복 추가 안 함. (참고: `ApplicationService.guidePayment`/`confirmPayment` Service 메서드와 `Application` 엔티티의 상태전이 메서드 대부분은 이미 존재하지만 호출하는 Controller가 없는 상태 — 나중에 착수 시 이 Service 계층을 그대로 재사용하면 됨.)
+- **1:1 문의(Inquiry) 도메인**: 사용자 접수 화면도 포함되지만 이번 범위에서 함께 제외(사용자 지시). 위 진행 보드 라인 68에 이미 등록돼 있어 중복 추가 안 함.
+- **관리자 이벤트 전체 목록·상세 API**(`GET /api/admin/events`, `/{id}`): `EventAdminController`에 GET 자체가 없음 확인됨. `components/admin/EventAdminPanel.tsx`를 확인한 결과 숨김(`visible=false`) 이벤트를 다시 불러오는 UI 자체가 없어(현재 편집은 공개 목록만 대상) 소비 화면이 없음 — 관리자 화면 없으므로 제외.
+- **이벤트 갤러리(`images`) PATCH 편집 지원**: `EventAdminPanel.tsx`가 이미 "갤러리는 생성 시에만 설정 가능"으로 프론트에서 우회 구현해뒀음(코드 주석 확인) — 현재 이걸 요구하는 소비 UI가 없어 제외.
+
+---
+
 ## 신청 상태·취소·환불 구조 변경 체크리스트
 
 > 기준: 2026-08-17 확정 정책. `origin/main` `26ac036`에는 일일 KST 3회 제한만 구현되어 있으며 아래 항목은 미구현 상태다.
