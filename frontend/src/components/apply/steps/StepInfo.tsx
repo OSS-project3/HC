@@ -112,11 +112,6 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
         )}
 
         {/* 단체 수량은 업로드한 엑셀의 유효 인원 수로 서버가 산정한다(사용자 입력 없음). */}
-        {isOrg && (
-          <p className="field field--quantity info-col__notice">
-            신청 수량은 업로드한 엑셀의 인원 수에 따라 자동으로 산정됩니다.
-          </p>
-        )}
       </div>
 
       <div className={`info-columns ${isPhysical ? "info-columns--two" : ""}`}>
