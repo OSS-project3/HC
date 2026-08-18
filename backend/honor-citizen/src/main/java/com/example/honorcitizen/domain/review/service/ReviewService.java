@@ -69,9 +69,7 @@ public class ReviewService {
     @Transactional(readOnly = true)
     public PageResponse<ReviewListItemResponse> list(Long cardTypeId, Boolean hasPhoto,
             ReviewSearchType searchType, String keyword, int page, int size) {
-        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
-        }
+        validatePage(page, size);
         if (cardTypeId != null && !cardTypeRepository.existsById(cardTypeId)) {
             throw new CustomException(ErrorCode.NOT_FOUND);
         }
@@ -85,7 +83,18 @@ public class ReviewService {
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
 
-        Page<Review> reviews = reviewRepository.findAll(spec, pageable);
+        return toListResponse(reviewRepository.findAll(spec, pageable));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ReviewListItemResponse> listMine(Long userId, int page, int size) {
+        validatePage(page, size);
+        Pageable pageable = PageRequest.of(page, size,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        return toListResponse(reviewRepository.findByUserId(userId, pageable));
+    }
+
+    private PageResponse<ReviewListItemResponse> toListResponse(Page<Review> reviews) {
         Map<Long, CardType> cardTypeById = cardTypeRepository
                 .findAllById(reviews.getContent().stream().map(Review::getCardTypeId).collect(Collectors.toSet()))
                 .stream()
@@ -95,6 +104,12 @@ public class ReviewService {
                 review,
                 CardTypeSummaryResponse.from(cardTypeById.get(review.getCardTypeId())),
                 imageUrlOrNull(review.getImagePath())));
+    }
+
+    private void validatePage(int page, int size) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
     }
 
     @Transactional(readOnly = true)

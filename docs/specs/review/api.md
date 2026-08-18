@@ -24,6 +24,7 @@
 3. 후기 단건 조회 — `GET /api/reviews/{id}`
 4. 후기 삭제 — `DELETE /api/reviews/{id}`
 5. 후기 수정 — `PATCH /api/reviews/{id}`
+6. 내 후기 목록 조회 — `GET /api/my/reviews`
 
 ### 공통 — 페이지 응답 포맷
 
@@ -366,6 +367,21 @@ API 1(등록)과 동일 — `title`/`applicationType`/`cardTypeId`/`authorName`/
 
 ---
 
+### API 6 — 내 후기 목록 조회
+
+```http
+GET /api/my/reviews?page=0&size=9
+```
+
+- 인증: USER 또는 ADMIN
+- 로그인 사용자의 `Review.user_id`와 일치하는 후기만 반환
+- 정렬: `createdAt DESC, id DESC`
+- page는 0 이상, size는 1~100
+- 응답: API 2와 동일한 `ApiResponse<PageResponse<ReviewListItemResponse>>`
+- 작성자 이름·이메일은 소유권 필터로 사용하지 않음
+
+---
+
 ## Review 도메인 정리
 
 | # | API | 상태 |
@@ -375,6 +391,7 @@ API 1(등록)과 동일 — `title`/`applicationType`/`cardTypeId`/`authorName`/
 | 3 | `GET /api/reviews/{id}` (단건 조회) | 설계 완료 |
 | 4 | `DELETE /api/reviews/{id}` (삭제, 본인 또는 관리자) | 설계 완료 |
 | 5 | `PATCH /api/reviews/{id}` (수정, 본인 또는 관리자) | 설계 완료 |
+| 6 | `GET /api/my/reviews` (로그인 사용자 본인 목록) | 구현 완료 |
 
 CRUD 4종 전부(Create/Read/Update/Delete) 설계 완료 — 실제 코드 구현 진행 중(2026-08-13~).
 
@@ -387,6 +404,5 @@ CRUD 4종 전부(Create/Read/Update/Delete) 설계 완료 — 실제 코드 구�
 **⚠️ `SecurityConfig` 반영 필요**: 현재 `/api/**`는 기본 `hasAnyRole("USER","ADMIN")`로 막혀 있다. API 2(목록)·API 3(단건조회)는 비로그인 공개 조회이므로 `/api/applications/lookup`처럼 `permitAll()`에 추가해야 실제로 동작한다. API 1(등록)·API 4(삭제)·API 5(수정)는 로그인 필수라 기존 규칙 그대로 적용되면 된다.
 
 **이번 범위 밖:**
-- 마이페이지 "내 후기" 목록 (`GET /api/my/reviews`)
 - "내가 후기 쓸 수 있는 (신청유형, 카드종류) 목록" 조회 API — 없으면 프론트가 라디오 옵션을 모른 채 제출했다가 `REVIEW_NOT_ELIGIBLE`로 거절당하는 흐름만 가능(data-model.md §2)
 - 조회수 — data-model.md §3

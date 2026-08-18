@@ -287,7 +287,7 @@
 | PATCH | `/api/reviews/{id}` | 후기 전체 재수정(멀티파트: `request` JSON + 선택 `image`, `removeImage` 플래그로 사진 삭제) | 소유자 또는 ADMIN |
 | DELETE | `/api/reviews/{id}` | 후기 삭제(이미지·업로드 파일까지 완전 삭제) | 소유자 또는 ADMIN |
 
-- `GET /api/my/reviews`(마이페이지 내 후기 전용 목록)는 **아직 없음** — 위 목록 API에 로그인 사용자로 좁히는 파라미터가 없어 마이페이지에서 쓰려면 별도 결정 필요(`docs/collab/TODO.md` "내 후기 목록 조회 API" 참고).
+- `GET /api/my/reviews?page=&size=` 구현 완료 — 인증 사용자의 `user_id`로 서버에서 필터링하며 공개 목록과 같은 페이지 응답을 반환한다. 작성자 이름·이메일을 프론트에서 비교하지 않는다.
 - `ReviewCreateRequest`/`ReviewUpdateRequest` 필드: `title`(≤100자), `applicationType`, `cardTypeId`, `authorName`(≤50자, 로그인 이름 자동 아님 — 직접 입력), `content`. `Update`는 여기에 `removeImage`(boolean) 추가.
 - 응답(`ReviewDetailResponse`) 필드: `id`,`title`,`content`,`authorName`,`applicationType`,`cardType`(`{id,name}`),`imageUrl`,`createdAt`,`next`(`{id,title}`, 이전/다음 글),`canEdit`,`canDelete`. 목록(`ReviewListItemResponse`)은 `next`/`canEdit`/`canDelete` 없이 나머지 동일.
 - 이미지: 최대 2 MiB, `jpg/jpeg/png/webp`만 허용, 시그니처(매직바이트) 검증.

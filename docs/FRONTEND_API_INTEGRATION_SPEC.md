@@ -52,7 +52,6 @@
 - 전화번호+이메일만 사용하는 신청 조회
 - 1:1 문의
 - 관리자 신청관리·통계
-- 마이페이지 내 후기 전용 목록
 - address 수정
 - 학생증 `schoolName`
 - 다중 이미지 후기
@@ -100,7 +99,7 @@
 | 사용자 신청 취소 | 취소 가능 상태, 환불 필요 여부 | 소유권·멱등성·상태 검증 포함 취소 API 구현 | `READY` | 없음 |
 | 사진 재업로드 | 개인 얼굴사진 또는 단체 수정 ZIP | 개인 `photo`, 단체 `submitFile` 분기 구현 | `READY` | 없음. 프론트가 ApplicationType에 따라 part를 다르게 전송해야 함 |
 | 모바일 카드 다운로드 | 개인 앞/뒷면, 단체 ZIP | 로그인 사용자 본인 다운로드 구현 | `PARTIAL` | 현재는 `COMPLETED`만 허용. 확정 정책인 `cardReadyAt` 기준 다운로드와 불일치 |
-| 후기 목록·상세·CRUD | 필터, 검색, 작성·수정·삭제, 이미지, 권한 | 공개 조회와 사용자 CRUD 구현 | `PARTIAL` | 화면은 다중 이미지, 서버는 최대 1개. `GET /api/my/reviews`도 없음 |
+| 후기 목록·상세·CRUD | 필터, 검색, 작성·수정·삭제, 이미지, 권한 | 공개 조회·사용자 CRUD·내 후기 목록 구현 | `PARTIAL` | 내 후기 목록은 준비됨. 화면 다중 이미지와 서버 단일 이미지 정책은 여전히 불일치 |
 | 공지사항 | 목록·상세·검색·첨부 다운로드, 관리자 CRUD | Board NOTICE 조회/CRUD와 실제 첨부 구현 | `PARTIAL` | 화면 검색을 서버에서 수행할 keyword/searchType 계약 없음 |
 | FAQ | 질문·답변 목록, 관리자 CRUD | Board FAQ 조회/CRUD 구현 | `READY` | 없음 |
 | 1:1 문의 | 문의 작성, 내 목록·상세, 관리자 답변 | Inquiry 도메인 없음 | `BLOCKED` | Inquiry Entity/Repository/Service/API 전체 구현 |
@@ -436,7 +435,15 @@ title, applicationType, cardTypeId, authorName, content
 수정만 removeImage 추가
 ```
 
-상세 응답의 `canEdit`, `canDelete`를 버튼 기준으로 사용한다. 프론트가 email을 비교해 권한을 판단하면 안 된다. 현재 서버는 이미지 1개만 지원하며 `GET /api/my/reviews`는 없다.
+상세 응답의 `canEdit`, `canDelete`를 버튼 기준으로 사용한다. 프론트가 email을 비교해 권한을 판단하면 안 된다. 현재 서버는 이미지 1개만 지원한다.
+
+마이페이지 내 후기:
+
+```http
+GET /api/my/reviews?page=0&size=9
+```
+
+인증 사용자의 후기만 `createdAt DESC, id DESC`로 반환하며 응답 구조는 공개 목록과 같다.
 
 ### 3.10 공지사항·FAQ
 
@@ -519,7 +526,7 @@ POST /api/admin/applications/{id}/refund-complete
 GET /api/admin/stats
 ```
 
-내 후기 목록 `GET /api/my/reviews`와 숨김 행사를 포함하는 `GET /api/admin/events`도 아직 없다.
+숨김 행사를 포함하는 `GET /api/admin/events`도 아직 없다.
 
 ---
 
