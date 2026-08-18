@@ -553,7 +553,7 @@ Cookie: accessToken={JWT}
 }
 ```
 
-(마이페이지 신청 조회 API 제안 필드 구성과 동일 — `docs/BACKEND_API_GAPS.md` P0-2 참고. 원 제안은 삭제된 `FRONTEND_API_REQUIREMENTS.md` §5)
+(마이페이지 신청 조회 API 제안 필드 구성과 동일 — `backend/FRONTEND_API_REQUIREMENTS.md` §5의 제안을 그대로 채택. 갭 요약은 `docs/BACKEND_API_GAPS.md` P0-2)
 
 #### ⑤ Validation
 
