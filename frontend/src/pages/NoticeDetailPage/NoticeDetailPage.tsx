@@ -1,15 +1,30 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { notices } from "../SupportPage/SupportPage";
 import "./NoticeDetailPage.css";
-import { loadManagedContent } from "../../components/admin/ContentAdminPanel";
+import { api, type BoardDetail } from "../../services/api";
+
+function formatDate(iso: string) {
+  return (iso ?? "").slice(0, 10).replace(/-/g, ".");
+}
 
 export function NoticeDetailPage() {
   const { noticeId } = useParams();
-  const managed = loadManagedContent("notices", notices.map((item) => ({ id: item.id, title: item.title, content: item.content, meta: item.date, attachment: item.attachment })));
-  const index = managed.findIndex((notice) => notice.id === noticeId);
-  const notice = managed[index];
+  const [notice, setNotice] = useState<BoardDetail | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
-  if (!notice) {
+  useEffect(() => {
+    const id = Number(noticeId);
+    if (!Number.isFinite(id)) { setStatus("error"); return; }
+    let cancelled = false;
+    setStatus("loading");
+    api.getBoard(id)
+      .then((data) => { if (!cancelled) { setNotice(data); setStatus("ready"); } })
+      .catch(() => { if (!cancelled) setStatus("error"); });
+    return () => { cancelled = true; };
+  }, [noticeId]);
+
+  if (status === "loading") return <section className="notice-detail page-container"><h1>공지사항을 불러오는 중입니다…</h1></section>;
+  if (status === "error" || !notice) {
     return (
       <section className="notice-detail page-container">
         <h1>공지사항을 찾을 수 없습니다.</h1>
@@ -17,9 +32,6 @@ export function NoticeDetailPage() {
       </section>
     );
   }
-
-  const nextNotice = managed[index + 1];
-  const downloadText = encodeURIComponent(`${notice.title}\n\n${notice.content}`);
 
   return (
     <article className="notice-detail page-container">
@@ -30,21 +42,23 @@ export function NoticeDetailPage() {
 
       <header className="notice-detail__head">
         <h2>{notice.title}</h2>
-        <time>{notice.meta}</time>
+        <time>{formatDate(notice.createdAt)}</time>
       </header>
 
       <div className="notice-detail__body">
-        {notice.content.split("\n").map((line) => <p key={line}>{line}</p>)}
+        {notice.content.split("\n").map((line, index) => <p key={`${index}-${line}`}>{line}</p>)}
       </div>
 
-      {notice.attachment && (
+      {notice.attachments.length > 0 && (
         <section className="notice-detail__attachment">
           <h3>첨부파일</h3>
-          <div>
-            <span aria-hidden="true">⌕</span>
-            <p>{notice.attachment}</p>
-            <a href={`data:text/plain;charset=utf-8,${downloadText}`} download={notice.attachment}>다운로드 <b aria-hidden="true">↓</b></a>
-          </div>
+          {notice.attachments.map((att) => (
+            <div key={att.id}>
+              <span aria-hidden="true">⌕</span>
+              <p>{att.originalFileName}</p>
+              <a href={att.url} target="_blank" rel="noreferrer" download={att.originalFileName}>다운로드 <b aria-hidden="true">↓</b></a>
+            </div>
+          ))}
         </section>
       )}
 
@@ -52,9 +66,9 @@ export function NoticeDetailPage() {
         <Link className="notice-detail__list" to="/notices">목록</Link>
       </div>
 
-      {nextNotice && (
-        <Link className="notice-detail__next" to={`/notices/${nextNotice.id}`}>
-          <span>⌄　다음글</span><strong>{nextNotice.title}</strong>
+      {notice.next && (
+        <Link className="notice-detail__next" to={`/notices/${notice.next.id}`}>
+          <span>⌄　다음글</span><strong>{notice.next.title}</strong>
         </Link>
       )}
     </article>

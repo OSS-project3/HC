@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { ContentAdminPanel, loadManagedContent, type ManagedContent } from "../../components/admin/ContentAdminPanel";
-import { EventFeedAdminPanel } from "../../components/admin/EventFeedAdminPanel";
+import { EventAdminPanel } from "../../components/admin/EventAdminPanel";
 import { ImagePlaceholder } from "../../components/ui/ImagePlaceholder";
 import { Modal } from "../../components/ui/Modal";
-import { BOOTH_GALLERY, COLLAB_GALLERY, boothPosts, collabPosts, loadFeedPosts, saveFeedPosts, type FeedPost } from "../../data/eventFeedPosts";
+import { eventToFeedPost, type FeedPost } from "../../data/eventFeedPosts";
+import { api } from "../../services/api";
 import "../../styles/ContentPages.css";
 import "./EventsPage.css";
 
@@ -19,13 +20,16 @@ const process = ["상담 및 목적 확인", "참가자 정보 접수", "이름�
 
 export function EventsPage() {
   const { isAdmin } = useAuth();
+  // PROGRAM 카드는 백엔드에 대응 API가 없어 로컬 목데이터로 유지한다(FRONTEND_API_REQUIREMENTS §12 CMS 범위).
   const defaults: ManagedContent[] = programs.map((program, index) => ({ id: `event-${index}`, title: program.title, content: program.text, meta: program.tag }));
   const [managedPrograms, setManagedPrograms] = useState(() => loadManagedContent("events", defaults));
-  const [managedBoothPosts, setManagedBoothPosts] = useState(() => loadFeedPosts("booth-posts", boothPosts));
-  const [managedCollabPosts, setManagedCollabPosts] = useState(() => loadFeedPosts("collab-posts", collabPosts));
   const updatePrograms = (items: ManagedContent[]) => { localStorage.setItem("managed-content:events", JSON.stringify(items)); setManagedPrograms(items); };
-  const updateBoothPosts = (items: FeedPost[]) => { saveFeedPosts("booth-posts", items); setManagedBoothPosts(items); };
-  const updateCollabPosts = (items: FeedPost[]) => { saveFeedPosts("collab-posts", items); setManagedCollabPosts(items); };
+
+  const [managedBoothPosts, setManagedBoothPosts] = useState<FeedPost[]>([]);
+  const [managedCollabPosts, setManagedCollabPosts] = useState<FeedPost[]>([]);
+  const reloadBooth = useCallback(() => { api.listEvents({ type: "BOOTH", size: 100 }).then((d) => setManagedBoothPosts(d.content.map(eventToFeedPost))).catch(() => undefined); }, []);
+  const reloadCollab = useCallback(() => { api.listEvents({ type: "COLLABORATION", size: 100 }).then((d) => setManagedCollabPosts(d.content.map(eventToFeedPost))).catch(() => undefined); }, []);
+  useEffect(() => { reloadBooth(); reloadCollab(); }, [reloadBooth, reloadCollab]);
   return (
     <div className="content-page events-page">
       <header className="subpage-hero page-container">
@@ -66,21 +70,19 @@ export function EventsPage() {
         </div>
       </section>
 
-      {isAdmin && <EventFeedAdminPanel label="부스 운영 게시글" items={managedBoothPosts} onChange={updateBoothPosts} />}
+      {isAdmin && <EventAdminPanel label="부스 운영 게시글" eventType="BOOTH" items={managedBoothPosts} onChanged={reloadBooth} />}
       <EventFeed
         title="부스 운영"
         tagline="현장에서 고객과 직접 만나 정성을 담은 서비스를 제공합니다"
         posts={managedBoothPosts}
-        gallery={BOOTH_GALLERY}
         pageSize={4}
       />
 
-      {isAdmin && <EventFeedAdminPanel label="법인·단체 협업 게시글" items={managedCollabPosts} onChange={updateCollabPosts} showCompanyFields />}
+      {isAdmin && <EventAdminPanel label="법인·단체 협업 게시글" eventType="COLLABORATION" items={managedCollabPosts} onChanged={reloadCollab} />}
       <EventFeed
         title="법인·단체 협업"
         tagline="다양한 법인•단체와의 협업을 통해 한글 이름과 카드를 제공합니다"
         posts={managedCollabPosts}
-        gallery={COLLAB_GALLERY}
         layout="collaboration"
         pageSize={8}
       />
@@ -142,11 +144,10 @@ function EventCard({ post, onOpen, wide = false, compact = false }: { post: Feed
  * 대표 기록 1개를 상단에 사진 60% / 글 40% 와이드 카드로, 나머지는 한 행에 3개 카드로 배열한다.
  * 카드 하단의 "자세히 보기"를 누르면 상세 팝업이 뜬다.
  */
-function EventFeed({ title, tagline, posts, gallery, layout = "featured", pageSize }: {
+function EventFeed({ title, tagline, posts, layout = "featured", pageSize }: {
   title: string;
   tagline: string;
   posts: FeedPost[];
-  gallery: string[];
   layout?: "featured" | "collaboration";
   pageSize?: number;
 }) {
@@ -193,15 +194,23 @@ function EventFeed({ title, tagline, posts, gallery, layout = "featured", pageSi
       )}
 
       <Modal open={active !== null} onClose={() => setActive(null)} title={active?.title ?? ""} className="event-modal">
-        {active && <EventDetail key={active.title} post={active} sectionLabel={title} gallery={gallery} />}
+        {active && <EventDetail key={active.id ?? active.title} post={active} sectionLabel={title} />}
       </Modal>
     </section>
   );
 }
 
-/** Detail popup content: gallery (main image + thumbnails) left, info right. */
-function EventDetail({ post, sectionLabel, gallery }: { post: FeedPost; sectionLabel: string; gallery: string[] }) {
-  const images = [post.image, ...gallery].filter((src, i, arr): src is string => Boolean(src) && arr.indexOf(src) === i);
+/** Detail popup content: gallery (main image + thumbnails) left, info right.
+ *  Gallery images are fetched per-post from the Event detail API. */
+function EventDetail({ post, sectionLabel }: { post: FeedPost; sectionLabel: string }) {
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
+  useEffect(() => {
+    if (post.id == null) return;
+    let cancelled = false;
+    api.getEvent(post.id).then((data) => { if (!cancelled) setGalleryUrls(data.images.map((img) => img.url)); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [post.id]);
+  const images = [post.image, ...galleryUrls].filter((src, i, arr): src is string => Boolean(src) && arr.indexOf(src) === i);
   const [index, setIndex] = useState(0);
   const current = images[index];
   const move = (delta: number) => setIndex((i) => (i + delta + images.length) % images.length);

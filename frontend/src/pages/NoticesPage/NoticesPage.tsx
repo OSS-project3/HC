@@ -1,27 +1,39 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { notices } from "../SupportPage/SupportPage";
 import "../SupportPage/SupportPage.css";
 import { useAuth } from "../../features/auth/AuthContext";
-import { ContentAdminPanel, loadManagedContent, type ManagedContent } from "../../components/admin/ContentAdminPanel";
+import { BoardAdminPanel } from "../../components/admin/BoardAdminPanel";
 import { SelectField } from "../../components/ui/SelectField";
+import { api, type BoardListItem } from "../../services/api";
+
+function formatDate(iso: string) {
+  return (iso ?? "").slice(0, 10).replace(/-/g, ".");
+}
 
 export function NoticesPage() {
   const { isAdmin } = useAuth();
-  const defaults: ManagedContent[] = notices.map((notice) => ({ id: notice.id, title: notice.title, content: notice.content, meta: notice.date, attachment: notice.attachment }));
-  const [managedNotices, setManagedNotices] = useState(() => loadManagedContent("notices", defaults));
-  const updateNotices = (items: ManagedContent[]) => { localStorage.setItem("managed-content:notices", JSON.stringify(items)); setManagedNotices(items); };
+  const [notices, setNotices] = useState<BoardListItem[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [query, setQuery] = useState("");
   const [searchBy, setSearchBy] = useState("전체");
 
+  const reload = useCallback(() => {
+    setStatus("loading");
+    api.listBoards({ type: "NOTICE", size: 100 })
+      .then((data) => { setNotices(data.content); setStatus("ready"); })
+      .catch(() => setStatus("error"));
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
   const filteredNotices = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) return managedNotices;
-    return managedNotices.filter((notice) => {
-      const target = searchBy === "작성일" ? notice.meta || "" : notice.title;
+    if (!keyword) return notices;
+    return notices.filter((notice) => {
+      const target = searchBy === "작성일" ? formatDate(notice.createdAt) : notice.title;
       return target.toLowerCase().includes(keyword);
     });
-  }, [query, searchBy, managedNotices]);
+  }, [query, searchBy, notices]);
 
   return (
     <div className="support notices-page">
@@ -31,7 +43,7 @@ export function NoticesPage() {
       </header>
 
       <section className="support__section page-container">
-        {isAdmin && <ContentAdminPanel label="공지사항" items={managedNotices} onChange={updateNotices} allowAttachment />}
+        {isAdmin && <BoardAdminPanel boardType="NOTICE" items={notices} onChanged={reload} />}
         <h2 className="support__heading">공지사항</h2>
 
         <form className="notice-search" onSubmit={(event) => event.preventDefault()}>
@@ -54,14 +66,16 @@ export function NoticesPage() {
 
         <div className="notice-table">
           <div className="notice-table__head"><span>번호</span><span>제목</span><span>작성일</span></div>
-          {filteredNotices.map((notice) => (
-            <article className="notice-table__row" key={notice.title}>
+          {status === "loading" && <p className="notice-table__empty">공지사항을 불러오는 중입니다…</p>}
+          {status === "error" && <p className="notice-table__empty">공지사항을 불러오지 못했습니다.</p>}
+          {status === "ready" && filteredNotices.map((notice) => (
+            <article className="notice-table__row" key={notice.id}>
               <span className="notice-table__badge">공지</span>
               <Link className="notice-table__title" to={`/notices/${notice.id}`}>{notice.title}</Link>
-              <time>{notice.meta}</time>
+              <time>{formatDate(notice.createdAt)}</time>
             </article>
           ))}
-          {filteredNotices.length === 0 && <p className="notice-table__empty">검색 결과가 없습니다.</p>}
+          {status === "ready" && filteredNotices.length === 0 && <p className="notice-table__empty">검색 결과가 없습니다.</p>}
         </div>
 
         <nav className="support-pagination" aria-label="공지사항 페이지">

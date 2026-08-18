@@ -1,18 +1,26 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PhoneIcon } from "../../components/ui/icons";
 import { companyInfo } from "../../config/company";
-import { faqs } from "../SupportPage/SupportPage";
 import "../SupportPage/SupportPage.css";
 import { useAuth } from "../../features/auth/AuthContext";
-import { ContentAdminPanel, loadManagedContent, type ManagedContent } from "../../components/admin/ContentAdminPanel";
+import { BoardAdminPanel } from "../../components/admin/BoardAdminPanel";
+import { api, type BoardListItem } from "../../services/api";
 
 export function FaqPage() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
-  const defaults: ManagedContent[] = faqs.map((faq, index) => ({ id: `faq-${index}`, title: faq.q, content: faq.a }));
-  const [managedFaqs, setManagedFaqs] = useState(() => loadManagedContent("faqs", defaults));
-  const updateFaqs = (items: ManagedContent[]) => { localStorage.setItem("managed-content:faqs", JSON.stringify(items)); setManagedFaqs(items); };
+  const [managedFaqs, setManagedFaqs] = useState<BoardListItem[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  const reload = useCallback(() => {
+    setStatus("loading");
+    api.listBoards({ type: "FAQ", size: 100 })
+      .then((data) => { setManagedFaqs(data.content); setStatus("ready"); })
+      .catch(() => setStatus("error"));
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
 
   return (
     <div className="support faq-page">
@@ -22,7 +30,7 @@ export function FaqPage() {
       </header>
 
       <section className="support__section page-container">
-        {isAdmin && <ContentAdminPanel label="FAQ" items={managedFaqs} onChange={updateFaqs} />}
+        {isAdmin && <BoardAdminPanel boardType="FAQ" items={managedFaqs} onChanged={reload} />}
         <h2 className="support__heading support__heading--plain">자주 묻는 질문</h2>
         <p className="faq__intro">
           자주 문의하시는 내용을 정리했습니다.<br />
@@ -30,7 +38,9 @@ export function FaqPage() {
         </p>
 
         <div className="faq">
-          {managedFaqs.map((faq, index) => (
+          {status === "loading" && <p className="faq__intro">불러오는 중입니다…</p>}
+          {status === "error" && <p className="faq__intro">FAQ를 불러오지 못했습니다.</p>}
+          {status === "ready" && managedFaqs.map((faq, index) => (
             <details key={faq.id} className="faq__item" open={index === 0 ? true : undefined}>
               <summary className="faq__q"><b>Q.</b><span>{faq.title}</span></summary>
               <p className="faq__a"><b>A.</b><span>{faq.content}</span></p>

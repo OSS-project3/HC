@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
-import { loadReviews } from "../../data/reviews";
 import { loadInquiries } from "../../data/inquiries";
 import { adminStatusLabels, loadApplications } from "../../data/adminMock";
+import { toReviewPost } from "../../data/reviews";
 import "./MyPage.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { Button } from "../../components/ui/Button";
 
@@ -12,6 +12,17 @@ export function MyPage() {
   const { user, refreshProfile, logout } = useAuth();
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState(() => ({ name: user?.name || "", phone: user?.phone || "", address: user?.address || "" }));
+  // 내 후기는 백엔드 GET /api/my/reviews로 연동. (로그인 세션이 API 기반일 때만 호출)
+  const [myReviews, setMyReviews] = useState<{ id: string; title: string; createdAt: string }[]>([]);
+
+  useEffect(() => {
+    if (user?.source !== "api") { setMyReviews([]); return; }
+    let cancelled = false;
+    api.listMyReviews({ size: 100 })
+      .then((data) => { if (!cancelled) setMyReviews(data.content.map(toReviewPost).map((r) => ({ id: r.id, title: r.title, createdAt: r.createdAt }))); })
+      .catch(() => { if (!cancelled) setMyReviews([]); });
+    return () => { cancelled = true; };
+  }, [user?.source]);
 
   if (!user) {
     return (
@@ -23,7 +34,7 @@ export function MyPage() {
     );
   }
 
-  const myReviews = loadReviews().filter((review) => review.authorEmail === user.email);
+  // 내 문의/신청 목록은 백엔드에 my-* 조회 API가 아직 없어(또는 미커밋) 목데이터로 남아 있다.
   const myInquiries = loadInquiries().filter((inquiry) => inquiry.email === user.email);
   const myApplications = loadApplications().filter((application) => application.applicantEmail === user.email);
 
@@ -47,10 +58,10 @@ export function MyPage() {
         <div><span>이메일</span><strong>{user.email}</strong></div>
         <div><span>회원 유형</span><strong>{user.role === "admin" ? "관리자" : "일반 회원"}</strong></div>
       </section>
-      {editing && <form className="mypage__profile page-container" onSubmit={async (event) => { event.preventDefault(); if (user.source === "api") { await api.updateMe(profile); await refreshProfile(); } setEditing(false); }}>
+      {/* PATCH /api/users/me는 name·phone만 처리한다(주소 수정은 백엔드 미지원 — FRONTEND_API_GAPS §1.9). */}
+      {editing && <form className="mypage__profile page-container" onSubmit={async (event) => { event.preventDefault(); if (user.source === "api") { await api.updateMe({ name: profile.name, phone: profile.phone }); await refreshProfile(); } setEditing(false); }}>
         <label className="field"><span className="field__label">이름</span><input className="field__input" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
         <label className="field"><span className="field__label">전화번호</span><input className="field__input" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} /></label>
-        <label className="field"><span className="field__label">주소</span><input className="field__input" value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} /></label>
         <Button type="submit">저장</Button>
       </form>}
 

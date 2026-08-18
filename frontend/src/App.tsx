@@ -16,6 +16,7 @@ const NoticeDetailPage = lazy(() => import("./pages/NoticeDetailPage/NoticeDetai
 const MyPage = lazy(() => import("./pages/MyPage/MyPage").then((m) => ({ default: m.MyPage })));
 const LoginPage = lazy(() => import("./pages/LoginPage/LoginPage").then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazy(() => import("./pages/SignupPage/SignupPage").then((m) => ({ default: m.SignupPage })));
+const TermsPage = lazy(() => import("./pages/TermsPage/TermsPage").then((m) => ({ default: m.TermsPage })));
 const AccountRecoveryPage = lazy(() => import("./pages/AccountRecoveryPage/AccountRecoveryPage").then((m) => ({ default: m.AccountRecoveryPage })));
 const AdminPage = lazy(() => import("./pages/AdminPage/AdminPage").then((m) => ({ default: m.AdminPage })));
 const StubPage = lazy(() => import("./pages/StubPage/StubPage").then((m) => ({ default: m.StubPage })));
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/mypage/inquiry/:inquiryId" element={<InquiryDetailPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
+            <Route path="/terms" element={<TermsPage />} />
             <Route path="/account-recovery" element={<AccountRecoveryPage />} />
             <Route path="/company" element={<CompanyPage />} />
             <Route path="/greetings" element={<GreetingsPage />} />

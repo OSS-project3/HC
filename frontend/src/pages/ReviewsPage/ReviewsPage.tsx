@@ -1,44 +1,58 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { SelectField } from "../../components/ui/SelectField";
 import { useAuth } from "../../features/auth/AuthContext";
-import { getReviewFallbackImageUrl, getReviewImageUrl, getReviewImageUrls, loadReviews, type ReviewPost } from "../../data/reviews";
-import { cardTypeLabels, type CardType } from "../../data/cards";
+import { getReviewFallbackImageUrl, getReviewImageUrl, getReviewImageUrls, toReviewPost, type ReviewPost } from "../../data/reviews";
+import { cardTypeIds, cardTypeLabels, type CardType } from "../../data/cards";
+import { api, type ReviewSearchType } from "../../services/api";
 import "../../styles/ContentPages.css";
 import "../SupportPage/SupportPage.css";
 import "./ReviewsPage.css";
 
 const PAGE_SIZE = 9;
+const searchTypeByLabel: Record<string, ReviewSearchType> = { 전체: "ALL", 제목: "TITLE", 내용: "CONTENT", 작성자: "AUTHOR" };
 
 export function ReviewsPage() {
   const { user } = useAuth();
-  const [reviews] = useState(loadReviews);
   const [query, setQuery] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
   const [searchBy, setSearchBy] = useState("전체");
   const [photoFilter, setPhotoFilter] = useState<"all" | "photos">("all");
   const [cardFilter, setCardFilter] = useState<"all" | CardType>("all");
   const [page, setPage] = useState(1);
+  const [reviews, setReviews] = useState<ReviewPost[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [activeReview, setActiveReview] = useState<(ReviewPost & { resolvedImageUrls: string[] }) | null>(null);
 
-  const filteredReviews = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-    return reviews.filter((review) => {
-      if (photoFilter === "photos" && getReviewImageUrls(review).length === 0) return false;
-      if (cardFilter !== "all" && review.cardType !== cardFilter) return false;
-      if (!keyword) return true;
-      if (searchBy === "제목") return review.title.toLowerCase().includes(keyword);
-      if (searchBy === "내용") return review.content.toLowerCase().includes(keyword);
-      if (searchBy === "작성자") return review.author.toLowerCase().includes(keyword);
-      return `${review.title} ${review.content} ${review.author}`.toLowerCase().includes(keyword);
-    });
-  }, [cardFilter, photoFilter, query, reviews, searchBy]);
+  useEffect(() => { setPage(1); }, [cardFilter, photoFilter, submittedQuery, searchBy]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredReviews.length / PAGE_SIZE));
-  const visibleReviews = filteredReviews.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  useEffect(() => setPage(1), [cardFilter, photoFilter, query, searchBy]);
-  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("loading");
+    api.listReviews({
+      cardTypeId: cardFilter === "all" ? undefined : cardTypeIds[cardFilter],
+      hasPhoto: photoFilter === "photos" ? true : undefined,
+      searchType: submittedQuery ? searchTypeByLabel[searchBy] : undefined,
+      keyword: submittedQuery || undefined,
+      page: page - 1,
+      size: PAGE_SIZE,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setReviews(data.content.map(toReviewPost));
+        setTotalPages(Math.max(1, data.totalPages));
+        setTotalElements(data.totalElements);
+        setStatus("ready");
+      })
+      .catch(() => { if (!cancelled) setStatus("error"); });
+    return () => { cancelled = true; };
+  }, [cardFilter, photoFilter, submittedQuery, searchBy, page]);
+
+  const visibleReviews = reviews;
 
   return (
     <div className="support reviews-page">
@@ -48,21 +62,21 @@ export function ReviewsPage() {
       </header>
 
       <section className="support__section page-container reviews-board">
-        <div className="reviews-board__heading"><h2 className="support__heading">후기</h2><p>총 {filteredReviews.length}개의 후기가 있습니다.</p></div>
+        <div className="reviews-board__heading"><h2 className="support__heading">후기</h2><p>총 {totalElements}개의 후기가 있습니다.</p></div>
 
         <div className="reviews-board__tools">
           <div className="reviews-board__filters">
             <label><span>보기</span><SelectField ariaLabel="보기 필터" value={photoFilter} onChange={(value) => setPhotoFilter(value as "all" | "photos")} options={[{ value: "all", label: "전체 후기" }, { value: "photos", label: "사진 모아보기" }]} /></label>
             <label><span>카드 종류</span><SelectField ariaLabel="카드 종류 필터" value={cardFilter} onChange={(value) => setCardFilter(value as "all" | CardType)} options={[{ value: "all", label: "전체 카드" }, ...(Object.entries(cardTypeLabels) as [CardType, string][]).map(([value, label]) => ({ value, label }))]} /></label>
           </div>
-          <form className="notice-search" onSubmit={(event) => event.preventDefault()}>
+          <form className="notice-search" onSubmit={(event) => { event.preventDefault(); setSubmittedQuery(query.trim()); }}>
             <SelectField ariaLabel="검색 조건" value={searchBy} onChange={setSearchBy} options={[{ value: "전체", label: "전체" }, { value: "제목", label: "제목" }, { value: "내용", label: "내용" }, { value: "작성자", label: "작성자" }]} />
             <label><span className="visually-hidden">검색어 입력</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="검색어를 입력하세요" /><button type="submit" aria-label="검색"><SearchGlyph /></button></label>
           </form>
         </div>
 
         <div className="review-grid" aria-label="후기 목록">
-          {visibleReviews.length === 0 ? <p className="review-grid__empty">검색 결과가 없습니다.</p> : visibleReviews.map((review) => {
+          {status === "loading" ? <p className="review-grid__empty">후기를 불러오는 중입니다…</p> : status === "error" ? <p className="review-grid__empty">후기를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p> : visibleReviews.length === 0 ? <p className="review-grid__empty">검색 결과가 없습니다.</p> : visibleReviews.map((review) => {
             const imageUrl = getReviewImageUrl(review);
             const imageUrls = getReviewImageUrls(review);
             return (

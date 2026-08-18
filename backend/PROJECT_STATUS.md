@@ -6,7 +6,7 @@
 
 저장소 구조: 프론트엔드 `frontend/`, 백엔드 `backend/honor-citizen/`
 
-이 문서는 현재 소스 코드를 기준으로 프로젝트의 구현 범위와 남은 작업을 요약한다. API의 상세 요청·응답 및 프론트 요구사항은 `API_ANALYSIS.md`, `FRONTEND_API_REQUIREMENTS.md`를 함께 참고한다.
+이 문서는 현재 소스 코드를 기준으로 프로젝트의 구현 범위와 남은 작업을 요약한다. 구현·연동된 도메인의 상세 계약은 `docs/specs/{도메인}/api.md`를, 아직 백엔드에 없는(프론트가 mock으로 대기 중인) API 목록은 `docs/BACKEND_API_GAPS.md`를 참고한다.
 
 ## 1. 현재 요약
 
@@ -143,7 +143,7 @@ Spring Security가 제공하는 OAuth2 진입점도 사용한다.
 - 사이트 회사 정보·정책·파트너·상품·SNS 링크 CMS
 - 여러 기기에서 신청 초안을 이어 쓰기 위한 draft API
 
-구체적인 권장 경로와 필드는 `FRONTEND_API_REQUIREMENTS.md`에 정리되어 있다. 이는 요구사항 문서이며 현재 구현된 API 목록과 구분해야 한다.
+구체적인 권장 경로와 필드는 `docs/BACKEND_API_GAPS.md`에 정리되어 있다. 이는 요구사항 문서이며 현재 구현된 API 목록과 구분해야 한다.
 
 ## 8. Docker 실행 상태
 

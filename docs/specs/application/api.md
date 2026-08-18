@@ -553,7 +553,7 @@ Cookie: accessToken={JWT}
 }
 ```
 
-(`backend/FRONTEND_API_REQUIREMENTS.md` §5에 이미 제안돼 있던 필드 구성과 동일 — 그 문서의 제안을 그대로 채택)
+(마이페이지 신청 조회 API 제안 필드 구성과 동일 — `docs/BACKEND_API_GAPS.md` P0-2 참고. 원 제안은 삭제된 `FRONTEND_API_REQUIREMENTS.md` §5)
 
 #### ⑤ Validation
 
@@ -622,7 +622,7 @@ Cookie: accessToken={JWT}
 }
 ```
 
-- 단체(GROUP) 신청은 `ApplicationMember`가 N건이라 이 응답에 전부 담지 않는다 — `memberCount`(총원수)만 포함하고, 구성원 개별 목록은 `backend/FRONTEND_API_REQUIREMENTS.md` §5에 이미 제안된 `GET /api/my/bulk-applications/{id}/members`(이번 범위 밖, 별도 TODO)로 분리.
+- 단체(GROUP) 신청은 `ApplicationMember`가 N건이라 이 응답에 전부 담지 않는다 — `memberCount`(총원수)만 포함하고, 구성원 개별 목록은 `GET /api/my/bulk-applications/{id}/members`(이번 범위 밖, 별도 TODO — `docs/BACKEND_API_GAPS.md` P0-2 참고)로 분리.
 - `receiver`는 `issueType=MOBILE`이면 `null`.
 
 #### ⑤ Validation

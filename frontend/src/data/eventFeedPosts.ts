@@ -1,4 +1,8 @@
+import type { EventListItem } from "../services/api";
+
 export interface FeedPost {
+  /** Backend event id (present for API-loaded posts). */
+  id?: number;
   date: string;
   title: string;
   place: string;
@@ -8,6 +12,24 @@ export interface FeedPost {
   cardLabel: string;
   text: string;
   image?: string;
+}
+
+/**
+ * Map a backend Event list item into the feed view model.
+ * Note: the backend has no `company`/`logoUrl` fields, so collaboration logos
+ * are not available from the API (see FRONTEND_API_REQUIREMENTS gap notes).
+ */
+export function eventToFeedPost(dto: EventListItem): FeedPost {
+  return {
+    id: dto.id,
+    date: dto.eventDateText,
+    title: dto.title,
+    place: dto.place,
+    host: dto.host,
+    cardLabel: dto.cardLabel,
+    text: dto.content,
+    image: dto.thumbnailImageUrl,
+  };
 }
 
 const BOOTH_TEXT =

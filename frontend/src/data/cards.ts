@@ -248,3 +248,20 @@ export function findCardDesign(designId: string | null | undefined): CardDesign 
   if (!designId) return undefined;
   return cardCategories.flatMap((c) => c.cards).find((d) => d.id === designId);
 }
+
+/**
+ * CardType slug ↔ backend numeric card_types.id.
+ * The backend seeds ids in a fixed order (HONOR_KOREAN=1, HONOR_CITIZEN=2,
+ * VISITOR=3, STUDENT=4); overridable via env for non-default DB seeding.
+ */
+export const cardTypeIds: Record<CardType, number> = {
+  "honorary-korean": Number(import.meta.env.VITE_CARD_TYPE_HONOR_KOREAN_ID ?? 1),
+  "honorary-citizen": Number(import.meta.env.VITE_CARD_TYPE_HONOR_CITIZEN_ID ?? 2),
+  visitor: Number(import.meta.env.VITE_CARD_TYPE_VISITOR_ID ?? 3),
+  student: Number(import.meta.env.VITE_CARD_TYPE_STUDENT_ID ?? 4),
+};
+
+/** Reverse map: backend card_types.id → CardType slug. */
+export const cardTypeById: Record<number, CardType> = Object.fromEntries(
+  (Object.entries(cardTypeIds) as [CardType, number][]).map(([slug, id]) => [id, slug]),
+) as Record<number, CardType>;
