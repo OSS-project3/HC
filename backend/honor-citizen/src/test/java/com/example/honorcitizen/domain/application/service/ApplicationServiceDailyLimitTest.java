@@ -95,7 +95,7 @@ class ApplicationServiceDailyLimitTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User newUser = User.createNewUser("daily-limit@example.com", "oauth-daily-limit", "google", "Member");
+        User newUser = User.createOAuthUser("daily-limit@example.com", "oauth-daily-limit", "google", "Member");
         newUser.agreeTerms(true, true, true);
         user = userRepository.save(newUser);
         honorKoreanCardType = cardTypeRepository.save(
@@ -245,7 +245,7 @@ class ApplicationServiceDailyLimitTest {
         applicationService.createIndividual(user.getId(), individualRequest(), photo(), null, null);
 
         User anotherUser = userRepository.save(
-                User.createNewUser("daily-limit-2@example.com", "oauth-daily-limit-2", "google", "Member2"));
+                User.createOAuthUser("daily-limit-2@example.com", "oauth-daily-limit-2", "google", "Member2"));
         anotherUser.agreeTerms(true, true, true);
         userRepository.save(anotherUser);
 
@@ -277,7 +277,7 @@ class ApplicationServiceDailyLimitTest {
     void otherUserCannotCancelOrReleaseOwnersSlot() {
         ApplicationCreateResponse created = applicationService.createIndividual(
                 user.getId(), individualRequest(), photo(), null, null);
-        User other = User.createNewUser("other-canceller@example.com", "oauth-other-canceller", "google", "Other");
+        User other = User.createOAuthUser("other-canceller@example.com", "oauth-other-canceller", "google", "Other");
         other.agreeTerms(true, true, true);
         other = userRepository.save(other);
         Long otherUserId = other.getId();

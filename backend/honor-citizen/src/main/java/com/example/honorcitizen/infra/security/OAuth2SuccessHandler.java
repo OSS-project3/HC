@@ -59,7 +59,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         boolean isNewUser = !userRepository.existsByOauthIdAndOauthProvider(oauthId, provider);
         User user = userRepository.findByOauthIdAndOauthProvider(oauthId, provider)
                 .orElseGet(() -> userRepository.save(
-                        User.createNewUser(email, oauthId, provider, name)
+                        User.createOAuthUser(email, oauthId, provider, name)
                 ));
 
         if (user.isRestorable()) {

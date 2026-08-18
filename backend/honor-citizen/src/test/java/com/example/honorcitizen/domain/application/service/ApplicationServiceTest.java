@@ -82,7 +82,7 @@ class ApplicationServiceTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        user = User.createNewUser("member@example.com", "oauth-app", "google", "Member");
+        user = User.createOAuthUser("member@example.com", "oauth-app", "google", "Member");
         user.agreeTerms(true, true, true);
         user = userRepository.save(user);
         honorKoreanCardType = cardTypeRepository.save(
@@ -462,7 +462,7 @@ class ApplicationServiceTest {
     @Test
     void createIndividualRejectsUserWithoutRequiredTermsBeforeSideEffects() {
         User unagreed = userRepository.save(
-                User.createNewUser("unagreed@example.com", "oauth-unagreed", "google", "Unagreed"));
+                User.createOAuthUser("unagreed@example.com", "oauth-unagreed", "google", "Unagreed"));
 
         assertUserValidationFailure(unagreed.getId(), ErrorCode.TERMS_NOT_AGREED);
     }

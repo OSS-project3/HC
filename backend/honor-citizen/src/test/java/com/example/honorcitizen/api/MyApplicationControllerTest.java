@@ -66,12 +66,12 @@ class MyApplicationControllerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User owner = userRepository.save(User.createNewUser("myapp-owner@example.com", "oauth-myapp-owner", "google", "Owner"));
+        User owner = userRepository.save(User.createOAuthUser("myapp-owner@example.com", "oauth-myapp-owner", "google", "Owner"));
         owner.agreeTerms(true, true, true);
         userRepository.save(owner);
         ownerToken = "Bearer " + jwtTokenProvider.generateAccessToken(owner.getId(), owner.getRole());
 
-        User other = userRepository.save(User.createNewUser("myapp-other@example.com", "oauth-myapp-other", "google", "Other"));
+        User other = userRepository.save(User.createOAuthUser("myapp-other@example.com", "oauth-myapp-other", "google", "Other"));
         other.agreeTerms(true, true, true);
         userRepository.save(other);
         otherToken = "Bearer " + jwtTokenProvider.generateAccessToken(other.getId(), other.getRole());

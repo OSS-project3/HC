@@ -71,7 +71,7 @@ class ApplicationPhotoControllerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User user = userRepository.save(User.createNewUser("photo-ctrl@example.com", "oauth-photo-ctrl", "google", "Photo"));
+        User user = userRepository.save(User.createOAuthUser("photo-ctrl@example.com", "oauth-photo-ctrl", "google", "Photo"));
         token = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
         CardType cardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-photo-ctrl", null, BigDecimal.valueOf(30000)));

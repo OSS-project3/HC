@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.UUID;
 
 @Entity
@@ -23,14 +24,18 @@ public class User extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
+    // 일반 이메일 계정은 OAuth 정보가 없는 게 도메인상 정확한 상태라 null 허용(2026-08-19 확정).
+    // 두 컬럼은 항상 함께 null이거나 함께 값이 있어야 하며, 이 불변조건은 createLocalUser/createOAuthUser가 보장한다.
     private String oauthId;
 
-    @Column(nullable = false)
     private String oauthProvider;
+
+    // 일반 이메일 계정만 값이 있다(OAuth 계정은 null). 평문은 저장하지 않고 해시만 저장한다.
+    @Column(length = 255)
+    private String passwordHash;
 
     @Column(nullable = false)
     private String name;
@@ -68,11 +73,33 @@ public class User extends BaseTimeEntity {
 
     private LocalDateTime anonymizedAt;
 
-    public static User createNewUser(String email, String oauthId, String oauthProvider, String name) {
+    // 로그인 아이디로 쓰이는 모든 이메일은 저장 전 이 메서드로 정규화한다(trim+소문자) —
+    // 일반 가입/로그인/중복확인/비밀번호 재설정/아이디찾기/OAuth 콜백 전부 동일 규칙을 써야
+    // "같은 이메일인데 대소문자·공백 차이로 다른 계정" 문제가 안 생긴다.
+    public static String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    public static User createOAuthUser(String email, String oauthId, String oauthProvider, String name) {
         User user = new User();
-        user.email = email;
+        user.email = normalizeEmail(email);
         user.oauthId = oauthId;
         user.oauthProvider = oauthProvider;
+        user.name = name;
+        user.role = UserRole.USER;
+        user.termsAgreed = false;
+        user.privacyAgreed = false;
+        user.imageUploadAgreed = false;
+        user.shippingAgreed = false;
+        user.status = UserStatus.ACTIVE;
+        return user;
+    }
+
+    // 일반 이메일 회원가입 전용 — oauthId/oauthProvider는 항상 null(약관 동의는 /terms에서 별도 처리).
+    public static User createLocalUser(String email, String passwordHash, String name) {
+        User user = new User();
+        user.email = normalizeEmail(email);
+        user.passwordHash = passwordHash;
         user.name = name;
         user.role = UserRole.USER;
         user.termsAgreed = false;
@@ -107,6 +134,7 @@ public class User extends BaseTimeEntity {
         this.name = "탈퇴한 사용자";
         this.oauthId = "anon-" + anonymousSuffix;
         this.oauthProvider = "ANONYMIZED";
+        this.passwordHash = null;
         this.phone = null;
         this.address = null;
         this.anonymizedAt = LocalDateTime.now();

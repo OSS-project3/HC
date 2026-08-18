@@ -56,11 +56,11 @@ class ReviewServiceDetailTest {
 
         cardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-detail", null, BigDecimal.valueOf(30000)));
-        owner = userRepository.save(User.createNewUser("owner@example.com", "oauth-owner", "google", "작성자"));
-        admin = userRepository.save(User.createNewUser("admin@example.com", "oauth-admin", "google", "관리자"));
+        owner = userRepository.save(User.createOAuthUser("owner@example.com", "oauth-owner", "google", "작성자"));
+        admin = userRepository.save(User.createOAuthUser("admin@example.com", "oauth-admin", "google", "관리자"));
         ReflectionTestUtils.setField(admin, "role", UserRole.ADMIN);
         admin = userRepository.save(admin);
-        stranger = userRepository.save(User.createNewUser("stranger@example.com", "oauth-stranger", "google", "타인"));
+        stranger = userRepository.save(User.createOAuthUser("stranger@example.com", "oauth-stranger", "google", "타인"));
 
         when(storageService.generatePresignedUrl(anyString(), anyLong())).thenReturn("https://mock/presigned");
     }

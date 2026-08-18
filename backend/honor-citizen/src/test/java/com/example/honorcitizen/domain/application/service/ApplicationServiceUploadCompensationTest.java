@@ -71,7 +71,7 @@ class ApplicationServiceUploadCompensationTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User newUser = User.createNewUser("member@example.com", "oauth-app", "google", "Member");
+        User newUser = User.createOAuthUser("member@example.com", "oauth-app", "google", "Member");
         newUser.agreeTerms(true, true, true);
         user = userRepository.save(newUser);
         studentCardType = cardTypeRepository.save(

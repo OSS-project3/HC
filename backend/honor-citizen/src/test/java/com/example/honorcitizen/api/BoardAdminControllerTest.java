@@ -78,10 +78,10 @@ class BoardAdminControllerTest {
         boardRepository.deleteAll();
         userRepository.deleteAll();
 
-        User admin = userRepository.save(User.createNewUser("board-admin@example.com", "oauth-board-admin", "google", "관리자"));
+        User admin = userRepository.save(User.createOAuthUser("board-admin@example.com", "oauth-board-admin", "google", "관리자"));
         adminToken = "Bearer " + jwtTokenProvider.generateAccessToken(admin.getId(), UserRole.ADMIN);
 
-        User user = userRepository.save(User.createNewUser("board-user@example.com", "oauth-board-user", "google", "일반사용자"));
+        User user = userRepository.save(User.createOAuthUser("board-user@example.com", "oauth-board-user", "google", "일반사용자"));
         userToken = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), UserRole.USER);
 
         when(storageService.upload(anyString(), any())).thenReturn("http://mock-storage/uploaded");

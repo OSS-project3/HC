@@ -80,11 +80,11 @@ class ReviewServiceUpdateTest {
         cardTypeB = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_CITIZEN, "명예시민증-upd", null, BigDecimal.valueOf(30000)));
 
-        owner = userRepository.save(User.createNewUser("owner-upd@example.com", "oauth-owner-upd", "google", "작성자"));
-        admin = userRepository.save(User.createNewUser("admin-upd@example.com", "oauth-admin-upd", "google", "관리자"));
+        owner = userRepository.save(User.createOAuthUser("owner-upd@example.com", "oauth-owner-upd", "google", "작성자"));
+        admin = userRepository.save(User.createOAuthUser("admin-upd@example.com", "oauth-admin-upd", "google", "관리자"));
         ReflectionTestUtils.setField(admin, "role", UserRole.ADMIN);
         admin = userRepository.save(admin);
-        stranger = userRepository.save(User.createNewUser("stranger-upd@example.com", "oauth-stranger-upd", "google", "타인"));
+        stranger = userRepository.save(User.createOAuthUser("stranger-upd@example.com", "oauth-stranger-upd", "google", "타인"));
 
         when(storageService.upload(anyString(), any())).thenReturn("http://mock-storage/uploaded");
         when(storageService.generatePresignedUrl(anyString(), anyLong())).thenReturn("https://mock/presigned");

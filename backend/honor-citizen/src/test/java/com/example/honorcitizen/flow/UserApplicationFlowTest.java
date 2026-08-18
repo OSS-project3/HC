@@ -47,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * 실제로 존재하지 않는 두 지점은 다음과 같이 대체한다:
  * - "Google 로그인": 테스트에서 실제 구글 서버를 칠 수 없으므로,
- *   {@code OAuth2SuccessHandler}와 동일한 코드 경로(User.createNewUser → UserService.issueLoginTokens)로 재현한다.
+ *   {@code OAuth2SuccessHandler}와 동일한 코드 경로(User.createOAuthUser → UserService.issueLoginTokens)로 재현한다.
  * - "신청 수정": 신청 내용을 사용자가 직접 수정하는 API는 아직 없다.
  *   대신 사진 재업로드가 가능한 PHOTO_REJECTED 상태로 가려면 관리자 검토가 필요한데
  *   Admin API도 아직 없으므로, 엔티티 상태 전이 메서드를 리포지토리 레벨에서 직접 호출해
@@ -99,7 +99,7 @@ class UserApplicationFlowTest {
     @Test
     void fullUserApplicationFlow() throws Exception {
         // ── 1) Google 로그인 (OAuth2SuccessHandler와 동일한 코드 경로로 재현) ──────────────
-        User user = userRepository.save(User.createNewUser(
+        User user = userRepository.save(User.createOAuthUser(
                 "flow-user@example.com", "google-oauth-sub-12345", "google", "홍길동"));
         AuthTokens tokens = userService.issueLoginTokens(user);
 

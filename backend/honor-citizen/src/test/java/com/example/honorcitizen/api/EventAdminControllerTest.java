@@ -79,10 +79,10 @@ class EventAdminControllerTest {
         eventPostRepository.deleteAll();
         userRepository.deleteAll();
 
-        User admin = userRepository.save(User.createNewUser("event-admin@example.com", "oauth-event-admin", "google", "관리자"));
+        User admin = userRepository.save(User.createOAuthUser("event-admin@example.com", "oauth-event-admin", "google", "관리자"));
         adminToken = "Bearer " + jwtTokenProvider.generateAccessToken(admin.getId(), UserRole.ADMIN);
 
-        User user = userRepository.save(User.createNewUser("event-user@example.com", "oauth-event-user", "google", "일반사용자"));
+        User user = userRepository.save(User.createOAuthUser("event-user@example.com", "oauth-event-user", "google", "일반사용자"));
         userToken = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), UserRole.USER);
 
         when(storageService.upload(anyString(), any())).thenReturn("http://mock-storage/uploaded");

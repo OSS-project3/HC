@@ -82,11 +82,11 @@ class ApplicationPaymentWorkflowTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        user = User.createNewUser("payment-user@example.com", "oauth-payment-user", "google", "User");
+        user = User.createOAuthUser("payment-user@example.com", "oauth-payment-user", "google", "User");
         user.agreeTerms(true, true, true);
         user = userRepository.save(user);
 
-        admin = User.createNewUser("payment-admin@example.com", "oauth-payment-admin", "google", "Admin");
+        admin = User.createOAuthUser("payment-admin@example.com", "oauth-payment-admin", "google", "Admin");
         ReflectionTestUtils.setField(admin, "role", UserRole.ADMIN);
         admin = userRepository.save(admin);
 

@@ -72,7 +72,7 @@ class ReviewServiceCreateTest {
 
         cardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-create", null, BigDecimal.valueOf(30000)));
-        user = userRepository.save(User.createNewUser("writer@example.com", "oauth-writer", "google", "작성자"));
+        user = userRepository.save(User.createOAuthUser("writer@example.com", "oauth-writer", "google", "작성자"));
 
         when(storageService.upload(anyString(), any())).thenReturn("http://mock-storage/uploaded");
     }

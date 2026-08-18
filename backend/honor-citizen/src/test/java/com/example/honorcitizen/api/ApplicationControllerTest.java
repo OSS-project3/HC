@@ -86,7 +86,7 @@ class ApplicationControllerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        user = User.createNewUser("app@example.com", "oauth-app-ctrl", "google", "Applicant");
+        user = User.createOAuthUser("app@example.com", "oauth-app-ctrl", "google", "Applicant");
         user.agreeTerms(true, true, true);
         user = userRepository.save(user);
         token = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
@@ -189,7 +189,7 @@ class ApplicationControllerTest {
     void cancelRejectsOtherOwner() throws Exception {
         Application application = applicationRepository.save(Application.createIndividual(
                 user.getId(), "APP-2026-CANCEL-3", cardType.getId(), IssueType.MOBILE, true, null, null));
-        User other = User.createNewUser("other-owner@example.com", "oauth-other-owner", "google", "Other");
+        User other = User.createOAuthUser("other-owner@example.com", "oauth-other-owner", "google", "Other");
         other.agreeTerms(true, true, true);
         other = userRepository.save(other);
         String otherToken = "Bearer " + jwtTokenProvider.generateAccessToken(other.getId(), other.getRole());

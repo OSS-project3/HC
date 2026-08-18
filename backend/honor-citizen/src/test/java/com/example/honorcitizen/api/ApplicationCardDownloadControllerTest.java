@@ -70,7 +70,7 @@ class ApplicationCardDownloadControllerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User user = userRepository.save(User.createNewUser("card-ctrl@example.com", "oauth-card-ctrl", "google", "Card"));
+        User user = userRepository.save(User.createOAuthUser("card-ctrl@example.com", "oauth-card-ctrl", "google", "Card"));
         token = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
         CardType cardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-card-ctrl", null, BigDecimal.valueOf(30000)));

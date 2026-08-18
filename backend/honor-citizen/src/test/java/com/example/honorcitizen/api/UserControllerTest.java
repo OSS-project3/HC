@@ -39,7 +39,7 @@ class UserControllerTest {
     void setUp() {
         userRepository.deleteAll();
 
-        user = User.createNewUser("jane@example.com", "oauth-jane", "google", "Jane");
+        user = User.createOAuthUser("jane@example.com", "oauth-jane", "google", "Jane");
         user = userRepository.save(user);
         token = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
     }

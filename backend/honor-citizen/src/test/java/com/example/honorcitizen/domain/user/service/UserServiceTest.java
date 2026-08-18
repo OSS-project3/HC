@@ -76,7 +76,7 @@ class UserServiceTest {
 
     private User withdrawnUserBackdatedBy(int daysAgo, String oauthId) {
         String email = daysAgo == 1 ? "recent@example.com" : "expired-" + oauthId + "@example.com";
-        User user = User.createNewUser(email, oauthId, "google", "탈퇴예정자");
+        User user = User.createOAuthUser(email, oauthId, "google", "탈퇴예정자");
         user.withdraw();
         user = userRepository.saveAndFlush(user);
 

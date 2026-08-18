@@ -54,11 +54,11 @@ class ReviewServiceDeleteTest {
 
         cardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-delete", null, BigDecimal.valueOf(30000)));
-        owner = userRepository.save(User.createNewUser("owner-del@example.com", "oauth-owner-del", "google", "작성자"));
-        admin = userRepository.save(User.createNewUser("admin-del@example.com", "oauth-admin-del", "google", "관리자"));
+        owner = userRepository.save(User.createOAuthUser("owner-del@example.com", "oauth-owner-del", "google", "작성자"));
+        admin = userRepository.save(User.createOAuthUser("admin-del@example.com", "oauth-admin-del", "google", "관리자"));
         ReflectionTestUtils.setField(admin, "role", UserRole.ADMIN);
         admin = userRepository.save(admin);
-        stranger = userRepository.save(User.createNewUser("stranger-del@example.com", "oauth-stranger-del", "google", "타인"));
+        stranger = userRepository.save(User.createOAuthUser("stranger-del@example.com", "oauth-stranger-del", "google", "타인"));
     }
 
     @Test

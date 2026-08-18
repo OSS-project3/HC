@@ -68,9 +68,9 @@ class ReviewEligibilityServiceTest {
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-eligibility", null, BigDecimal.valueOf(30000)));
 
         applicantUser = userRepository.save(
-                User.createNewUser("applicant@example.com", "oauth-applicant", "google", "신청자"));
+                User.createOAuthUser("applicant@example.com", "oauth-applicant", "google", "신청자"));
         memberUser = userRepository.save(
-                User.createNewUser("member@example.com", "oauth-member", "google", "구성원"));
+                User.createOAuthUser("member@example.com", "oauth-member", "google", "구성원"));
     }
 
     private Application completedApplication(Long submitterUserId, ApplicationType type) {

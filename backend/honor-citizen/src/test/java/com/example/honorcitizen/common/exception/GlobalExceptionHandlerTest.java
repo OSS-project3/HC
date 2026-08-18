@@ -60,7 +60,7 @@ class GlobalExceptionHandlerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User user = User.createNewUser("global-ex@example.com", "oauth-global-ex", "google", "Tester");
+        User user = User.createOAuthUser("global-ex@example.com", "oauth-global-ex", "google", "Tester");
         user.agreeTerms(true, true, true);
         user = userRepository.save(user);
         token = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());

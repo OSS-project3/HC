@@ -99,12 +99,12 @@ class ReviewControllerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User user = User.createNewUser("review-ctrl@example.com", "oauth-review-ctrl", "google", "리뷰어");
+        User user = User.createOAuthUser("review-ctrl@example.com", "oauth-review-ctrl", "google", "리뷰어");
         user.agreeTerms(true, true, true);
         owner = userRepository.save(user);
         token = "Bearer " + jwtTokenProvider.generateAccessToken(owner.getId(), owner.getRole());
 
-        User stranger = User.createNewUser("stranger-ctrl@example.com", "oauth-stranger-ctrl", "google", "타인");
+        User stranger = User.createOAuthUser("stranger-ctrl@example.com", "oauth-stranger-ctrl", "google", "타인");
         stranger.agreeTerms(true, true, true);
         stranger = userRepository.save(stranger);
         strangerToken = "Bearer " + jwtTokenProvider.generateAccessToken(stranger.getId(), stranger.getRole());

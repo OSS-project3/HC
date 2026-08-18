@@ -82,7 +82,7 @@ class ApplicationServiceBulkTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        user = User.createNewUser("group@example.com", "oauth-group", "google", "Group");
+        user = User.createOAuthUser("group@example.com", "oauth-group", "google", "Group");
         // createGroup()이 findUser()(약관 동의 필수)를 거치므로 기본 픽스처 사용자도 동의 상태여야 한다.
         user.agreeTerms(true, true, true);
         user = userRepository.save(user);
@@ -483,7 +483,7 @@ class ApplicationServiceBulkTest {
     @Test
     void createGroupRejectsUserWithoutRequiredTerms() throws Exception {
         User unagreed = userRepository.save(
-                User.createNewUser("group-unagreed@example.com", "oauth-group-unagreed", "google", "Unagreed"));
+                User.createOAuthUser("group-unagreed@example.com", "oauth-group-unagreed", "google", "Unagreed"));
 
         byte[] excel = buildExcel(false, ROW_1);
         byte[] zip = buildZip(excel, "1");

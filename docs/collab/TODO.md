@@ -83,69 +83,77 @@
 
 > 화면 근거: `pages/LoginPage`·`SignupPage`·`AccountRecoveryPage`가 이미 존재하고 현재 mock/데모 로그인으로만 동작 중(`FRONTEND_API_GAPS.md` §1.1). 핵심 정책(로그인 식별자=이메일, 정규화 규칙, DB UNIQUE, 서버가 role 결정, 소프트탈퇴 7일 자동복구)은 `backend/FRONTEND_API_REQUIREMENTS.md` §3에 이미 확정돼 있어 구현 대상에 포함한다. 단, 비밀번호 재설정/아이디찾기(이메일 발송이 필요한 두 개)는 이메일 발송 인프라 자체가 전무해(`spring-boot-starter-mail`/`JavaMailSender` 없음, `EmailLog`도 실사용처 없는 미사용 엔티티) 별도 인프라 결정이 선행돼야 하므로 이번 체크리스트에서 제외하고 "정책 결정이 필요한 항목"으로 뺐다.
 
-- [ ] **AUTH-1** User 엔티티 password 필드 + 이메일 정규화 공통 유틸
-  - 변경 내용: `User`에 `password`(단방향 해시 저장, OAuth 전용 계정은 `null`) 컬럼 추가. 이메일 정규화(trim+소문자) 공통 유틸을 만들어 신규 이메일 가입 경로뿐 아니라 기존 OAuth 콜백에도 동일 적용(`backend/FRONTEND_API_REQUIREMENTS.md` §3 요구사항). `email` 컬럼 DB `UNIQUE` 제약 여부 확인 후 없으면 추가.
-  - 대상 파일: `domain/user/entity/User.java`, 신규 이메일 정규화 유틸(또는 `User` 정적 메서드), `infra/security/OAuth2SuccessHandler.java`
-  - 선행 작업: 없음
-  - 완료 조건: `password` 필드 존재(nullable), 정규화 유틸이 OAuth·이메일 가입 양쪽에서 재사용됨, `email` UNIQUE 제약 확인/적용
-  - 검증할 테스트: 정규화 유틸 단위 테스트, 기존 OAuth 로그인 플로우 회귀(`UserTest`, 관련 통합 테스트)
-  - 우선순위: P0(이 그룹 나머지 전부의 선행)
+> 설계 확정(2026-08-19): OAuth 컬럼(`oauthId`/`oauthProvider`)은 sentinel 값이 아니라 **nullable로 전환**(A안 — 일반 이메일 계정은 도메인상 OAuth 정보가 없는 게 정확한 상태). `password` 필드명은 `passwordHash`로 확정(평문이 저장되지 않는다는 의미를 코드에 드러냄), 길이는 해시 알고리즘 교체 여지를 감안해 255자. 계정 생성 경로는 `createNewUser()`(범용) 대신 `createLocalUser(...)`/`createOAuthUser(...)`로 분리. 상세 근거·SQL·단계별 순서는 이 TODO 항목들과 `docs/api/user.md`(구현 시 반영)를 기준으로 한다.
 
-- [ ] **AUTH-2** 이메일 중복 확인 API (`POST /api/auth/email/check`)
+- [x] **AUTH-1** User 계정 모델 기반(스키마+정규화+UNIQUE) — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: `User`에 `passwordHash`(`@Column(length = 255)`, nullable) 추가. `oauthId`/`oauthProvider`를 `nullable = false` → nullable로 전환. `email`에 `unique = true` 추가. `User.normalizeEmail(String)`(trim+소문자) 신설, `createOAuthUser`(구 `createNewUser` 개명, 24개 호출부 전부 갱신)와 `createLocalUser`(신규) 둘 다 저장 시 이 유틸을 거치도록 구현. `anonymize()`에 `passwordHash = null` 추가.
+  - 대상 파일: `domain/user/entity/User.java`, `infra/security/OAuth2SuccessHandler.java`(호출부 개명), 테스트 24개 파일(호출부 개명), `UserTest.java`(신규 케이스 5개)
+  - 완료됨: `passwordHash`/nullable OAuth 컬럼/이메일 UNIQUE 전부 적용, `createLocalUser`(passwordHash 필수·oauth null)/`createOAuthUser`(oauth 필수·passwordHash null) 불변조건 보장, 정규화 유틸 존재. 신규 테스트 5개(정규화 trim/null, 두 팩토리 불변조건, anonymize 시 passwordHash null화) 전부 통과. 전체 스위트 386개(381+5) 중 기존과 동일하게 `UserControllerTest` 2건+Redis 미기동 1건만 실패(회귀 없음).
+  - ⚠️ **미완료로 남긴 부분**: 운영 DB 기존 데이터의 이메일 중복 점검(`SELECT LOWER(TRIM(email)), COUNT(*) ... HAVING COUNT(*) > 1`)은 이 프로젝트에 마이그레이션 도구(Flyway/Liquibase)나 운영 DB 접근이 없어 실행하지 못함 — 운영 배포 담당자가 배포 전 별도로 확인 필요.
+  - 우선순위: P0(이 그룹 나머지 전부의 선행) — 완료
+
+- [ ] **AUTH-2** 기존 OAuth 로그인 안전화 (email UNIQUE 추가 전 반드시 선행)
+  - 변경 내용: `OAuth2SuccessHandler.java:59-63`가 현재 `(oauthId, provider)`로만 조회하고 없으면 이메일 중복 확인 없이 곧장 신규 User를 저장하고 있음(확인 완료) — AUTH-1에서 `email` UNIQUE를 걸면 이 경로가 DB 제약 위반을 그대로 던지게 됨. 흐름을 "OAuth 이메일 정규화 → (oauthId,provider)로 기존 계정 조회 → 있으면 로그인 → 없으면 normalized email로 조회 → 같은 이메일의 다른 계정(다른 provider·일반 계정)이 있으면 자동 연결하지 않고 로그인 거절 → 없으면 `createOAuthUser`로 신규 생성"으로 재작성. 동시요청으로 인한 DB UNIQUE 충돌도 동일한 "이미 가입된 이메일" 오류로 변환.
+  - 대상 파일: `infra/security/OAuth2SuccessHandler.java`, `domain/user/service/UserService.java`(또는 신규 조회 메서드)
+  - 선행 작업: AUTH-1
+  - 완료 조건: 기존 OAuth 로그인 정상 동작 회귀 없음, 같은 이메일의 타 provider/일반 계정 존재 시 로그인 거절, 동시요청 UNIQUE 충돌도 동일 오류로 처리
+  - 검증할 테스트: 기존 OAuth 로그인 통합테스트 전체 회귀 + 신규 케이스(이메일 중복 시 거절, 동시요청 충돌)
+  - 우선순위: P0(AUTH-1 직후, 이메일 관련 API보다 먼저 — 순서를 지키지 않으면 운영 중인 OAuth 로그인이 깨질 수 있음)
+
+- [ ] **AUTH-3** 이메일 중복 확인 API (`POST /api/auth/email/check`)
   - 변경 내용: 정규화된 이메일로 기존 계정(OAuth 계정 포함) 존재 여부만 반환, 계정 상세는 노출하지 않음.
   - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/repository/UserRepository.java`(정규화 이메일 조회 메서드)
-  - 선행 작업: AUTH-1
+  - 선행 작업: AUTH-1, AUTH-2
   - 완료 조건: 중복/미중복 각각 정상 응답, OAuth로 이미 가입된 이메일도 중복으로 판정
   - 검증할 테스트: 신규 컨트롤러 테스트(중복/미중복/OAuth 계정과 충돌)
   - 우선순위: P1
 
-- [ ] **AUTH-3** 이메일 회원가입 API (`POST /api/auth/signup`)
-  - 변경 내용: 이름·이메일(정규화)·전화·비밀번호를 받아 계정 생성, 비밀번호는 단방향 해시 저장, 사전 중복확인 후에도 DB `UNIQUE` 위반 시 `EMAIL_ALREADY_EXISTS`로 동시요청 최종 방어, 성공 시 기존 OAuth와 동일한 HttpOnly access/refresh 쿠키 발급(약관 동의는 이 API에 포함하지 않고 이후 `/terms`에서 기존 `POST /api/auth/terms`로 별도 처리).
-  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/entity/User.java`(이메일 가입 전용 팩토리 메서드 — 기존 `createNewUser`는 OAuth 전용 유지), 신규 `SignupRequest` DTO
-  - 선행 작업: AUTH-1 (AUTH-2는 병렬 가능 — DB UNIQUE가 최종 방어선이라 강한 의존 아님)
-  - 완료 조건: 정상 가입 시 쿠키 발급+DB 저장 확인, 중복 이메일 거절(사전조회 케이스·동시요청 UNIQUE 충돌 케이스 둘 다), 비밀번호 평문 미저장 확인
+- [ ] **AUTH-4** 이메일 회원가입 API (`POST /api/auth/signup`)
+  - 변경 내용: 이메일 정규화 → 형식 검증 → `findByEmail(normalized)` 사전 중복확인 → `PasswordEncoder`로 해시 → `User.createLocalUser(email, passwordHash, name)` → 저장(DB `UNIQUE` 위반 시 동시요청도 `EMAIL_ALREADY_EXISTS`로 변환) → 기존 OAuth와 동일한 HttpOnly access/refresh 쿠키 발급 → `/terms`로 이동(약관 동의는 이 API에 포함하지 않고 기존 `POST /api/auth/terms` 재사용).
+  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/entity/User.java`(`createLocalUser`), 신규 `SignupRequest` DTO
+  - 선행 작업: AUTH-1, AUTH-2 (AUTH-3은 병렬 가능 — DB UNIQUE가 최종 방어선이라 강한 의존 아님)
+  - 완료 조건: 정상 가입 시 쿠키 발급+DB 저장 확인, 중복 이메일 거절(사전조회·동시요청 UNIQUE 충돌 둘 다), 비밀번호 평문 미저장 확인
   - 검증할 테스트: 신규 `AuthControllerTest`(정상가입/중복거절/동시요청 충돌)
   - 우선순위: P0
 
-- [ ] **AUTH-4** 이메일 로그인 API (`POST /api/auth/login`) + 소프트탈퇴 자동복구
-  - 변경 내용: 정규화 이메일+비밀번호 검증 후 쿠키 발급. 소프트탈퇴 7일 유예기간 내 계정이면 자동 복구하고 응답에 `restored:true` 포함, 유예기간 경과 계정은 로그인 거절.
+- [ ] **AUTH-5** 이메일 로그인 API (`POST /api/auth/login`) + 소프트탈퇴 자동복구
+  - 변경 내용: 이메일 정규화 → `findByEmail` → 계정 없음/`passwordHash == null`(OAuth 전용 계정)/비밀번호 불일치를 **전부 동일한 `INVALID_CREDENTIALS`로 응답**(이메일 존재 여부를 로그인 응답으로 노출하지 않음 — 회원가입 중복확인과는 다른 정책). 소프트탈퇴 7일 유예기간 내 계정이면 자동 복구하고 응답에 `restored:true` 포함, 유예기간 경과 계정은 동일하게 거절.
   - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, 신규 `LoginRequest`/`LoginResponse` DTO
-  - 선행 작업: AUTH-1, AUTH-3(계정이 있어야 실제 로그인 통합테스트 가능 — 로직 자체는 독립 개발 가능)
-  - 완료 조건: 정상 로그인 성공, 비밀번호 불일치 거절, 유예기간 내 자동복구+`restored:true`, 유예기간 경과 후 거절
-  - 검증할 테스트: 신규 로그인 테스트(성공/실패/자동복구/영구탈퇴 후 거절)
+  - 선행 작업: AUTH-1, AUTH-2, AUTH-4(계정이 있어야 실제 로그인 통합테스트 가능 — 로직 자체는 독립 개발 가능)
+  - 완료 조건: 정상 로그인 성공, 계정없음/비밀번호불일치/OAuth전용계정 모두 동일한 `INVALID_CREDENTIALS`, 유예기간 내 자동복구+`restored:true`, 유예기간 경과 후 거절
+  - 검증할 테스트: 신규 로그인 테스트(성공/3가지 실패 케이스 응답 동일성/자동복구/영구탈퇴 후 거절)
   - 우선순위: P0
 
-- [ ] **AUTH-5** 비밀번호 변경 API (`PATCH /api/users/me/password`)
-  - 변경 내용: 로그인 사용자의 현재 비밀번호 확인 후 새 비밀번호로 교체. OAuth 전용 계정(`password=null`)은 이 API 자체를 차단.
+- [ ] **AUTH-6** 비밀번호 변경 API (`PATCH /api/users/me/password`)
+  - 변경 내용: 로그인 사용자의 현재 비밀번호 확인 후 새 비밀번호로 교체. OAuth 전용 계정(`passwordHash=null`)은 이 API 자체를 차단.
   - 대상 파일: `api/UserController.java`, `domain/user/service/UserService.java`, 신규 `PasswordUpdateRequest` DTO
-  - 선행 작업: AUTH-1, AUTH-4
+  - 선행 작업: AUTH-1, AUTH-5
   - 완료 조건: 정상 변경, 현재 비밀번호 불일치 거절, OAuth 전용 계정 거절
   - 검증할 테스트: 신규 테스트(성공/현재비번불일치/OAuth계정거절)
   - 우선순위: P1
 
+> **탈퇴 정책과의 정합성 확인 완료**: `User.anonymize()`가 이미 이메일을 `withdrawn-{id}@anonymized.local`로 치환하므로 영구 익명화 후엔 원래 이메일의 UNIQUE 슬롯이 자연히 해제되어 재가입 가능 — 일반 계정은 여기에 `this.passwordHash = null;` 한 줄만 추가하면 됨. 소프트탈퇴 7일 이내는 이메일·해시 유지(AUTH-5의 자동복구), 7일 후 익명화되면 기존 비밀번호로 로그인 불가 — 현재 정책과 그대로 맞음.
+
 ### 작업그룹 B — 신청 조회 응답 보강
 
-- [ ] **LOOKUP-1** `ApplicationLookupResponse`에 `applicationType` 필드 추가
-  - 변경 내용: 응답 DTO에 `applicationType`(INDIVIDUAL/GROUP) 추가. `Application` 엔티티엔 이미 있는 값을 `ApplicationService.lookup()`이 DTO 생성 시 안 넘기고 있을 뿐이라 필드+생성자 호출부만 수정하면 됨.
-  - 대상 파일: `domain/application/dto/ApplicationLookupResponse.java`, `domain/application/service/ApplicationService.java`(`lookup()`)
-  - 선행 작업: 없음(완전 독립)
-  - 완료 조건: 신청번호 조회·카드번호 조회 응답 둘 다 `applicationType` 포함
-  - 검증할 테스트: 기존 lookup 테스트에 필드 검증 케이스 추가(`ApplicationServiceLookupTest`, 관련 컨트롤러 테스트)
-  - 우선순위: P1 — 완료되면 위 진행 보드 "단체 재제출 UI(`MobileCardPage.tsx`) 추가"(프론트 담당자 행)가 실제로 착수 가능해짐(현재는 백엔드가 `applicationType`을 안 줘서 프론트가 개인/단체를 구분할 방법이 없었음)
+- [x] **LOOKUP-1** `ApplicationLookupResponse`에 `applicationType` 필드 추가 — ✅ 구현+커밋 완료(Codex, `8d178cc`, 2026-08-19)
+  - 변경 내용: 응답 DTO에 `applicationType`(INDIVIDUAL/GROUP) 추가. `Application` 엔티티엔 이미 있던 값을 `ApplicationService.lookup()`이 DTO 생성 시 넘기도록 수정.
+  - 대상 파일: `domain/application/dto/ApplicationLookupResponse.java`, `domain/application/service/ApplicationService.java`(`lookup()`), `ApplicationServiceLookupTest.java`
+  - 완료됨: 신청번호 조회·카드번호 조회 응답 둘 다 `applicationType` 포함. 위 진행 보드 "단체 재제출 UI(`MobileCardPage.tsx`) 추가"(프론트 담당자 행)가 이제 실제로 착수 가능함.
 
 ### 작업 순서 (의존관계 기준)
 
 ```
-AUTH-1 ──┬─→ AUTH-2 ─┐
-         └─→ AUTH-3 ─┴─→ AUTH-4 ─→ AUTH-5
+AUTH-1 ─→ AUTH-2 ──┬─→ AUTH-4 ─┐
+                    └─→ AUTH-3 ─┴─→ AUTH-5 ─→ AUTH-6
 
-LOOKUP-1 (완전 독립, 아무때나 착수 가능)
+LOOKUP-1 — 완료(Codex, 8d178cc)
 ```
 
 ### 정책 결정이 필요한 항목
 
-- **계정 복구**(아이디 찾기, 비밀번호 재설정 이메일 발송): 이메일 발송 인프라(SMTP/SES 등) 자체가 없음 — 발송 수단부터 결정 필요. 결정 후 AUTH-1~5와 별도 작업으로 분리.
-- **이메일 인증 여부·비밀번호 해시 알고리즘·로그인 시도 제한 구체값**: AUTH-3 착수 전 확정 필요(정책 골격은 있으나 세부 수치/알고리즘 미지정).
+- **계정 복구**(아이디 찾기, 비밀번호 재설정 이메일 발송): 이메일 발송 인프라(SMTP/SES 등) 자체가 없음 — 발송 수단부터 결정 필요. 결정 후 AUTH-1~6과 별도 작업으로 분리.
+- **이메일 인증 여부·비밀번호 해시 알고리즘(bcrypt 등)·로그인 시도 제한 구체값**: AUTH-4 착수 전 확정 필요(정책 골격은 있으나 세부 수치/알고리즘 미지정).
 - **단체 신청 구성원별 상세·카드 ZIP 다운로드 API**(`/api/my/bulk-applications/{id}/members`, `/cards/download`): 프론트 `MyPage`/`MobileCardPage` 어디에도 이 데이터를 쓰는 화면이 없음을 확인함 — 실제로 필요한 화면인지부터 확인 필요. 필요 시 `MyApplicationController`에 신규 엔드포인트+`ApplicationMemberRepository` 조회 추가.
 - **카드 다운로드 가능 기준(`COMPLETED` vs `cardReadyAt`)**: 문서(`FRONTEND_API_INTEGRATION_SPEC.md`)는 `cardReadyAt` 기준이 확정 정책이라 하지만 실제 코드(`ApplicationService.getCardDownload()`)는 `COMPLETED` 단독 검사 — 이미 위 "신청 상태·취소·환불 구조 변경 체크리스트" §5(라인 166)에 동일 항목이 있음, 중복 추가하지 않고 그 항목을 그대로 참조. 관리자 API 미구현으로 `PRODUCING`/`markPhysicalDispatched` 상태에 실제로 도달시킬 방법이 없어 실질적으로 검증도 안 되는 상태.
 - **Event `company`/`logoUrl` 필드**: `host`(주최자 텍스트)로 대체 가능한지 먼저 결정. 결정 시 `EventPost`+DTO 4종에 필드 추가.

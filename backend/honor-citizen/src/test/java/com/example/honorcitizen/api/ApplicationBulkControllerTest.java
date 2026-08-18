@@ -79,7 +79,7 @@ class ApplicationBulkControllerTest {
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
 
-        User user = User.createNewUser("bulk-ctrl@example.com", "oauth-bulk-ctrl", "google", "Bulk");
+        User user = User.createOAuthUser("bulk-ctrl@example.com", "oauth-bulk-ctrl", "google", "Bulk");
         // createGroup()이 findUser()(약관 동의 필수)를 거치므로 기본 픽스처 사용자도 동의 상태여야 한다.
         user.agreeTerms(true, true, true);
         user = userRepository.save(user);
