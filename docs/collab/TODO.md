@@ -120,13 +120,13 @@
   - 완료됨: Bean 등록 확인, 인코딩 결과가 `{bcrypt}` 접두사로 시작함을 확인, `matches()` 정상/불일치 케이스 확인. 신규 테스트 2개 전부 통과. 전체 스위트 392개(390+2) 중 기존과 동일하게 `UserControllerTest` 2건+Redis 미기동 1건만 실패(회귀 없음).
   - 우선순위: P0(AUTH-4·AUTH-6의 선행) — 완료
 
-- [ ] **MAIL-1** 이메일 발송 인프라 구축
-  - 변경 내용: `spring-boot-starter-mail` 의존성 추가, `spring.mail.*` 설정(host/port/username/password를 이 프로젝트 관례대로 `${MAIL_HOST}` 등 env var로, AWS/OAuth 시크릿과 동일 패턴). 얇은 `EmailSender` 컴포넌트 신설(`send(to, subject, body)`) — SIGNUP-1과 향후 계정복구(비밀번호 재설정)가 함께 재사용.
-  - 대상 파일: `build.gradle`, `application.properties`, 신규 `infra/mail/EmailSender.java`
-  - 선행 작업: 없음
-  - 완료 조건: 메일 설정이 없어도(로컬 개발 시) 애플리케이션 기동 자체는 실패하지 않음, `EmailSender`는 인터페이스/얇은 wrapper로 테스트에서 Mock 대체 가능
-  - 검증할 테스트: `EmailSender` 호출 인자 검증(Mock 기반, 실제 SMTP 연동은 통합테스트 범위 밖)
-  - 우선순위: P0(SIGNUP-1의 선행)
+- [x] **MAIL-1** 이메일 발송 인프라 구축 — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: `spring-boot-starter-mail` 의존성 추가. `spring.mail.*` 설정 — `host`/`port`/`app.mail.from`은 로컬 기본값(`localhost`/`587`/`no-reply@honor-citizen.local`)을 둬서 설정 없이도 기동되게 하고, `username`/`password`는 AWS/OAuth 시크릿과 동일하게 기본값 없이 env var로만 받음(`MAIL_USERNAME`/`MAIL_PASSWORD`, 하드코딩 없음). SMTP connection/read/write timeout 각 5초. `EmailSender` 인터페이스(`send(to, emailType, subject, htmlBody, textBody)`) + `SmtpEmailSender` 구현체(`JavaMailSender`+`MimeMessageHelper` 사용, text/html 동시 제공, 첨부 없음). `EmailType{SIGNUP_VERIFICATION, PASSWORD_RESET, PASSWORD_CHANGED}` enum 신규(이번 구현은 `SIGNUP_VERIFICATION`만 사용). 신규 `ErrorCode.EMAIL_DELIVERY_FAILED(503)`. 발송 실패는 이 예외로 변환, 자동 재시도 없음. 로그에는 이메일 전문·전체 주소를 남기지 않고 `앞1글자***@도메인` 형태로 마스킹.
+  - 대상 파일: `build.gradle`(의존성+테스트 env var), `application.properties`, `common/enums/EmailType.java`(신규), `common/exception/ErrorCode.java`, `infra/mail/EmailSender.java`(신규), `infra/mail/SmtpEmailSender.java`(신규), `SmtpEmailSenderTest.java`(신규)
+  - ⚠️ **중요 발견**: `build.gradle`의 `test` 태스크가 `${VAR}`(기본값 없는) 프로퍼티마다 더미 env var를 명시적으로 주입하고 있었다(주석: "없으면 컨텍스트 로딩 자체가 실패함") — `MAIL_USERNAME`/`MAIL_PASSWORD`도 이 패턴을 따라 `test` 태스크에 추가하지 않았다면 전체 스위트가 컨텍스트 로딩 실패로 전부 깨졌을 것. 발견 후 반영함.
+  - ⚠️ **버그 1건 발견·수정**: 처음 구현 시 `MimeMessageHelper(message, false, ...)`(비-멀티파트)로 만들어서 `setText(text, html)` 호출이 `IllegalStateException`을 던짐 — `multipart=true`로 수정.
+  - 완료됨: 메일 설정 없이도(로컬 기본값) 애플리케이션 기동 확인, 발송 성공 시 `JavaMailSender.send()` 호출+제목/수신자 헤더 확인, 발송 실패 시 `EMAIL_DELIVERY_FAILED`로 변환 확인. 신규 테스트 2개 전부 통과. 전체 스위트 394개(392+2) 중 기존과 동일하게 `UserControllerTest` 2건+Redis 미기동 1건만 실패(회귀 없음).
+  - 우선순위: P0(SIGNUP-1의 선행) — 완료
 
 - [ ] **SIGNUP-1** 이메일 인증 코드 요청 API (`POST /api/auth/signup/email-verification`)
   - 변경 내용: 이메일 정규화 → 이미 가입된 이메일이면 `EMAIL_ALREADY_EXISTS`(AUTH-3과 동일 사전 방어) → 6자리 랜덤 코드 생성 → Redis `auth:signup:code:{normalizedEmail}`에 TTL 10분으로 저장 → `EmailSender`로 발송. 코드 자체는 응답에 포함하지 않음.
