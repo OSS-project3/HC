@@ -92,13 +92,14 @@
   - ⚠️ **미완료로 남긴 부분**: 운영 DB 기존 데이터의 이메일 중복 점검(`SELECT LOWER(TRIM(email)), COUNT(*) ... HAVING COUNT(*) > 1`)은 이 프로젝트에 마이그레이션 도구(Flyway/Liquibase)나 운영 DB 접근이 없어 실행하지 못함 — 운영 배포 담당자가 배포 전 별도로 확인 필요.
   - 우선순위: P0(이 그룹 나머지 전부의 선행) — 완료
 
-- [ ] **AUTH-2** 기존 OAuth 로그인 안전화 (email UNIQUE 추가 전 반드시 선행)
-  - 변경 내용: `OAuth2SuccessHandler.java:59-63`가 현재 `(oauthId, provider)`로만 조회하고 없으면 이메일 중복 확인 없이 곧장 신규 User를 저장하고 있음(확인 완료) — AUTH-1에서 `email` UNIQUE를 걸면 이 경로가 DB 제약 위반을 그대로 던지게 됨. 흐름을 "OAuth 이메일 정규화 → (oauthId,provider)로 기존 계정 조회 → 있으면 로그인 → 없으면 normalized email로 조회 → 같은 이메일의 다른 계정(다른 provider·일반 계정)이 있으면 자동 연결하지 않고 로그인 거절 → 없으면 `createOAuthUser`로 신규 생성"으로 재작성. 동시요청으로 인한 DB UNIQUE 충돌도 동일한 "이미 가입된 이메일" 오류로 변환.
-  - 대상 파일: `infra/security/OAuth2SuccessHandler.java`, `domain/user/service/UserService.java`(또는 신규 조회 메서드)
-  - 선행 작업: AUTH-1
-  - 완료 조건: 기존 OAuth 로그인 정상 동작 회귀 없음, 같은 이메일의 타 provider/일반 계정 존재 시 로그인 거절, 동시요청 UNIQUE 충돌도 동일 오류로 처리
-  - 검증할 테스트: 기존 OAuth 로그인 통합테스트 전체 회귀 + 신규 케이스(이메일 중복 시 거절, 동시요청 충돌)
-  - 우선순위: P0(AUTH-1 직후, 이메일 관련 API보다 먼저 — 순서를 지키지 않으면 운영 중인 OAuth 로그인이 깨질 수 있음)
+- [x] **AUTH-2** 기존 OAuth 로그인 안전화 — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: `OAuth2SuccessHandler`가 `(oauthId, provider)`로 기존 계정을 찾고, 없으면 `UserService.createOAuthUserIfAbsent(...)`를 호출하도록 재작성. 이 신규 메서드는 normalized email로 충돌(다른 provider·일반 계정) 여부를 먼저 확인해 있으면 `CustomException(EMAIL_ALREADY_EXISTS)`를 던지고, 동시요청으로 인한 DB UNIQUE 위반도 동일 예외로 변환한다. `OAuth2SuccessHandler`는 이 예외를 잡아 `frontendUrl + "/login?error=oauth"`로 리다이렉트한다.
+  - **트랜잭션 격리 설계**: `onAuthenticationSuccess`가 이미 `@Transactional`이라, `createOAuthUserIfAbsent`를 그냥 REQUIRED로 두면 이메일 충돌 실패가 호출자의 트랜잭션 전체를 rollback-only로 오염시킨다. `Propagation.REQUIRES_NEW`로 분리해 독립시켰다. 단, REQUIRES_NEW는 별도 트랜잭션이라 반환된 엔티티가 detached 상태이므로, 이후 `restore()`/`updateRefreshToken()` 변경이 유실되지 않도록 호출자에서 `userRepository.findById(created.getId())`로 다시 조회해 managed 상태로 만든 뒤 사용한다.
+  - 신규 `ErrorCode.EMAIL_ALREADY_EXISTS(409)` 추가(AUTH-3/4에서도 재사용 예정).
+  - 대상 파일: `infra/security/OAuth2SuccessHandler.java`, `domain/user/service/UserService.java`(`createOAuthUserIfAbsent` 신규), `common/exception/ErrorCode.java`
+  - 완료됨: 같은 이메일의 타 provider/일반 계정 존재 시 거절 확인, 정규화(trim+대소문자) 무관하게 충돌 감지 확인. 신규 테스트 4개(`UserServiceOAuthTest` — 신규 생성 성공, 타 provider 충돌, 일반계정 충돌, 대소문자/공백 무관 충돌 감지) 전부 통과. 전체 스위트 390개(386+4) 중 기존과 동일하게 `UserControllerTest` 2건+Redis 미기동 1건만 실패(회귀 없음).
+  - ⚠️ **테스트 설계 메모**: 이 테스트들은 `UserServiceTest`(클래스 레벨 `@Transactional`, 테스트 종료 시 자동 롤백)가 아니라 별도 클래스 `UserServiceOAuthTest`(비-트랜잭셔널, `@BeforeEach deleteAll()`로 수동 정리)에 뒀다 — `createOAuthUserIfAbsent`가 REQUIRES_NEW(별도 커넥션)라서, `@Transactional` 테스트 안에서 `saveAndFlush`로 만든 선행 데이터는 커밋되지 않아 별도 커넥션에서 안 보이고, 그 결과 충돌 감지 자체가 성립하지 않는 문제를 실제로 겪고 나서 분리했다.
+  - 우선순위: P0(AUTH-1 직후, 이메일 관련 API보다 먼저) — 완료
 
 - [ ] **AUTH-3** 이메일 중복 확인 API (`POST /api/auth/email/check`)
   - 변경 내용: 정규화된 이메일로 기존 계정(OAuth 계정 포함) 존재 여부만 반환, 계정 상세는 노출하지 않음.

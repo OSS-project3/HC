@@ -15,7 +15,9 @@ import com.example.honorcitizen.infra.security.JwtTokenProvider;
 import com.example.honorcitizen.infra.security.TokenSessionStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -62,6 +64,32 @@ public class UserService {
 
         user.updateProfile(request.getName(), request.getPhone());
         return UserMeResponse.from(user);
+    }
+
+    /**
+     * OAuth 콜백에서 신규 계정을 생성한다. 이메일 UNIQUE 제약 도입 이후 같은 이메일의 다른 계정
+     * (다른 provider 또는 일반 이메일 계정)이 이미 있으면 자동으로 연결하지 않고 거절한다.
+     *
+     * REQUIRES_NEW인 이유: 호출자(OAuth2SuccessHandler#onAuthenticationSuccess)가 이미 트랜잭션
+     * 안에 있는데, 여기서 이메일 중복으로 실패하면 그 실패가 호출자의 트랜잭션 전체를 rollback-only로
+     * 오염시킨다(REQUIRED로 참여할 경우). 별도 트랜잭션으로 분리해 이 메서드의 실패가 호출자의 나머지
+     * 로직(기존 사용자 로그인 처리 등)에 영향을 주지 않도록 격리한다.
+     * 반환된 User는 이 메서드의 트랜잭션이 이미 커밋·종료된 뒤라 detached 상태이므로, 호출자가 이후
+     * 이 엔티티를 변경(예: updateRefreshToken)해야 한다면 자신의 트랜잭션에서 다시 조회해 managed
+     * 상태로 만들어야 한다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public User createOAuthUserIfAbsent(String email, String oauthId, String oauthProvider, String name) {
+        String normalizedEmail = User.normalizeEmail(email);
+        if (userRepository.findByEmail(normalizedEmail).isPresent()) {
+            throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+        try {
+            return userRepository.save(User.createOAuthUser(email, oauthId, oauthProvider, name));
+        } catch (DataIntegrityViolationException e) {
+            // 사전조회 이후 동시요청으로 같은 이메일 계정이 먼저 커밋된 경우 — email UNIQUE 위반을 동일하게 처리한다.
+            throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
     }
 
     public AuthTokens issueLoginTokens(User user) {
