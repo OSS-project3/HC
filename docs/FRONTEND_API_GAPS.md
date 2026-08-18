@@ -1,5 +1,7 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
+> **상태: 이력 참고용.** 이 문서는 2026-08-14 당시 구현 상태를 기록한 자료로, 이후 My Application·Board·Event 등 구현 내용이 반영되지 않았다. 현재 백엔드 준비도와 프론트 개발용 실제 API 계약은 `docs/FRONTEND_API_INTEGRATION_SPEC.md`를 사용한다. 프론트의 목데이터/localStorage 사용 자체는 결함으로 분류하지 않는다.
+
 > 작성일: 2026-08-14 · 대상: `frontend/src` 전체 코드 기준
 > 목적: **프론트가 실제로 필요로 하지만 백엔드에 API로 구현되어 있지 않은 부분**과, **프론트에 남아 있는 목(mock) 데이터 → 실제 API 전환 대상**을 한 문서로 정리한다.
 > 근거: `frontend/src/services/api.ts`(실제 호출), `frontend/src/data/*`(목데이터), `backend/honor-citizen/.../api/*Controller.java`(실구현 엔드포인트) 상호 대조.
