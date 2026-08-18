@@ -114,13 +114,11 @@
   - 검증할 테스트: 신규 컨트롤러 테스트(중복/미중복/OAuth 계정과 충돌)
   - 우선순위: P1
 
-- [ ] **PW-1** PasswordEncoder Bean 등록
+- [x] **PW-1** PasswordEncoder Bean 등록 — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
   - 변경 내용: `PasswordEncoderFactories.createDelegatingPasswordEncoder()`를 `PasswordEncoder` Bean으로 등록(저장 형식 `{bcrypt}$2a$10$...`).
-  - 대상 파일: `infra/security/SecurityConfig.java`
-  - 선행 작업: 없음
-  - 완료 조건: Bean 등록, 인코딩 결과가 `{bcrypt}` 접두사로 시작하고 `matches()`가 정상 동작
-  - 검증할 테스트: 인코딩/매치 단위 테스트
-  - 우선순위: P0(AUTH-4·AUTH-6의 선행)
+  - 대상 파일: `infra/security/SecurityConfig.java`, 신규 `PasswordEncoderConfigTest.java`
+  - 완료됨: Bean 등록 확인, 인코딩 결과가 `{bcrypt}` 접두사로 시작함을 확인, `matches()` 정상/불일치 케이스 확인. 신규 테스트 2개 전부 통과. 전체 스위트 392개(390+2) 중 기존과 동일하게 `UserControllerTest` 2건+Redis 미기동 1건만 실패(회귀 없음).
+  - 우선순위: P0(AUTH-4·AUTH-6의 선행) — 완료
 
 - [ ] **MAIL-1** 이메일 발송 인프라 구축
   - 변경 내용: `spring-boot-starter-mail` 의존성 추가, `spring.mail.*` 설정(host/port/username/password를 이 프로젝트 관례대로 `${MAIL_HOST}` 등 env var로, AWS/OAuth 시크릿과 동일 패턴). 얇은 `EmailSender` 컴포넌트 신설(`send(to, subject, body)`) — SIGNUP-1과 향후 계정복구(비밀번호 재설정)가 함께 재사용.
