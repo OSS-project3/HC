@@ -85,6 +85,11 @@
 
 > 설계 확정(2026-08-19): OAuth 컬럼(`oauthId`/`oauthProvider`)은 sentinel 값이 아니라 **nullable로 전환**(A안 — 일반 이메일 계정은 도메인상 OAuth 정보가 없는 게 정확한 상태). `password` 필드명은 `passwordHash`로 확정(평문이 저장되지 않는다는 의미를 코드에 드러냄), 길이는 해시 알고리즘 교체 여지를 감안해 255자. 계정 생성 경로는 `createNewUser()`(범용) 대신 `createLocalUser(...)`/`createOAuthUser(...)`로 분리. 상세 근거·SQL·단계별 순서는 이 TODO 항목들과 `docs/api/user.md`(구현 시 반영)를 기준으로 한다.
 
+> **정책 확정(2026-08-19, 2차)**: 아래 3가지를 최종 확정해 AUTH-4/5의 세부 작업으로 반영한다.
+> - **로컬 회원가입 이메일 인증**: 운영에서는 인증 필수(인증 완료 후에만 계정 생성 — OAuth 이메일은 공급자가 이미 검증했으므로 인증 완료로 간주하고 기존 흐름 유지). 근거: 인증 없이 가입을 허용하면 타인의 이메일을 먼저 등록해 실제 소유자의 가입·비밀번호 재설정·안내 메일 수신을 막을 수 있고, `email` UNIQUE 정책 때문에 이메일 선점 문제로 직결된다. `UserStatus`나 인증 토큰 테이블은 추가하지 않고, 계정 생성 **전에** Redis 기반 코드 검증으로 처리한다(미인증 User가 DB에 남지 않음) — 아래 SIGNUP-1/2 참고.
+> - **비밀번호 인코더**: `PasswordEncoderFactories.createDelegatingPasswordEncoder()`(Spring Security 기본, 저장 형식 `{bcrypt}$2a$10$...`) — 알고리즘 교체 여지를 남기면서 지금은 BCrypt strength 10(기본값) 사용. 아래 PW-1 참고.
+> - **로그인 실패 제한**: 정규화 이메일 기준 15분 내 5회 실패 → 15분 잠금, Redis에만 저장(DB/`User` 엔티티 변경 없음). 계정 기준 제한만 우선 구현하고 IP 기준 제한은 운영 중 공격이 관찰되면 후속 검토. 아래 RATE-1 참고.
+
 - [x] **AUTH-1** User 계정 모델 기반(스키마+정규화+UNIQUE) — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
   - 변경 내용: `User`에 `passwordHash`(`@Column(length = 255)`, nullable) 추가. `oauthId`/`oauthProvider`를 `nullable = false` → nullable로 전환. `email`에 `unique = true` 추가. `User.normalizeEmail(String)`(trim+소문자) 신설, `createOAuthUser`(구 `createNewUser` 개명, 24개 호출부 전부 갱신)와 `createLocalUser`(신규) 둘 다 저장 시 이 유틸을 거치도록 구현. `anonymize()`에 `passwordHash = null` 추가.
   - 대상 파일: `domain/user/entity/User.java`, `infra/security/OAuth2SuccessHandler.java`(호출부 개명), 테스트 24개 파일(호출부 개명), `UserTest.java`(신규 케이스 5개)
@@ -109,26 +114,66 @@
   - 검증할 테스트: 신규 컨트롤러 테스트(중복/미중복/OAuth 계정과 충돌)
   - 우선순위: P1
 
-- [ ] **AUTH-4** 이메일 회원가입 API (`POST /api/auth/signup`)
-  - 변경 내용: 이메일 정규화 → 형식 검증 → `findByEmail(normalized)` 사전 중복확인 → `PasswordEncoder`로 해시 → `User.createLocalUser(email, passwordHash, name)` → 저장(DB `UNIQUE` 위반 시 동시요청도 `EMAIL_ALREADY_EXISTS`로 변환) → 기존 OAuth와 동일한 HttpOnly access/refresh 쿠키 발급 → `/terms`로 이동(약관 동의는 이 API에 포함하지 않고 기존 `POST /api/auth/terms` 재사용).
-  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/entity/User.java`(`createLocalUser`), 신규 `SignupRequest` DTO
-  - 선행 작업: AUTH-1, AUTH-2 (AUTH-3은 병렬 가능 — DB UNIQUE가 최종 방어선이라 강한 의존 아님)
-  - 완료 조건: 정상 가입 시 쿠키 발급+DB 저장 확인, 중복 이메일 거절(사전조회·동시요청 UNIQUE 충돌 둘 다), 비밀번호 평문 미저장 확인
-  - 검증할 테스트: 신규 `AuthControllerTest`(정상가입/중복거절/동시요청 충돌)
+- [ ] **PW-1** PasswordEncoder Bean 등록
+  - 변경 내용: `PasswordEncoderFactories.createDelegatingPasswordEncoder()`를 `PasswordEncoder` Bean으로 등록(저장 형식 `{bcrypt}$2a$10$...`).
+  - 대상 파일: `infra/security/SecurityConfig.java`
+  - 선행 작업: 없음
+  - 완료 조건: Bean 등록, 인코딩 결과가 `{bcrypt}` 접두사로 시작하고 `matches()`가 정상 동작
+  - 검증할 테스트: 인코딩/매치 단위 테스트
+  - 우선순위: P0(AUTH-4·AUTH-6의 선행)
+
+- [ ] **MAIL-1** 이메일 발송 인프라 구축
+  - 변경 내용: `spring-boot-starter-mail` 의존성 추가, `spring.mail.*` 설정(host/port/username/password를 이 프로젝트 관례대로 `${MAIL_HOST}` 등 env var로, AWS/OAuth 시크릿과 동일 패턴). 얇은 `EmailSender` 컴포넌트 신설(`send(to, subject, body)`) — SIGNUP-1과 향후 계정복구(비밀번호 재설정)가 함께 재사용.
+  - 대상 파일: `build.gradle`, `application.properties`, 신규 `infra/mail/EmailSender.java`
+  - 선행 작업: 없음
+  - 완료 조건: 메일 설정이 없어도(로컬 개발 시) 애플리케이션 기동 자체는 실패하지 않음, `EmailSender`는 인터페이스/얇은 wrapper로 테스트에서 Mock 대체 가능
+  - 검증할 테스트: `EmailSender` 호출 인자 검증(Mock 기반, 실제 SMTP 연동은 통합테스트 범위 밖)
+  - 우선순위: P0(SIGNUP-1의 선행)
+
+- [ ] **SIGNUP-1** 이메일 인증 코드 요청 API (`POST /api/auth/signup/email-verification`)
+  - 변경 내용: 이메일 정규화 → 이미 가입된 이메일이면 `EMAIL_ALREADY_EXISTS`(AUTH-3과 동일 사전 방어) → 6자리 랜덤 코드 생성 → Redis `auth:signup:code:{normalizedEmail}`에 TTL 10분으로 저장 → `EmailSender`로 발송. 코드 자체는 응답에 포함하지 않음.
+  - 대상 파일: `api/AuthController.java`, 신규 `domain/user/service/EmailVerificationService.java`(또는 `UserService` 확장)
+  - 선행 작업: AUTH-1, MAIL-1
+  - 완료 조건: 정상 요청 시 Redis에 코드 저장+발송 호출 확인, 이미 가입된 이메일은 거절
+  - 검증할 테스트: 신규 테스트(정상 요청, 중복 이메일 거절) — `EmailSender`는 Mock
   - 우선순위: P0
 
+- [ ] **SIGNUP-2** 이메일 인증 코드 확인 API (`POST /api/auth/signup/email-verification/confirm`)
+  - 변경 내용: 이메일+코드 검증 → 일치하면 Redis 코드 삭제 후 단기 가입 토큰(UUID) 발급, `auth:signup:token:{token}` → normalizedEmail로 TTL 30분 저장 → 응답에 토큰 반환. 불일치·만료·이미 사용된 코드는 동일한 오류로 응답(코드 존재 여부 노출 안 함).
+  - 대상 파일: `EmailVerificationService.java`에 메서드 추가, `api/AuthController.java`
+  - 선행 작업: SIGNUP-1
+  - 완료 조건: 정상 확인 시 토큰 발급+코드 재사용 불가, 코드 불일치/만료 거절
+  - 검증할 테스트: 신규 테스트(정상확인/코드불일치/만료/재사용 거절)
+  - 우선순위: P0
+
+- [ ] **AUTH-4** 이메일 회원가입 API (`POST /api/auth/signup`)
+  - 변경 내용: 요청에 포함된 가입 토큰으로 Redis에서 정규화 이메일 조회(없거나 만료면 "인증이 필요합니다" 거절) → `findByEmail(normalized)` 사전 중복확인(동시요청 사이 다른 경로로 먼저 가입됐을 가능성 대비) → `PasswordEncoder`로 해시 → `User.createLocalUser(email, passwordHash, name)` → 저장(DB `UNIQUE` 위반 시 동시요청도 `EMAIL_ALREADY_EXISTS`로 변환) → 가입 토큰 삭제(1회성) → 기존 OAuth와 동일한 HttpOnly access/refresh 쿠키 발급 → `/terms`로 이동(약관 동의는 이 API에 포함하지 않고 기존 `POST /api/auth/terms` 재사용).
+  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/entity/User.java`(`createLocalUser`), 신규 `SignupRequest` DTO
+  - 선행 작업: AUTH-1, AUTH-2, PW-1, SIGNUP-2 (AUTH-3은 병렬 가능 — DB UNIQUE가 최종 방어선이라 강한 의존 아님)
+  - 완료 조건: 정상 가입 시 쿠키 발급+DB 저장 확인, 가입 토큰 없이/만료된 토큰으로는 거절, 중복 이메일 거절(사전조회·동시요청 UNIQUE 충돌 둘 다), 비밀번호 평문 미저장 확인
+  - 검증할 테스트: 신규 `AuthControllerTest`(정상가입/토큰없음거절/중복거절/동시요청 충돌)
+  - 우선순위: P0
+
+- [ ] **RATE-1** 로그인 실패 횟수 제한(Redis)
+  - 변경 내용: 정규화 이메일 기준(원문 이메일 대신 SHA-256 해시로 키 구성) 15분 내 5회 실패 시 15분 잠금. `auth:login:fail:{sha256}`(카운터, INCR+TTL 원자 처리)과 `auth:login:lock:{sha256}`(5회째 실패 시 별도 생성, TTL 15분) 두 키 사용. 로그인 성공 시 두 키 모두 삭제. 존재하지 않는 이메일로 시도해도 동일하게 카운트 증가(이메일 존재 여부가 잠금 발생 여부로 새어나가지 않도록). 비밀번호 재설정(향후 계정복구 구현 시)은 잠금 중에도 허용.
+  - 대상 파일: 신규 `infra/security/LoginAttemptLimiter.java`
+  - 선행 작업: 없음(독립 구현 가능, AUTH-5에서 사용)
+  - 완료 조건: 5회 미만 실패는 통과, 5회째부터 잠금, 잠금 중엔 올바른 비밀번호로도 거절, 성공 시 카운터·잠금 모두 리셋, 원문 이메일이 Redis 키/로그에 남지 않음
+  - 검증할 테스트: 신규 테스트(5회 미만 통과, 5회째 잠금, 잠금 중 거절, 성공 시 리셋)
+  - 우선순위: P0(AUTH-5의 선행)
+
 - [ ] **AUTH-5** 이메일 로그인 API (`POST /api/auth/login`) + 소프트탈퇴 자동복구
-  - 변경 내용: 이메일 정규화 → `findByEmail` → 계정 없음/`passwordHash == null`(OAuth 전용 계정)/비밀번호 불일치를 **전부 동일한 `INVALID_CREDENTIALS`로 응답**(이메일 존재 여부를 로그인 응답으로 노출하지 않음 — 회원가입 중복확인과는 다른 정책). 소프트탈퇴 7일 유예기간 내 계정이면 자동 복구하고 응답에 `restored:true` 포함, 유예기간 경과 계정은 동일하게 거절.
+  - 변경 내용: 이메일 정규화 → `LoginAttemptLimiter`로 잠금 여부 우선 확인(잠겨있으면 비밀번호 검증 없이 즉시 거절) → `findByEmail` → 계정 없음/`passwordHash == null`(OAuth 전용 계정)/비밀번호 불일치를 **전부 동일한 `INVALID_CREDENTIALS`로 응답**(이메일 존재 여부를 로그인 응답으로 노출하지 않음 — 회원가입 중복확인과는 다른 정책) 및 실패 카운터 증가. 소프트탈퇴 7일 유예기간 내 계정이면 자동 복구하고 응답에 `restored:true` 포함, 유예기간 경과 계정은 동일하게 거절. 성공 시 실패 카운터·잠금 리셋.
   - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, 신규 `LoginRequest`/`LoginResponse` DTO
-  - 선행 작업: AUTH-1, AUTH-2, AUTH-4(계정이 있어야 실제 로그인 통합테스트 가능 — 로직 자체는 독립 개발 가능)
-  - 완료 조건: 정상 로그인 성공, 계정없음/비밀번호불일치/OAuth전용계정 모두 동일한 `INVALID_CREDENTIALS`, 유예기간 내 자동복구+`restored:true`, 유예기간 경과 후 거절
-  - 검증할 테스트: 신규 로그인 테스트(성공/3가지 실패 케이스 응답 동일성/자동복구/영구탈퇴 후 거절)
+  - 선행 작업: AUTH-1, AUTH-2, AUTH-4, PW-1, RATE-1(계정이 있어야 실제 로그인 통합테스트 가능 — 로직 자체는 독립 개발 가능)
+  - 완료 조건: 정상 로그인 성공, 계정없음/비밀번호불일치/OAuth전용계정 모두 동일한 `INVALID_CREDENTIALS`, 5회 실패 후 잠금, 유예기간 내 자동복구+`restored:true`, 유예기간 경과 후 거절
+  - 검증할 테스트: 신규 로그인 테스트(성공/3가지 실패 케이스 응답 동일성/잠금/자동복구/영구탈퇴 후 거절)
   - 우선순위: P0
 
 - [ ] **AUTH-6** 비밀번호 변경 API (`PATCH /api/users/me/password`)
   - 변경 내용: 로그인 사용자의 현재 비밀번호 확인 후 새 비밀번호로 교체. OAuth 전용 계정(`passwordHash=null`)은 이 API 자체를 차단.
   - 대상 파일: `api/UserController.java`, `domain/user/service/UserService.java`, 신규 `PasswordUpdateRequest` DTO
-  - 선행 작업: AUTH-1, AUTH-5
+  - 선행 작업: AUTH-1, AUTH-5, PW-1
   - 완료 조건: 정상 변경, 현재 비밀번호 불일치 거절, OAuth 전용 계정 거절
   - 검증할 테스트: 신규 테스트(성공/현재비번불일치/OAuth계정거절)
   - 우선순위: P1
@@ -145,16 +190,18 @@
 ### 작업 순서 (의존관계 기준)
 
 ```
-AUTH-1 ─→ AUTH-2 ──┬─→ AUTH-4 ─┐
-                    └─→ AUTH-3 ─┴─→ AUTH-5 ─→ AUTH-6
+AUTH-1 ─→ AUTH-2 ─┐
+PW-1 ──────────────┤
+MAIL-1 ─→ SIGNUP-1 ─→ SIGNUP-2 ─┴─→ AUTH-4 ─┐
+RATE-1 ──────────────────────────────────────┴─→ AUTH-5 ─→ AUTH-6
 
 LOOKUP-1 — 완료(Codex, 8d178cc)
 ```
 
 ### 정책 결정이 필요한 항목
 
-- **계정 복구**(아이디 찾기, 비밀번호 재설정 이메일 발송): 이메일 발송 인프라(SMTP/SES 등) 자체가 없음 — 발송 수단부터 결정 필요. 결정 후 AUTH-1~6과 별도 작업으로 분리.
-- **이메일 인증 여부·비밀번호 해시 알고리즘(bcrypt 등)·로그인 시도 제한 구체값**: AUTH-4 착수 전 확정 필요(정책 골격은 있으나 세부 수치/알고리즘 미지정).
+- **계정 복구**(아이디 찾기, 비밀번호 재설정): 이메일 발송 수단(MAIL-1)은 AUTH-4 인증코드 발송용으로 구축하면 그대로 재사용 가능해진다 — 다만 "찾은 아이디를 어떻게 마스킹해서 보여줄지", "재설정 토큰 만료 시간" 등 계정복구 자체의 세부 계약은 아직 미정이라 AUTH-1~6과는 별도 작업으로 남긴다.
+- ~~이메일 인증 여부·비밀번호 해시 알고리즘·로그인 시도 제한 구체값~~ — ✅ 2026-08-19 확정(위 "정책 확정(2차)" 참고, PW-1/MAIL-1/SIGNUP-1/SIGNUP-2/RATE-1로 반영 완료).
 - **단체 신청 구성원별 상세·카드 ZIP 다운로드 API**(`/api/my/bulk-applications/{id}/members`, `/cards/download`): 프론트 `MyPage`/`MobileCardPage` 어디에도 이 데이터를 쓰는 화면이 없음을 확인함 — 실제로 필요한 화면인지부터 확인 필요. 필요 시 `MyApplicationController`에 신규 엔드포인트+`ApplicationMemberRepository` 조회 추가.
 - **카드 다운로드 가능 기준(`COMPLETED` vs `cardReadyAt`)**: 문서(`FRONTEND_API_INTEGRATION_SPEC.md`)는 `cardReadyAt` 기준이 확정 정책이라 하지만 실제 코드(`ApplicationService.getCardDownload()`)는 `COMPLETED` 단독 검사 — 이미 위 "신청 상태·취소·환불 구조 변경 체크리스트" §5(라인 166)에 동일 항목이 있음, 중복 추가하지 않고 그 항목을 그대로 참조. 관리자 API 미구현으로 `PRODUCING`/`markPhysicalDispatched` 상태에 실제로 도달시킬 방법이 없어 실질적으로 검증도 안 되는 상태.
 - **Event `company`/`logoUrl` 필드**: `host`(주최자 텍스트)로 대체 가능한지 먼저 결정. 결정 시 `EventPost`+DTO 4종에 필드 추가.
