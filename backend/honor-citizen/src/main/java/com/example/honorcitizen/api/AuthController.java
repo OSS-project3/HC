@@ -3,6 +3,8 @@ package com.example.honorcitizen.api;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.response.ApiResponse;
+import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationConfirmRequest;
+import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationConfirmResponse;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationRequest;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationResponse;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeRequest;
@@ -43,6 +45,13 @@ public class AuthController {
         String clientIp = servletRequest.getRemoteAddr();
         return ResponseEntity.ok(ApiResponse.success(
                 emailVerificationService.requestCode(request.getEmail(), clientIp)));
+    }
+
+    @PostMapping("/signup/email-verification/confirm")
+    public ResponseEntity<ApiResponse<SignupEmailVerificationConfirmResponse>> confirmSignupEmailVerification(
+            @Valid @RequestBody SignupEmailVerificationConfirmRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                emailVerificationService.confirmCode(request.getEmail(), request.getCode())));
     }
 
     @PostMapping("/terms")

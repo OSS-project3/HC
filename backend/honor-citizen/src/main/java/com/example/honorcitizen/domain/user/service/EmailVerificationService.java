@@ -3,6 +3,7 @@ package com.example.honorcitizen.domain.user.service;
 import com.example.honorcitizen.common.enums.EmailType;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
+import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationConfirmResponse;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationResponse;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
@@ -22,8 +23,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
@@ -39,15 +42,21 @@ public class EmailVerificationService {
     private static final Duration CODE_TTL = Duration.ofMinutes(10);
     private static final Duration RESEND_COOLDOWN = Duration.ofSeconds(60);
     private static final Duration RATE_LIMIT_WINDOW = Duration.ofHours(1);
+    private static final Duration SIGNUP_TOKEN_TTL = Duration.ofMinutes(30);
     private static final int EMAIL_RATE_LIMIT = 5;
     private static final int IP_RATE_LIMIT = 20;
+    private static final int SIGNUP_TOKEN_BYTES = 32;
 
     private static final String CODE_KEY_PREFIX = "auth:signup:code:";
     private static final String COOLDOWN_KEY_PREFIX = "auth:signup:code:cooldown:";
     private static final String EMAIL_COUNT_KEY_PREFIX = "auth:signup:code:count:email:";
     private static final String IP_COUNT_KEY_PREFIX = "auth:signup:code:count:ip:";
+    private static final String TOKEN_KEY_PREFIX = "auth:signup:token:";
 
-    private static final RedisScript<Long> COMPARE_AND_DELETE_SCRIPT = loadCompareAndDeleteScript();
+    private static final RedisScript<Long> COMPARE_AND_DELETE_SCRIPT =
+            loadScript("/redis/compare-and-delete-challenge.lua");
+    private static final RedisScript<Long> VERIFY_AND_INCREMENT_SCRIPT =
+            loadScript("/redis/verify-and-increment-code.lua");
 
     private final StringRedisTemplate redisTemplate;
     private final UserRepository userRepository;
@@ -101,6 +110,39 @@ public class EmailVerificationService {
         return SignupEmailVerificationResponse.of(CODE_TTL.toSeconds(), RESEND_COOLDOWN.toSeconds());
     }
 
+    public SignupEmailVerificationConfirmResponse confirmCode(String rawEmail, String rawCode) {
+        String normalizedEmail = User.normalizeEmail(rawEmail);
+        String codeKey = CODE_KEY_PREFIX + normalizedEmail;
+
+        // 코드 확인과 실패 횟수 증가를 Lua 스크립트 안에서 원자적으로 처리한다(SIGNUP-2 정책).
+        Long result = redisTemplate.execute(VERIFY_AND_INCREMENT_SCRIPT, List.of(codeKey), hmac(rawCode));
+        if (result == null || result != 1L) {
+            // 불일치/만료/이미 사용됨/시도 초과를 전부 동일한 오류로 응답한다 — 남은 시도 횟수도 노출하지 않는다.
+            throw new CustomException(ErrorCode.INVALID_VERIFICATION_CODE);
+        }
+
+        String signupToken = generateSignupToken();
+        String tokenKey = TOKEN_KEY_PREFIX + sha256Hex(signupToken);
+        redisTemplate.opsForValue().set(tokenKey, normalizedEmail, SIGNUP_TOKEN_TTL);
+
+        return SignupEmailVerificationConfirmResponse.of(signupToken, SIGNUP_TOKEN_TTL.toSeconds());
+    }
+
+    private String generateSignupToken() {
+        byte[] bytes = new byte[SIGNUP_TOKEN_BYTES];
+        secureRandom.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("가입 토큰 해시 계산에 실패했습니다.", e);
+        }
+    }
+
     private void enforceRateLimit(String key) {
         enforceRateLimit(key, EMAIL_RATE_LIMIT);
     }
@@ -147,14 +189,14 @@ public class EmailVerificationService {
                 """.formatted(code);
     }
 
-    private static RedisScript<Long> loadCompareAndDeleteScript() {
-        try (InputStream is = EmailVerificationService.class.getResourceAsStream("/redis/compare-and-delete-challenge.lua")) {
+    private static RedisScript<Long> loadScript(String classpathLocation) {
+        try (InputStream is = EmailVerificationService.class.getResourceAsStream(classpathLocation)) {
             if (is == null) {
-                throw new IllegalStateException("compare-and-delete-challenge.lua를 찾을 수 없습니다.");
+                throw new IllegalStateException(classpathLocation + "를 찾을 수 없습니다.");
             }
             return new DefaultRedisScript<>(new String(is.readAllBytes(), StandardCharsets.UTF_8), Long.class);
         } catch (IOException e) {
-            throw new IllegalStateException("Redis Lua 스크립트 로드에 실패했습니다.", e);
+            throw new IllegalStateException("Redis Lua 스크립트 로드에 실패했습니다: " + classpathLocation, e);
         }
     }
 }
