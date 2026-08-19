@@ -135,13 +135,12 @@
   - 완료됨: 신규 `EmailVerificationServiceTest` 6개(정상 발송+Redis 저장 확인/중복 이메일 거절/쿠폴다운 거절/이메일 레이트리밋 거절/IP 레이트리밋 거절/발송 실패 시 compare-and-delete 확인) 전부 **실제 로컬 Redis**(Docker `honor-citizen-redis-test`, 호스트 포트 6400, `REDIS_PORT=6400`로 테스트 실행 시 지정)로 통과 — `StringRedisTemplate`을 Mock하지 않고 TTL·카운터·쿠폴다운이 실제 Redis 명령으로 정확히 동작하는지 검증. 전체 스위트 400개(394+6) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패했으나, 이는 SIGNUP-1과 무관한 기존 결함으로 확인(원인·근거는 아래 "발견된 기존 결함" 절 참고) — SIGNUP-1이 만든 회귀 없음.
   - 우선순위: P0 — 완료
 
-- [ ] **SIGNUP-2** 이메일 인증 코드 확인 API (`POST /api/auth/signup/email-verification/confirm`)
-  - 변경 내용: 이메일+코드 검증 → 일치하면 Redis 코드 삭제 후 단기 가입 토큰(UUID) 발급, `auth:signup:token:{token}` → normalizedEmail로 TTL 30분 저장 → 응답에 토큰 반환. 불일치·만료·이미 사용된 코드는 동일한 오류로 응답(코드 존재 여부 노출 안 함).
-  - 대상 파일: `EmailVerificationService.java`에 메서드 추가, `api/AuthController.java`
-  - 선행 작업: SIGNUP-1
-  - 완료 조건: 정상 확인 시 토큰 발급+코드 재사용 불가, 코드 불일치/만료 거절
-  - 검증할 테스트: 신규 테스트(정상확인/코드불일치/만료/재사용 거절)
-  - 우선순위: P0
+- [x] **SIGNUP-2** 이메일 인증 코드 확인 API (`POST /api/auth/signup/email-verification/confirm`) — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: 이메일 정규화(SIGNUP-1과 동일) → 요청 코드를 같은 HMAC 방식으로 변환 → Redis Lua 스크립트(`verify-and-increment-code.lua`)로 코드 확인과 실패 횟수 증가를 원자 처리(불일치/만료/이미사용/시도초과 4가지를 전부 `INVALID_VERIFICATION_CODE`(400, 신규) 하나로 동일하게 응답 — 남은 시도 횟수도 노출 안 함) → 5회 실패 시 challenge 자체를 스크립트 안에서 삭제(폐기) → 성공 시 challenge 삭제 후 `SecureRandom` 32바이트 URL-safe 가입 토큰 발급, Redis엔 `auth:signup:token:{sha256(token)}` → normalizedEmail로 TTL 30분 저장(원본 토큰은 저장 안 함, SHA-256 평문 해시 — HMAC 아님, 토큰 자체가 고엔트로피라 별도 secret 불필요) → 응답에 `signupToken`+`expiresInSeconds=1800` 반환.
+  - 대상 파일: `domain/user/service/EmailVerificationService.java`(`confirmCode` 메서드 추가), `domain/user/dto/SignupEmailVerificationConfirmRequest.java`/`SignupEmailVerificationConfirmResponse.java`(신규), `resources/redis/verify-and-increment-code.lua`(신규), `api/AuthController.java`(`POST /signup/email-verification/confirm`), `common/exception/ErrorCode.java`(`INVALID_VERIFICATION_CODE(400)` 신규), `EmailVerificationServiceConfirmTest.java`(신규)
+  - 선행 작업: SIGNUP-1 — 완료
+  - 완료됨: 신규 `EmailVerificationServiceConfirmTest` 6개(정상확인+토큰발급/이메일정규화 후에도 매칭/코드불일치시 challenge유지+재시도가능/5회실패후 challenge폐기+정답으로도재확인불가/성공후 재사용거절/애초에 코드요청 안한 이메일 거절) 전부 실제 로컬 Redis(포트 6400)로 통과. 전체 스위트 406개(400+6) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — SIGNUP-1 커밋 때 이미 확인한 기존 결함과 동일건(회귀 아님).
+  - 우선순위: P0 — 완료
 
 - [ ] **AUTH-4** 이메일 회원가입 API (`POST /api/auth/signup`)
   - 변경 내용: 요청에 포함된 가입 토큰으로 Redis에서 정규화 이메일 조회(없거나 만료면 "인증이 필요합니다" 거절) → `findByEmail(normalized)` 사전 중복확인(동시요청 사이 다른 경로로 먼저 가입됐을 가능성 대비) → `PasswordEncoder`로 해시 → `User.createLocalUser(email, passwordHash, name)` → 저장(DB `UNIQUE` 위반 시 동시요청도 `EMAIL_ALREADY_EXISTS`로 변환) → 가입 토큰 삭제(1회성) → 기존 OAuth와 동일한 HttpOnly access/refresh 쿠키 발급 → `/terms`로 이동(약관 동의는 이 API에 포함하지 않고 기존 `POST /api/auth/terms` 재사용).

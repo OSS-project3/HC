@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (SIGNUP-2: 이메일 인증 코드 확인 API)
+
+- 변경: `POST /api/auth/signup/email-verification/confirm` 구현. 코드 확인과 실패 횟수 증가를 Redis Lua 스크립트로 원자 처리하고, 불일치/만료/이미사용/5회초과를 전부 동일한 오류(`INVALID_VERIFICATION_CODE`)로 응답한다(남은 시도 횟수 비노출). 성공 시 32바이트 URL-safe 가입 토큰을 발급하고 Redis엔 SHA-256 해시만 저장한다.
+- 파일: `domain/user/service/EmailVerificationService.java`, `domain/user/dto/SignupEmailVerificationConfirmRequest.java`/`SignupEmailVerificationConfirmResponse.java`(신규), `resources/redis/verify-and-increment-code.lua`(신규), `api/AuthController.java`, `common/exception/ErrorCode.java`(`INVALID_VERIFICATION_CODE` 추가), `EmailVerificationServiceConfirmTest.java`(신규)
+- 테스트: 신규 6개 전부 실제 로컬 Redis(포트 6400)로 통과. 전체 스위트 406개 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패(SIGNUP-1 때 기록한 기존 결함과 동일건, 회귀 아님).
+- 사유: 이메일 회원가입 인증 작업(MAIL-1→SIGNUP-1→SIGNUP-2→AUTH-4) 4단계 중 3번째 단위.
+- 관련: TODO `SIGNUP-2`
+
+---
+
 ## 2026-08-19 — Claude — `main` (SIGNUP-1: 이메일 인증 코드 요청 API)
 
 - 변경: `POST /api/auth/signup/email-verification/request` 구현. 정책 확정 9단계(정규화 → 형식검증 → 중복이메일 조회 → 재전송/발송 횟수 제한 → 코드생성 → HMAC 저장 → TTL 10분 → SMTP 동기발송 → 응답)를 그대로 따랐다. 재전송 쿠폴다운 60초, 이메일별 1시간 5회, IP별 1시간 20회 제한을 Redis로 처리하고, 메일 발송 실패 시 challengeId가 일치할 때만 compare-and-delete Lua 스크립트로 안전하게 정리한다.
