@@ -141,10 +141,7 @@ public class UserService {
         }
 
         String passwordHash = passwordEncoder.encode(rawPassword);
-        User user = User.createLocalUser(normalizedEmail, passwordHash, name);
-        // phone은 createLocalUser 팩토리(다른 생성 경로인 createOAuthUser와 시그니처를 맞춤) 대신
-        // 기존 프로필 수정 경로(updateProfile)를 그대로 재사용해 채운다 — 신규 컬럼·팩토리 파라미터 추가 없음.
-        user.updateProfile(null, phone, null);
+        User user = User.createLocalUser(normalizedEmail, passwordHash, name, phone);
         try {
             user = userRepository.save(user);
         } catch (DataIntegrityViolationException e) {

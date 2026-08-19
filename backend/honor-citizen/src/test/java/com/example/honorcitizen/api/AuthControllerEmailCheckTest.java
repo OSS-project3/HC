@@ -44,7 +44,7 @@ class AuthControllerEmailCheckTest {
 
     @Test
     void checkEmailReturnsTrueForExistingLocalAccountWithoutAnyAuthHeader() throws Exception {
-        userRepository.save(User.createLocalUser("local-account@example.com", "hashed-value", "홍길동"));
+        userRepository.save(User.createLocalUser("local-account@example.com", "hashed-value", "홍길동", "010-1234-5678"));
 
         mockMvc.perform(post("/api/auth/email/check")
                         .contentType("application/json")
@@ -76,7 +76,7 @@ class AuthControllerEmailCheckTest {
 
     @Test
     void checkEmailMatchesRegardlessOfCase() throws Exception {
-        userRepository.save(User.createLocalUser("normalize-check@example.com", "hashed-value", "홍길동"));
+        userRepository.save(User.createLocalUser("normalize-check@example.com", "hashed-value", "홍길동", "010-1234-5678"));
 
         mockMvc.perform(post("/api/auth/email/check")
                         .contentType("application/json")

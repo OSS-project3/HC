@@ -170,7 +170,7 @@ class AuthControllerSignupTest {
         cleanupRedis(email);
         String signupToken = issueSignupToken(email);
         // 코드 요청~가입 사이에 다른 경로로 같은 이메일 계정이 먼저 생겼다고 가정.
-        userRepository.save(User.createLocalUser(email, "already-hashed", "선점계정"));
+        userRepository.save(User.createLocalUser(email, "already-hashed", "선점계정", "010-1234-5678"));
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType("application/json")

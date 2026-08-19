@@ -89,7 +89,7 @@ class EmailVerificationServiceTest {
     void requestCodeRejectsAlreadyRegisteredEmail() {
         String email = "existing@example.com";
         cleanupRedis(email, CLIENT_IP);
-        userRepository.save(User.createLocalUser(email, "hashed", "Existing"));
+        userRepository.save(User.createLocalUser(email, "hashed", "Existing", "010-1234-5678"));
 
         assertThatThrownBy(() -> emailVerificationService.requestCode(email, CLIENT_IP))
                 .isInstanceOf(CustomException.class)

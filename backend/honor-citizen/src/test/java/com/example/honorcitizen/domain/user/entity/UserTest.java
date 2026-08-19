@@ -31,11 +31,18 @@ class UserTest {
 
     @Test
     void createLocalUserNormalizesEmailAndLeavesOAuthFieldsNull() {
-        User user = User.createLocalUser("  Test@Example.COM  ", "hashed-value", "Test");
+        User user = User.createLocalUser("  Test@Example.COM  ", "hashed-value", "Test", "010-1234-5678");
 
         assertThat(user.getEmail()).isEqualTo("test@example.com");
         assertThat(user.getPasswordHash()).isEqualTo("hashed-value");
         assertThat(user.getOauthId()).isNull();
         assertThat(user.getOauthProvider()).isNull();
+    }
+
+    @Test
+    void createLocalUserStoresPhoneAtCreationTime() {
+        User user = User.createLocalUser("phone@example.com", "hashed-value", "Test", "010-1234-5678");
+
+        assertThat(user.getPhone()).isEqualTo("010-1234-5678");
     }
 }

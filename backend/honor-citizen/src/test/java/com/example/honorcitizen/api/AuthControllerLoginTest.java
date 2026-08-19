@@ -72,7 +72,7 @@ class AuthControllerLoginTest {
 
     @Test
     void loginSucceedsAndIssuesCookiesWithoutAnyAuthHeader() throws Exception {
-        userRepository.save(User.createLocalUser(EMAIL, passwordEncoder.encode(PASSWORD), "홍길동"));
+        userRepository.save(User.createLocalUser(EMAIL, passwordEncoder.encode(PASSWORD), "홍길동", "010-1234-5678"));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType("application/json")
@@ -87,7 +87,7 @@ class AuthControllerLoginTest {
 
     @Test
     void loginRejectsWrongPasswordWithInvalidCredentialsEnvelope() throws Exception {
-        userRepository.save(User.createLocalUser(EMAIL, passwordEncoder.encode(PASSWORD), "홍길동"));
+        userRepository.save(User.createLocalUser(EMAIL, passwordEncoder.encode(PASSWORD), "홍길동", "010-1234-5678"));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType("application/json")
@@ -99,7 +99,7 @@ class AuthControllerLoginTest {
 
     @Test
     void loginLocksAfterFiveFailuresAndReturnsAccountLocked() throws Exception {
-        userRepository.save(User.createLocalUser(EMAIL, passwordEncoder.encode(PASSWORD), "홍길동"));
+        userRepository.save(User.createLocalUser(EMAIL, passwordEncoder.encode(PASSWORD), "홍길동", "010-1234-5678"));
 
         for (int i = 0; i < 5; i++) {
             mockMvc.perform(post("/api/auth/login")

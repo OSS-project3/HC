@@ -43,7 +43,7 @@ class UserControllerChangePasswordTest {
     void setUp() {
         userRepository.deleteAll();
         user = userRepository.save(
-                User.createLocalUser("change-password@example.com", passwordEncoder.encode(CURRENT_PASSWORD), "홍길동"));
+                User.createLocalUser("change-password@example.com", passwordEncoder.encode(CURRENT_PASSWORD), "홍길동", "010-1234-5678"));
         token = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
     }
 

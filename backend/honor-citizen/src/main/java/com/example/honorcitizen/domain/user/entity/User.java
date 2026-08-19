@@ -85,11 +85,15 @@ public class User extends BaseTimeEntity {
     }
 
     // 일반 이메일 회원가입 전용 — oauthId/oauthProvider는 항상 null(약관 동의는 /terms에서 별도 처리).
-    public static User createLocalUser(String email, String passwordHash, String name) {
+    // phone은 SignupRequest에서 @NotBlank로 이미 필수라 생성 시점에 함께 받는다(2026-08-20 — 예전엔
+    // updateProfile()로 생성 직후 별도 주입했으나, 항상 존재가 보장된 값을 부분수정 메서드로 채우는 건
+    // 불변식을 생성자가 강제하지 못하게 만드는 오용이라 팩토리 파라미터로 승격했다).
+    public static User createLocalUser(String email, String passwordHash, String name, String phone) {
         User user = new User();
         user.email = normalizeEmail(email);
         user.passwordHash = passwordHash;
         user.name = name;
+        user.phone = phone;
         user.role = UserRole.USER;
         user.termsAgreed = false;
         user.privacyAgreed = false;

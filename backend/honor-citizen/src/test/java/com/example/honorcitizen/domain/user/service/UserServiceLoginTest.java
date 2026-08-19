@@ -64,7 +64,7 @@ class UserServiceLoginTest {
 
     private User saveLocalUser() {
         return userRepository.saveAndFlush(
-                User.createLocalUser(EMAIL, passwordEncoder.encode(PASSWORD), "홍길동"));
+                User.createLocalUser(EMAIL, passwordEncoder.encode(PASSWORD), "홍길동", "010-1234-5678"));
     }
 
     @Test

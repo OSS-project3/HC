@@ -52,7 +52,7 @@ class UserServiceOAuthTest {
 
     @Test
     void createOAuthUserIfAbsentRejectsWhenEmailUsedByLocalAccount() {
-        userRepository.save(User.createLocalUser("shared@example.com", "hashed-value", "Existing"));
+        userRepository.save(User.createLocalUser("shared@example.com", "hashed-value", "Existing", "010-1234-5678"));
 
         assertThatThrownBy(() ->
                 userService.createOAuthUserIfAbsent("shared@example.com", "oauth-google", "google", "New"))
