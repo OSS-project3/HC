@@ -530,16 +530,16 @@ User 탈퇴와 별도로 유지
 
 컴파일 의존성 때문에 순서가 중요하다 — `User.isRestorable()`/`restore()`를 호출하는 곳(`OAuth2SuccessHandler`, `UserService.login()`)을 먼저 정리한 뒤에 `User` 엔티티에서 그 메서드를 지운다.
 
-### WITHDRAW-1. OAuth 재로그인 자동복구 제거
+### WITHDRAW-1. OAuth 재로그인 자동복구 제거 — ✅ 완료(`a3bc798`)
 
-- [ ] `infra/security/OAuth2SuccessHandler.java` — 기존 회원 재로그인 시 `isRestorable()`/`restore()` 확인·복구 분기 제거. 이제 `WITHDRAWN` 상태(또는 row 자체가 없음)인 계정의 재로그인은 신규 계정 생성 흐름과 충돌하지 않는지만 확인(OAuth는 `oauthId`+`oauthProvider` UNIQUE라 탈퇴한 계정이 하드 삭제되면 같은 `oauthId`로 재로그인 시 자연히 신규 계정 생성 흐름을 탄다 — 별도 분기 불필요할 가능성이 높음, 착수 시 재확인)
-- [ ] 테스트: 관련 OAuth 로그인 통합 테스트(있다면) 확인·갱신
+- [x] `infra/security/OAuth2SuccessHandler.java` — 기존 회원 재로그인 시 `isRestorable()`/`restore()` 확인·복구 분기 제거.
+- [x] 테스트: 이 클래스를 직접 테스트하는 전용 테스트가 없음(OAuth2AuthenticationToken 목킹 인프라 자체가 프로젝트에 없음)을 확인 — 영향 범위 테스트(65개, pre-existing 1건 제외 전부 통과)로 회귀 확인
 
-### WITHDRAW-2. 일반 로그인 자동복구 제거
+### WITHDRAW-2. 일반 로그인 자동복구 제거 — ✅ 완료(`b83bd65`)
 
-- [ ] `UserService.login()` — `withinGracePeriod`/`isRestorable()` 판정 후 `user.restore()` 호출하는 분기 제거. `WITHDRAWN` 상태 계정의 로그인 시도는 계정없음과 동일하게(`INVALID_CREDENTIALS`) 처리
-- [ ] `arch.md` §4.1 규칙에 이미 반영된 "탈퇴유예기간경과 케이스 소멸" 문구와 실제 코드 일치시키기
-- [ ] 테스트: `UserServiceLoginTest`에서 자동복구 관련 케이스 제거·`WITHDRAWN` 계정 로그인 거절 케이스로 대체
+- [x] `UserService.login()` — `withinGracePeriod`/`isRestorable()` 판정 후 `user.restore()` 호출하는 분기 제거. `WITHDRAWN` 상태 계정의 로그인 시도는 계정없음과 동일하게(`INVALID_CREDENTIALS`) 처리
+- [x] `restored` 응답 필드(`LoginResult`/`LoginResponse`/`AuthController`) 전부 제거(체크리스트 작성 시 누락됐던 항목 — 자동복구 제거 시 이 필드가 항상 `false`인 죽은 필드가 되므로 같은 단위에서 함께 정리)
+- [x] 테스트: `UserServiceLoginTest`에서 grace-period 테스트 2개를 "탈퇴 계정 항상 거절" 테스트 1개로 교체, `AuthControllerLoginTest`의 `restored` assertion 제거 — 영향 범위 테스트(64개, pre-existing 1건 제외 전부 통과)
 
 ### WITHDRAW-3. 익명화 스케줄러·엔티티 메서드 제거
 
