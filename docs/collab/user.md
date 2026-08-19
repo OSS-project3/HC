@@ -524,7 +524,9 @@ User 탈퇴와 별도로 유지
 
 ---
 
-# 19. 구현 체크리스트 (2026-08-19 작성, 착수 전)
+# 19. 구현 체크리스트 (2026-08-19 작성 → 2026-08-19 전 단위 완료)
+
+> ✅ **WITHDRAW-1~4 전부 구현·테스트·커밋·푸시 완료**(2026-08-19). 회원탈퇴는 이제 실제로 즉시 하드 삭제로 동작한다. 커밋: WITHDRAW-1 `a3bc798`, WITHDRAW-2 `b83bd65`, WITHDRAW-3 `f956120`, WITHDRAW-3B `861b92e`, WITHDRAW-4 `7e131f5`. 전체 스위트 462개 중 `UserApplicationFlowTest.fullUserApplicationFlow`(pre-existing, 이 작업과 무관) 1건만 실패, 회귀 없음.
 
 정책은 위 1~18절로 전부 확정됐다(§17.2/§17.3 방침 문안 자체의 확인 필요 사항은 법무 확인 대상이라 구현과 무관, 진행을 막지 않음). 착수 전 checklist. 각 단위는 독립적으로 빌드·테스트 가능해야 하고, 단위별로 별도 커밋한다. Inquiry 도메인에서 쓴 절차와 동일하게 진행한다: **정책 재확인(이미 확정, 코드화만 남음) → 실패하는 테스트 먼저 작성 → 최소 구현 → 해당 단위 테스트 통과 확인 → (마지막 단위에서) 전체 스위트 회귀 테스트**(RULES.md §8 신규 정책). 단위 완료마다 "구현한 파일 / 정책과 다른 부분(있다면) / 테스트 결과 / 다음 단위 진행 가능 여부"를 보고한다.
 
@@ -564,19 +566,15 @@ User 탈퇴와 별도로 유지
 - [ ] `ErrorCode.ALREADY_WITHDRAWN` — 확인 결과 이 시점 기준으로 어디서도 안 쓰임(WITHDRAW-4에서 정리 예정, 계획대로 이월)
 - [x] 테스트: `UserServiceLoginTest`/`UserTest`/`UserControllerTest`/`ReviewEligibilityServiceTest`/`ApplicationServiceTest`/`ApplicationServiceBulkTest`에서 "탈퇴한 사용자" 시나리오 테스트 전부 제거(이 계층에서 더 이상 재현 불가능해짐) — 영향 범위 테스트(180개, pre-existing 1건 제외 전부 통과)
 
-### WITHDRAW-4. `UserService.withdraw()` 하드 삭제로 교체 (핵심 단위)
+### WITHDRAW-4. `UserService.withdraw()` 하드 삭제로 교체 (핵심 단위) — ✅ 완료(`7e131f5`)
 
-- [ ] `domain/user/repository/RefreshTokenSessionRepository.java`에 `void deleteByUserId(Long userId)` 추가(또는 `List<RefreshTokenSession> findByUserId` 후 `deleteAll`)
-- [ ] `domain/application/repository/ApplicationDailyLimitRepository.java`에 `void deleteByUserId(Long userId)` 추가
-- [ ] `UserService.withdraw(userId, accessToken)` 재작성 — 순서: ① 세션 무효화(`tokenSessionStore.invalidateUserSessions`, 기존 로직 유지) ② 액세스 토큰 블랙리스트(기존 로직 유지) ③ `RefreshTokenSession` 하드 삭제 ④ `ApplicationDailyLimit` 하드 삭제 ⑤ `User` row 하드 삭제(`userRepository.delete(user)`). `ALREADY_WITHDRAWN` 체크는 제거(재호출 시 row가 이미 없으므로 `findById`가 자연히 `USER_NOT_FOUND`로 실패)
-- [ ] `ErrorCode.ALREADY_WITHDRAWN`이 다른 곳에서도 쓰이는지 확인 후, 안 쓰이면 제거 여부 판단(착수 시 grep 재확인)
-- [ ] 테스트: `UserServiceTest`의 `withdraw*` 케이스 재작성(하드 삭제 확인, `RefreshTokenSession`/`ApplicationDailyLimit` 삭제 확인, 재호출 시 `USER_NOT_FOUND`), `UserControllerTest`의 탈퇴 관련 케이스 재작성(`withdrawMarksUserWithdrawnAndBlacklistsAccessToken` 등 기존 소프트삭제 전제 테스트명·assertion 갱신)
-
-### WITHDRAW-5. 전체 정리 및 회귀
-
-- [ ] `ReviewEligibilityServiceTest`/`ApplicationServiceTest`/`ApplicationServiceBulkTest` 등 WITHDRAWN 상태를 전제로 한 기존 테스트가 있는지 재확인(1차 grep 결과 기준, 실제 영향 여부는 착수 시 재검증) — 영향 있으면 갱신
-- [ ] `docs/api/user.md`의 API 4 문서를 실제 구현에 맞춰 최종 정리(지금은 "폐지" 표시만 있는 초안 상태)
-- [ ] RULES.md §8 정책대로 이 시점(기능 묶음 완료)에 전체 스위트 회귀 테스트 실행
+- [x] `RefreshTokenSessionRepository.deleteByUserId(Long userId)` 추가
+- [x] `ApplicationDailyLimitRepository.deleteByUserId(Long userId)` 추가 + `ApplicationDailyLimitService.deleteAllForUser()`(공개 메서드 경유, arch.md §5.1)
+- [x] `TokenSessionStore.deleteUserSessions(Long userId)` 신규(하드 삭제 전용, `invalidateUserSessions`의 revoke와 구분)
+- [x] `UserService.withdraw(userId, accessToken)` 재작성 — 세션 무효화 → 액세스 토큰 블랙리스트 → `RefreshTokenSession` 하드 삭제 → `ApplicationDailyLimit` 하드 삭제 → `User` row 하드 삭제. `ALREADY_WITHDRAWN` 재확인 제거
+- [x] `ErrorCode.ALREADY_WITHDRAWN` — 확인 결과 완전히 안 쓰여서 삭제. `User.withdraw()`(엔티티, 빈 자리였던 placeholder)도 호출부가 없어져 함께 삭제
+- [x] 테스트: 신규 `UserServiceWithdrawTest`(하드 삭제 4개 케이스), `UserControllerTest` 탈퇴 케이스 재작성(하드 삭제 확인 + 재호출 시 401) — 영향 범위 테스트(112개, pre-existing 1건 제외 전부 통과), 마지막 단위라 전체 스위트(462개)도 회귀 확인(pre-existing 1건 제외 전부 통과)
+- [x] `docs/api/user.md`의 API 4 문서를 실제 구현에 맞춰 최종 정리(WITHDRAW-5 항목이었으나 이 단위에서 함께 처리)
 
 ### 이번 체크리스트 범위 밖
 

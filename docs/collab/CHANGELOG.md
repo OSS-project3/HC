@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (회원탈퇴 WITHDRAW-4 구현 + 정책 변경 전체 완료 마무리)
+
+- 변경: `docs/collab/user.md` §19 체크리스트의 마지막 단위 WITHDRAW-4 구현 — `RefreshTokenSessionRepository.deleteByUserId`/`ApplicationDailyLimitRepository.deleteByUserId` 신규, `TokenSessionStore.deleteUserSessions()`(하드 삭제 전용, 기존 `invalidateUserSessions`의 revoke와 구분), `ApplicationDailyLimitService.deleteAllForUser()`(arch.md §5.1 "다른 모듈 Repository 직접 호출 금지" 원칙에 따라 `UserService`가 이 공개 메서드를 거치도록 함), `UserService.withdraw()`를 실제 하드 삭제(세션 무효화→액세스 토큰 블랙리스트→RefreshTokenSession 삭제→ApplicationDailyLimit 삭제→User 삭제)로 전면 재작성. 이제 어디서도 안 쓰이는 `ErrorCode.ALREADY_WITHDRAWN`과 빈 placeholder였던 `User.withdraw()` 엔티티 메서드도 함께 삭제. 이걸로 확정 정책(WITHDRAW-1~4) 전부 구현 완료 — §19 체크리스트 전 항목 `[x]` 처리, `docs/collab/TODO.md` 행을 🔵→✅로 변경, `docs/api/user.md` API 4를 실제 구현 기준으로 최종 정리, `arch.md`의 "구현 전" 표시를 "구현 완료"로 갱신.
+- 파일: `domain/user/repository/RefreshTokenSessionRepository.java`, `domain/application/repository/ApplicationDailyLimitRepository.java`, `domain/application/service/ApplicationDailyLimitService.java`, `infra/security/TokenSessionStore.java`, `domain/user/service/UserService.java`, `domain/user/entity/User.java`, `common/exception/ErrorCode.java`, 테스트(`UserServiceWithdrawTest` 신규, `UserControllerTest` 갱신), 문서(`docs/collab/user.md`/`TODO.md`, `docs/api/user.md`, `arch.md`)
+- 테스트 결과: 이번 단위 신규 4개(`UserServiceWithdrawTest`) + `UserControllerTest` 갱신분 통과. 마지막 단위라 RULES.md §8대로 전체 스위트 실행 — 462개 중 `UserApplicationFlowTest.fullUserApplicationFlow`(pre-existing) 1건만 실패, 회귀 없음.
+- 사유: 체크리스트(§19) 마지막 단위 구현 + 회원탈퇴 정책 변경 작업 전체 마무리.
+- 관련: TODO "회원탈퇴 정책 변경" — 완료. 남은 항목은 §17.2/§17.3(법무 확인 대상, 코드 무관)뿐.
+
+---
+
 ## 2026-08-19 — Claude — `main` (회원탈퇴 WITHDRAW-3B 구현 — UserStatus 완전 제거)
 
 - 변경: `docs/collab/user.md` §19 체크리스트의 WITHDRAW-3B 단위 구현(WITHDRAW-3에서 분리된 단위). `common/enums/UserStatus.java` 삭제, `User`의 `status`/`withdrawalRequestedAt`/`anonymizedAt` 필드와 `isWithdrawn()` 삭제(`withdraw()`는 WITHDRAW-4에서 실제 하드 삭제가 채워질 빈 자리로 유지), `UserRepository`의 익명화 스케줄러 전용 쿼리 메서드 삭제. 이 필드 제거가 걸쳐있던 3개 도메인 호출부도 함께 정리: `UserService.findEligibleApplicationUser()`·`UserService.login()`·`UserService.withdraw()`의 상태 체크 제거, `ApplicationService.validateAdmin()`의 `ACTIVE` 체크 제거(role 체크는 유지), `ReviewEligibilityService.validateForCreate()`의 `isWithdrawn()` 체크 제거(원래 목적이었던 "탈퇴 시 현재 토큰만 블랙리스트되는 허점 방어"는 하드 삭제로 `existsById` 자체가 실패하게 되어 근본적으로 해소됨).
