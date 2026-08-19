@@ -96,4 +96,33 @@ class InquiryServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
     }
+
+    @Test
+    void listAdminReturnsAllInquiriesNewestFirst() throws InterruptedException {
+        inquiryService.create(USER_ID, request());
+        Thread.sleep(5);
+        InquiryCreateResponse second = inquiryService.create(2L, request());
+
+        List<InquiryListItemResponse> all = inquiryService.listAdmin();
+
+        assertThat(all).hasSize(2);
+        assertThat(all.get(0).getId()).isEqualTo(second.getId());
+    }
+
+    @Test
+    void getAdminDetailReturnsAnyUsersInquiry() {
+        InquiryCreateResponse created = inquiryService.create(USER_ID, request());
+
+        InquiryDetailResponse detail = inquiryService.getAdminDetail(created.getId());
+
+        assertThat(detail.getId()).isEqualTo(created.getId());
+    }
+
+    @Test
+    void getAdminDetailForMissingInquiryThrowsNotFound() {
+        assertThatThrownBy(() -> inquiryService.getAdminDetail(999999L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+    }
 }

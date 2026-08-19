@@ -47,4 +47,20 @@ public class InquiryService {
         }
         return InquiryDetailResponse.from(inquiry);
     }
+
+    // 관리자 전체 목록(requirements.md §④ API 4) — 검색·페이지네이션 없음(프론트에 해당 UI 자체가
+    // 없음, §⑥ 확정 정책). 권한 검증은 SecurityConfig의 /api/admin/** 라우트 레벨이 담당한다(Board 선례).
+    @Transactional(readOnly = true)
+    public List<InquiryListItemResponse> listAdmin() {
+        return inquiryRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(InquiryListItemResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public InquiryDetailResponse getAdminDetail(Long inquiryId) {
+        Inquiry inquiry = inquiryRepository.findById(inquiryId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
+        return InquiryDetailResponse.from(inquiry);
+    }
 }
