@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (회원탈퇴 WITHDRAW-3 구현 — 익명화 스케줄러 제거)
+
+- 변경: `docs/collab/user.md` §19 체크리스트의 WITHDRAW-3 단위 구현. `UserWithdrawalScheduler` 삭제, `UserService.anonymizeExpiredWithdrawnUsers()`+`WITHDRAWAL_GRACE_PERIOD_DAYS` 상수 삭제, `User.anonymize()`/`isRestorable()`/`restore()` 삭제(WITHDRAW-1·2에서 호출부를 이미 정리해둬서 컴파일 안전). 이 스케줄러만을 위해 존재하던 `UserServiceTest.java`는 테스트 대상 자체가 사라져 파일째 삭제. `UserTest.java`도 `isRestorable`/`restore`/`anonymize` 관련 테스트 3개 제거.
+- 파일: `domain/user/entity/User.java`, `domain/user/service/UserService.java`, `domain/user/scheduler/UserWithdrawalScheduler.java`(삭제), `UserServiceTest.java`(삭제), `UserTest.java`
+- 테스트 결과: RULES.md §8대로 영향 범위(`domain.user.*`, `UserController*`, `AuthController*`, `UserApplicationFlowTest`) 58개 실행 — pre-existing 실패 1건(무관)만, 나머지 전부 통과.
+- 사유: 체크리스트(§19) 순서대로 구현.
+- 관련: TODO "회원탈퇴 정책 변경" — 다음 단위 WITHDRAW-3B
+
+---
+
 ## 2026-08-19 — Claude — `main` (회원탈퇴 WITHDRAW-2 구현 — 일반 로그인 자동복구 제거)
 
 - 변경: `docs/collab/user.md` §19 체크리스트의 WITHDRAW-2 단위 구현. `UserService.login()`에서 탈퇴 유예기간 판정+`isRestorable()`/`restore()` 자동 복구 분기를 제거 — 탈퇴한(`WITHDRAWN`) 계정은 비밀번호가 맞아도 예외 없이 `INVALID_CREDENTIALS`로 거절한다. 이에 딸려있던 `restored` 응답 필드(`LoginResult`/`LoginResponse`/`AuthController`)도 전부 제거 — 항상 `false`만 나오는 죽은 필드가 되므로 체크리스트에 명시된 "`restored: true` 응답 필드 폐지"를 이 단위에서 함께 처리했다.

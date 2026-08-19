@@ -541,13 +541,13 @@ User 탈퇴와 별도로 유지
 - [x] `restored` 응답 필드(`LoginResult`/`LoginResponse`/`AuthController`) 전부 제거(체크리스트 작성 시 누락됐던 항목 — 자동복구 제거 시 이 필드가 항상 `false`인 죽은 필드가 되므로 같은 단위에서 함께 정리)
 - [x] 테스트: `UserServiceLoginTest`에서 grace-period 테스트 2개를 "탈퇴 계정 항상 거절" 테스트 1개로 교체, `AuthControllerLoginTest`의 `restored` assertion 제거 — 영향 범위 테스트(64개, pre-existing 1건 제외 전부 통과)
 
-### WITHDRAW-3. 익명화 스케줄러·엔티티 메서드 제거
+### WITHDRAW-3. 익명화 스케줄러·엔티티 메서드 제거 — ✅ 완료(`f956120`)
 
-- [ ] `domain/user/scheduler/UserWithdrawalScheduler.java` 삭제
-- [ ] `UserService.anonymizeExpiredWithdrawnUsers()` 삭제
-- [ ] `User.anonymize()`/`isRestorable()`/`restore()` 삭제 (WITHDRAW-1·2에서 호출부를 이미 정리했으므로 컴파일 안전)
-- [ ] `application.yml`(또는 관련 설정)의 `app.scheduler.withdrawal-cleanup-cron` 등 스케줄러 설정 제거
-- [ ] 테스트: `UserTest`에서 `anonymize`/`isRestorable`/`restore` 관련 테스트 삭제
+- [x] `domain/user/scheduler/UserWithdrawalScheduler.java` 삭제
+- [x] `UserService.anonymizeExpiredWithdrawnUsers()`+`WITHDRAWAL_GRACE_PERIOD_DAYS` 상수 삭제
+- [x] `User.anonymize()`/`isRestorable()`/`restore()` 삭제
+- [x] `application.yml`에 별도 cron 설정이 없었음을 확인(어노테이션 기본값만 사용) — 제거할 설정 자체가 없었음
+- [x] 테스트: `UserTest`에서 관련 테스트 3개 제거, `UserServiceTest.java`는 테스트 대상이 이 스케줄러뿐이라 파일째 삭제 — 영향 범위 테스트(58개, pre-existing 1건 제외 전부 통과)
 
 ### WITHDRAW-3B. `UserStatus`/`status`/`isWithdrawn()` 완전 제거 (2026-08-19 결정 — WITHDRAW-3에서 분리)
 
