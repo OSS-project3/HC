@@ -346,6 +346,40 @@ class ApplicationServiceBulkTest {
     }
 
     @Test
+    void createGroupSucceedsForHighSchoolWithoutStudentIdOrDepartment() throws Exception {
+        // 고등학교는 개인 신청과 동일하게 학번·학과 개념 자체가 없다 — 엑셀에 그 열이 없어도 성공해야 한다.
+        byte[] excel = buildExcel(false, ROW_1);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+
+        BulkApplicationCreateResponse response = applicationService.createGroup(
+                user.getId(), request(studentCardType.getId(), Orientation.LANDSCAPE, SchoolType.HIGH_SCHOOL, "전주고등학교"),
+                logo, null, submitFile);
+
+        Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
+        assertThat(saved.getSchoolType()).isEqualTo(SchoolType.HIGH_SCHOOL);
+        ApplicationMember member = applicationMemberRepository.findByApplicationId(response.getApplicationId()).get(0);
+        assertThat(member.getStudentId()).isNull();
+        assertThat(member.getDepartment()).isNull();
+    }
+
+    @Test
+    void createGroupRejectsHighSchoolWithStudentIdAndDepartmentPresent() throws Exception {
+        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        byte[] excel = buildExcel(true, studentRow);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+
+        assertThatThrownBy(() -> applicationService.createGroup(
+                user.getId(), request(studentCardType.getId(), Orientation.LANDSCAPE, SchoolType.HIGH_SCHOOL, "전주고등학교"),
+                logo, null, submitFile))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
+    }
+
+    @Test
     void createGroupRejectsStudentCardMissingSchoolName() throws Exception {
         String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
         byte[] excel = buildExcel(true, studentRow);

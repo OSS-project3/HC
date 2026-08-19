@@ -1,6 +1,7 @@
 package com.example.honorcitizen.domain.application.service;
 
 import com.example.honorcitizen.common.enums.Gender;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.exception.BulkValidationException;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
@@ -86,8 +87,10 @@ class BulkExcelParser {
      * 3. parseExcel()로 엑셀을 파싱하고 사진을 사진 번호로 매칭한다.
      *
      * @param isStudent 학생증 카드 여부 — true이면 학번·학과 컬럼도 파싱·검증한다.
+     * @param schoolType 학교구분(개인 신청과 동일한 정책) — UNIVERSITY일 때만 학번·학과를 요구한다.
+     *                   HIGH_SCHOOL이면 학번·학과 열에 값이 있어도 거절한다(isStudent=false면 무시).
      */
-    List<BulkMemberRow> parse(MultipartFile zipFile, boolean isStudent) {
+    List<BulkMemberRow> parse(MultipartFile zipFile, boolean isStudent, SchoolType schoolType) {
         // 사진을 사진 번호 → PhotoEntry 맵으로 관리해 엑셀 파싱 시 O(1) 매칭이 가능하게 한다.
         Map<String, PhotoEntry> photosById = new HashMap<>();
         List<byte[]> excelCandidates = new ArrayList<>();
@@ -131,7 +134,7 @@ class BulkExcelParser {
             throw singleError(null, "submitFile", "EXCEL_DUPLICATE", "ZIP 루트에 엑셀 파일이 2개 이상입니다.");
         }
 
-        return parseExcel(excelCandidates.get(0), photosById, isStudent);
+        return parseExcel(excelCandidates.get(0), photosById, isStudent, schoolType);
     }
 
     // ZIP 엔트리 이름에 '/'가 포함되면 하위 폴더 항목이다. 루트 직속 파일만 처리한다.
@@ -162,7 +165,8 @@ class BulkExcelParser {
      * CustomException(우리 비즈니스 예외)은 그대로 전파하고,
      * 나머지 모든 예외(POI 파싱 오류 등)는 EXCEL_UNREADABLE로 변환해 사용자에게 명확한 메시지를 준다.
      */
-    private List<BulkMemberRow> parseExcel(byte[] excelBytes, Map<String, PhotoEntry> photosById, boolean isStudent) {
+    private List<BulkMemberRow> parseExcel(byte[] excelBytes, Map<String, PhotoEntry> photosById, boolean isStudent,
+            SchoolType schoolType) {
         try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(excelBytes))) {
             Sheet sheet = workbook.getSheetAt(0); // 첫 번째 시트만 읽는다
             DataFormatter formatter = new DataFormatter();
@@ -181,7 +185,7 @@ class BulkExcelParser {
                 // 사진 번호(A열)는 공식 양식에 001~100이 미리 채워져 있다.
                 // 따라서 A열 값만으로 신청자 행을 판단하지 않고, 사용자가 입력하는 B열 이후에
                 // 값이 하나라도 있는 행만 실제 신청 데이터로 검증·처리한다.
-                if (!hasApplicantInput(row, isStudent, formatter)) {
+                if (!hasApplicantInput(row, isStudent, schoolType, formatter)) {
                     continue;
                 }
 
@@ -201,7 +205,7 @@ class BulkExcelParser {
 
                 // parseRow는 오류가 있으면 errors에 누적하고 null을 반환한다.
                 BulkMemberRow parsed = parseRow(
-                        row, photoNumber, commonEntryDate, photosById, isStudent, formatter, errors);
+                        row, photoNumber, commonEntryDate, photosById, isStudent, schoolType, formatter, errors);
                 if (parsed != null) {
                     rows.add(parsed);
                 }
@@ -237,12 +241,14 @@ class BulkExcelParser {
      * 공식 양식은 4~103행 A열에 001~100을 미리 채우므로 사진 번호만 있는 행은 빈 행이다.
      * 반면 B열 이후에 값이 하나라도 있으면 부분 작성 행으로 보고 parseRow에서 필수값 오류까지 수집한다.
      */
-    private boolean hasApplicantInput(Row row, boolean isStudent, DataFormatter formatter) {
+    private boolean hasApplicantInput(Row row, boolean isStudent, SchoolType schoolType, DataFormatter formatter) {
         if (row == null) {
             return false;
         }
 
-        int lastApplicantColumn = isStudent ? 12 : 10;
+        // 학번·학과 열(11~12)은 학생증+대학교일 때만 실제로 존재한다 — 그 외(비학생증, 학생증+고등학교)는
+        // 10열까지만 확인해도 충분하다.
+        int lastApplicantColumn = isStudent && schoolType == SchoolType.UNIVERSITY ? 12 : 10;
         for (int columnIndex = 1; columnIndex <= lastApplicantColumn; columnIndex++) {
             if (stringValue(row, columnIndex, formatter) != null) {
                 return true;
@@ -271,7 +277,7 @@ class BulkExcelParser {
      * @return 파싱 성공 시 BulkMemberRow, 필수 필드 오류 시 null
      */
     private BulkMemberRow parseRow(Row row, String photoNumber, LocalDate commonEntryDate, Map<String, PhotoEntry> photosById,
-            boolean isStudent, DataFormatter formatter, List<ValidationErrorDetail> errors) {
+            boolean isStudent, SchoolType schoolType, DataFormatter formatter, List<ValidationErrorDetail> errors) {
 
         // Apache POI의 getRowNum()은 0-based이므로 사용자에게 보여줄 1-based 행 번호로 변환한다.
         int rowNumber = row.getRowNum() + 1;
@@ -299,8 +305,8 @@ class BulkExcelParser {
 
         String studentId = null;
         String department = null;
-        if (isStudent) {
-            // 학번·학과는 학생증 카드에서만 필수로 검증한다.
+        if (isStudent && schoolType == SchoolType.UNIVERSITY) {
+            // 학번·학과는 학생증+대학교에서만 필수로 검증한다(개인 신청과 동일한 정책).
             studentId = requireText(stringValue(row, 11, formatter), rowNumber, "studentId", errors);
             if (studentId != null && !isValidStudentId(studentId)) {
                 // requireText를 통과해도 형식이 맞지 않으면 추가 검증한다.
@@ -309,6 +315,11 @@ class BulkExcelParser {
             }
             department = requireText(stringValue(row, 12, formatter), rowNumber, "department", errors);
             department = checkMaxLength(department, 100, rowNumber, "department", errors);
+        } else if (isStudent && schoolType == SchoolType.HIGH_SCHOOL) {
+            // 고등학교는 학번·학과 자체가 없는 개념이라 값이 있으면 오류로 취급한다(개인 신청과 동일).
+            if (stringValue(row, 11, formatter) != null || stringValue(row, 12, formatter) != null) {
+                errors.add(new ValidationErrorDetail(rowNumber, "studentId", "INVALID_INPUT", "고등학교는 학번·학과를 입력할 수 없습니다."));
+            }
         }
 
         // 실제 신청 데이터가 입력된 행의 사진 번호로 ZIP 루트 사진을 정확히 매칭한다.
@@ -322,7 +333,9 @@ class BulkExcelParser {
         // errors에는 이미 해당 필드의 오류 메시지가 추가되어 있다.
         boolean hasRowError = englishName == null || birthDate == null || nationality == null || gender == null
                 || email == null || phone == null || photo == null
-                || (isStudent && (studentId == null || department == null));
+                || (isStudent && schoolType == SchoolType.UNIVERSITY && (studentId == null || department == null))
+                || (isStudent && schoolType == SchoolType.HIGH_SCHOOL
+                        && (stringValue(row, 11, formatter) != null || stringValue(row, 12, formatter) != null));
         if (hasRowError) {
             return null; // null을 반환해 이 행이 실패했음을 호출자에게 알린다.
         }

@@ -263,7 +263,7 @@ public class ApplicationService {
         // ZIP 파싱 — 엑셀의 모든 행을 검증하고 오류가 있으면 BulkValidationException으로 전체 실패.
         // 개별 행의 오류를 하나씩 반환하는 게 아니라 모든 오류를 한 번에 errors[] 배열로 반환하는 이유:
         //   사용자가 한 번에 전체 오류를 파악하고 ZIP을 다시 만들 수 있게 UX를 개선하기 위해서다.
-        List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, isStudent);
+        List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, isStudent, request.getSchoolType());
 
         // 하루 3회 제한(개인/단체 합산) — 단체 신청도 개인 신청과 동일하게 파일 업로드 이전에 자리를 확정한다.
         LocalDate today = ApplicationDailyLimitService.today();
@@ -544,7 +544,7 @@ public class ApplicationService {
                 }
                 CardType cardType = cardTypeRepository.findById(application.getCardTypeId())
                         .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
-                List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, cardType.isStudentCard());
+                List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, cardType.isStudentCard(), application.getSchoolType());
 
                 Long oldSubmitFileId = application.getSubmitFileId();
                 String oldSubmitFilePath = oldSubmitFileId == null ? null : uploadFileRepository.findById(oldSubmitFileId)

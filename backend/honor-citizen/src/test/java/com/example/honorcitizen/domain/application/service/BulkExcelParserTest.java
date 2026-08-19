@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.application.service;
 
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.exception.BulkValidationException;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
@@ -99,7 +100,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(ROW_1);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
-        List<BulkMemberRow> rows = parser.parse(zip, false);
+        List<BulkMemberRow> rows = parser.parse(zip, false, null);
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).photoFilename()).isEqualTo("1.jpg");
@@ -110,7 +111,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel("001|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul");
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg");
 
-        List<BulkMemberRow> rows = parser.parse(zip, false);
+        List<BulkMemberRow> rows = parser.parse(zip, false, null);
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).photoNumber()).isEqualTo("001");
@@ -122,7 +123,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcelWithNumericId(1);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
@@ -134,7 +135,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcelWithNumericId(1);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
-        List<BulkMemberRow> rows = parser.parse(zip, false);
+        List<BulkMemberRow> rows = parser.parse(zip, false, null);
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).photoNumber()).isEqualTo("1");
@@ -146,7 +147,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel("001|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul");
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg", "001.png");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
@@ -158,7 +159,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(ROW_1);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg", "999.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
@@ -170,7 +171,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(ROW_1, "1|Jane Doe|1991-02-02|US|||FEMALE||jane@example.com|010-3333-3333|Busan");
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
@@ -182,7 +183,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(ROW_1);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "photos/1.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
@@ -206,7 +207,7 @@ class BulkExcelParserTest {
         }
         MockMultipartFile zipFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", out.toByteArray());
 
-        assertThatThrownBy(() -> parser.parse(zipFile, false))
+        assertThatThrownBy(() -> parser.parse(zipFile, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
     }
@@ -216,7 +217,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(ROW_1);
         MockMultipartFile zip = zipOf(excel, "nested/members.xlsx", "1.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
     }
@@ -228,7 +229,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(missingNameRow, badGenderRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg", "2.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> {
@@ -244,7 +245,34 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(studentRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, true))
+        assertThatThrownBy(() -> parser.parse(zip, true, SchoolType.UNIVERSITY))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("field").contains("studentId"));
+    }
+
+    @Test
+    void parseAllowsHighSchoolStudentWithoutStudentIdOrDepartment() throws Exception {
+        // 고등학교는 학번·학과 열 자체가 없는 11열 템플릿이라 studentId/department 자리가 비어있다.
+        byte[] excel = buildExcel(ROW_1);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        List<BulkMemberRow> rows = parser.parse(zip, true, SchoolType.HIGH_SCHOOL);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).studentId()).isNull();
+        assertThat(rows.get(0).department()).isNull();
+    }
+
+    @Test
+    void parseRejectsHighSchoolStudentWithStudentIdOrDepartmentPresent() throws Exception {
+        // 고등학교인데 학번·학과 열(11·12)에 값이 있으면 개인 신청과 동일하게 거절한다.
+        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        byte[] excel = buildExcel(studentRow);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, true, SchoolType.HIGH_SCHOOL))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
@@ -271,7 +299,7 @@ class BulkExcelParserTest {
         }
         MockMultipartFile zipFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", out.toByteArray());
 
-        List<BulkMemberRow> rows = parser.parse(zipFile, false);
+        List<BulkMemberRow> rows = parser.parse(zipFile, false, null);
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).photoBytes()).isEqualTo("photo-1".getBytes());
@@ -282,7 +310,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(ROW_1, null, ROW_2, null);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg", "2.jpg");
 
-        List<BulkMemberRow> rows = parser.parse(zip, false);
+        List<BulkMemberRow> rows = parser.parse(zip, false, null);
 
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).englishName()).isEqualTo("John Doe");
@@ -296,7 +324,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(photoNumberOnlyRow, applicantRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "002.jpg");
 
-        List<BulkMemberRow> rows = parser.parse(zip, false);
+        List<BulkMemberRow> rows = parser.parse(zip, false, null);
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).photoFilename()).isEqualTo("002.jpg");
@@ -309,7 +337,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(photoNumberOnlyRow, applicantRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg", "002.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
                         .extracting("code").contains("PHOTO_UNMATCHED"));
@@ -320,7 +348,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel("001||||||||||", "002||||||||||");
         MockMultipartFile zip = zipOf(excel, "members.xlsx");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
                         .extracting("code").containsExactly("EMPTY_EXCEL"));
@@ -332,7 +360,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(badNationalityRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
@@ -345,7 +373,7 @@ class BulkExcelParserTest {
         byte[] excel = buildExcel(futureBirthDateRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
-        assertThatThrownBy(() -> parser.parse(zip, false))
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
                 .isInstanceOf(BulkValidationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())

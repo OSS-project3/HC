@@ -223,7 +223,8 @@ Content-Type: multipart/form-data
 - ✅ 2026-08-07 정정: Receiver 규칙은 API 1과 같다 — `MOBILE`에서는 전달 금지(`INVALID_INPUT`), `MOBILE_AND_PHYSICAL`에서는 필수이며 `sameAsApplicant=true`면 이름·연락처만 복사한다.
 - `member`(개인 신청의 `birthDate` 등)는 이 요청에 없음 — 인원별 정보는 ZIP 안 엑셀에서 옴
 - ⚠️ 2026-07-31 정정: `cardDesignId` → `cardTypeId`로 교체(API 1과 동일 이유 — 디자인은 관리자 배정)
-- ✅ 2026-08-14 확정: `orientation`(`LANDSCAPE`/`PORTRAIT`)은 API 1과 동일하게 `cardTypeId`가 학생증일 때만 필수이고 신청서 전체에 1개다(엑셀 컬럼이 아니라 이 요청의 최상위 필드). **`schoolType`(`UNIVERSITY`/`HIGH_SCHOOL`)도 동일하게 신청서 전체에 1개로 신규 추가되지만, `studentId`/`department` 필수 여부에는 영향을 주지 않는다** — 단체는 여전히 학번·학과를 엑셀에서만 받고(§엑셀 템플릿 컬럼 표 참고, 변경 없음), 이 값은 두 카드종류(학생증/비학생증) 구분에만 쓰인다.
+- ✅ 2026-08-14 확정: `orientation`(`LANDSCAPE`/`PORTRAIT`)은 API 1과 동일하게 `cardTypeId`가 학생증일 때만 필수이고 신청서 전체에 1개다(엑셀 컬럼이 아니라 이 요청의 최상위 필드). `schoolType`(`UNIVERSITY`/`HIGH_SCHOOL`)도 동일하게 신청서 전체에 1개로 신규 추가된다.
+- ⚠️ 2026-08-20 재정정: `schoolType`은 엑셀의 학번·학과 필수 여부에도 개인 신청과 동일하게 영향을 준다("영향을 주지 않는다"던 이전 서술은 오류였다). `UNIVERSITY`면 엑셀 11·12열(학번·학과)이 필수, `HIGH_SCHOOL`이면 그 열에 값이 있으면 오히려 행 오류(`INVALID_INPUT`)다. `BulkExcelParser.parse(zipFile, isStudent, schoolType)`가 이 조건을 검증한다.
 - ✅ 2026-08-19 신규: `schoolName`(학교명)도 API 1과 동일하게 최상위 필드로 추가. 단체 신청은 항상 한 학교 단위로 접수된다는 전제로 신청서 전체에 1개이며(엑셀 컬럼 아님), `cardTypeId`가 학생증이면 `schoolType` 무관하게 항상 필수, 그 외 카드종류는 생략해야 한다. 트림 후 5~20자, 한글·영문·숫자·공백만 허용.
 
 **Response `201 Created`**
@@ -272,7 +273,7 @@ Content-Type: multipart/form-data
 | — | Application.card_design_id = `NULL`(관리자가 이후 배정, ⚠️ 2026-07-31 정정) |
 | issueType | Application.issue_type |
 | orientation | Application.orientation (✅ 2026-08-14 신규, 학생증 전용) |
-| schoolType | Application.school_type (✅ 2026-08-14 신규, 학생증 전용 — studentId/department 필수 여부와는 무관) |
+| schoolType | Application.school_type (✅ 2026-08-14 신규, 학생증 전용. ⚠️ 2026-08-20 재정정: 엑셀 학번/department 필수 여부에 개인과 동일하게 영향을 준다 — `UNIVERSITY`만 필수, `HIGH_SCHOOL`이면 있으면 거절) |
 | schoolName | Application.school_name (✅ 2026-08-19 신규, 학생증 전용 — `UNIVERSITY`/`HIGH_SCHOOL` 둘 다 필수) |
 | applicant.* | Applicant.* (organizationName/department 포함) |
 | receiver.* | Receiver.* (organizationName/department 포함, receiver.name/phone → `receiver_name`/`receiver_phone` 컬럼명 매핑 주의) |
@@ -306,8 +307,8 @@ Content-Type: multipart/form-data
 | 이메일 | email(✅ 2026-07-31 신규 — 행마다 다른 신청자 본인 이메일) | 필수 |
 | 전화번호 | phone(✅ 2026-07-31 신규 — 행마다 다른 신청자 본인 연락처) | 필수 |
 | 주소 | address | 선택 |
-| 학번 | student_id(✅ 2026-08-07 정정, `cardTypeId`가 학생증일 때만 존재, 최대 10자·숫자만) | 학생증만 필수 |
-| 학과 | department(✅ 2026-07-31 신규, 학생증 전용) | 학생증만 필수 |
+| 학번 | student_id(✅ 2026-08-07 정정, 최대 10자·숫자만) | ⚠️ 2026-08-20 재정정: 학생증+`schoolType=UNIVERSITY`만 필수. `HIGH_SCHOOL`이면 값이 있으면 행 오류(개인 신청과 동일) |
+| 학과 | department(✅ 2026-07-31 신규) | ⚠️ 2026-08-20 재정정: 학생증+`schoolType=UNIVERSITY`만 필수. `HIGH_SCHOOL`이면 값이 있으면 행 오류(개인 신청과 동일) |
 | (사진 파일명, ZIP 루트) | photo_path | 필수 |
 
 ✅ 2026-08-18 정정(`APPLICATION.md` 기준): ZIP 루트에는 자유로운 파일명의 `.xlsx` Excel 1개만 허용한다(2개 이상이면 전체 실패). 공식 양식의 A열은 `사진 번호`이며 4~103행에 문자열 `001`~`100`이 미리 입력되고 잠금 처리된다. 사용자는 이 열을 입력·수정하지 않는다. 사진 번호만 있는 행은 빈 행으로 무시하고 B열 이후 신청자 정보가 하나라도 입력된 행만 검증·처리한다. ZIP 루트 사진은 실제 처리 행의 사진 번호와 정확히 매칭하며, 빈 행 번호의 사진은 `PHOTO_UNMATCHED` 여분 사진으로 전체 실패한다. 사진 확장자는 대소문자를 구분하지 않는다(예: `001` ↔ `001.jpg`/`001.JPG`). 구성원별 UploadFile ID는 생성하지 않고 매칭된 이미지의 저장 경로만 `ApplicationMember.photo_path`에 저장한다. ZIP 원본의 `Application.submit_file_id`는 신청 단위 제출 파일을 가리키며 구성원 사진 ID가 아니다.
