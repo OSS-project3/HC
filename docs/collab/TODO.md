@@ -128,13 +128,12 @@
   - 완료됨: 메일 설정 없이도(로컬 기본값) 애플리케이션 기동 확인, 발송 성공 시 `JavaMailSender.send()` 호출+제목/수신자 헤더 확인, 발송 실패 시 `EMAIL_DELIVERY_FAILED`로 변환 확인. 신규 테스트 2개 전부 통과. 전체 스위트 394개(392+2) 중 기존과 동일하게 `UserControllerTest` 2건+Redis 미기동 1건만 실패(회귀 없음).
   - 우선순위: P0(SIGNUP-1의 선행) — 완료
 
-- [ ] **SIGNUP-1** 이메일 인증 코드 요청 API (`POST /api/auth/signup/email-verification`)
-  - 변경 내용: 이메일 정규화 → 이미 가입된 이메일이면 `EMAIL_ALREADY_EXISTS`(AUTH-3과 동일 사전 방어) → 6자리 랜덤 코드 생성 → Redis `auth:signup:code:{normalizedEmail}`에 TTL 10분으로 저장 → `EmailSender`로 발송. 코드 자체는 응답에 포함하지 않음.
-  - 대상 파일: `api/AuthController.java`, 신규 `domain/user/service/EmailVerificationService.java`(또는 `UserService` 확장)
-  - 선행 작업: AUTH-1, MAIL-1
-  - 완료 조건: 정상 요청 시 Redis에 코드 저장+발송 호출 확인, 이미 가입된 이메일은 거절
-  - 검증할 테스트: 신규 테스트(정상 요청, 중복 이메일 거절) — `EmailSender`는 Mock
-  - 우선순위: P0
+- [x] **SIGNUP-1** 이메일 인증 코드 요청 API (`POST /api/auth/signup/email-verification/request`) — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: 정책 스펙 그대로 9단계 순서로 구현 — ① 이메일 정규화(trim+소문자, `User.normalizeEmail`) ② 형식·길이 검증(`SignupEmailVerificationRequest`의 `@Email @Size(max=255)`, 컨트롤러 `@Valid`에서 처리) ③ 기존 가입 이메일 조회(`EMAIL_ALREADY_EXISTS`) ④ 재전송 쿠폴다운(60초)·이메일별(1시간 5회)·IP별(1시간 20회) 제한 확인(발송 실패해도 요청 횟수엔 포함, 쿠폴다운만 성공 시에만 시작) ⑤ `SecureRandom` 6자리 코드 생성 ⑥ 서버 Secret(`app.auth.email-code-secret`, JWT_SECRET과 분리) HMAC-SHA256 변환 후 Redis 저장(같은 키에 SET이라 이전 코드는 자연히 무효화) ⑦ TTL 10분 ⑧ `EmailSender`로 동기 발송(HTML+plain text, 코드/만료시간/비요청시 무시 안내만 포함, 첨부 없음) ⑨ SMTP 접수 성공 후 `expiresInSeconds=600`/`resendAfterSeconds=60` 응답. 메일 발송 실패 시 challengeId가 일치할 때만 compare-and-delete Lua 스크립트로 Redis 코드를 지우고(이전 요청 실패가 이후 재전송 코드를 지우지 않도록) `EMAIL_DELIVERY_FAILED`(503) 그대로 전파.
+  - 대상 파일: `api/AuthController.java`(`POST /signup/email-verification/request`), `infra/security/SecurityConfig.java`(`/api/auth/signup/**` `permitAll()`), 신규 `domain/user/service/EmailVerificationService.java`, `domain/user/service/SignupCodeChallenge.java`(Redis 저장용 package-private record), `domain/user/dto/SignupEmailVerificationRequest.java`/`SignupEmailVerificationResponse.java`, `resources/redis/compare-and-delete-challenge.lua`, `common/exception/ErrorCode.java`(`TOO_MANY_REQUESTS(429)` 신규 — 재전송 쿠폴다운/이메일 레이트리밋/IP 레이트리밋 3가지 거절 케이스에 공통 재사용, 새 코드 3개 대신 1개만 추가), `application.properties`(`app.auth.email-code-secret`), `build.gradle`(테스트 env var)
+  - 선행 작업: AUTH-1, MAIL-1 — 완료
+  - 완료됨: 신규 `EmailVerificationServiceTest` 6개(정상 발송+Redis 저장 확인/중복 이메일 거절/쿠폴다운 거절/이메일 레이트리밋 거절/IP 레이트리밋 거절/발송 실패 시 compare-and-delete 확인) 전부 **실제 로컬 Redis**(Docker `honor-citizen-redis-test`, 호스트 포트 6400, `REDIS_PORT=6400`로 테스트 실행 시 지정)로 통과 — `StringRedisTemplate`을 Mock하지 않고 TTL·카운터·쿠폴다운이 실제 Redis 명령으로 정확히 동작하는지 검증. 전체 스위트 400개(394+6) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패했으나, 이는 SIGNUP-1과 무관한 기존 결함으로 확인(원인·근거는 아래 "발견된 기존 결함" 절 참고) — SIGNUP-1이 만든 회귀 없음.
+  - 우선순위: P0 — 완료
 
 - [ ] **SIGNUP-2** 이메일 인증 코드 확인 API (`POST /api/auth/signup/email-verification/confirm`)
   - 변경 내용: 이메일+코드 검증 → 일치하면 Redis 코드 삭제 후 단기 가입 토큰(UUID) 발급, `auth:signup:token:{token}` → normalizedEmail로 TTL 30분 저장 → 응답에 토큰 반환. 불일치·만료·이미 사용된 코드는 동일한 오류로 응답(코드 존재 여부 노출 안 함).
@@ -195,6 +194,10 @@ RATE-1 ────────────────────────�
 
 LOOKUP-1 — 완료(Codex, 8d178cc)
 ```
+
+### 발견된 기존 결함 (기록용 — 이번 체크리스트 범위 아님, 고치지 않음)
+
+- **`UserApplicationFlowTest.fullUserApplicationFlow()` 403 실패**(발견: Claude, 2026-08-19, SIGNUP-1 회귀 테스트 중): `POST /api/applications`가 201 대신 403을 반환. 원인은 보안/JWT 문제가 아니라 정상 동작하는 비즈니스 규칙 — `ApplicationController#createIndividual` → `ApplicationService.createIndividual()` → `findUser(userId)`([ApplicationService.java:215](../../backend/honor-citizen/src/main/java/com/example/honorcitizen/domain/application/service/ApplicationService.java)) → `UserService.findEligibleApplicationUser(userId)`([UserService.java:150-152](../../backend/honor-citizen/src/main/java/com/example/honorcitizen/domain/user/service/UserService.java))가 `!user.isAllTermsAgreed()`면 `CustomException(TERMS_NOT_AGREED)`를 던지고 `GlobalExceptionHandler`가 이를 403으로 매핑한다(응답 바디로 실측 확인: `{"errorCode":"TERMS_NOT_AGREED",...}`). 이 테스트는 "Google 로그인"을 `User.createOAuthUser(...)`를 리포지토리에 직접 save하는 방식으로 재현하는데(클래스 상단 주석에 명시된 의도적 대체), 실제 OAuth 콜백이나 `POST /api/auth/terms` 약관동의 단계를 전혀 거치지 않아 `termsAgreed=false`인 채로 신청 생성을 시도해 정상 가드에 걸린다. 즉 **프로덕션 코드 버그가 아니라 테스트 픽스처가 약관동의 필수화 이후 갱신되지 않은 것**으로 판단됨(클린 `main` HEAD 기준으로도 동일하게 재현 확인 — SIGNUP-1이 만든 회귀 아님). 고치려면 이 테스트의 로그인 재현 단계 뒤에 약관동의 단계(`POST /api/auth/terms` 호출 또는 `user.agreeToTerms(...)` 직접 호출)를 추가하면 될 것으로 보이나, User/Application 도메인 테스트 파일 수정은 이번 SIGNUP-1 작업 범위 밖이라 고치지 않고 기록만 남긴다.
 
 ### 정책 결정이 필요한 항목
 

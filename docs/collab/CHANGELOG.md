@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (SIGNUP-1: 이메일 인증 코드 요청 API)
+
+- 변경: `POST /api/auth/signup/email-verification/request` 구현. 정책 확정 9단계(정규화 → 형식검증 → 중복이메일 조회 → 재전송/발송 횟수 제한 → 코드생성 → HMAC 저장 → TTL 10분 → SMTP 동기발송 → 응답)를 그대로 따랐다. 재전송 쿠폴다운 60초, 이메일별 1시간 5회, IP별 1시간 20회 제한을 Redis로 처리하고, 메일 발송 실패 시 challengeId가 일치할 때만 compare-and-delete Lua 스크립트로 안전하게 정리한다.
+- 파일: `api/AuthController.java`, `infra/security/SecurityConfig.java`, `domain/user/service/EmailVerificationService.java`(신규)/`SignupCodeChallenge.java`(신규), `domain/user/dto/SignupEmailVerificationRequest.java`/`SignupEmailVerificationResponse.java`(신규), `resources/redis/compare-and-delete-challenge.lua`(신규), `common/exception/ErrorCode.java`(`TOO_MANY_REQUESTS` 추가), `application.properties`, `build.gradle`, `EmailVerificationServiceTest.java`(신규)
+- 테스트: 신규 6개 전부 실제 로컬 Redis(Docker `honor-citizen-redis-test`, 포트 6400)로 통과. 전체 스위트 400개 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패했으나 SIGNUP-1과 무관한 기존 결함으로 확인(약관동의 안 거친 테스트 픽스처 문제, 클린 HEAD에서도 재현) — 상세는 `TODO.md` "발견된 기존 결함" 절 참고.
+- 사유: 사용자가 지시한 이메일 회원가입 인증 작업(MAIL-1→SIGNUP-1→SIGNUP-2→AUTH-4) 4단계 중 2번째 단위.
+- 관련: TODO `SIGNUP-1`
+
+---
+
 ## 2026-08-18 — Claude — `main` (마이페이지 신청 목록/상세 조회 API 6·7 구현)
 
 - 변경: `docs/specs/application/api.md`에 설계만 있던 API 6(`GET /api/my/applications`, 목록)·API 7(`GET /api/my/applications/{id}`, 상세)을 구현했다. 목록은 로그인 사용자 본인 신청만 `createdAt DESC` 고정 정렬로 페이지네이션하며, `status`(`ApplicationStatus`) 선택 필터를 지원한다. 상세는 `application.isOwnedBy(userId)`로 소유권을 검증하고(타인이면 `FORBIDDEN`), `receiver`는 `issueType=MOBILE_AND_PHYSICAL`일 때만 채우고 그 외엔 `null`을 반환한다. 단체 신청은 구성원 개별 목록 대신 `memberCount`만 노출한다.
