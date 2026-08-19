@@ -521,3 +521,50 @@ User 탈퇴와 별도로 유지
 따라서 이 프로젝트에서 **회원탈퇴 정책과 개인정보 보존 정책은 하나의 삭제 시점으로 묶지 않는다.**
 
 `User`는 계정 데이터이고, `Application`·결제·`Inquiry` 등은 각자의 업무 목적에 따라 별도의 생명주기를 가진다.
+
+---
+
+# 19. 구현 체크리스트 (2026-08-19 작성, 착수 전)
+
+정책은 위 1~18절로 전부 확정됐다(§17.2/§17.3 방침 문안 자체의 확인 필요 사항은 법무 확인 대상이라 구현과 무관, 진행을 막지 않음). 착수 전 checklist. 각 단위는 독립적으로 빌드·테스트 가능해야 하고, 단위별로 별도 커밋한다. Inquiry 도메인에서 쓴 절차와 동일하게 진행한다: **정책 재확인(이미 확정, 코드화만 남음) → 실패하는 테스트 먼저 작성 → 최소 구현 → 해당 단위 테스트 통과 확인 → (마지막 단위에서) 전체 스위트 회귀 테스트**(RULES.md §8 신규 정책). 단위 완료마다 "구현한 파일 / 정책과 다른 부분(있다면) / 테스트 결과 / 다음 단위 진행 가능 여부"를 보고한다.
+
+컴파일 의존성 때문에 순서가 중요하다 — `User.isRestorable()`/`restore()`를 호출하는 곳(`OAuth2SuccessHandler`, `UserService.login()`)을 먼저 정리한 뒤에 `User` 엔티티에서 그 메서드를 지운다.
+
+### WITHDRAW-1. OAuth 재로그인 자동복구 제거
+
+- [ ] `infra/security/OAuth2SuccessHandler.java` — 기존 회원 재로그인 시 `isRestorable()`/`restore()` 확인·복구 분기 제거. 이제 `WITHDRAWN` 상태(또는 row 자체가 없음)인 계정의 재로그인은 신규 계정 생성 흐름과 충돌하지 않는지만 확인(OAuth는 `oauthId`+`oauthProvider` UNIQUE라 탈퇴한 계정이 하드 삭제되면 같은 `oauthId`로 재로그인 시 자연히 신규 계정 생성 흐름을 탄다 — 별도 분기 불필요할 가능성이 높음, 착수 시 재확인)
+- [ ] 테스트: 관련 OAuth 로그인 통합 테스트(있다면) 확인·갱신
+
+### WITHDRAW-2. 일반 로그인 자동복구 제거
+
+- [ ] `UserService.login()` — `withinGracePeriod`/`isRestorable()` 판정 후 `user.restore()` 호출하는 분기 제거. `WITHDRAWN` 상태 계정의 로그인 시도는 계정없음과 동일하게(`INVALID_CREDENTIALS`) 처리
+- [ ] `arch.md` §4.1 규칙에 이미 반영된 "탈퇴유예기간경과 케이스 소멸" 문구와 실제 코드 일치시키기
+- [ ] 테스트: `UserServiceLoginTest`에서 자동복구 관련 케이스 제거·`WITHDRAWN` 계정 로그인 거절 케이스로 대체
+
+### WITHDRAW-3. 익명화 스케줄러·엔티티 메서드 제거
+
+- [ ] `domain/user/scheduler/UserWithdrawalScheduler.java` 삭제
+- [ ] `UserService.anonymizeExpiredWithdrawnUsers()` 삭제
+- [ ] `User.anonymize()`/`isRestorable()`/`restore()` 삭제 (WITHDRAW-1·2에서 호출부를 이미 정리했으므로 컴파일 안전)
+- [ ] **결정 필요(착수 시 재확인)**: `withdrawalRequestedAt`/`anonymizedAt` 컬럼과 `UserStatus.WITHDRAWN` 값 자체를 유지할지 제거할지 — 탈퇴가 즉시 하드 삭제라 이 컬럼들이 실제로 값을 가진 채 조회될 일이 없어진다(트랜잭션 내에서 세팅 즉시 row가 지워짐). 다만 관리자가 향후 "정지" 등 별도 목적으로 `WITHDRAWN`이 아닌 새 상태를 쓸 가능성이 있다면 `UserStatus` enum 구조 자체는 남겨두고 값만 정리하는 방향도 고려
+- [ ] `application.yml`(또는 관련 설정)의 `app.scheduler.withdrawal-cleanup-cron` 등 스케줄러 설정 제거
+- [ ] 테스트: `UserTest`에서 `anonymize`/`isRestorable`/`restore` 관련 테스트 삭제
+
+### WITHDRAW-4. `UserService.withdraw()` 하드 삭제로 교체 (핵심 단위)
+
+- [ ] `domain/user/repository/RefreshTokenSessionRepository.java`에 `void deleteByUserId(Long userId)` 추가(또는 `List<RefreshTokenSession> findByUserId` 후 `deleteAll`)
+- [ ] `domain/application/repository/ApplicationDailyLimitRepository.java`에 `void deleteByUserId(Long userId)` 추가
+- [ ] `UserService.withdraw(userId, accessToken)` 재작성 — 순서: ① 세션 무효화(`tokenSessionStore.invalidateUserSessions`, 기존 로직 유지) ② 액세스 토큰 블랙리스트(기존 로직 유지) ③ `RefreshTokenSession` 하드 삭제 ④ `ApplicationDailyLimit` 하드 삭제 ⑤ `User` row 하드 삭제(`userRepository.delete(user)`). `ALREADY_WITHDRAWN` 체크는 제거(재호출 시 row가 이미 없으므로 `findById`가 자연히 `USER_NOT_FOUND`로 실패)
+- [ ] `ErrorCode.ALREADY_WITHDRAWN`이 다른 곳에서도 쓰이는지 확인 후, 안 쓰이면 제거 여부 판단(착수 시 grep 재확인)
+- [ ] 테스트: `UserServiceTest`의 `withdraw*` 케이스 재작성(하드 삭제 확인, `RefreshTokenSession`/`ApplicationDailyLimit` 삭제 확인, 재호출 시 `USER_NOT_FOUND`), `UserControllerTest`의 탈퇴 관련 케이스 재작성(`withdrawMarksUserWithdrawnAndBlacklistsAccessToken` 등 기존 소프트삭제 전제 테스트명·assertion 갱신)
+
+### WITHDRAW-5. 전체 정리 및 회귀
+
+- [ ] `ReviewEligibilityServiceTest`/`ApplicationServiceTest`/`ApplicationServiceBulkTest` 등 WITHDRAWN 상태를 전제로 한 기존 테스트가 있는지 재확인(1차 grep 결과 기준, 실제 영향 여부는 착수 시 재검증) — 영향 있으면 갱신
+- [ ] `docs/api/user.md`의 API 4 문서를 실제 구현에 맞춰 최종 정리(지금은 "폐지" 표시만 있는 초안 상태)
+- [ ] RULES.md §8 정책대로 이 시점(기능 묶음 완료)에 전체 스위트 회귀 테스트 실행
+
+### 이번 체크리스트 범위 밖
+
+- §17.2(비밀번호 제3자 제공 문구)·§17.3(제3자 제공/처리위탁 조항 혼재) — 법무·개인정보 담당자 확인 대상, 코드 변경 아님
+- §15 개인정보 파기 배치(Inquiry 6개월, Application/결제 보유기간 경과분) — 회원탈퇴 처리와 완전히 별개의 인프라로 후속 구현
