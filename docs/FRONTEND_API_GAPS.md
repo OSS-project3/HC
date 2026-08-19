@@ -69,11 +69,13 @@
 ### 1.3 1:1 문의(Inquiry) — 도메인 전체 없음 (BLOCKED)
 - **프론트 사용처**: `pages/InquiryPage`(작성), `pages/InquiryDetailPage`(상세), `pages/MyPage`(내 문의), `pages/AdminPage`(관리자 목록+답변). 저장소 `data/inquiries.ts`(`localStorage["customer-inquiries"]`).
 - **데이터 계약**(`InquiryRecord`): `id, category, name, email, phone, title, content, createdAt, status("PENDING"|"COMPLETED"), answer?, answeredAt?`
+- **✅ 비회원 허용 여부 — 코드 확인으로 해소(2026-08-19)**: `InquiryPage.tsx`가 `if (!user) { ...로그인 유도... }`로 비로그인 사용자에게 폼 자체를 보여주지 않는다 — **로그인 필수로 이미 확정된 상태**(별도 정책 결정 불필요, `POST /api/inquiries`는 회원 전용 API로 설계).
+- **⚠️ 소유권 판별 방식은 프론트를 그대로 따르지 않는다**: 프론트(`InquiryDetailPage.tsx`/`MyPage.tsx`)는 `user.email === inquiry.email` 문자열 비교로 "내 문의"를 가리지만, 로그인이 필수인 이상 백엔드는 이 방식을 재현할 필요가 없다. `RULES.md` §3의 신규 원칙(로그인 사용자 본인 데이터 API는 `userId`를 요청 바디로 받지 않고 JWT에서 추출)에 따라 `Inquiry.userId`를 `@AuthenticationPrincipal`로 채우고 그 값으로 소유권을 검증한다 — 프론트가 `userId`를 보낼 필요도, 이메일로 매칭할 필요도 없다.
 - **필요 API**
   | 메서드/경로 | 용도 | 인증 |
   |---|---|---|
-  | `POST /api/inquiries` | 문의 등록 | 선택(비회원 허용 여부 확정) |
-  | `GET /api/my/inquiries`, `/{id}` | 내 문의 목록·상세 | 회원/소유자 |
+  | `POST /api/inquiries` | 문의 등록(`userId`는 JWT에서 추출, 요청 바디에 없음) | USER |
+  | `GET /api/my/inquiries`, `/{id}` | 내 문의 목록·상세(호출자 `userId` 기준, 소유자만) | USER |
   | `GET /api/admin/inquiries`, `/{id}` | 관리자 목록/상세 | 관리자 |
   | `POST /api/admin/inquiries/{id}/answer` | 답변 등록 → `COMPLETED` | 관리자 |
 

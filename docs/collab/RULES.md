@@ -72,6 +72,7 @@
 - 작업에 필요한 문서만 참고하며, 관련 없는 문서는 임의로 고치지 않는다.
 - 한 번에 전체 도메인을 작업하지 않는다. 기능 단위(예: 신청 생성 API / 신청 조회 API)로 잘게 나눈다.
 - **`frontend/` 디렉터리는 수정하지 않는다(2026-08-19 확정)** — 백엔드 작업자는 백엔드(`backend/`)와 문서(`docs/`)만 다룬다. 프론트 쪽에 필요한 변경사항(계약 불일치, 새로 만들어야 하는 화면, UX 결정 등)은 코드로 직접 고치지 말고 `docs/FRONTEND_API_GAPS.md`/`docs/FRONTEND_API_INTEGRATION_SPEC.md`에 기록해 전달한다. 예외적으로 프론트 수정이 꼭 필요하다고 판단되면, 고치기 전에 반드시 사람에게 먼저 확인한다.
+- **로그인 사용자 본인 데이터 API는 `userId`를 요청 바디·쿼리 파라미터로 받지 않는다(2026-08-19 확정)** — 사용자가 요청을 조작해 다른 사람의 `userId`를 넣는 것(IDOR)을 막기 위해, 인증된 사용자 ID는 항상 JWT에서 추출해서 쓴다(`@AuthenticationPrincipal Long userId` — `JwtAuthFilter`가 이미 이 패턴으로 SecurityContext를 채움, `UserService`의 `agreeTerms`/`updateMe`/`withdraw`/`changePassword` 등 기존 코드 전부 이 방식). 신규 도메인(예: 향후 Inquiry 구현 시 `Inquiry.userId`)도 프론트가 `userId`를 보내게 하지 말고 이 패턴을 그대로 따른다. **예외**: 관리자가 특정 대상 사용자를 지정해야 하는 관리자 전용 API(예: `/api/admin/users/{userId}/...`)는 대상 ID를 경로 파라미터로 받는 게 정상이다 — 그 경우도 호출자(관리자) 자신의 ID는 여전히 JWT에서 추출한다.
 
 ---
 
