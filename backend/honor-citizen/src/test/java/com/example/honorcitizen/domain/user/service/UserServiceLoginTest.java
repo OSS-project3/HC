@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,7 +78,6 @@ class UserServiceLoginTest {
         LoginResult result = userService.login(EMAIL, PASSWORD);
 
         assertThat(result.user().getEmail()).isEqualTo(EMAIL);
-        assertThat(result.restored()).isFalse();
         assertThat(result.tokens().accessToken()).isNotBlank();
         assertThat(result.tokens().refreshToken()).isNotBlank();
     }
@@ -137,21 +135,9 @@ class UserServiceLoginTest {
     }
 
     @Test
-    void loginAutoRestoresAccountWithinGracePeriod() {
-        User user = withdrawnUserBackdatedBy(1);
-
-        LoginResult result = userService.login(EMAIL, PASSWORD);
-
-        assertThat(result.restored()).isTrue();
-        entityManager.flush();
-        entityManager.clear();
-        User reloaded = userRepository.findById(user.getId()).orElseThrow();
-        assertThat(reloaded.getStatus()).isEqualTo(UserStatus.ACTIVE);
-    }
-
-    @Test
-    void loginRejectsAccountPastGracePeriodEvenWithCorrectPassword() {
-        User user = withdrawnUserBackdatedBy(8);
+    void loginRejectsWithdrawnAccountEvenWithCorrectPassword() {
+        // 2026-08-19 정책 변경: 탈퇴 유예기간·자동복구 폐지 — 탈퇴한 계정은 예외 없이 거절한다.
+        User user = withdrawnUser();
 
         assertThatThrownBy(() -> userService.login(EMAIL, PASSWORD))
                 .isInstanceOf(CustomException.class)
@@ -162,17 +148,9 @@ class UserServiceLoginTest {
         assertThat(reloaded.getStatus()).isEqualTo(UserStatus.WITHDRAWN);
     }
 
-    private User withdrawnUserBackdatedBy(int daysAgo) {
+    private User withdrawnUser() {
         User user = saveLocalUser();
         user.withdraw();
-        user = userRepository.saveAndFlush(user);
-
-        entityManager.createQuery("UPDATE User u SET u.withdrawalRequestedAt = :ts WHERE u.id = :id")
-                .setParameter("ts", LocalDateTime.now().minusDays(daysAgo))
-                .setParameter("id", user.getId())
-                .executeUpdate();
-        entityManager.clear();
-
-        return userRepository.findById(user.getId()).orElseThrow();
+        return userRepository.saveAndFlush(user);
     }
 }

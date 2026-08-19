@@ -93,7 +93,7 @@ public class AuthController {
         authCookieManager.addAccessTokenCookie(response, result.tokens().accessToken());
         authCookieManager.addRefreshTokenCookie(response, result.tokens().refreshToken());
 
-        return ResponseEntity.ok(ApiResponse.success(LoginResponse.of(result.user(), result.restored())));
+        return ResponseEntity.ok(ApiResponse.success(LoginResponse.of(result.user())));
     }
 
     @PostMapping("/email/check")

@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// AUTH-5(POST /api/auth/login) — 세부 분기(계정없음/OAuth전용/탈퇴복구 등)는 UserServiceLoginTest가
+// AUTH-5(POST /api/auth/login) — 세부 분기(계정없음/OAuth전용/탈퇴계정거절 등)는 UserServiceLoginTest가
 // 이미 검증했으므로, 여기서는 permitAll 라우트·쿠키 발급·에러 envelope 등 HTTP 계층만 확인한다(RULES.md §8).
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -80,7 +80,6 @@ class AuthControllerLoginTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.email").value(EMAIL))
-                .andExpect(jsonPath("$.data.restored").value(false))
                 .andExpect(cookie().exists("accessToken"))
                 .andExpect(cookie().httpOnly("accessToken", true))
                 .andExpect(cookie().exists("refreshToken"));
