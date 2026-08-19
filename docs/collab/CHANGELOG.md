@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (RATE-1: 로그인 실패 횟수 제한)
+
+- 변경: `LoginAttemptLimiter` 신규 구현 — 정규화 이메일을 SHA-256 해시해 Redis 키로 쓰고, 15분 내 5회 실패 시 15분 잠금(`checkNotLocked`/`recordFailure`/`reset` 3개 메서드). AUTH-5(로그인 API)가 아직 없어 이 클래스 자체는 독립적으로 구현·테스트했다.
+- 파일: `infra/security/LoginAttemptLimiter.java`(신규), `common/exception/ErrorCode.java`(`ACCOUNT_LOCKED` 추가), `LoginAttemptLimiterTest.java`(신규)
+- 테스트: 신규 5개 전부 실제 로컬 Redis(포트 6400)로 통과. 전체 스위트 416개 중 `UserApplicationFlowTest` 1건만 실패(기존 결함, 회귀 아님).
+- 사유: AUTH-3/RATE-1/AUTH-5/AUTH-6 중 AUTH-5(로그인)의 선행 작업이라 critical path상 먼저 진행.
+- 관련: TODO `RATE-1`
+
+---
+
 ## 2026-08-19 — Claude — `main` (FRONTEND_API_GAPS.md §1.1 갱신 + 프론트 UX 결정 반영)
 
 - 변경: `docs/FRONTEND_API_GAPS.md` §1.1을 (a) 회원가입(이메일 인증 포함 — 백엔드 완료, 프론트 미연동)과 (b) 로그인·계정복구(여전히 미구현)로 분리. (a)에는 "인증코드를 SignupPage에 인라인으로 넣는다"는 UX 결정을, (b)에는 "비밀번호 재설정 화면에서 코드 확인+새 비밀번호 입력을 한 화면으로 통합한다"는 UX 결정과 그에 따른 백엔드 API 설계 영향(코드검증+비밀번호저장을 단일 요청으로)을 명시했다. §0 표·§6 진행순서도 함께 갱신.

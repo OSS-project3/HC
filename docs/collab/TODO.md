@@ -151,13 +151,13 @@
   - 완료됨: 신규 `AuthControllerSignupTest` 5개(정상가입+쿠키발급+평문미저장+phone저장+토큰1회성 확인, 잘못된 phone 형식 거절, 미발급/만료 토큰 거절, 토큰-이메일 불일치 거절, 가입 시점 중복이메일 거절+토큰 보존 확인) 전부 통과, permitAll 라우트임을 Authorization 헤더 없이 호출해 검증. 전체 스위트 411개(406+5) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — 기존 결함과 동일건(회귀 아님).
   - 우선순위: P0 — 완료
 
-- [ ] **RATE-1** 로그인 실패 횟수 제한(Redis)
-  - 변경 내용: 정규화 이메일 기준(원문 이메일 대신 SHA-256 해시로 키 구성) 15분 내 5회 실패 시 15분 잠금. `auth:login:fail:{sha256}`(카운터, INCR+TTL 원자 처리)과 `auth:login:lock:{sha256}`(5회째 실패 시 별도 생성, TTL 15분) 두 키 사용. 로그인 성공 시 두 키 모두 삭제. 존재하지 않는 이메일로 시도해도 동일하게 카운트 증가(이메일 존재 여부가 잠금 발생 여부로 새어나가지 않도록). 비밀번호 재설정(향후 계정복구 구현 시)은 잠금 중에도 허용.
-  - 대상 파일: 신규 `infra/security/LoginAttemptLimiter.java`
-  - 선행 작업: 없음(독립 구현 가능, AUTH-5에서 사용)
-  - 완료 조건: 5회 미만 실패는 통과, 5회째부터 잠금, 잠금 중엔 올바른 비밀번호로도 거절, 성공 시 카운터·잠금 모두 리셋, 원문 이메일이 Redis 키/로그에 남지 않음
-  - 검증할 테스트: 신규 테스트(5회 미만 통과, 5회째 잠금, 잠금 중 거절, 성공 시 리셋)
-  - 우선순위: P0(AUTH-5의 선행)
+- [x] **RATE-1** 로그인 실패 횟수 제한(Redis) — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: 정규화 이메일을 SHA-256 해시해 Redis 키로 구성(원문 이메일은 키·로그 어디에도 안 남음). `checkNotLocked(normalizedEmail)`(잠김이면 `ACCOUNT_LOCKED` 예외, 429, 신규 ErrorCode), `recordFailure(normalizedEmail)`(`auth:login:fail:{sha256}` INCR, 최초 실패 시에만 TTL 15분 설정, 5회 도달 시 `auth:login:lock:{sha256}`를 TTL 15분으로 생성), `reset(normalizedEmail)`(두 키 모두 삭제) 3개 public 메서드로 구성. AUTH-5가 로그인 흐름에서 순서대로 호출하는 용도(비밀번호 검증 전 `checkNotLocked` → 실패마다 `recordFailure` → 성공 시 `reset`)로 설계했고, 이 클래스 자체는 계정 존재 여부나 비밀번호를 전혀 알지 못해 "존재하지 않는 이메일도 동일하게 카운트"가 자연히 보장된다(호출자가 계정 존재 여부와 무관하게 항상 호출하기만 하면 됨).
+  - 대상 파일: 신규 `infra/security/LoginAttemptLimiter.java`, `common/exception/ErrorCode.java`(`ACCOUNT_LOCKED(429)` 신규), `LoginAttemptLimiterTest.java`(신규)
+  - 선행 작업: 없음(독립 구현) — 완료
+  - ⚠️ **정책 문서에 없던 설계 결정**: "잠금 중엔 올바른 비밀번호로도 거절"이 AUTH-5(로그인 API 자체)에서 `INVALID_CREDENTIALS`로 뭉뚱그릴지, 이 클래스가 낸 `ACCOUNT_LOCKED`를 그대로 노출할지는 정책에 명시가 없었다. 잠금 사유를 알려줘도 계정 존재 여부가 새지는 않는다고 판단해(카운터가 계정 존재와 무관하게 항상 증가) **`ACCOUNT_LOCKED`를 그대로 노출하는 방향으로 설계**했다 — AUTH-5 구현 시 이 판단이 맞는지 재확인 필요.
+  - 완료됨: 신규 `LoginAttemptLimiterTest` 5개(미실패 시 통과/4회 미만 통과/5회째 잠금/리셋 후 카운터·잠금 모두 초기화 확인/Redis 키에 원문 이메일 미포함 확인) 전부 실제 로컬 Redis(포트 6400)로 통과. 전체 스위트 416개(411+5) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — 기존 결함과 동일건(회귀 아님).
+  - 우선순위: P0(AUTH-5의 선행) — 완료
 
 - [ ] **AUTH-5** 이메일 로그인 API (`POST /api/auth/login`) + 소프트탈퇴 자동복구
   - 변경 내용: 이메일 정규화 → `LoginAttemptLimiter`로 잠금 여부 우선 확인(잠겨있으면 비밀번호 검증 없이 즉시 거절) → `findByEmail` → 계정 없음/`passwordHash == null`(OAuth 전용 계정)/비밀번호 불일치를 **전부 동일한 `INVALID_CREDENTIALS`로 응답**(이메일 존재 여부를 로그인 응답으로 노출하지 않음 — 회원가입 중복확인과는 다른 정책) 및 실패 카운터 증가. 소프트탈퇴 7일 유예기간 내 계정이면 자동 복구하고 응답에 `restored:true` 포함, 유예기간 경과 계정은 동일하게 거절. 성공 시 실패 카운터·잠금 리셋.
