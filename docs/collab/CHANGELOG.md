@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (회원탈퇴 WITHDRAW-3B 구현 — UserStatus 완전 제거)
+
+- 변경: `docs/collab/user.md` §19 체크리스트의 WITHDRAW-3B 단위 구현(WITHDRAW-3에서 분리된 단위). `common/enums/UserStatus.java` 삭제, `User`의 `status`/`withdrawalRequestedAt`/`anonymizedAt` 필드와 `isWithdrawn()` 삭제(`withdraw()`는 WITHDRAW-4에서 실제 하드 삭제가 채워질 빈 자리로 유지), `UserRepository`의 익명화 스케줄러 전용 쿼리 메서드 삭제. 이 필드 제거가 걸쳐있던 3개 도메인 호출부도 함께 정리: `UserService.findEligibleApplicationUser()`·`UserService.login()`·`UserService.withdraw()`의 상태 체크 제거, `ApplicationService.validateAdmin()`의 `ACTIVE` 체크 제거(role 체크는 유지), `ReviewEligibilityService.validateForCreate()`의 `isWithdrawn()` 체크 제거(원래 목적이었던 "탈퇴 시 현재 토큰만 블랙리스트되는 허점 방어"는 하드 삭제로 `existsById` 자체가 실패하게 되어 근본적으로 해소됨).
+- 파일: `common/enums/UserStatus.java`(삭제), `domain/user/{entity/User,repository/UserRepository,service/UserService}.java`, `domain/application/service/ApplicationService.java`, `domain/review/service/ReviewEligibilityService.java`, 테스트 6개(`UserTest`/`UserServiceLoginTest`/`UserControllerTest`/`ReviewEligibilityServiceTest`/`ApplicationServiceTest`/`ApplicationServiceBulkTest` — "탈퇴한 사용자" 시나리오를 재현하던 테스트들을 제거, 이제 이 계층에서는 재현 불가능해졌기 때문)
+- 테스트 결과: RULES.md §8대로 영향 범위(User/Application/Review 도메인 전체+`UserApplicationFlowTest`) 180개 실행 — pre-existing 실패 1건(무관)만, 나머지 전부 통과.
+- 사유: 체크리스트(§19) 순서대로 구현. 착수 전 전체 참조 검색으로 확인한 대로 3개 도메인에 걸친 작업이었음(예상대로).
+- 관련: TODO "회원탈퇴 정책 변경" — 다음 단위 WITHDRAW-4(핵심, 실제 하드 삭제 구현)
+
+---
+
 ## 2026-08-19 — Claude — `main` (회원탈퇴 WITHDRAW-3 구현 — 익명화 스케줄러 제거)
 
 - 변경: `docs/collab/user.md` §19 체크리스트의 WITHDRAW-3 단위 구현. `UserWithdrawalScheduler` 삭제, `UserService.anonymizeExpiredWithdrawnUsers()`+`WITHDRAWAL_GRACE_PERIOD_DAYS` 상수 삭제, `User.anonymize()`/`isRestorable()`/`restore()` 삭제(WITHDRAW-1·2에서 호출부를 이미 정리해둬서 컴파일 안전). 이 스케줄러만을 위해 존재하던 `UserServiceTest.java`는 테스트 대상 자체가 사라져 파일째 삭제. `UserTest.java`도 `isRestorable`/`restore`/`anonymize` 관련 테스트 3개 제거.
