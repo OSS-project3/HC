@@ -11,7 +11,7 @@
   - 정책 문서: `docs/specs/application/requirements.md` §5-0(정책)/§5-2(체크리스트, SCHOOLNAME-1 완료 표시)에 기록. `data-model.md`/`api.md`(개인·단체 API 둘 다) 갱신 완료.
   - 신규 테스트 9개(`ApplicationServiceTest` 6개, `ApplicationServiceBulkTest` 3개) 전부 통과, 기존 학생증 픽스처가 있던 3개 파일(`ApplicationServiceTest`/`ApplicationServiceBulkTest`/`ApplicationServiceUploadCompensationTest`) 보정 후 통과. 전체 스위트 471개(462+9) 중 `UserApplicationFlowTest.fullUserApplicationFlow`(아래 "기존 결함" 참고, 무관) 1건만 실패, 회귀 없음.
   - 커밋: `575f6c0`(코드+테스트), `6653fd2`(문서).
-- **⚠️ 프론트-백엔드 갭 문서 재점검 중 발견한 오류(2026-08-19, 아직 안 고침)**: `docs/FRONTEND_API_GAPS.md` §1.1(b)와 `docs/BACKEND_API_GAPS.md` P0-1이 "`POST /api/auth/login`·`POST /api/auth/email/check`·`PATCH /api/users/me/password`가 여전히 없음"이라고 적어뒀지만, 실제로는 `AuthController.java`/`UserController.java`에 이미 전부 구현돼 있다(이전 세션 AUTH-1~6에서 완료된 것이 이번 세션 갭 재점검 문서에 반영이 안 된 상태). 코드 수정 아님 — 두 문서의 해당 서술만 "구현 완료"로 정정하면 됨.
+- **✅ 프론트-백엔드 갭 문서 오류 정정 완료(2026-08-19)**: `docs/FRONTEND_API_GAPS.md` §1.1(b)/`docs/BACKEND_API_GAPS.md` P0-1이 "`POST /api/auth/login`·`POST /api/auth/email/check`·`PATCH /api/users/me/password`가 여전히 없음"이라고 잘못 적어뒀던 것(이전 세션 AUTH-1~6에서 이미 구현·커밋된 게 갭 재점검 문서에 반영이 안 됐던 것)을 정정 — §1.1(b)를 "로그인·이메일 중복확인·비밀번호 변경(✅ 완료)"과 "(c) 계정복구(❌ 미구현)"로 분리, `BACKEND_API_GAPS.md` P0-1도 완료/미구현 표로 분리하고 이제는 유효하지 않은 "소프트탈퇴 7일 유예 자동복구" 서술도 함께 제거(WITHDRAW 정책으로 폐지됨). 코드 변경 없음, 문서만 수정.
 - **✅ 회원탈퇴 정책 변경 확정 및 구현 완료(2026-08-19)**: 사용자가 소프트 삭제(7일 유예+익명화)를 폐지하고 즉시 하드 삭제로 바꾸자고 제안 → 스코프 분석(코드베이스 전체에서 `User.id`를 참조하는 7개 테이블 전수 확인, `arch.md` §5.1의 FK-없는-Long-참조 원칙 덕분에 하드 삭제해도 DB/화면 레벨 문제가 없음을 확인) → 사용자가 최종 정책표로 확정 → **5단위 체크리스트로 구현까지 전부 완료**.
   - **`docs/collab/user.md`가 source of truth다** — 사용자가 별도로 작성해둔 상세 정책 원본("회원정보·개인정보 보유·탈퇴·파기 정책", 19개 절, §19가 구현 체크리스트). 작업 중 미커밋 상태로 발견해 사용자 확인 후 상위 소스로 채택. **다음에 이 주제를 다시 볼 때는 이 파일을 먼저 읽을 것.**
   - **확정 정책 요약**: 탈퇴 즉시 확정(유예기간·자동복구 폐지), `User`/`RefreshTokenSession`/`ApplicationDailyLimit`만 하드 삭제, `Application`(+`Applicant`/`Member`/`Receiver`)·결제이력·`Inquiry`·`Review`·`Board.created_by_user_id`·`AdminActivityLog.admin_id`는 삭제하지 않고 각자 보존정책 유지, 동일 이메일 재가입 가능하나 과거 데이터 자동 승계 안 됨. "회원가입 정보 상품수령후6개월" 문구는 미탈퇴 회원의 기본 보유기간일 뿐, 탈퇴 시엔 지체 없이 파기(§17.1 해소).
@@ -34,7 +34,6 @@
 
 ## 다음에 할 일
 
-- **갭 문서 정정**: `docs/FRONTEND_API_GAPS.md` §1.1(b), `docs/BACKEND_API_GAPS.md` P0-1의 login/email-check/password-change "미구현" 서술을 "구현 완료"로 정정(코드 작업 아님, 위 오픈 아이템 참고).
 - **프론트 `privacyConsent` 반영 확인**: `InquiryPage.tsx`에 이 필드가 추가됐는지 확인 후 실 연동 테스트.
 - **거래·상담 데이터 파기 스케줄러(별도, 회원탈퇴 정책과 무관)**: Inquiry 6개월(`docs/specs/inquiry/requirements.md` §⑧), 결제·거래 이력 법정 보존기간 경과분 — 담당자 미정. `docs/collab/user.md` §15 참고.
 - **개인정보처리방침 문안 자체 확인(법무 대상)**: §17.2(비밀번호 제3자 제공 문구), §17.3(제3자 제공/처리위탁 조항 혼재) — 코드 작업 아님.

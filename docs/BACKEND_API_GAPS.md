@@ -26,7 +26,7 @@
 
 | 우선순위 | 도메인 | 핵심 이유 |
 |---|---|---|
-| **P0** | 이메일 인증(가입/로그인/복구) | 로그인·가입이 mock. OAuth만 실제 동작 |
+| **P0** | 계정 복구(아이디/비밀번호 찾기) | 가입·로그인·이메일 중복확인·비밀번호 변경은 백엔드 구현 완료(프론트 미연동), 복구만 여전히 백엔드 미구현(P0-1) |
 | **P0** | 마이페이지 신청/문의 조회 | 사용자가 자기 신청·문의 내역을 서버에서 못 봄 (내 후기는 연동 완료) |
 | **P0** | 관리자 신청 관리 | `/admin` 전체가 localStorage mock |
 | **P0** | 1:1 문의(Inquiry) 도메인 | 도메인 자체가 없음(사용자·관리자 양쪽 mock) |
@@ -38,19 +38,28 @@
 
 ## P0-1. 이메일 계정 인증 · 계정 복구
 
-현재 상태: `LoginPage`(이메일/비밀번호 로그인, 데모 로그인), `SignupPage`, `AccountRecoveryPage`가 모두 mock. OAuth2(구글/네이버) 진입점만 실제 동작. `AuthContext`는 `localStorage["auth-user"]`에 role까지 저장하는 mock 인증.
+> ✅ 2026-08-19 정정: 아래는 2026-08-18 작성 당시 전부 미구현이라고 적었으나, 이후 세션(AUTH-1~6)에서 회원가입·로그인·이메일 중복확인·비밀번호 변경이 이미 구현·`main` 커밋 완료됐다. **계정 복구(아이디/비밀번호 찾기)만 여전히 미구현**이다.
+
+현재 상태: `LoginPage`(이메일/비밀번호 로그인, 데모 로그인), `SignupPage`, `AccountRecoveryPage`가 여전히 mock을 쓴다(백엔드는 준비됐으나 프론트 미연동). OAuth2(구글/네이버)만 프론트까지 실제 연동됨. `AuthContext`는 `localStorage["auth-user"]`에 role까지 저장하는 mock 인증.
+
+**✅ 구현 완료(백엔드, 프론트 연동만 남음)**
+
+| Method | 경로 | 목적 | 인증 |
+|---|---|---|---|
+| POST | `/api/auth/signup` (+ `/signup/email-verification/request`, `/confirm`) | 일반 이메일 회원가입(이메일 인증 포함), 성공 시 HttpOnly 토큰 쿠키 발급 | 없음 |
+| POST | `/api/auth/login` | 이메일/비밀번호 로그인, HttpOnly 토큰 쿠키 발급 | 없음 |
+| POST | `/api/auth/email/check` | 이메일 중복 확인 | 없음 |
+| PATCH | `/api/users/me/password` | 로그인 사용자 비밀번호 변경 | USER |
+
+**❌ 여전히 미구현 — 계정 복구(아이디/비밀번호 찾기)**
 
 | Method | 제안 경로 | 목적 | 인증 |
 |---|---|---|---|
-| POST | `/api/auth/signup` | 일반 이메일 회원가입(이름·이메일·전화·비밀번호), 성공 시 HttpOnly 토큰 쿠키 발급 후 `/terms` | 없음 |
-| POST | `/api/auth/login` | 이메일/비밀번호 로그인, HttpOnly 토큰 쿠키 발급 | 없음 |
-| POST | `/api/auth/email/check` | 이메일 중복 확인 | 없음 |
 | POST | `/api/auth/recovery/id` | 이름·전화번호로 가입 이메일(마스킹) 안내 | 없음 |
 | POST | `/api/auth/recovery/password/request` | 이메일·전화 확인 후 재설정 토큰 메일 발송(계정 존재 여부 비노출, 동일 응답) | 없음 |
 | POST | `/api/auth/recovery/password/confirm` | 재설정 토큰으로 새 비밀번호 저장(만료·1회성) | 없음 |
-| PATCH | `/api/users/me/password` | 로그인 사용자 비밀번호 변경 | USER |
 
-필수 정책: 로그인 아이디는 이메일, 정규화(trim+소문자)+DB UNIQUE, 비밀번호 단방향 해시, 로그인 후 role은 서버 값으로 결정(클라이언트 값 불신), **운영 빌드에서 데모 로그인 제거**, 소프트탈퇴 7일 유예 자동복구(`restored:true`).
+필수 정책: 로그인 아이디는 이메일, 정규화(trim+소문자)+DB UNIQUE, 비밀번호 단방향 해시, 로그인 후 role은 서버 값으로 결정(클라이언트 값 불신), **운영 빌드에서 데모 로그인 제거**. ⚠️ 2026-08-19 정정: "소프트탈퇴 7일 유예 자동복구(`restored:true`)"는 더 이상 유효하지 않다 — 회원탈퇴 정책이 즉시 하드 삭제로 바뀌면서(`docs/collab/user.md`) 유예기간·자동복구 자체가 폐지됐다.
 프론트 추가 필요: `/terms` 라우트(신규 OAuth/이메일 가입자 약관 동의 → 기존 `POST /api/auth/terms` 사용).
 
 관련 프론트: `pages/LoginPage`, `pages/SignupPage`, `pages/AccountRecoveryPage`, `features/auth/AuthContext.tsx`
