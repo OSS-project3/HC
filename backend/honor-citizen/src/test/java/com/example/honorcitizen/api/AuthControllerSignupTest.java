@@ -79,9 +79,13 @@ class AuthControllerSignupTest {
     }
 
     private String signupRequestJson(String email, String signupToken, String password, String name) {
+        return signupRequestJson(email, signupToken, password, name, "010-1234-5678");
+    }
+
+    private String signupRequestJson(String email, String signupToken, String password, String name, String phone) {
         return """
-                {"email":"%s","signupToken":"%s","password":"%s","name":"%s"}
-                """.formatted(email, signupToken, password, name);
+                {"email":"%s","signupToken":"%s","password":"%s","name":"%s","phone":"%s"}
+                """.formatted(email, signupToken, password, name, phone);
     }
 
     @Test
@@ -106,6 +110,7 @@ class AuthControllerSignupTest {
 
         User saved = userRepository.findByEmail(email).orElseThrow();
         assertThat(saved.getPasswordHash()).isNotBlank().isNotEqualTo("correct-horse-battery");
+        assertThat(saved.getPhone()).isEqualTo("010-1234-5678");
         assertThat(saved.isAllTermsAgreed()).isFalse();
         assertThat(saved.getOauthId()).isNull();
 
@@ -115,6 +120,21 @@ class AuthControllerSignupTest {
                         .content(signupRequestJson(email, signupToken, "another-password", "다른이름")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_SIGNUP_TOKEN"));
+    }
+
+    @Test
+    void signupRejectsInvalidPhoneFormat() throws Exception {
+        String email = "auth4-invalid-phone@example.com";
+        cleanupRedis(email);
+        String signupToken = issueSignupToken(email);
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType("application/json")
+                        .content(signupRequestJson(email, signupToken, "some-password", "홍길동", "not-a-phone")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+
+        assertThat(userRepository.findByEmail(email)).isEmpty();
     }
 
     @Test

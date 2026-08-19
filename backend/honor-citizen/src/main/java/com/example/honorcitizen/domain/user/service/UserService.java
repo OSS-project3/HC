@@ -103,15 +103,18 @@ public class UserService {
      * commit이 실제로 끝난 뒤)에만 Redis 가입 토큰을 삭제해야 한다(6단계, 순서를 이 메서드가 강제하지
      * 않으므로 호출자가 지켜야 함).
      */
-    public LocalSignupResult registerLocalUser(String normalizedEmail, String rawPassword, String name) {
+    public LocalSignupResult registerLocalUser(String normalizedEmail, String rawPassword, String name, String phone) {
         if (userRepository.findByEmail(normalizedEmail).isPresent()) {
             throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
         String passwordHash = passwordEncoder.encode(rawPassword);
-        User user;
+        User user = User.createLocalUser(normalizedEmail, passwordHash, name);
+        // phone은 createLocalUser 팩토리(다른 생성 경로인 createOAuthUser와 시그니처를 맞춤) 대신
+        // 기존 프로필 수정 경로(updateProfile)를 그대로 재사용해 채운다 — 신규 컬럼·팩토리 파라미터 추가 없음.
+        user.updateProfile(null, phone);
         try {
-            user = userRepository.save(User.createLocalUser(normalizedEmail, passwordHash, name));
+            user = userRepository.save(user);
         } catch (DataIntegrityViolationException e) {
             // 사전조회 이후 동시요청으로 같은 이메일 계정이 먼저 커밋된 경우 — email UNIQUE 위반을 동일하게 처리한다.
             throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);

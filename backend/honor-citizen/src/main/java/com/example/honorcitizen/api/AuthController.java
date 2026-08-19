@@ -68,7 +68,8 @@ public class AuthController {
         // 3~5·7단계: 중복 재조회 → 비밀번호 해시 → User 생성/저장(DB commit) → 로그인 토큰 발급.
         // registerLocalUser는 UserService의 트랜잭션 프록시를 거치므로, 이 호출이 반환된 시점엔
         // DB commit이 이미 끝나 있다 — 그 다음에만 Redis 가입 토큰을 지운다(6단계, 순서 중요).
-        LocalSignupResult result = userService.registerLocalUser(normalizedEmail, request.getPassword(), request.getName());
+        LocalSignupResult result = userService.registerLocalUser(
+                normalizedEmail, request.getPassword(), request.getName(), request.getPhone());
         emailVerificationService.deleteSignupToken(request.getSignupToken());
 
         authCookieManager.addAccessTokenCookie(response, result.tokens().accessToken());
