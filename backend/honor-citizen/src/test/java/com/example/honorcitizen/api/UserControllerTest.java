@@ -147,19 +147,35 @@ class UserControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // 2026-08-19 정책 변경(WITHDRAW-3B): User가 더 이상 탈퇴 상태를 표현하지 않으므로(row 존재
-    // 자체가 활성 계정) status/withdrawalRequestedAt 검증은 제거했다. 실제 하드 삭제 동작 검증은
-    // WITHDRAW-4에서 추가한다 — 지금은 세션 무효화(액세스 토큰 블랙리스트)만 확인한다.
+    // 2026-08-19 정책 변경(WITHDRAW-4): 탈퇴는 즉시 User row 하드 삭제다 — status 대신 row 존재
+    // 자체를 확인한다.
     @Test
-    void withdrawBlacklistsAccessToken() throws Exception {
+    void withdrawHardDeletesUserAndBlacklistsAccessToken() throws Exception {
         mockMvc.perform(post("/api/users/me/withdraw")
                         .header("Authorization", token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
+        assertThat(userRepository.findById(user.getId())).isEmpty();
+
         // 방금 탈퇴 처리에 쓰인 accessToken은 블랙리스트에 등록되어 더 이상 인증에 쓸 수 없어야 함
         mockMvc.perform(get("/api/users/me")
                         .header("Authorization", token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void withdrawTwiceReturnsNotFoundOnSecondCall() throws Exception {
+        mockMvc.perform(post("/api/users/me/withdraw")
+                        .header("Authorization", token))
+                .andExpect(status().isOk());
+
+        // 첫 호출에 쓴 토큰은 블랙리스트되므로, 재호출 상황을 재현하려면 새 토큰 발급(이미 삭제된
+        // userId를 담은 토큰 — JwtAuthFilter의 existsById 확인에서 걸러지므로 인증 자체가 실패한다).
+        String secondToken = "Bearer " + jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
+
+        mockMvc.perform(post("/api/users/me/withdraw")
+                        .header("Authorization", secondToken))
                 .andExpect(status().isUnauthorized());
     }
 

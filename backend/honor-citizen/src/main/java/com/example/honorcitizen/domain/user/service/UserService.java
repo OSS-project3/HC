@@ -3,6 +3,7 @@ package com.example.honorcitizen.domain.user.service;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.enums.UserRole;
+import com.example.honorcitizen.domain.application.service.ApplicationDailyLimitService;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeRequest;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeResponse;
 import com.example.honorcitizen.domain.user.dto.UserMeResponse;
@@ -34,6 +35,7 @@ public class UserService {
     private final TokenSessionStore tokenSessionStore;
     private final PasswordEncoder passwordEncoder;
     private final LoginAttemptLimiter loginAttemptLimiter;
+    private final ApplicationDailyLimitService applicationDailyLimitService;
 
     public TermsAgreeResponse agreeTerms(Long userId, TermsAgreeRequest request) {
         User user = findById(userId);
@@ -203,16 +205,20 @@ public class UserService {
         log.info("보안 이벤트: 로그아웃 userId={}", userId);
     }
 
-    // 2026-08-19 정책 변경: 탈퇴는 즉시 하드 삭제이므로 findById가 성공했다는 것 자체가 "아직 탈퇴하지
-    // 않은 계정"이라는 뜻이다 — ALREADY_WITHDRAWN 재확인이 필요 없다(재호출 시 row가 이미 없어
-    // USER_NOT_FOUND로 자연히 실패한다). 실제 하드 삭제 로직 자체는 WITHDRAW-4에서 구현한다.
+    // 2026-08-19 정책 변경: 탈퇴는 즉시 하드 삭제다 — 유예기간·복구 없음(`docs/collab/user.md` §2).
+    // 순서: 세션 무효화 → 액세스 토큰 블랙리스트 → RefreshTokenSession 하드 삭제 →
+    // ApplicationDailyLimit 하드 삭제(다른 모듈 Repository를 직접 쓰지 않고 공개 Service 메서드를
+    // 거침, arch.md §5.1) → User row 하드 삭제. findById가 성공했다는 것 자체가 "아직 탈퇴하지 않은
+    // 계정"이라는 뜻이므로 별도 ALREADY_WITHDRAWN 재확인은 없다 — 재호출 시 row가 이미 없어
+    // USER_NOT_FOUND로 자연히 실패한다.
     public void withdraw(Long userId, String accessToken) {
         User user = findById(userId);
-        user.withdraw();
-        user.updateRefreshToken(null);
         tokenSessionStore.invalidateUserSessions(userId);
         tokenSessionStore.blacklistAccessToken(accessToken);
-        log.info("보안 이벤트: 회원탈퇴 userId={}", userId);
+        tokenSessionStore.deleteUserSessions(userId);
+        applicationDailyLimitService.deleteAllForUser(userId);
+        userRepository.delete(user);
+        log.info("보안 이벤트: 회원탈퇴(계정 삭제) userId={}", userId);
     }
 
     @Transactional(readOnly = true)

@@ -98,13 +98,6 @@ public class User extends BaseTimeEntity {
         return user;
     }
 
-    // 2026-08-19 정책 변경: 탈퇴는 즉시 하드 삭제이므로 이 엔티티에는 더 이상 "탈퇴 상태"가 없다
-    // (row가 존재한다는 것 자체가 활성 계정이라는 뜻). 실제 삭제는 UserService.withdraw()가
-    // UserRepository.delete(user)로 수행한다 — 이 메서드는 삭제 직전 훅이 필요해질 경우를 위해
-    // 남겨둔 빈 자리다.
-    public void withdraw() {
-    }
-
     public void agreeTerms(boolean privacy, boolean imageUpload, boolean shipping) {
         this.termsAgreed = true;
         this.privacyAgreed = privacy;

@@ -63,4 +63,11 @@ public class ApplicationDailyLimitService {
         repository.findByUserIdAndCountDateForUpdate(userId, countDate)
                 .ifPresent(ApplicationDailyLimit::decrement);
     }
+
+    // 회원탈퇴(하드 삭제) 전용 — arch.md §5.1 "다른 모듈의 Repository를 직접 호출하지 않는다" 원칙에
+    // 따라 UserService가 이 Repository를 직접 쓰지 않고 이 공개 메서드를 거친다(2026-08-19 정책).
+    @Transactional
+    public void deleteAllForUser(Long userId) {
+        repository.deleteByUserId(userId);
+    }
 }

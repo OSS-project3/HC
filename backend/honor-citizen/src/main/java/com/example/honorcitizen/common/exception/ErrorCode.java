@@ -18,7 +18,6 @@ public enum ErrorCode {
     REFRESH_TOKEN_REUSE_DETECTED(401, "리프레시 토큰 재사용이 감지되어 모든 세션이 만료되었습니다."),
     TERMS_ALREADY_AGREED(409, "이미 약관에 동의하셨습니다."),
     USER_NOT_FOUND(404, "존재하지 않는 사용자입니다."),
-    ALREADY_WITHDRAWN(409, "이미 탈퇴 처리된 계정입니다."),
     EMAIL_ALREADY_EXISTS(409, "이미 가입된 이메일입니다."),
     EMAIL_DELIVERY_FAILED(503, "이메일 발송에 실패했습니다."),
     TOO_MANY_REQUESTS(429, "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),

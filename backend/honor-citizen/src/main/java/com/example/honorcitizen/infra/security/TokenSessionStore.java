@@ -93,6 +93,14 @@ public class TokenSessionStore {
                 .forEach(RefreshTokenSession::revoke);
     }
 
+    // 회원탈퇴(하드 삭제) 전용 — 로그아웃/비밀번호 변경은 세션을 revoke 상태로만 남겨 감사 추적을
+    // 유지하지만(invalidateUserSessions), 탈퇴는 계정 자체가 사라지므로 토큰 문자열까지 완전히
+    // 지운다(2026-08-19 정책, `docs/collab/user.md` §3). invalidateUserSessions로 이미 Redis 세션
+    // 참조는 정리된 뒤 호출한다는 전제 — 여기서는 DB row 삭제만 수행한다.
+    public void deleteUserSessions(Long userId) {
+        refreshTokenSessionRepository.deleteByUserId(userId);
+    }
+
     public void blacklistAccessToken(String accessToken) {
         if (!StringUtils.hasText(accessToken)) {
             return;

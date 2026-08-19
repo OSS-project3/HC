@@ -24,4 +24,6 @@ public interface ApplicationDailyLimitRepository extends JpaRepository<Applicati
     // PESSIMISTIC_WRITE 쿼리는 활성 트랜잭션이 없으면 TransactionRequiredException을 던지므로
     // 상태 확인 목적으로는 이 메서드를 쓴다.
     Optional<ApplicationDailyLimit> findByUserIdAndCountDate(Long userId, LocalDate countDate);
+
+    void deleteByUserId(Long userId);
 }
