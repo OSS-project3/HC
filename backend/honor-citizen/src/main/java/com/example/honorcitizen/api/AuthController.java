@@ -3,6 +3,8 @@ package com.example.honorcitizen.api;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.response.ApiResponse;
+import com.example.honorcitizen.domain.user.dto.EmailCheckRequest;
+import com.example.honorcitizen.domain.user.dto.EmailCheckResponse;
 import com.example.honorcitizen.domain.user.dto.LoginRequest;
 import com.example.honorcitizen.domain.user.dto.LoginResponse;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationConfirmRequest;
@@ -92,6 +94,13 @@ public class AuthController {
         authCookieManager.addRefreshTokenCookie(response, result.tokens().refreshToken());
 
         return ResponseEntity.ok(ApiResponse.success(LoginResponse.of(result.user(), result.restored())));
+    }
+
+    @PostMapping("/email/check")
+    public ResponseEntity<ApiResponse<EmailCheckResponse>> checkEmail(
+            @Valid @RequestBody EmailCheckRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                EmailCheckResponse.of(userService.checkEmailExists(request.getEmail()))));
     }
 
     @PostMapping("/terms")

@@ -56,6 +56,13 @@ public class UserService {
         return UserMeResponse.from(findById(userId));
     }
 
+    // AUTH-3. OAuth 계정도 email UNIQUE 제약을 공유하므로 존재 여부만으로 provider 구분 없이 중복 판정된다.
+    // 계정 상세는 노출하지 않고 존재 여부(boolean)만 반환한다.
+    @Transactional(readOnly = true)
+    public boolean checkEmailExists(String rawEmail) {
+        return userRepository.existsByEmail(User.normalizeEmail(rawEmail));
+    }
+
     public UserMeResponse updateMe(Long userId, UserUpdateRequest request) {
         User user = findById(userId);
 
