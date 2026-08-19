@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-5 구현 + 도메인 전체 완료 마무리)
+
+- 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 마지막 단위 INQUIRY-5 구현 — `InquiryStatusUpdateRequest`, `InquiryService.changeStatus(inquiryId, status)`(답변 유무와 무관하게 상태만 변경, `answer=null`인 채 `COMPLETED` 허용), `InquiryAdminController`에 `PATCH /{inquiryId}/status` 추가. 이걸로 확정 API 6개 전부 구현 완료 — §⑨ 체크리스트 전 항목 `[x]` 처리, `docs/collab/TODO.md` 행을 🔵→✅로 변경, `docs/FRONTEND_API_GAPS.md` §1.3을 "BLOCKED"에서 "PARTIAL(연동 가능, privacyConsent 프론트 반영 필요)"로 갱신.
+- 파일: `domain/inquiry/{dto/InquiryStatusUpdateRequest,service/InquiryService}.java`, `api/InquiryAdminController.java`, 테스트 2개(`InquiryServiceTest`/`InquiryAdminControllerTest` 확장), `docs/specs/inquiry/requirements.md`, `docs/collab/TODO.md`, `docs/FRONTEND_API_GAPS.md`
+- 테스트 결과: 이번 단위 신규 5개 전부 통과. RULES.md §8 정책대로 체크리스트 전 단위(기능 묶음) 완료 시점이라 전체 스위트 실행 — 472개 중 `UserApplicationFlowTest.fullUserApplicationFlow`(pre-existing) 1건만 실패, 회귀 없음.
+- 사유: 체크리스트(§⑨) 마지막 단위 구현 + 도메인 완료 마무리 문서화.
+- 관련: TODO "Inquiry(1:1 문의) 도메인" — 완료. 남은 오픈 아이템은 프론트 `privacyConsent` 반영(§1.3)과 §⑧ 파기 배치(별도 인프라 작업)뿐.
+
+---
+
 ## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-4 구현 — 답변 등록 API + 이메일 알림)
 
 - 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 INQUIRY-4 단위 구현. `EmailType.INQUIRY_ANSWERED` 추가, `InquiryAnswerRequest`(§⑦ `answer` 최대 5000자), `InquiryService.answer(inquiryId, answerText)` — 갱신 직전 `inquiry.getAnswer() == null`로 최초 등록 여부를 판정해 최초 등록일 때만 `TransactionSynchronizationManager.registerSynchronization`으로 커밋 이후 이메일 발송을 등록(Board의 `deleteFilesAfterCommit`과 동일한 after-commit 패턴), 답변 "수정"(이미 answer가 있던 상태에서 재저장)이면 이메일 스킵, `EmailSender`가 예외를 던져도 로깅만 하고 삼켜 답변 저장 자체는 유지(best-effort). `InquiryAdminController`에 `PATCH /{inquiryId}/answer` 추가.

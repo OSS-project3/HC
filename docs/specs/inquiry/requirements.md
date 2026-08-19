@@ -147,57 +147,55 @@ SELECT * FROM inquiry WHERE user_id = 15 ORDER BY created_at DESC
 - ⚠️ 확인 결과, 저장소의 현재 개인정보처리방침 텍스트(`frontend/src/data/policies.ts` "제3조")는 "수집·이용 목적 달성 후 지체 없이 파기, 법령상 필요시 해당 기간 보관"이라는 범용 placeholder 문구이며("본 방침은 예시 문구이며 실제 배포 전 최종 검토가 필요합니다"라고 자체 명시), "상담일로부터 6개월"이라는 구체적 문구는 이 저장소 안에 없다. 이 정책은 그 placeholder 문구와 모순되지 않으므로 백엔드 확정 정책으로 그대로 채택한다 — 다만 실제 배포 전에는 프론트 정책 텍스트도 이 기간을 명시하도록 정리가 필요하다(프론트 담당자 영역이라 이 문서에 기록만 해둔다).
 - **파기 방식은 이번 범위에서 구현하지 않는다** — `docs/api/user.md`에 이미 있는 "완전탈퇴 배치 스케줄러 구현 필요" 항목과 같은 인프라 작업으로 묶어 나중에 배치 스케줄러로 처리하는 걸 전제로 정책만 먼저 확정해둔다. 착수 시점엔 `createdAt < now - 6개월`인 `Inquiry` 로우를 주기적으로 하드 삭제(또는 별도 파기 로그를 남기고 삭제)하는 배치 잡을 신설한다.
 
-## ⑨ 구현 순서 체크리스트 (2026-08-19 작성, 착수 전)
+## ⑨ 구현 순서 체크리스트 (2026-08-19 작성 → 2026-08-19 전 단위 완료)
 
-착수 전 checklist. 각 단위는 독립적으로 빌드·테스트 가능해야 하고, 단위별로 별도 커밋한다.
-단위 내부 순서는 이 세션 전체에서 지켜온 절차를 그대로 따른다: **정책 재확인(이미 ①~⑧에서 확정, 코드화만 남음) → 실패하는 테스트 먼저 작성 → 최소 구현 → 해당 단위 테스트 통과 확인 → 전체 스위트 회귀 테스트**. 단위 완료마다 "구현한 파일 / 정책과 다른 부분(있다면) / 테스트 결과 / 다음 단위 진행 가능 여부"를 보고한다.
+> ✅ **INQUIRY-1~5 전부 구현·테스트·커밋·푸시 완료**(2026-08-19). 6개 API 전부 동작한다. 커밋: INQUIRY-1 `1abab25`, INQUIRY-2 `0b08b41`, INQUIRY-3 `3cb647f`, INQUIRY-4 `f877d2d`, INQUIRY-5 `a9abff7`. 전체 스위트 472개 중 `UserApplicationFlowTest.fullUserApplicationFlow`(pre-existing, 이 도메인과 무관) 1건만 실패, 회귀 없음.
 
-### INQUIRY-1. 도메인 기반 + 문의 등록 — `POST /api/inquiries`
+단위 내부 순서는 이 세션 전체에서 지켜온 절차를 그대로 따랐다: **정책 재확인 → 실패하는 테스트 먼저 작성 → 최소 구현 → 해당 단위 테스트 통과 확인 → (기능 묶음 완료 시점에) 전체 스위트 회귀 테스트**.
 
-- [ ] `domain/inquiry/entity/Inquiry.java`(엔티티, `create`/`isOwnedBy`/`answer`/`changeStatus`), `domain/inquiry/repository/InquiryRepository.java`
-- [ ] `domain/inquiry/dto/InquiryCreateRequest.java`(§⑦ Validation 전체 적용, `privacyConsent` 포함), `InquiryCreateResponse.java`
-- [ ] `domain/inquiry/service/InquiryService.java`의 `create(userId, request)` — `userId`는 JWT에서만(§⑤), `status=PENDING` 고정, `privacyConsent`는 Bean Validation(`@AssertTrue`)에서 걸러지므로 서비스에서 별도 재검증 없음
-- [ ] `api/InquiryController.java`(`POST /api/inquiries`만)
-- [ ] 테스트: `InquiryTest`(엔티티 `create` 필드 검증), `InquiryServiceTest.create*`, `InquiryControllerTest`(비로그인 401, 필드별 검증 실패 400, `privacyConsent=false`/누락 시 400, 성공 201 + `Inquiry.userId`가 JWT 값과 일치하는지)
-- [ ] `docs/FRONTEND_API_GAPS.md` §1.3에 "`privacyConsent` 프론트 전송 필요" 의존성 기록(코드 아님, 문서 갱신)
+### INQUIRY-1. 도메인 기반 + 문의 등록 — `POST /api/inquiries` (`1abab25`)
 
-### INQUIRY-2. 내 문의 목록/상세 — `GET /api/my/inquiries`, `GET /api/my/inquiries/{id}`
+- [x] `domain/inquiry/entity/Inquiry.java`(엔티티, `create`/`isOwnedBy`/`answer`/`changeStatus`), `domain/inquiry/repository/InquiryRepository.java`
+- [x] `domain/inquiry/dto/InquiryCreateRequest.java`(§⑦ Validation 전체 적용, `privacyConsent` 포함), `InquiryCreateResponse.java`
+- [x] `domain/inquiry/service/InquiryService.java`의 `create(userId, request)`
+- [x] `api/InquiryController.java`(`POST /api/inquiries`만)
+- [x] 테스트: `InquiryTest`, `InquiryServiceTest.create*`, `InquiryControllerTest`
+- [x] `docs/FRONTEND_API_GAPS.md` §1.3에 "`privacyConsent` 프론트 전송 필요" 의존성 기록 — **아직 프론트가 반영하지 않음(오픈 상태), 아래 "남은 오픈 아이템" 참고**
 
-- [ ] `ErrorCode.INQUIRY_NOT_FOUND` 추가
-- [ ] `InquiryListItemResponse.java`, `InquiryDetailResponse.java`
-- [ ] `InquiryService`에 `listMine(userId)`, `getMineDetail(userId, inquiryId)`(404→403 순서로 분리, §⑤ 정정 내용대로)
-- [ ] `api/MyInquiryController.java`(`GET /api/my/inquiries`, `GET /api/my/inquiries/{id}`)
-- [ ] 테스트: 본인 목록만 반환(타인 문의 섞이지 않음), `createdAt DESC` 정렬 확인, 상세 성공, 미존재 404, 타인 소유 403, 비로그인 401
+### INQUIRY-2. 내 문의 목록/상세 — `GET /api/my/inquiries`, `GET /api/my/inquiries/{id}` (`0b08b41`)
 
-### INQUIRY-3. 관리자 목록/상세 — `GET /api/admin/inquiries`, `GET /api/admin/inquiries/{id}`
+- [x] `ErrorCode.INQUIRY_NOT_FOUND` 추가
+- [x] `InquiryListItemResponse.java`, `InquiryDetailResponse.java`
+- [x] `InquiryService`에 `listMine(userId)`, `getMineDetail(userId, inquiryId)`(404→403 순서 분리)
+- [x] `api/MyInquiryController.java`
+- [x] 테스트: 본인 목록만 반환, 정렬 확인, 상세 성공, 미존재 404, 타인 소유 403, 비로그인 401
 
-- [ ] `InquiryService`에 `listAdmin()`, `getAdminDetail(inquiryId)`(404만, 소유권 개념 없음)
-- [ ] `api/InquiryAdminController.java`(GET 2개) — `SecurityConfig`의 `/api/admin/**` → `hasRole("ADMIN")`가 이미 라우트 레벨로 강제하므로 서비스에서 별도 권한 재확인 없음(Board 선례와 동일)
-- [ ] 테스트: 전체 목록 반환(정렬 확인), 미존재 404, USER 토큰으로 호출 시 403(SecurityConfig 레벨)
+### INQUIRY-3. 관리자 목록/상세 — `GET /api/admin/inquiries`, `GET /api/admin/inquiries/{id}` (`3cb647f`)
 
-### INQUIRY-4. 답변 등록 — `PATCH /api/admin/inquiries/{id}/answer`
+- [x] `InquiryService`에 `listAdmin()`, `getAdminDetail(inquiryId)`
+- [x] `api/InquiryAdminController.java`(GET 2개)
+- [x] 테스트: 전체 목록 반환, 미존재 404, USER 토큰 403
 
-- [ ] `common/enums/EmailType`에 `INQUIRY_ANSWERED` 추가
-- [ ] `InquiryAnswerRequest.java`(§⑦ `answer` 최대 5000자)
-- [ ] `InquiryService.answer(inquiryId, answer)` — 갱신 직전 `inquiry.getAnswer() == null`인지 먼저 판정(최초 등록 여부), 저장/커밋 후 최초 등록일 때만 `TransactionSynchronizationManager`로 커밋 이후 이메일 발송(Board의 `deleteFilesAfterCommit`과 동일한 after-commit 등록 패턴, 수정 시엔 발송 스킵), `EmailSender` 실패는 로깅만 하고 삼킴(best-effort, §⑤·§⑥)
-- [ ] `InquiryAdminController`에 PATCH 추가
-- [ ] 테스트: 답변 저장 시 `status=COMPLETED` 전이·`answeredAt` 세팅, 최초 등록 시 `EmailSender` Mock 발송 호출 검증, **이미 답변이 있는 상태에서 다시 저장(수정)하면 `EmailSender`가 호출되지 않는지**, `EmailSender`가 예외를 던져도 답변 저장 자체(DB 상태)는 그대로 유지되는지, 공백 answer 거절 400, 미존재 404
+### INQUIRY-4. 답변 등록 — `PATCH /api/admin/inquiries/{id}/answer` (`f877d2d`)
 
-### INQUIRY-5. 상태 독립 변경 — `PATCH /api/admin/inquiries/{id}/status`
+- [x] `common/enums/EmailType`에 `INQUIRY_ANSWERED` 추가
+- [x] `InquiryAnswerRequest.java`
+- [x] `InquiryService.answer(inquiryId, answer)` — 최초 등록만 커밋 후 best-effort 이메일, 수정 시 스킵
+- [x] `InquiryAdminController`에 PATCH 추가
+- [x] 테스트: 상태전이, 최초 등록 시 발송, 수정 시 미발송, 발송 실패해도 저장 유지, 공백 거절 400, 미존재 404
 
-- [ ] `InquiryStatusUpdateRequest.java`
-- [ ] `InquiryService.changeStatus(inquiryId, status)` — 답변 유무와 무관하게 상태만 변경(전화 상담 등 `answer=null`인 채로 `COMPLETED` 전이 허용, §⑥)
-- [ ] `InquiryAdminController`에 PATCH 추가
-- [ ] 테스트: **답변 없이 상태만 `COMPLETED`로 전환 가능**하고 이때 `answer`가 여전히 `null`인지(불변식 없음 확인), 미존재 404
+### INQUIRY-5. 상태 독립 변경 — `PATCH /api/admin/inquiries/{id}/status` (`a9abff7`)
 
-### 이번 체크리스트 범위 밖
+- [x] `InquiryStatusUpdateRequest.java`
+- [x] `InquiryService.changeStatus(inquiryId, status)`
+- [x] `InquiryAdminController`에 PATCH 추가
+- [x] 테스트: 답변 없이 `COMPLETED` 전환 가능(`answer=null` 유지 확인), 미존재 404
 
-- §⑧ 개인정보 6개월 파기 배치 — `docs/api/user.md`의 "완전탈퇴 배치 스케줄러"와 묶어 별도 인프라 작업으로 진행(정책만 확정된 상태, TODO.md에 별도 항목 필요 시 추가)
-- `docs/specs/inquiry/api.md`/`data-model.md` 분리 — Board/Review 관례상 구현 착수 시점에 이 문서(`requirements.md`)에서 분리하지만, 이 체크리스트 자체의 완료 조건은 아니다(마지막에 한 번에 정리해도 무방)
+### 남은 오픈 아이템(체크리스트 범위 밖, 완료 아님)
 
-### 참고 — 중단된 초안(2026-08-19, 커밋 안 됨, 재검토 후 재사용 예정)
-
-정책 재확인 도중 체크리스트 없이 먼저 작성했던 미커밋 파일들 — INQUIRY-1 착수 시 그대로 재검토해 재사용한다: `common/enums/InquiryStatus.java`, `domain/inquiry/entity/Inquiry.java`, `domain/inquiry/repository/InquiryRepository.java`, `domain/inquiry/dto/{InquiryCreateRequest,InquiryCreateResponse,InquiryListItemResponse,InquiryDetailResponse,InquiryAnswerRequest}.java`, `ErrorCode.INQUIRY_NOT_FOUND`, `EmailType.INQUIRY_ANSWERED`. 테스트 없이 만들어졌으므로 INQUIRY-1의 "실패하는 테스트 먼저 작성" 단계부터 다시 밟는다. ⚠️ 이 초안 시점엔 `privacyConsent` 정책이 없었으므로 `InquiryCreateRequest.java`는 재사용 시 그 필드를 추가로 반영해야 한다.
+- **프론트 `privacyConsent` 전송 미반영**: `POST /api/inquiries`가 `privacyConsent: true`를 요구하는데 `InquiryPage.tsx`는 아직 이 필드를 보내지 않는다 — 프론트 담당자가 반영하기 전까지는 실제 연동 시 매 요청이 400으로 거절된다(`docs/FRONTEND_API_GAPS.md` §1.3에 기록됨).
+- §⑧ 개인정보 6개월 파기 배치 — `docs/api/user.md`의 "완전탈퇴 배치 스케줄러"와 묶어 별도 인프라 작업으로, 정책만 확정된 상태.
+- `docs/specs/inquiry/api.md`/`data-model.md` 분리 — Board/Review 관례상 구현 완료 시점에 이 문서(`requirements.md`)에서 분리하는 절차가 남아있음(선택, 다음 세션에 진행 가능).
 
 ## 관련 문서
 

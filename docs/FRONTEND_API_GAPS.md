@@ -19,7 +19,7 @@
 | **일반 이메일 회원가입(인증 포함)** | ❌ 목/로컬 | ✅ 구현·`main` 반영 완료(`bc7d7ce`) | **프론트 신규 구현 필요**(인증코드 인라인 입력 UI) (§1.1) |
 | **일반 이메일 로그인·계정 복구** | ❌ 목/로컬 | ❌ 없음 | **백엔드 신규 구현 필요**(비번재설정 화면 UX는 결정됨) (§1.1) |
 | **내 신청 목록·상세(마이페이지)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.2) |
-| **1:1 문의(Inquiry)** | ❌ 목(localStorage) | ❌ 없음 | **도메인 신규 구현** (§1.3) |
+| **1:1 문의(Inquiry)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료 | **연동 가능(단, `privacyConsent` 필드 프론트 추가 전송 필요)** (§1.3) |
 | **관리자 신청관리·통계** | ❌ 목(localStorage) | ❌ 없음 | **도메인 신규 구현** (§1.4) |
 | **신청 취소** | ⚠️ 진입점만 | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.5) |
 | 행사 회사/로고·관리자 전체목록 | ⚠️ 부분 | ⚠️ 필드/엔드포인트 없음 | **백엔드 필드·API 보강** (§1.6) |
@@ -66,10 +66,11 @@
 - **백엔드 현황**: `MyApplicationController`(`GET /api/my/applications`, `GET /api/my/applications/{id}`) 구현 완료, `main`에 커밋·푸시됨(`b5f6140`, 2026-08-19). `FRONTEND_API_INTEGRATION_SPEC.md` §3.6 계약과 동일.
 - **조치**: 이제 `MyPage` 제작 내역을 `data/adminMock.ts` localStorage 대신 이 API로 연동 가능. 응답 필드: 목록 `applicationId, applicationNumber, applicationType, cardTypeId, cardTypeName, totalQuantity, status, paymentStatus, createdAt` / 상세 `issueType, paymentGuidedAt, paymentDueAt, cancelled*, refundedAt, cardReadyAt, physicalDispatchedAt, photoRejectReason, applicant, receiver, memberCount`.
 
-### 1.3 1:1 문의(Inquiry) — 도메인 전체 없음 (BLOCKED)
-- **프론트 사용처**: `pages/InquiryPage`(작성), `pages/InquiryDetailPage`(상세), `pages/MyPage`(내 문의), `pages/AdminPage`(관리자 목록+답변). 저장소 `data/inquiries.ts`(`localStorage["customer-inquiries"]`).
-- **✅ 서비스 흐름·API 명세·정책 확정(2026-08-19)** — 상세 내용은 이 문서에 중복 유지하지 않고 전용 문서로 옮겼다. **`docs/specs/inquiry/requirements.md`가 이 도메인의 source of truth다**(로그인 필수·`userId`는 JWT에서 추출·검색 API 미포함·`PATCH .../answer`+`PATCH .../status` 6개 API·제출 후 수정·삭제 불가 등 전부 그 문서에 정리). 착수 시 바로 구현 가능한 상태.
-- **⚠️ 신규 프론트 작업 필요(2026-08-19)**: 개인정보 수집·이용 동의를 서버에서도 강제하기로 정책 확정(`requirements.md` §⑤·§⑥·§⑦) — `POST /api/inquiries` 요청 바디에 `privacyConsent: true`가 필수다. 현재 `InquiryPage.tsx`의 동의 체크박스 상태(`agreed`)는 제출 버튼 비활성화에만 쓰이고 `FormData`에는 포함되지 않는다. **프론트가 `privacyConsent` 필드를 요청 바디에 추가로 실어 보내지 않으면 문의 등록이 매번 400으로 거절된다** — 연동 전 프론트 담당자 확인 필요.
+### 1.3 1:1 문의(Inquiry) — ✅ 백엔드 구현 완료, 프론트 연동 전 조치 필요 (PARTIAL)
+- **프론트 사용처**: `pages/InquiryPage`(작성), `pages/InquiryDetailPage`(상세), `pages/MyPage`(내 문의), `pages/AdminPage`(관리자 목록+답변). 현재는 `data/inquiries.ts`(`localStorage["customer-inquiries"]`) mock 그대로 — 아직 API 연동 안 됨.
+- **✅ 백엔드 6개 API 전부 구현·테스트·커밋 완료(2026-08-19)**: `POST /api/inquiries`, `GET /api/my/inquiries`(+`/{id}`), `GET /api/admin/inquiries`(+`/{id}`), `PATCH /api/admin/inquiries/{id}/answer`, `PATCH /api/admin/inquiries/{id}/status`. 상세 계약은 **`docs/specs/inquiry/requirements.md`가 source of truth**(§④ API 목록, §⑤ 처리 흐름, §⑦ Validation).
+- **⚠️ 연동 전 프론트가 반드시 반영해야 하는 것 — `privacyConsent` 필드(2026-08-19)**: 개인정보 수집·이용 동의를 서버에서도 강제하기로 정책 확정했다(`requirements.md` §⑤·§⑥·§⑦) — `POST /api/inquiries` 요청 바디에 `privacyConsent: true`가 **필수**다(Bean Validation `@AssertTrue`로 서버가 거절함). 현재 `InquiryPage.tsx`의 동의 체크박스 상태(`agreed`)는 제출 버튼 비활성화에만 쓰이고 `FormData`에는 포함되지 않는다. **이 필드를 프론트가 요청 바디에 추가로 실어 보내지 않으면 문의 등록이 매번 400(`INVALID_INPUT`)으로 거절된다.**
+- **연동 시 참고**: `category`는 프론트가 이미 보내는 한글 문자열(제작 신청/결제 및 배송/카드 발급/행사·단체 협업/기타) 그대로 받는다(백엔드가 `@JsonValue`/`@JsonCreator`로 매핑, 프론트 값 변경 불필요). `name`/`email`/`phone`은 계정 값이 아니라 폼에 입력한 값 그대로 저장된다. 목록·상세 API는 페이지네이션이 없다(프론트에 검색/페이지 UI 자체가 없어 전체 나열).
 
 ### 1.4 관리자 신청관리·통계 — 없음 (BLOCKED)
 - **프론트 사용처**: `pages/AdminPage`(신청 목록·상태 변경, 통계 카드, 문의 답변). 저장소 `data/adminMock.ts`.
@@ -179,6 +180,6 @@
 1. **일반 이메일 회원가입(§1.1-a)** — 백엔드는 준비됨, 프론트가 인증코드 인라인 입력 UI+실 API 연동을 진행. **일반 로그인·계정복구(§1.1-b)**는 백엔드 구현이 선행돼야 함(비밀번호 재설정 화면 UX는 이미 결정됨 — 백엔드 API를 그 계약에 맞춰 설계).
 2. **내 신청 목록·상세(§1.2)** + **신청 취소(§1.5)** — ✅ 백엔드 커밋·푸시 완료, 바로 연동 가능.
 3. **관리자 신청관리(§1.4)** — status enum 프론트/백 일치 확정 후.
-4. **문의 도메인(§1.3)** — 신규 CRUD.
+4. **문의 도메인(§1.3)** — ✅ 백엔드 커밋·푸시 완료, `privacyConsent` 필드만 추가하면 바로 연동 가능.
 5. **행사 필드·공지 검색(§1.6/§1.7)**, **후기 다중이미지(§1.8)**, **회원 address·학생증 schoolName(§1.9)** — 정책 확정 후 보강.
 6. **이름 조회(§2.2)** / 정적 마케팅(§3) 및 하이브리드 목 미러링(§5) 정리는 마지막.
