@@ -64,14 +64,17 @@ public class UserService {
     public UserMeResponse updateMe(Long userId, UserUpdateRequest request) {
         User user = findById(userId);
 
-        if (request.getName() == null && request.getPhone() == null) {
+        if (request.getName() == null && request.getPhone() == null && request.getAddress() == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         if (request.getName() != null && request.getName().isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
+        if (request.getAddress() != null && request.getAddress().isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
 
-        user.updateProfile(request.getName(), request.getPhone());
+        user.updateProfile(request.getName(), request.getPhone(), request.getAddress());
         return UserMeResponse.from(user);
     }
 
@@ -141,7 +144,7 @@ public class UserService {
         User user = User.createLocalUser(normalizedEmail, passwordHash, name);
         // phone은 createLocalUser 팩토리(다른 생성 경로인 createOAuthUser와 시그니처를 맞춤) 대신
         // 기존 프로필 수정 경로(updateProfile)를 그대로 재사용해 채운다 — 신규 컬럼·팩토리 파라미터 추가 없음.
-        user.updateProfile(null, phone);
+        user.updateProfile(null, phone, null);
         try {
             user = userRepository.save(user);
         } catch (DataIntegrityViolationException e) {

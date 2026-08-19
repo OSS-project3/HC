@@ -82,10 +82,10 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data.phone").value("010-1234-5678"));
     }
 
-    // email은 OAuth 식별값, address는 확정 정책(2026-08-08)으로 이 API 수정 대상에서 제외됐다.
-    // UserUpdateRequest에 address 필드 자체가 없으므로 요청 본문에 address를 보내도 무시되어야 한다.
+    // email은 OAuth 식별값이라 이 API로 수정할 수 없다. address는 2026-08-08에 한 번 제외됐다가
+    // 2026-08-20 정책 재정정으로 이름·전화번호와 동일하게 수정 가능해졌다.
     @Test
-    void updateMeIgnoresAddressEvenWhenProvidedInRequestBody() throws Exception {
+    void updateMeUpdatesAddress() throws Exception {
         mockMvc.perform(patch("/api/users/me")
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -97,7 +97,20 @@ class UserControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("New Name"))
-                .andExpect(jsonPath("$.data.address").isEmpty());
+                .andExpect(jsonPath("$.data.address").value("서울특별시 강남구"));
+    }
+
+    @Test
+    void updateMeReturnsInvalidInputWhenAddressIsBlank() throws Exception {
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "address": "   " }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
     }
 
     @Test
