@@ -117,6 +117,24 @@ SELECT * FROM inquiry WHERE user_id = 15 ORDER BY created_at DESC
 - **첨부파일 미지원(2026-08-19 확정, 코드 확인)**: `InquiryPage.tsx` 폼에 파일 입력 자체가 없다(`category`/`name`/`email`/`phone`/`title`/`content`/동의 체크박스뿐). 이번 범위에서 제외 — 나중에 필요해지면 Board의 `BoardAttachment`(`UploadFile` join) 패턴을 재사용하면 된다.
 - **답변 등록 시 이메일 알림 발송(2026-08-19 확정)**: 관리자가 `PATCH .../answer`로 답변을 저장하면 문의자에게 답변 등록 안내 이메일을 보낸다(`AdminPage.tsx`의 답변 textarea·저장 버튼은 인앱 답변 저장 UI이며 메일 발송 자체가 아니므로 — 별도 알림으로 확정). 기존 `infra/mail/EmailSender`+`common/enums/EmailType`(현재 `SIGNUP_VERIFICATION`/`PASSWORD_RESET`/`PASSWORD_CHANGED`만 존재) 인프라를 재사용해 `EmailType.INQUIRY_ANSWERED`를 추가한다 — `EmailVerificationService`가 이미 쓰고 있는 것과 동일한 패턴. `domain/log/entity/EmailLog`(applicationId 필수 컬럼, PAYMENT_COMPLETE 등 신청 도메인 전용 상수)는 재사용하지 않는다(Inquiry에는 applicationId가 없고, 이 엔티티는 현재 실제로 어디서도 호출되지 않는 미사용 스캐폴딩이라 신뢰할 선례가 아님). 이메일 발송은 답변 저장 트랜잭션과 분리된 best-effort로 처리한다(§⑤ `PATCH .../answer` 처리 흐름 4~5단계 참고) — 발송 실패가 답변 저장 자체를 실패로 되돌리지 않는다.
 
+## ⑦ Validation 규칙 (2026-08-19 확정)
+
+| 필드 | 규칙 | 근거/재사용 |
+|---|---|---|
+| `category` | 필수 (`InquiryCategory` enum) | §⑥ category enum 정책 |
+| `name` | 필수, 최대 100자 | `ApplicationCreateRequest.Applicant.name`(`@Size(max=100)`)과 동일 — 계정용 `User.name`(255)이 아니라 신청 건별 연락처 이름 성격이 더 가까움 |
+| `email` | 필수, 이메일 형식, 최대 255자 | `SignupRequest`/`UserUpdateRequest` 등 기존 이메일 필드 전부 `@Email @Size(max=255)` 패턴과 동일 |
+| `phone` | 필수, 형식 검증 | ⚠️ 재사용 가능한 공용 `ValidPhone` 어노테이션은 실제로 존재하지 않는다(코드 확인 완료) — `SignupRequest`/`UserUpdateRequest`가 각자 `@Pattern(regexp = "^[0-9\\-]{9,20}$", message = "전화번호 형식이 올바르지 않습니다.")`를 필드마다 직접 붙이는 방식. Inquiry도 동일 정규식을 그대로 복붙해 재사용한다(신규 공용 어노테이션 추출은 이번 범위 아님 — 재사용처가 3곳째라 향후 별도로 추출을 검토할 만하지만, 지금 당장은 기존 관례를 따른다) |
+| `title` | 필수, 1~80자 | `@NotBlank @Size(max=80)` — 프론트 `maxLength={80}`과 일치(`InquiryPage.tsx`) |
+| `content` | 필수, 1~2000자 | `@NotBlank @Size(max=2000)` — 프론트 `maxLength={2000}`과 일치 |
+| `answer`(관리자 `PATCH .../answer` 요청) | 필수, 최대 5000자 | `@NotBlank @Size(max=5000)` |
+
+## ⑧ 개인정보 보유기간 (2026-08-19 확정)
+
+- **Inquiry는 `createdAt` 기준 6개월 보관 후 파기 대상**이다. 문의 접수(`createdAt`) 시점으로부터 6개월이 지나면 파기 대상으로 분류한다(`createdAt + 6개월 → 파기 대상`).
+- ⚠️ 확인 결과, 저장소의 현재 개인정보처리방침 텍스트(`frontend/src/data/policies.ts` "제3조")는 "수집·이용 목적 달성 후 지체 없이 파기, 법령상 필요시 해당 기간 보관"이라는 범용 placeholder 문구이며("본 방침은 예시 문구이며 실제 배포 전 최종 검토가 필요합니다"라고 자체 명시), "상담일로부터 6개월"이라는 구체적 문구는 이 저장소 안에 없다. 이 정책은 그 placeholder 문구와 모순되지 않으므로 백엔드 확정 정책으로 그대로 채택한다 — 다만 실제 배포 전에는 프론트 정책 텍스트도 이 기간을 명시하도록 정리가 필요하다(프론트 담당자 영역이라 이 문서에 기록만 해둔다).
+- **파기 방식은 이번 범위에서 구현하지 않는다** — `docs/api/user.md`에 이미 있는 "완전탈퇴 배치 스케줄러 구현 필요" 항목과 같은 인프라 작업으로 묶어 나중에 배치 스케줄러로 처리하는 걸 전제로 정책만 먼저 확정해둔다. 착수 시점엔 `createdAt < now - 6개월`인 `Inquiry` 로우를 주기적으로 하드 삭제(또는 별도 파기 로그를 남기고 삭제)하는 배치 잡을 신설한다.
+
 ## 관련 문서
 
 - `docs/FRONTEND_API_GAPS.md` §1.3 — 이 문서와 동일한 내용을 프론트-백엔드 갭 관점에서 요약(향후 이 문서가 source of truth가 되면 §1.3은 이 문서를 가리키도록 정리)

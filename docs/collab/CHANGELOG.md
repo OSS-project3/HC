@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (Inquiry Validation 규칙 + 개인정보 보유기간 6개월 정책 확정)
+
+- 변경: Inquiry 필드별 Bean Validation 규칙(category/name/email/phone/title/content/answer) 확정, `name`은 `ApplicationCreateRequest.Applicant.name` 관례(max 100)를 따름. `phone`은 사용자가 언급한 공용 `ValidPhone` 어노테이션이 실제로는 존재하지 않음을 코드로 확인해 정정 — 기존 `SignupRequest`/`UserUpdateRequest`가 쓰는 인라인 `@Pattern(regexp = "^[0-9\\-]{9,20}$")`을 그대로 재사용하는 걸로 확정. 개인정보 보유기간은 `createdAt + 6개월 → 파기 대상`으로 확정(파기 배치 구현은 `docs/api/user.md`의 "완전탈퇴 배치 스케줄러"와 묶어 이후 진행, 이번엔 정책만). 저장소의 실제 개인정보처리방침 텍스트(`frontend/src/data/policies.ts`)엔 "6개월" 구체 문구가 없고 placeholder임을 확인해 문서에 남김.
+- 파일: `docs/specs/inquiry/requirements.md`(§⑦ Validation 규칙, §⑧ 개인정보 보유기간 신설)
+- 사유: Inquiry 도메인 착수 전 정책을 계속 정하는 running 작업의 일부.
+- 관련: TODO "Inquiry(1:1 문의) 도메인 신규 구현"
+
+---
+
 ## 2026-08-19 — Claude — `main` (Inquiry 답변 이메일 알림 정책 확정)
 
 - 변경: 관리자 답변 등록(`PATCH /api/admin/inquiries/{id}/answer`)이 인앱 저장(`AdminPage.tsx`의 답변 textarea·저장 버튼)뿐 아니라 문의자에게 이메일 알림도 발송하도록 확정. 기존 `infra/mail/EmailSender`+`common/enums/EmailType` 인프라(`EmailVerificationService`가 이미 사용 중인 패턴)를 재사용해 `EmailType.INQUIRY_ANSWERED`를 추가하는 방향으로 정했고, 신청 도메인 전용이라 재사용 부적합한 `EmailLog`(applicationId 필수, 미사용 스캐폴딩)는 채택하지 않았다. 이메일 발송은 답변 저장 트랜잭션과 분리된 best-effort로 처리(발송 실패가 답변 저장을 되돌리지 않음)하기로 확정.
