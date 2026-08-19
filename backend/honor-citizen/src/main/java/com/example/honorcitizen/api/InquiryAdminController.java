@@ -4,6 +4,7 @@ import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.domain.inquiry.dto.InquiryAnswerRequest;
 import com.example.honorcitizen.domain.inquiry.dto.InquiryDetailResponse;
 import com.example.honorcitizen.domain.inquiry.dto.InquiryListItemResponse;
+import com.example.honorcitizen.domain.inquiry.dto.InquiryStatusUpdateRequest;
 import com.example.honorcitizen.domain.inquiry.service.InquiryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,14 @@ public class InquiryAdminController {
             @PathVariable Long inquiryId,
             @Valid @RequestBody InquiryAnswerRequest request) {
         inquiryService.answer(inquiryId, request.getAnswer());
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    @PatchMapping("/{inquiryId}/status")
+    public ResponseEntity<ApiResponse<Void>> status(
+            @PathVariable Long inquiryId,
+            @Valid @RequestBody InquiryStatusUpdateRequest request) {
+        inquiryService.changeStatus(inquiryId, request.getStatus());
         return ResponseEntity.ok(ApiResponse.success());
     }
 }

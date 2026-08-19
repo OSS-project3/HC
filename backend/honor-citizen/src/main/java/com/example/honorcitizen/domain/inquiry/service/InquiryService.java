@@ -1,6 +1,7 @@
 package com.example.honorcitizen.domain.inquiry.service;
 
 import com.example.honorcitizen.common.enums.EmailType;
+import com.example.honorcitizen.common.enums.InquiryStatus;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.inquiry.dto.InquiryCreateRequest;
@@ -125,5 +126,14 @@ public class InquiryService {
                 <p>문의하신 [%s]에 대한 답변이 등록되었습니다.</p>
                 <p>%s</p>
                 """.formatted(title, answerText);
+    }
+
+    // 답변 유무와 무관한 독립 상태 변경(requirements.md §④·§⑥ PATCH .../status) — 전화 상담 등으로
+    // COMPLETED이면서 answer가 null인 상태도 유효하다(answer/status 사이에 불변식을 걸지 않음).
+    @Transactional
+    public void changeStatus(Long inquiryId, InquiryStatus status) {
+        Inquiry inquiry = inquiryRepository.findById(inquiryId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
+        inquiry.changeStatus(status);
     }
 }

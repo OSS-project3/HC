@@ -127,4 +127,42 @@ class InquiryAdminControllerTest {
                                 """))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void statusChangesToCompletedWithoutAnswer() throws Exception {
+        mockMvc.perform(patch("/api/admin/inquiries/" + inquiry.getId() + "/status")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"COMPLETED"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        Inquiry updated = inquiryRepository.findById(inquiry.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(updated.getStatus()).isEqualTo(com.example.honorcitizen.common.enums.InquiryStatus.COMPLETED);
+        org.assertj.core.api.Assertions.assertThat(updated.getAnswer()).isNull();
+    }
+
+    @Test
+    void statusForMissingInquiryReturnsNotFound() throws Exception {
+        mockMvc.perform(patch("/api/admin/inquiries/999999/status")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"COMPLETED"}
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void statusWithUserTokenReturnsForbidden() throws Exception {
+        mockMvc.perform(patch("/api/admin/inquiries/" + inquiry.getId() + "/status")
+                        .header(HttpHeaders.AUTHORIZATION, userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"COMPLETED"}
+                                """))
+                .andExpect(status().isForbidden());
+    }
 }

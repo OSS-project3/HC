@@ -194,4 +194,24 @@ class InquiryServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
     }
+
+    @Test
+    void changeStatusAllowsCompletedWithoutAnswer() {
+        InquiryCreateResponse created = inquiryService.create(USER_ID, request());
+
+        inquiryService.changeStatus(created.getId(), InquiryStatus.COMPLETED);
+
+        Inquiry updated = inquiryRepository.findById(created.getId()).orElseThrow();
+        assertThat(updated.getStatus()).isEqualTo(InquiryStatus.COMPLETED);
+        assertThat(updated.getAnswer()).isNull();
+        verify(emailSender, never()).send(anyString(), any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void changeStatusForMissingInquiryThrowsNotFound() {
+        assertThatThrownBy(() -> inquiryService.changeStatus(999999L, InquiryStatus.COMPLETED))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+    }
 }
