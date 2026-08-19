@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-4 구현 — 답변 등록 API + 이메일 알림)
+
+- 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 INQUIRY-4 단위 구현. `EmailType.INQUIRY_ANSWERED` 추가, `InquiryAnswerRequest`(§⑦ `answer` 최대 5000자), `InquiryService.answer(inquiryId, answerText)` — 갱신 직전 `inquiry.getAnswer() == null`로 최초 등록 여부를 판정해 최초 등록일 때만 `TransactionSynchronizationManager.registerSynchronization`으로 커밋 이후 이메일 발송을 등록(Board의 `deleteFilesAfterCommit`과 동일한 after-commit 패턴), 답변 "수정"(이미 answer가 있던 상태에서 재저장)이면 이메일 스킵, `EmailSender`가 예외를 던져도 로깅만 하고 삼켜 답변 저장 자체는 유지(best-effort). `InquiryAdminController`에 `PATCH /{inquiryId}/answer` 추가.
+- 파일: `common/enums/EmailType.java`, `domain/inquiry/{dto/InquiryAnswerRequest,service/InquiryService}.java`, `api/InquiryAdminController.java`, 테스트 2개(`InquiryServiceTest` 확장, `InquiryAdminControllerTest` 확장)
+- 테스트 결과: 신규 10개(서비스 5 — 답변 저장+상태전이, 최초 등록 시 이메일 발송, 수정 시 이메일 미발송, 이메일 실패해도 답변 유지, 미존재 404 / 컨트롤러 3 — 성공, 공백 답변 400, USER 토큰 403) 전부 통과. RULES.md §8 신규 정책에 따라 이번 단위는 Inquiry 범위 테스트만 실행(누적 31개 전부 통과) — 공통 인프라(SecurityConfig 등) 변경이 없어 전체 스위트는 생략.
+- 사유: 체크리스트(§⑨) 순서대로 구현.
+- 관련: TODO "Inquiry(1:1 문의) 도메인 신규 구현" — 다음 단위 INQUIRY-5(마지막)
+
+---
+
 ## 2026-08-19 — Claude — `main` (RULES.md §8 테스트 범위 정책 추가)
 
 - 변경: 작업 단위별 테스트 범위 규칙 신설 — 단위마다 변경 기능의 직접 테스트+영향받는 공통 영역 테스트만 우선 실행(`--tests`로 범위 좁힘), 단순 도메인 내부 변경마다 전체 스위트 반복 실행 금지, 커밋 전 `git diff`로 예상 밖 변경 파일 점검, 전체 스위트는 기능 묶음 완료·공통 인프라 변경·push 직전 최종 회귀 검증 시에만 실행, 실행 시 §9대로 로그 파일 리다이렉트 후 종료 코드·전체 수·신규 실패만 확인.
