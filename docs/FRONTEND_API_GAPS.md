@@ -1,6 +1,6 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
-> **갱신: 2026-08-19.** 초판(2026-08-14)은 이후 Review·Board·Event·My-Review 구현/연동을 반영하지 못해 전면 갱신했다(2026-08-18). 이번 갱신은 §1.2(내 신청 목록·상세)·§1.5(신청 취소)가 `main`에 커밋·푸시(`b5f6140`)된 것만 반영한다. 프론트 연동 계약 종합은 `docs/FRONTEND_API_INTEGRATION_SPEC.md`, 백엔드 미구현 상세는 `docs/BACKEND_API_GAPS.md`와 함께 본다. 프론트의 목데이터/localStorage 사용 자체는 결함이 아니라, 백엔드가 준비된 화면부터 순차 교체하는 방식이다.
+> **갱신: 2026-08-19(2차).** 초판(2026-08-14)은 이후 Review·Board·Event·My-Review 구현/연동을 반영하지 못해 전면 갱신했다(2026-08-18). 1차 갱신은 §1.2(내 신청 목록·상세)·§1.5(신청 취소)가 `main`에 커밋·푸시(`b5f6140`)된 것만 반영했다. 2차 갱신은 §1.1을 일반 이메일 **회원가입**(이메일 인증 포함, 백엔드 구현 완료·프론트 미연동)과 **로그인·복구**(여전히 미구현)로 분리하고, 프론트가 새로 만들어야 하는 화면(회원가입 인증코드 인라인 입력, 비밀번호 재설정 코드+새비번 통합 화면) 결정을 반영한다. 프론트 연동 계약 종합은 `docs/FRONTEND_API_INTEGRATION_SPEC.md`(§3.13), 백엔드 API 상세는 `docs/api/auth.md`(API 4~6), 백엔드 미구현 상세는 `docs/BACKEND_API_GAPS.md`와 함께 본다. 프론트의 목데이터/localStorage 사용 자체는 결함이 아니라, 백엔드가 준비된 화면부터 순차 교체하는 방식이다.
 
 > 대상: `frontend/src` 전체 · 근거: `services/api.ts`(실제 호출) ↔ `backend/honor-citizen/.../api/*Controller.java`(실구현) 상호 대조(현재 워킹 트리·`main` 기준).
 
@@ -16,7 +16,8 @@
 | 후기(Review) CRUD + 내 후기 | ✅ 실 API | ✅ 구현 | **연동 완료** |
 | 공지/FAQ(Board) | ✅ 실 API | ✅ 구현 | **연동 완료** |
 | 행사(Event) | ✅ 실 API | ✅ 구현 | **연동 완료** (`company`/`logoUrl` 필드 갭 §1.6) |
-| **일반 이메일 회원가입·로그인·복구** | ❌ 목/로컬 | ❌ 없음 | **백엔드 신규 구현 필요** (§1.1) |
+| **일반 이메일 회원가입(인증 포함)** | ❌ 목/로컬 | ✅ 구현·`main` 반영 완료(`bc7d7ce`) | **프론트 신규 구현 필요**(인증코드 인라인 입력 UI) (§1.1) |
+| **일반 이메일 로그인·계정 복구** | ❌ 목/로컬 | ❌ 없음 | **백엔드 신규 구현 필요**(비번재설정 화면 UX는 결정됨) (§1.1) |
 | **내 신청 목록·상세(마이페이지)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.2) |
 | **1:1 문의(Inquiry)** | ❌ 목(localStorage) | ❌ 없음 | **도메인 신규 구현** (§1.3) |
 | **관리자 신청관리·통계** | ❌ 목(localStorage) | ❌ 없음 | **도메인 신규 구현** (§1.4) |
@@ -35,19 +36,29 @@
 
 ## 1. 프론트가 필요로 하나 백엔드에 없는 부분
 
-### 1.1 일반 이메일 회원가입·로그인·계정 복구 — 없음 (BLOCKED)
-- **프론트 사용처**: `pages/LoginPage`(이메일/비밀번호 + 데모 로그인), `pages/SignupPage`, `pages/AccountRecoveryPage`. 현재 이메일 로그인/가입은 `AuthContext`의 로컬 mock 세션으로만 동작.
-- **백엔드 현황**: OAuth2(구글/네이버) + `POST /api/auth/terms`·`refresh`·`logout`만 존재. 이메일/비밀번호 계정 모델과 인증 API 자체가 없음.
+### 1.1 일반 이메일 회원가입·로그인·계정 복구
+
+#### (a) 회원가입(이메일 인증 포함) — ✅ 백엔드 구현 완료(2026-08-19), **프론트 신규 구현 필요**
+- **백엔드 현황**: 3개 API 전부 구현·`main` 커밋·푸시 완료 — `POST /api/auth/signup/email-verification/request`(인증코드 발송), `POST /api/auth/signup/email-verification/confirm`(코드 확인 → `signupToken` 발급), `POST /api/auth/signup`(가입 완료, `signupToken`+`email`+`password`+`name`+`phone` 필수). 상세 계약·요청/응답 예시는 `docs/api/auth.md` API 4~6, `docs/FRONTEND_API_INTEGRATION_SPEC.md` §3.13.
+- **프론트 사용처**: `pages/SignupPage` — 현재 이름/이메일/비밀번호/전화번호를 받는 단일 폼이며, 제출 시 실제 API를 호출하지 않고 `AuthContext.login()`으로 로컬 mock 세션만 만든다.
+- **프론트가 새로 만들어야 하는 것**: 이메일 인증 코드 입력 UI가 화면에 전혀 없다. **UX 결정(2026-08-19)**: 별도 페이지/스텝으로 분리하지 않고 `SignupPage.tsx` 폼 안에 **인라인**으로 넣는다 — 이메일 입력 후 코드 요청 트리거(버튼) → 같은 화면에 코드 입력 필드 노출 → 확인 성공 시 `signupToken` 확보 → 이어서 비밀번호·이름·전화번호까지 채운 뒤 최종 회원가입 제출.
+- **조치**: `services/api.ts`에 3개 API 바인딩 추가(타입 포함) + `SignupPage.tsx`에 인라인 인증코드 입력 섹션 신규 구현 + 실제 제출 로직을 mock에서 실 API 호출로 교체. 재전송 대기(60초)/횟수제한(429)/코드불일치(`INVALID_VERIFICATION_CODE`, 남은 시도 횟수 비노출)/`signupToken` 만료(`INVALID_SIGNUP_TOKEN`) 에러 메시지 처리 필요.
+
+#### (b) 로그인·이메일 중복확인·계정복구 — 여전히 없음 (BLOCKED)
+- **프론트 사용처**: `pages/LoginPage`(이메일/비밀번호 + 데모 로그인), `pages/AccountRecoveryPage`(아이디 찾기/비밀번호 찾기 탭 — **요청 단계까지만** 구현돼 있고, 코드·토큰 검증 후 실제로 새 비밀번호를 저장하는 화면은 없음).
+- **백엔드 현황**: OAuth2(구글/네이버) + `POST /api/auth/terms`·`refresh`·`logout`·(신규) `signup` 계열만 존재. 아래 API는 전부 미구현.
 - **필요 API**
   | 메서드/경로 | 용도 | 인증 |
   |---|---|---|
-  | `POST /api/auth/signup` | 이메일 회원가입, 성공 시 토큰 쿠키 후 `/terms` | 없음 |
   | `POST /api/auth/login` | 이메일/비밀번호 로그인 | 없음 |
   | `POST /api/auth/email/check` | 이메일 중복 확인 | 없음 |
   | `POST /api/auth/recovery/id` | 이름·전화로 가입 이메일(마스킹) 안내 | 없음 |
-  | `POST /api/auth/recovery/password/request`·`/confirm` | 재설정 토큰 발송·저장(만료·1회성) | 없음 |
+  | `POST /api/auth/recovery/password/request` | 이메일·전화로 재설정 코드/토큰 발송 | 없음 |
+  | `POST /api/auth/recovery/password/confirm` | 코드/토큰 검증 + 새 비밀번호 저장(1회 호출) | 없음 |
   | `PATCH /api/users/me/password` | 비밀번호 변경 | USER |
-- **정책**: 로그인 아이디=이메일(정규화 trim+소문자, DB UNIQUE), 비밀번호 단방향 해시, role은 서버 결정, 복구 응답은 계정 존재 비노출, **운영 빌드에서 데모 로그인 제거**.
+- **프론트가 새로 만들어야 하는 것**: 비밀번호 재설정 "확인" 화면 자체가 없다(`AccountRecoveryPage`는 요청 단계로 끝남). **UX 결정(2026-08-19)**: 코드 확인과 새 비밀번호 입력을 별도 스텝으로 나누지 않고 **한 화면에 통합**한다(스텝 최소화) — 코드/토큰 입력란과 새 비밀번호(+확인) 입력란을 함께 보여주고 "재설정" 버튼 한 번으로 제출.
+- **⚠️ 이 UX 결정이 백엔드 API 설계에 미치는 영향**: 화면이 코드와 새 비밀번호를 한 번에 제출하므로, `POST /api/auth/recovery/password/confirm`도 "코드 검증"과 "비밀번호 저장"을 별도 API 2개로 쪼개지 말고 **하나의 요청**(`{ email, code, newPassword }`)으로 설계해야 한다 — AUTH-4의 `signupToken`+`password`를 한 번에 받는 패턴과 동일한 방향. 백엔드 구현 착수 전에 이 계약으로 맞춰야 화면과 어긋나지 않는다.
+- **정책**: 로그인 아이디=이메일(정규화 trim+소문자, DB UNIQUE — 이미 AUTH-1에서 반영됨), 비밀번호 단방향 해시(BCrypt, 8~72자, 복잡도 규칙 없음 — 이미 AUTH-4에서 확정), role은 서버 결정, 복구 응답은 계정 존재 비노출, **운영 빌드에서 데모 로그인 제거**.
 
 ### 1.2 내 신청 목록·상세(마이페이지) — ✅ `main` 반영 완료, 연동 가능
 - **프론트 사용처**: `pages/MyPage` 제작 내역 — 현재 `data/adminMock.ts` localStorage(`applicantEmail === user.email` 필터).
@@ -170,7 +181,7 @@
 
 ## 6. 권장 진행 순서
 
-1. **일반 이메일 인증(§1.1)** — 로그인/가입 mock 제거의 전제.
+1. **일반 이메일 회원가입(§1.1-a)** — 백엔드는 준비됨, 프론트가 인증코드 인라인 입력 UI+실 API 연동을 진행. **일반 로그인·계정복구(§1.1-b)**는 백엔드 구현이 선행돼야 함(비밀번호 재설정 화면 UX는 이미 결정됨 — 백엔드 API를 그 계약에 맞춰 설계).
 2. **내 신청 목록·상세(§1.2)** + **신청 취소(§1.5)** — ✅ 백엔드 커밋·푸시 완료, 바로 연동 가능.
 3. **관리자 신청관리(§1.4)** — status enum 프론트/백 일치 확정 후.
 4. **문의 도메인(§1.3)** — 신규 CRUD.
