@@ -77,15 +77,10 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 return;
             }
             // createOAuthUserIfAbsent는 REQUIRES_NEW로 별도 트랜잭션에서 실행돼 이미 커밋·종료됐으므로
-            // 반환된 엔티티는 detached 상태다. 이후 restore()/updateRefreshToken() 변경이 이 메서드의
+            // 반환된 엔티티는 detached 상태다. 이후 updateRefreshToken() 변경이 이 메서드의
             // (외부) 트랜잭션에 반영되도록 다시 조회해 managed 상태로 만든다.
             user = userRepository.findById(created.getId())
                     .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        }
-
-        if (user.isRestorable()) {
-            user.restore();
-            log.info("보안 이벤트: 탈퇴 유예기간 내 재로그인으로 계정 자동 복구 userId={}", user.getId());
         }
 
         AuthTokens tokens = userService.issueLoginTokens(user);
