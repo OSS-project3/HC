@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (AUTH-4: 이메일 회원가입 API, 4단계 작업 완료)
+
+- 변경: `POST /api/auth/signup` 구현 — signupToken을 SHA-256 해시로 Redis 조회해 이메일 일치를 검증하고(불일치/만료 전부 `INVALID_SIGNUP_TOKEN`으로 동일 응답), 중복 재조회 → BCrypt 해시 → `User.createLocalUser` 저장 → 로그인 토큰 발급을 하나의 트랜잭션으로 처리한다. 가입 토큰은 이 트랜잭션이 실제로 commit된 뒤(컨트롤러에서 `registerLocalUser` 호출이 반환된 다음)에만 삭제한다. 이로써 MAIL-1→SIGNUP-1→SIGNUP-2→AUTH-4 4단계 이메일 회원가입 인증 작업이 전부 완료됐다.
+- 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/service/EmailVerificationService.java`, `domain/user/service/LocalSignupResult.java`(신규), `domain/user/dto/SignupRequest.java`(신규), `infra/security/SecurityConfig.java`, `infra/security/PasswordEncoderConfig.java`(신규), `common/exception/ErrorCode.java`(`INVALID_SIGNUP_TOKEN` 추가), `AuthControllerSignupTest.java`(신규)
+- 버그 수정: `UserService`가 `PasswordEncoder`를 직접 주입받기 시작하며 `SecurityConfig`↔`UserService` 순환 의존이 발생(`BeanCurrentlyInCreationException`)해 `PasswordEncoder` Bean을 `PasswordEncoderConfig`로 분리했다.
+- 테스트: 신규 4개 전부 통과(permitAll 라우트 검증 포함). 전체 스위트 410개 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패(기존 결함, 회귀 아님).
+- 사유: 이메일 회원가입 인증 작업(MAIL-1→SIGNUP-1→SIGNUP-2→AUTH-4) 4단계 중 마지막 단위.
+- 관련: TODO `AUTH-4`
+
+---
+
 ## 2026-08-19 — Claude — `main` (SIGNUP-2: 이메일 인증 코드 확인 API)
 
 - 변경: `POST /api/auth/signup/email-verification/confirm` 구현. 코드 확인과 실패 횟수 증가를 Redis Lua 스크립트로 원자 처리하고, 불일치/만료/이미사용/5회초과를 전부 동일한 오류(`INVALID_VERIFICATION_CODE`)로 응답한다(남은 시도 횟수 비노출). 성공 시 32바이트 URL-safe 가입 토큰을 발급하고 Redis엔 SHA-256 해시만 저장한다.

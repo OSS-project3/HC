@@ -142,13 +142,13 @@
   - 완료됨: 신규 `EmailVerificationServiceConfirmTest` 6개(정상확인+토큰발급/이메일정규화 후에도 매칭/코드불일치시 challenge유지+재시도가능/5회실패후 challenge폐기+정답으로도재확인불가/성공후 재사용거절/애초에 코드요청 안한 이메일 거절) 전부 실제 로컬 Redis(포트 6400)로 통과. 전체 스위트 406개(400+6) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — SIGNUP-1 커밋 때 이미 확인한 기존 결함과 동일건(회귀 아님).
   - 우선순위: P0 — 완료
 
-- [ ] **AUTH-4** 이메일 회원가입 API (`POST /api/auth/signup`)
-  - 변경 내용: 요청에 포함된 가입 토큰으로 Redis에서 정규화 이메일 조회(없거나 만료면 "인증이 필요합니다" 거절) → `findByEmail(normalized)` 사전 중복확인(동시요청 사이 다른 경로로 먼저 가입됐을 가능성 대비) → `PasswordEncoder`로 해시 → `User.createLocalUser(email, passwordHash, name)` → 저장(DB `UNIQUE` 위반 시 동시요청도 `EMAIL_ALREADY_EXISTS`로 변환) → 가입 토큰 삭제(1회성) → 기존 OAuth와 동일한 HttpOnly access/refresh 쿠키 발급 → `/terms`로 이동(약관 동의는 이 API에 포함하지 않고 기존 `POST /api/auth/terms` 재사용).
-  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/entity/User.java`(`createLocalUser`), 신규 `SignupRequest` DTO
-  - 선행 작업: AUTH-1, AUTH-2, PW-1, SIGNUP-2 (AUTH-3은 병렬 가능 — DB UNIQUE가 최종 방어선이라 강한 의존 아님)
-  - 완료 조건: 정상 가입 시 쿠키 발급+DB 저장 확인, 가입 토큰 없이/만료된 토큰으로는 거절, 중복 이메일 거절(사전조회·동시요청 UNIQUE 충돌 둘 다), 비밀번호 평문 미저장 확인
-  - 검증할 테스트: 신규 `AuthControllerTest`(정상가입/토큰없음거절/중복거절/동시요청 충돌)
-  - 우선순위: P0
+- [x] **AUTH-4** 이메일 회원가입 API (`POST /api/auth/signup`) — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: 정책 8단계 그대로 구현 — ①~② `EmailVerificationService.consumeSignupToken`이 signupToken을 SHA-256 해시해 Redis 조회 후 요청 이메일의 정규화 값과 비교(토큰 없음/만료/이메일 불일치를 전부 `INVALID_SIGNUP_TOKEN`(400, 신규) 하나로 동일하게 응답 — 이메일 존재 여부 비노출) ③~⑤·⑦ `UserService.registerLocalUser`가 하나의 트랜잭션 안에서 중복 재조회(`EMAIL_ALREADY_EXISTS`) → `PasswordEncoder`(BCrypt)로 해시 → `User.createLocalUser` 저장(DB UNIQUE 위반 시 동시요청도 동일 오류로 변환) → `issueLoginTokens`로 로그인 토큰까지 함께 발급 ⑥ 컨트롤러가 `registerLocalUser` 호출이 **반환된 뒤**(=UserService 트랜잭션 프록시가 이미 commit한 뒤)에만 `deleteSignupToken` 호출 — DB 저장 실패 시엔 이 줄에 도달하지 않아 토큰이 그대로 살아있음(먼저 삭제 금지 원칙 충족) ⑦ 기존 `AuthCookieManager`로 OAuth와 동일한 HttpOnly 쿠키 발급 ⑧ 약관 동의는 이 API에 포함하지 않고 기존 `POST /api/auth/terms` 그대로.
+  - 대상 파일: `api/AuthController.java`(`POST /signup`), `domain/user/service/UserService.java`(`registerLocalUser` 추가, `PasswordEncoder` 주입), `domain/user/service/EmailVerificationService.java`(`consumeSignupToken`/`deleteSignupToken` 추가), `domain/user/service/LocalSignupResult.java`(신규, `User`+`AuthTokens` 조합 반환용), `domain/user/dto/SignupRequest.java`(신규), `infra/security/SecurityConfig.java`(`/api/auth/signup` 명시적 permitAll 추가), `common/exception/ErrorCode.java`(`INVALID_SIGNUP_TOKEN(400)` 신규), `AuthControllerSignupTest.java`(신규)
+  - ⚠️ **버그 1건 발견·수정(범위 내)**: `UserService`가 `PasswordEncoder`를 직접 주입받기 시작하자 `SecurityConfig`(`PasswordEncoder` Bean 정의 위치, PW-1에서 추가)→`OAuth2SuccessHandler`→`UserService`→`PasswordEncoder`→(다시)`SecurityConfig`로 순환 의존이 생겨 `BeanCurrentlyInCreationException`으로 컨텍스트 로딩 자체가 실패했다. `PasswordEncoder` Bean을 신규 `infra/security/PasswordEncoderConfig.java`(최소 `@Configuration`, 다른 의존 없음)로 분리해 순환을 끊었다 — `SecurityConfig`/`PasswordEncoderConfigTest` 외 다른 코드는 변경 없음(Bean 타입·동작 동일, 여전히 `PasswordEncoderFactories.createDelegatingPasswordEncoder()`).
+  - ⚠️ **정책 문서에 명시 안 된 필드 보충(확인 필요)**: 정책 원문은 "요청에는 email과 signupToken이 포함됩니다"로만 서술하지만, 4단계(비밀번호 해시)·5단계(User 생성)를 수행하려면 원문 비밀번호와 `name`(User `NOT NULL` 컬럼)이 요청에 반드시 있어야 해서 `SignupRequest`에 `password`(`@Size(min=8, max=72)`, BCrypt 72바이트 한도 방어용 상한)와 `name`(`@Size(max=255)`)을 추가했다. `phone`은 `backend/FRONTEND_API_REQUIREMENTS.md` §3 예시 JSON엔 있지만 `User.createLocalUser`가 애초에 받지 않고(OAuth 가입도 동일) 기존 `PATCH /api/users/me`(프로필 수정)로 이미 채울 수 있어 이번 범위에 넣지 않았다 — 비밀번호 최소 길이(8자)도 정책에 명시된 값이 아니라 임의로 정한 보수적 기본값이다. 둘 다 사용자 확인 필요.
+  - 완료됨: 신규 `AuthControllerSignupTest` 4개(정상가입+쿠키발급+평문미저장+토큰1회성 확인, 미발급/만료 토큰 거절, 토큰-이메일 불일치 거절, 가입 시점 중복이메일 거절+토큰 보존 확인) 전부 통과, permitAll 라우트임을 Authorization 헤더 없이 호출해 검증. 전체 스위트 410개(406+4) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — 기존 결함과 동일건(회귀 아님).
+  - 우선순위: P0 — 완료(단, 위 "확인 필요" 2건은 사용자 확인 대기)
 
 - [ ] **RATE-1** 로그인 실패 횟수 제한(Redis)
   - 변경 내용: 정규화 이메일 기준(원문 이메일 대신 SHA-256 해시로 키 구성) 15분 내 5회 실패 시 15분 잠금. `auth:login:fail:{sha256}`(카운터, INCR+TTL 원자 처리)과 `auth:login:lock:{sha256}`(5회째 실패 시 별도 생성, TTL 15분) 두 키 사용. 로그인 성공 시 두 키 모두 삭제. 존재하지 않는 이메일로 시도해도 동일하게 카운트 증가(이메일 존재 여부가 잠금 발생 여부로 새어나가지 않도록). 비밀번호 재설정(향후 계정복구 구현 시)은 잠금 중에도 허용.
@@ -191,6 +191,7 @@ PW-1 ──────────────┤
 MAIL-1 ─→ SIGNUP-1 ─→ SIGNUP-2 ─┴─→ AUTH-4 ─┐
 RATE-1 ──────────────────────────────────────┴─→ AUTH-5 ─→ AUTH-6
 
+AUTH-1/AUTH-2/PW-1/MAIL-1/SIGNUP-1/SIGNUP-2/AUTH-4 — 전부 완료(Claude, 2026-08-19). 다음은 RATE-1(AUTH-5 선행) 또는 AUTH-3(병렬 가능).
 LOOKUP-1 — 완료(Codex, 8d178cc)
 ```
 
