@@ -68,20 +68,7 @@
 
 ### 1.3 1:1 문의(Inquiry) — 도메인 전체 없음 (BLOCKED)
 - **프론트 사용처**: `pages/InquiryPage`(작성), `pages/InquiryDetailPage`(상세), `pages/MyPage`(내 문의), `pages/AdminPage`(관리자 목록+답변). 저장소 `data/inquiries.ts`(`localStorage["customer-inquiries"]`).
-- **데이터 계약**(`InquiryRecord`): `id, category, name, email, phone, title, content, createdAt, status("PENDING"|"COMPLETED"), answer?, answeredAt?`
-- **✅ 비회원 허용 여부 — 코드 확인으로 해소(2026-08-19)**: `InquiryPage.tsx`가 `if (!user) { ...로그인 유도... }`로 비로그인 사용자에게 폼 자체를 보여주지 않는다 — **로그인 필수로 이미 확정된 상태**(별도 정책 결정 불필요, `POST /api/inquiries`는 회원 전용 API로 설계).
-- **⚠️ 소유권 판별 방식은 프론트를 그대로 따르지 않는다**: 프론트(`InquiryDetailPage.tsx`/`MyPage.tsx`)는 `user.email === inquiry.email` 문자열 비교로 "내 문의"를 가리지만, 로그인이 필수인 이상 백엔드는 이 방식을 재현할 필요가 없다. `RULES.md` §3의 신규 원칙(로그인 사용자 본인 데이터 API는 `userId`를 요청 바디로 받지 않고 JWT에서 추출)에 따라 `Inquiry.userId`를 `@AuthenticationPrincipal`로 채우고 그 값으로 소유권을 검증한다 — 프론트가 `userId`를 보낼 필요도, 이메일로 매칭할 필요도 없다.
-- **✅ 서비스 흐름·API 명세 확정(2026-08-19)**: 로그인 → 문의 작성(JWT에서 `userId` 추출) → 검증 → `Inquiry` 저장(`status=PENDING`) → 마이페이지에서 본인 문의 목록/상세 조회 → 관리자가 관리자 페이지에서 조회 → 관리자 답변 등록(`status=COMPLETED`, `answer`/`answeredAt` 저장) → 사용자가 답변 확인. 프론트 코드(`InquiryPage`/`InquiryDetailPage`/`MyPage`/`AdminPage`) 전수 대조로 이 흐름과 아래 API 6개가 일치함을 확인했다.
-- **필요 API**
-  | 메서드/경로 | 용도 | 인증 |
-  |---|---|---|
-  | `POST /api/inquiries` | 문의 등록(`userId`는 JWT에서 추출, 요청 바디에 없음) | USER |
-  | `GET /api/my/inquiries` | 내 문의 목록(호출자 `userId` 기준, 소유자만) | USER |
-  | `GET /api/my/inquiries/{id}` | 내 문의 상세(소유자만) | USER |
-  | `GET /api/admin/inquiries` | 관리자 전체 목록(현재 프론트엔 검색·페이지네이션 UI 없음 — 전체 나열만 하므로 검색 파라미터는 이번 범위 아님, 필요해지면 Board/Review의 `keyword` 패턴 재사용) | 관리자 |
-  | `GET /api/admin/inquiries/{id}` | 관리자 상세 | 관리자 |
-  | `PATCH /api/admin/inquiries/{id}/answer` | 답변 등록/수정(신규·수정 동일 API — `AdminPage.tsx`가 같은 textarea+저장 버튼으로 처리) → 성공 시 `status=COMPLETED`로 함께 전이 | 관리자 |
-  | `PATCH /api/admin/inquiries/{id}/status` | **상태만 독립적으로 변경**(`PENDING`↔`COMPLETED`, 답변 내용과 무관) — `AdminPage.tsx`의 별도 상태 드롭다운(`StatusMenu`, 139~142번 줄)이 답변 저장 버튼과 별개로 존재해 이 동작을 그대로 유지하기로 확정(2026-08-19) | 관리자 |
+- **✅ 서비스 흐름·API 명세·정책 확정(2026-08-19)** — 상세 내용은 이 문서에 중복 유지하지 않고 전용 문서로 옮겼다. **`docs/specs/inquiry/requirements.md`가 이 도메인의 source of truth다**(로그인 필수·`userId`는 JWT에서 추출·검색 API 미포함·`PATCH .../answer`+`PATCH .../status` 6개 API·제출 후 수정·삭제 불가 등 전부 그 문서에 정리). 착수 시 바로 구현 가능한 상태.
 
 ### 1.4 관리자 신청관리·통계 — 없음 (BLOCKED)
 - **프론트 사용처**: `pages/AdminPage`(신청 목록·상태 변경, 통계 카드, 문의 답변). 저장소 `data/adminMock.ts`.
