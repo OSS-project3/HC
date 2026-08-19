@@ -546,9 +546,23 @@ User 탈퇴와 별도로 유지
 - [ ] `domain/user/scheduler/UserWithdrawalScheduler.java` 삭제
 - [ ] `UserService.anonymizeExpiredWithdrawnUsers()` 삭제
 - [ ] `User.anonymize()`/`isRestorable()`/`restore()` 삭제 (WITHDRAW-1·2에서 호출부를 이미 정리했으므로 컴파일 안전)
-- [ ] **결정 필요(착수 시 재확인)**: `withdrawalRequestedAt`/`anonymizedAt` 컬럼과 `UserStatus.WITHDRAWN` 값 자체를 유지할지 제거할지 — 탈퇴가 즉시 하드 삭제라 이 컬럼들이 실제로 값을 가진 채 조회될 일이 없어진다(트랜잭션 내에서 세팅 즉시 row가 지워짐). 다만 관리자가 향후 "정지" 등 별도 목적으로 `WITHDRAWN`이 아닌 새 상태를 쓸 가능성이 있다면 `UserStatus` enum 구조 자체는 남겨두고 값만 정리하는 방향도 고려
 - [ ] `application.yml`(또는 관련 설정)의 `app.scheduler.withdrawal-cleanup-cron` 등 스케줄러 설정 제거
 - [ ] 테스트: `UserTest`에서 `anonymize`/`isRestorable`/`restore` 관련 테스트 삭제
+
+### WITHDRAW-3B. `UserStatus`/`status`/`isWithdrawn()` 완전 제거 (2026-08-19 결정 — WITHDRAW-3에서 분리)
+
+**결정 배경**: 착수 전 전체 참조를 검색한 결과, `status` 제거가 `User` 엔티티 안에서 끝나지 않고 `ApplicationService.validateAdmin()`(관리자 결제 액션 검증)과 `ReviewEligibilityService.validateForCreate()`(후기 작성 자격 검증) 2개 도메인까지 걸치고, 테스트도 7개 파일(`UserServiceLoginTest`/`UserServiceTest`/`UserTest`/`UserControllerTest`/`ReviewEligibilityServiceTest`/`ApplicationServiceTest`/`ApplicationServiceBulkTest`)에 흩어져 있음을 확인했다 — 원래 WITHDRAW-3(User 엔티티 내부 정리)보다 범위가 크므로 별도 단위로 분리한다. 사용자가 "미래 정지 기능 가능성을 이유로 죽은 상태 구조를 유지하지 않는다"고 완전 제거로 확정.
+
+**완전 제거가 타당한 이유(조사 중 발견)**: `ReviewEligibilityService.validateForCreate()`의 `isWithdrawn()` 체크에는 "탈퇴 시 현재 토큰만 블랙리스트에 올리므로, 다른 기기의 예전 액세스 토큰(최대 15분)은 `JwtAuthFilter`(`existsById`만 확인)를 통과할 수 있어 여기서 방어한다"는 주석이 있다. 하드 삭제 정책에서는 탈퇴 즉시 row 자체가 사라지므로 `existsById`가 즉시 실패해 `JwtAuthFilter` 단계에서 인증 자체가 막힌다 — 이 방어 체크가 근본적으로 불필요해진다(`ApplicationService.validateAdmin()`/`UserService.findEligibleApplicationUser()`의 `ACTIVE` 체크도 동일 논리로 "조회된 row는 곧 활성 상태"라는 항상 참인 체크가 된다).
+
+- [ ] `common/enums/UserStatus.java` 삭제
+- [ ] `User.java` — `status`/`withdrawalRequestedAt`/`anonymizedAt` 필드, `isWithdrawn()` 메서드 삭제. `createOAuthUser`/`createLocalUser`의 `status = UserStatus.ACTIVE` 대입 제거. `withdraw()`는 이 단위에서는 아직 유지하되 `this.status = WITHDRAWN` 대입만 제거(본격 재작성은 WITHDRAW-4)
+- [ ] `UserRepository.java` — `findByStatusAndAnonymizedAtIsNullAndWithdrawalRequestedAtBefore(...)` 삭제(WITHDRAW-3에서 호출부인 `anonymizeExpiredWithdrawnUsers()`가 이미 사라졌으므로 안전)
+- [ ] `UserService.findEligibleApplicationUser()` — `user.getStatus() != UserStatus.ACTIVE` 체크 제거
+- [ ] `ApplicationService.validateAdmin()` — `admin.getStatus() != UserStatus.ACTIVE` 체크 제거(role 체크는 유지)
+- [ ] `ReviewEligibilityService.validateForCreate()` — `user.isWithdrawn()` 체크 및 관련 주석 제거(위 근거 설명은 이 문서에 남기고, 코드 주석은 "제거 이유"를 남기지 않고 깔끔히 지움 — arch.md/이 문서가 근거 기록소 역할)
+- [ ] `ErrorCode.ALREADY_WITHDRAWN`이 이 시점에도 여전히 쓰이는지 확인(다른 곳에서 안 쓰이면 WITHDRAW-4에서 정리)
+- [ ] 테스트: `UserServiceLoginTest`/`UserServiceTest`/`UserTest`/`UserControllerTest`/`ReviewEligibilityServiceTest`/`ApplicationServiceTest`/`ApplicationServiceBulkTest` 중 `UserStatus`/`.withdraw()`/`isWithdrawn` 참조하는 케이스 전부 재확인·갱신(단순 `User.createXxxUser()` 후 바로 쓰는 케이스는 영향 없을 가능성 높음 — 착수 시 파일별로 실제 영향 있는 라인만 정리)
 
 ### WITHDRAW-4. `UserService.withdraw()` 하드 삭제로 교체 (핵심 단위)
 
