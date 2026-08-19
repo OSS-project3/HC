@@ -159,13 +159,13 @@
   - 완료됨: 신규 `LoginAttemptLimiterTest` 5개(미실패 시 통과/4회 미만 통과/5회째 잠금/리셋 후 카운터·잠금 모두 초기화 확인/Redis 키에 원문 이메일 미포함 확인) 전부 실제 로컬 Redis(포트 6400)로 통과. 전체 스위트 416개(411+5) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — 기존 결함과 동일건(회귀 아님).
   - 우선순위: P0(AUTH-5의 선행) — 완료
 
-- [ ] **AUTH-5** 이메일 로그인 API (`POST /api/auth/login`) + 소프트탈퇴 자동복구
-  - 변경 내용: 이메일 정규화 → `LoginAttemptLimiter`로 잠금 여부 우선 확인(잠겨있으면 비밀번호 검증 없이 즉시 거절) → `findByEmail` → 계정 없음/`passwordHash == null`(OAuth 전용 계정)/비밀번호 불일치를 **전부 동일한 `INVALID_CREDENTIALS`로 응답**(이메일 존재 여부를 로그인 응답으로 노출하지 않음 — 회원가입 중복확인과는 다른 정책) 및 실패 카운터 증가. 소프트탈퇴 7일 유예기간 내 계정이면 자동 복구하고 응답에 `restored:true` 포함, 유예기간 경과 계정은 동일하게 거절. 성공 시 실패 카운터·잠금 리셋.
-  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, 신규 `LoginRequest`/`LoginResponse` DTO
-  - 선행 작업: AUTH-1, AUTH-2, AUTH-4, PW-1, RATE-1(계정이 있어야 실제 로그인 통합테스트 가능 — 로직 자체는 독립 개발 가능)
-  - 완료 조건: 정상 로그인 성공, 계정없음/비밀번호불일치/OAuth전용계정 모두 동일한 `INVALID_CREDENTIALS`, 5회 실패 후 잠금, 유예기간 내 자동복구+`restored:true`, 유예기간 경과 후 거절
-  - 검증할 테스트: 신규 로그인 테스트(성공/3가지 실패 케이스 응답 동일성/잠금/자동복구/영구탈퇴 후 거절)
-  - 우선순위: P0
+- [x] **AUTH-5** 이메일 로그인 API (`POST /api/auth/login`) + 소프트탈퇴 자동복구 — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: 정책 그대로 구현 — `UserService.login(rawEmail, rawPassword)`: 이메일 정규화 → `LoginAttemptLimiter.checkNotLocked`(잠겨있으면 비밀번호 검증 없이 즉시 `ACCOUNT_LOCKED`) → `findByEmail` → 계정 없음/`passwordHash==null`(OAuth 전용)/비밀번호 불일치를 **전부 동일한 `INVALID_CREDENTIALS`(401, 신규)로 응답**하고 `recordFailure` 호출 → 탈퇴 계정이면 `withdrawalRequestedAt`이 7일 이내인지 **직접 날짜 비교**(아래 설계 메모 참고)로 판단해 자동 복구(`restored:true`)하거나, 유예기간이 지났으면 동일하게 `INVALID_CREDENTIALS`+`recordFailure` → 성공 시 `LoginAttemptLimiter.reset` 호출 후 로그인 토큰 발급.
+  - 대상 파일: `api/AuthController.java`(`POST /login`), `infra/security/SecurityConfig.java`(`/api/auth/login` permitAll), `domain/user/service/UserService.java`(`login` 메서드 추가, `LoginAttemptLimiter` 주입), `domain/user/service/LoginResult.java`(신규), `domain/user/dto/LoginRequest.java`/`LoginResponse.java`(신규), `common/exception/ErrorCode.java`(`INVALID_CREDENTIALS(401)` 신규), `UserServiceLoginTest.java`/`AuthControllerLoginTest.java`(신규)
+  - ⚠️ **설계 메모(정책에 없던 세부사항)**: `User.isRestorable()`(OAuth 로그인이 이미 쓰는 메서드)는 `anonymizedAt==null`만 확인하고 7일 경과 여부는 스케줄러(`anonymizeExpiredWithdrawnUsers`, 주기 실행)가 실제로 익명화해야만 반영된다 — 즉 7일이 지났어도 스케줄러가 아직 안 돌았으면 `isRestorable()`은 여전히 `true`다. "유예기간 경과 계정은 동일하게 거절"을 정확히 만족시키려면 스케줄러 지연 여부와 무관해야 해서, `login()`에 `withdrawalRequestedAt.isAfter(now - 7일)` 날짜 비교를 별도로 추가했다(`isRestorable()`은 여전히 함께 확인 — anonymize 이후에는 email 자체가 바뀌어 애초에 `findByEmail`로 못 찾으므로 이중 안전장치). `User`/`OAuth2SuccessHandler`는 건드리지 않아 OAuth 로그인의 기존 동작(같은 잠재적 오차 있음)은 그대로 유지된다 — 필요하면 별도 단위로 통일 검토.
+  - ⚠️ **RATE-1에서 남겨둔 확인 필요 해소**: `ACCOUNT_LOCKED`를 `INVALID_CREDENTIALS`와 뭉뚱그리지 않고 그대로 노출하는 쪽으로 확정 구현 — 계정 존재 여부와 무관하게 카운트되므로 정보 노출 위험 없음(RATE-1 커밋 시 남겨둔 확인사항, 이번에 실제 구현으로 확정).
+  - 완료됨: `UserServiceLoginTest` 8개(정상로그인/계정없음/비번불일치/OAuth전용계정/5회실패후잠금/성공시카운터리셋/유예기간내자동복구/유예기간경과거절) + `AuthControllerLoginTest` 3개(정상로그인+쿠키발급, 비번불일치 401 envelope, 5회실패후 429 ACCOUNT_LOCKED) 전부 통과. 전체 스위트 427개(416+11) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — 기존 결함과 동일건(회귀 아님).
+  - 우선순위: P0 — 완료
 
 - [ ] **AUTH-6** 비밀번호 변경 API (`PATCH /api/users/me/password`)
   - 변경 내용: 로그인 사용자의 현재 비밀번호 확인 후 새 비밀번호로 교체. OAuth 전용 계정(`passwordHash=null`)은 이 API 자체를 차단.

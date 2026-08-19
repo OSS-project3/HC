@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (AUTH-5: 이메일 로그인 API + 소프트탈퇴 자동복구)
+
+- 변경: `POST /api/auth/login` 구현. `LoginAttemptLimiter`로 잠금 확인 → 계정없음/OAuth전용계정/비밀번호불일치를 전부 `INVALID_CREDENTIALS`로 동일 응답 → 탈퇴 계정은 `withdrawalRequestedAt`을 직접 날짜 비교해 7일 이내면 자동복구(`restored:true`), 지났으면 동일하게 거절 → 성공 시 실패 카운터 리셋.
+- 파일: `api/AuthController.java`, `infra/security/SecurityConfig.java`, `domain/user/service/UserService.java`, `domain/user/service/LoginResult.java`(신규), `domain/user/dto/LoginRequest.java`/`LoginResponse.java`(신규), `common/exception/ErrorCode.java`(`INVALID_CREDENTIALS` 추가), `UserServiceLoginTest.java`/`AuthControllerLoginTest.java`(신규)
+- 테스트: 신규 11개(서비스 8, 컨트롤러 3) 전부 통과. 전체 스위트 427개 중 `UserApplicationFlowTest` 1건만 실패(기존 결함, 회귀 아님).
+- 사유: RATE-1 다음 critical path 단위.
+- 관련: TODO `AUTH-5`
+
+---
+
 ## 2026-08-19 — Claude — `main` (RATE-1: 로그인 실패 횟수 제한)
 
 - 변경: `LoginAttemptLimiter` 신규 구현 — 정규화 이메일을 SHA-256 해시해 Redis 키로 쓰고, 15분 내 5회 실패 시 15분 잠금(`checkNotLocked`/`recordFailure`/`reset` 3개 메서드). AUTH-5(로그인 API)가 아직 없어 이 클래스 자체는 독립적으로 구현·테스트했다.
