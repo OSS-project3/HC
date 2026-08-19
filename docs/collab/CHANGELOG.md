@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (학생증 신청 schoolName 필드 추가, SCHOOLNAME-1 완료)
+
+- 변경: 프론트-백엔드 갭 재점검(`docs/BACKEND_API_GAPS.md` P1-4) 중 발견한 "학교명 저장 필드 없음" 항목을 정책 확정 후 구현. `Application`에 `school_name` 컬럼 신규 추가(개인·단체 공통, 학생증 전용, `orientation`/`schoolType`과 동일하게 신청서 전체에 1개). `UNIVERSITY`/`HIGH_SCHOOL` 둘 다 필수(학번/학과와 달리 대학교 전용 조건 없음), 트림 후 5~20자·한글/영문/숫자/공백만 허용, 비학생증이면 있으면 거절.
+- 파일: `Application.java`, `ApplicationCreateRequest.java`, `BulkApplicationCreateRequest.java`, `ApplicationFactory.java`, `ApplicationPersistenceService.java`, `ApplicationService.java`, `ApplicationFactoryTest.java`, `ApplicationServiceTest.java`, `ApplicationServiceBulkTest.java`, `ApplicationServiceUploadCompensationTest.java`, `docs/specs/application/{requirements,data-model,api}.md`
+- 사유: 사용자 요청으로 프론트-백엔드 API 갭을 다시 확인하던 중 Application 도메인의 학교명 필드 미저장 갭을 짚어 정책 확정(대학교/고등학교 둘 다 필수, DB nullable+서비스 레벨 강제, 5~20자, 한글/영문/숫자/공백만) 후 체크리스트 기반으로 구현
+- 관련: `docs/collab/TODO.md` "학생증 신청에 학교명(schoolName) 필드 추가" 행. 커밋 `575f6c0`(코드), `6653fd2`(문서)
+
+---
+
 ## 2026-08-19 — Claude — `main` (회원탈퇴 WITHDRAW-4 구현 + 정책 변경 전체 완료 마무리)
 
 - 변경: `docs/collab/user.md` §19 체크리스트의 마지막 단위 WITHDRAW-4 구현 — `RefreshTokenSessionRepository.deleteByUserId`/`ApplicationDailyLimitRepository.deleteByUserId` 신규, `TokenSessionStore.deleteUserSessions()`(하드 삭제 전용, 기존 `invalidateUserSessions`의 revoke와 구분), `ApplicationDailyLimitService.deleteAllForUser()`(arch.md §5.1 "다른 모듈 Repository 직접 호출 금지" 원칙에 따라 `UserService`가 이 공개 메서드를 거치도록 함), `UserService.withdraw()`를 실제 하드 삭제(세션 무효화→액세스 토큰 블랙리스트→RefreshTokenSession 삭제→ApplicationDailyLimit 삭제→User 삭제)로 전면 재작성. 이제 어디서도 안 쓰이는 `ErrorCode.ALREADY_WITHDRAWN`과 빈 placeholder였던 `User.withdraw()` 엔티티 메서드도 함께 삭제. 이걸로 확정 정책(WITHDRAW-1~4) 전부 구현 완료 — §19 체크리스트 전 항목 `[x]` 처리, `docs/collab/TODO.md` 행을 🔵→✅로 변경, `docs/api/user.md` API 4를 실제 구현 기준으로 최종 정리, `arch.md`의 "구현 전" 표시를 "구현 완료"로 갱신.
