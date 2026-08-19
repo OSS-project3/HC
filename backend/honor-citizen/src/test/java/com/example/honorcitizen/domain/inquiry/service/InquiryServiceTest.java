@@ -2,8 +2,12 @@ package com.example.honorcitizen.domain.inquiry.service;
 
 import com.example.honorcitizen.common.enums.InquiryCategory;
 import com.example.honorcitizen.common.enums.InquiryStatus;
+import com.example.honorcitizen.common.exception.CustomException;
+import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.inquiry.dto.InquiryCreateRequest;
 import com.example.honorcitizen.domain.inquiry.dto.InquiryCreateResponse;
+import com.example.honorcitizen.domain.inquiry.dto.InquiryDetailResponse;
+import com.example.honorcitizen.domain.inquiry.dto.InquiryListItemResponse;
 import com.example.honorcitizen.domain.inquiry.entity.Inquiry;
 import com.example.honorcitizen.domain.inquiry.repository.InquiryRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,7 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 class InquiryServiceTest {
@@ -47,5 +54,46 @@ class InquiryServiceTest {
         assertThat(saved.getContent()).isEqualTo("언제 발급되나요?");
         assertThat(saved.getStatus()).isEqualTo(InquiryStatus.PENDING);
         assertThat(saved.getAnswer()).isNull();
+    }
+
+    @Test
+    void listMineReturnsOnlyOwnInquiriesNewestFirst() throws InterruptedException {
+        inquiryService.create(USER_ID, request());
+        Thread.sleep(5);
+        InquiryCreateResponse second = inquiryService.create(USER_ID, request());
+        inquiryService.create(2L, request());
+
+        List<InquiryListItemResponse> mine = inquiryService.listMine(USER_ID);
+
+        assertThat(mine).hasSize(2);
+        assertThat(mine.get(0).getId()).isEqualTo(second.getId());
+    }
+
+    @Test
+    void getMineDetailReturnsOwnInquiry() {
+        InquiryCreateResponse created = inquiryService.create(USER_ID, request());
+
+        InquiryDetailResponse detail = inquiryService.getMineDetail(USER_ID, created.getId());
+
+        assertThat(detail.getId()).isEqualTo(created.getId());
+        assertThat(detail.getTitle()).isEqualTo("카드 발급 문의");
+    }
+
+    @Test
+    void getMineDetailForMissingInquiryThrowsNotFound() {
+        assertThatThrownBy(() -> inquiryService.getMineDetail(USER_ID, 999999L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+    }
+
+    @Test
+    void getMineDetailForOtherUsersInquiryThrowsForbidden() {
+        InquiryCreateResponse created = inquiryService.create(USER_ID, request());
+
+        assertThatThrownBy(() -> inquiryService.getMineDetail(2L, created.getId()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
     }
 }

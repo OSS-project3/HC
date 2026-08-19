@@ -62,7 +62,10 @@ public enum ErrorCode {
     BOARD_NOT_FOUND(404, "존재하지 않는 게시글입니다."),
 
     // Event
-    EVENT_NOT_FOUND(404, "존재하지 않는 행사입니다.");
+    EVENT_NOT_FOUND(404, "존재하지 않는 행사입니다."),
+
+    // Inquiry
+    INQUIRY_NOT_FOUND(404, "존재하지 않는 문의입니다.");
 
     private final int status;
     private final String message;
