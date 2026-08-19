@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (FRONTEND_API_INTEGRATION_SPEC.md 정합성 갱신)
+
+- 변경: AUTH-4 커밋 이후 `docs/FRONTEND_API_INTEGRATION_SPEC.md`가 "일반 이메일 회원가입"을 여전히 `BLOCKED`로 표기하고 있어 최신화. 1.2 표에서 회원가입(§3.13, `READY`)과 로그인/중복확인/계정복구(여전히 `BLOCKED`)를 별도 행으로 분리하고, §3.12 차단 목록에서 `POST /api/auth/signup`을 제거, 신규 §3.13(요청/응답 예시·제약·프론트 미착수 사실 포함)을 추가했다. §5 체크리스트에 "일반 회원가입" 소절도 신설.
+- 파일: `docs/FRONTEND_API_INTEGRATION_SPEC.md`
+- 사유: 사용자가 이 문서의 프론트 계약이 실제 구현과 일치하는지 확인 요청 → 불일치 확인 후 최신화.
+- 관련: TODO `AUTH-4`
+
+---
+
 ## 2026-08-19 — Claude — `main` (AUTH-4 확인 필요 항목 확정 반영: phone 포함·비밀번호 정책)
 
 - 변경: AUTH-4 커밋 시 남겨뒀던 확인 필요 2건이 사용자 확정됨에 따라 반영. (1) 프론트 `SignupPage.tsx` 재확인 결과 회원가입 화면이 `phone`을 필수 입력값으로 받고 있어 `SignupRequest`/`registerLocalUser`에 `phone`을 추가(엔티티 팩토리는 안 바꾸고 기존 `updateProfile`로 채움). (2) 비밀번호 정책을 최소 8자·최대 72자·복잡도 규칙 없음으로 확정(이미 구현된 값과 일치, 프론트도 동일하게 완화).

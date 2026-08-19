@@ -85,7 +85,8 @@
 |---|---|---|---|---|
 | Google/Naver 로그인 | OAuth 진입, 최초 사용자 생성, JWT 쿠키, 기존 사용자 로그인 | OAuth2 성공 처리, User 생성, access/refresh 쿠키 발급 구현 | `READY` | 없음 |
 | 신규 OAuth 약관 | 개인정보·이미지·배송 약관 동의 | `POST /api/auth/terms` 구현 | `READY` | 없음. `/terms` 라우트는 프론트 작업 |
-| 일반 이메일 회원가입·로그인 | 이메일, 비밀번호, 중복 확인, 로그인, 복구 | signup/login/password API와 password 저장 모델 없음 | `BLOCKED` | 일반 인증 API 및 이메일 정규화·중복 제약 구현 |
+| 일반 이메일 회원가입(이메일 인증 포함) | 이메일 인증 코드 요청·확인, 회원가입(이메일/비밀번호/이름/전화번호) | `POST /api/auth/signup/email-verification/{request,confirm}`, `POST /api/auth/signup` 전부 구현(2026-08-19) | `READY` | 없음. 상세 계약은 §3.13, 최신 소스는 `docs/api/auth.md` API 4~6 |
+| 일반 이메일 로그인·중복 확인·계정 복구 | 로그인, 이메일 중복 확인, 아이디/비밀번호 찾기 | `login`/`email/check`/`recovery/*`/`users/me/password` API 미구현 | `BLOCKED` | 로그인 API(`AUTH-5`), 이메일 중복 확인(`AUTH-3`), 계정 복구(`recovery/*`) 구현 |
 | 회원정보 조회 | id, name, email, role, phone, address | `GET /api/users/me` 응답에 전부 존재 | `READY` | 없음 |
 | 회원정보 수정 | name, phone, address | `PATCH /api/users/me`는 name, phone만 처리 | `PARTIAL` | 화면에서 address 수정이 확정 요구라면 Request/Entity 수정 경로 추가 |
 | 회원 탈퇴 | 소프트 탈퇴, 세션 무효화, 유예기간 후 처리 | 탈퇴 API와 7일 후 익명화 스케줄러 구현 | `PARTIAL` | “실제 삭제”와 “익명화 후 row 보존” 중 최종 정책 일치 필요 |
@@ -112,7 +113,7 @@
 
 다음 항목은 프론트 매핑만으로 해결되지 않는다.
 
-1. 일반 이메일 회원가입·로그인·비밀번호 복구 API
+1. 일반 이메일 로그인·이메일 중복 확인·비밀번호 복구 API — 회원가입(이메일 인증 포함)은 2026-08-19 구현 완료(§3.13), 로그인/중복확인/복구만 남음
 2. 전화번호+이메일 방식 신청 조회를 유지할 경우 조회 Repository/Service 계약
 3. 학생증 `schoolName`이 실제 카드·신청 상세에 필요한지 확정 후 저장 모델
 4. 단체 ZIP 허용 크기와 Spring multipart 설정 및 parser resource limit
@@ -485,10 +486,9 @@ thumbnailImageUrl, displayOrder
 
 다음은 프론트 문제가 아니라 백엔드 계약이 없어서 API 교체를 시작하면 안 되는 영역이다.
 
-일반 인증:
+일반 인증(회원가입은 2026-08-19 구현 완료 — §3.13로 이동, 아래는 여전히 미구현):
 
 ```text
-POST /api/auth/signup
 POST /api/auth/login
 POST /api/auth/email/check
 POST /api/auth/recovery/id
@@ -530,6 +530,46 @@ GET /api/admin/stats
 
 ---
 
+### 3.13 일반 이메일 회원가입(이메일 인증 포함) — 신규 READY(2026-08-19)
+
+3단계를 순서대로 호출해야 한다. 최신 소스는 `docs/api/auth.md` API 4~6(요청/응답 예시, 에러코드까지 상세).
+
+| 단계 | Method/URL | 인증 |
+|---|---|---|
+| ① 인증 코드 요청 | `POST /api/auth/signup/email-verification/request` | 없음 |
+| ② 인증 코드 확인 | `POST /api/auth/signup/email-verification/confirm` | 없음 |
+| ③ 회원가입 완료 | `POST /api/auth/signup` | 없음 |
+
+```json
+// ① 요청 { "email": "user@example.com" }
+// ① 응답 { "expiresInSeconds": 600, "resendAfterSeconds": 60 }
+
+// ② 요청 { "email": "user@example.com", "code": "482193" }
+// ② 응답 { "signupToken": "...", "expiresInSeconds": 1800 }
+
+// ③ 요청
+{
+  "email": "user@example.com",
+  "signupToken": "②의 signupToken",
+  "password": "8~72자, 복잡도 규칙 없음",
+  "name": "홍길동",
+  "phone": "010-1234-5678"
+}
+// ③ 성공: 201 + Set-Cookie(accessToken/refreshToken, OAuth와 동일) + 사용자 정보(GET /api/users/me와 동일 필드)
+```
+
+핵심 제약:
+
+- `email`/`signupToken`/`password`/`name`/`phone` 5개 모두 필수(현재 `SignupPage.tsx` 폼이 이미 name/email/password/phone을 받고 있음 — `signupToken`만 새로 필요, ①·②를 거쳐야 얻을 수 있다).
+- `signupToken`은 ②에서 발급 후 30분 유효한 1회성 토큰 — 화면 흐름상 ②와 ③ 사이에 시간이 오래 걸리면 만료될 수 있다.
+- 재전송 대기 60초, 이메일당 1시간 5회, IP당 1시간 20회 제한이 있어 ①에서 `TOO_MANY_REQUESTS`(429)가 날 수 있다.
+- ②의 코드 검증은 최대 5회, 실패해도 남은 횟수는 알려주지 않는다(`INVALID_VERIFICATION_CODE`, 400) — 5회 실패 시 ①부터 다시 해야 한다.
+- ③ 성공 후 프론트는 `/terms`로 이동(약관 동의는 기존 `POST /api/auth/terms` 그대로).
+
+**프론트 미착수 항목**: `SignupPage.tsx`가 아직 이 3단계 흐름을 호출하지 않는다(현재는 폼 제출 시 로컬 mock 로그인 처리만 함) — 인증 코드 입력 UI 자체가 없어 화면 설계가 먼저 필요하다.
+
+---
+
 ## 4. 프론트 목데이터 교체 순서
 
 1. OAuth·약관·회원정보 조회
@@ -567,6 +607,13 @@ GET /api/admin/stats
 - [ ] 단체 오류의 row/field/code/message 표시
 - [ ] 개인과 단체 재업로드 part 구분
 
+### 일반 회원가입
+
+- [ ] ①인증코드 요청 → ②코드 확인 → ③회원가입 순서 강제(③에 ②의 `signupToken` 사용)
+- [ ] ①의 429(재전송 대기/횟수 초과), ②의 `INVALID_VERIFICATION_CODE`(남은 시도 횟수 비노출) 메시지 처리
+- [ ] ③ 성공 후 `/terms`로 이동(약관 동의 API는 기존 것 재사용)
+- [ ] 인증 코드 입력 UI 신규 설계(현재 화면엔 없음)
+
 ### 조회·콘텐츠
 
 - [ ] lookup의 실제 `keyValue` 계약 준수
@@ -581,8 +628,8 @@ GET /api/admin/stats
 
 ## 6. 최종 판단
 
-현재 백엔드는 신청 생성, 사용자 신청 조회·취소, 사진 재업로드, 후기, 공지/FAQ, 행사 공개 흐름의 상당 부분을 제공한다. 이 영역은 위 계약대로 프론트 연동을 시작할 수 있다.
+현재 백엔드는 신청 생성, 사용자 신청 조회·취소, 사진 재업로드, 후기, 공지/FAQ, 행사 공개 흐름, 일반 이메일 회원가입(이메일 인증 포함, §3.13)의 상당 부분을 제공한다. 이 영역은 위 계약대로 프론트 연동을 시작할 수 있다.
 
-하지만 기존 화면 전체 요구사항이 빠짐없이 구현된 상태는 아니다. 일반 인증, Inquiry, 관리자 신청관리 API는 미구현이고, 신청 조회 방식, 학교명, 단체 업로드 한도, 후기 다중 이미지, 공지 검색, 행사 회사·로고, 카드 다운로드 기준에는 계약 공백이 남아 있다.
+하지만 기존 화면 전체 요구사항이 빠짐없이 구현된 상태는 아니다. 일반 로그인·이메일 중복확인·계정복구, Inquiry, 관리자 신청관리 API는 미구현이고, 신청 조회 방식, 학교명, 단체 업로드 한도, 후기 다중 이미지, 공지 검색, 행사 회사·로고, 카드 다운로드 기준에는 계약 공백이 남아 있다.
 
 프론트는 `READY` 영역부터 API로 교체하고, `PARTIAL`과 `BLOCKED` 영역은 백엔드 계약이 확정·구현될 때까지 목데이터를 제거하지 않는다.
