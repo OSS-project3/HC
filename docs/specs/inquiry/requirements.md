@@ -51,7 +51,7 @@ Inquiry 저장 (status = PENDING)
 | `GET /api/my/inquiries/{id}` | 내 문의 상세(소유자만) | USER |
 | `GET /api/admin/inquiries` | 관리자 전체 목록. **검색 파라미터 없음** — 프론트에 검색 UI 자체가 없어(§②) 이번 범위 밖. 필요해지면 Board/Review의 `keyword`/`searchType` 패턴 재사용 | 관리자 |
 | `GET /api/admin/inquiries/{id}` | 관리자 상세 | 관리자 |
-| `PATCH /api/admin/inquiries/{id}/answer` | 답변 등록/수정(신규·수정 동일 API, `AdminPage.tsx`와 동일하게). 성공 시 `status=COMPLETED`로 함께 전이 | 관리자 |
+| `PATCH /api/admin/inquiries/{id}/answer` | 답변 등록/수정(신규·수정 동일 API, `AdminPage.tsx`와 동일하게). 성공 시 `status=COMPLETED`로 함께 전이 + 문의자에게 답변 등록 이메일 알림 발송 | 관리자 |
 | `PATCH /api/admin/inquiries/{id}/status` | 답변과 무관하게 상태만 독립 변경(`PENDING`↔`COMPLETED`) — `AdminPage.tsx`의 별도 상태 드롭다운 동작을 그대로 유지하기 위해 신설 | 관리자 |
 
 `POST /api/admin/inquiries/{id}/answer`가 아니라 `PATCH`인 이유: 기존 리소스(답변 필드)를 갱신하는 동작이라 `PATCH`가 더 정확하고, 프론트도 신규/수정을 같은 UI·같은 호출로 처리한다.
@@ -72,6 +72,14 @@ Inquiry 저장 (status = PENDING)
 5. 생성 결과 반환
 
 **`name`/`email`/`phone`을 `User`에서 가져오지 않고 요청으로 받기로 확정한 근거**(2026-08-19, 프론트 코드 확인): `InquiryPage.tsx`에서 `name`은 `defaultValue={user?.name}`, `email`은 `defaultValue={user?.email}`로 계정 값이 미리 채워지지만 **평범한 편집 가능 input**이라 사용자가 자유롭게 고쳐 제출할 수 있다. 특히 `email` input의 placeholder는 "답변받을 이메일"이라 로그인 계정 이메일과 의도적으로 달라질 수 있는 값이다. `phone`은 `defaultValue`조차 없이 항상 빈 값에서 시작한다(계정에 전화번호가 없는 사용자도 있을 수 있음). 즉 이 셋은 계정 스냅샷이 아니라 "이 문의 건에 한정된 연락처"라 요청 바디로 받는 것이 프론트 요구사항과 맞다.
+
+### `PATCH /api/admin/inquiries/{id}/answer` — 답변 등록/수정
+
+1. 관리자 권한 확인
+2. 요청 검증: `answer` 필수(공백만 있으면 거절)
+3. `Inquiry.answer`/`answeredAt` 갱신, `status = COMPLETED`로 전이, DB에 커밋
+4. **커밋이 끝난 뒤** 문의자에게 답변 등록 이메일 알림 발송 시도 — 수신 대상은 `Inquiry.email`(문의 등록 시 요청 바디로 저장된 값, 계정 이메일과 다를 수 있음. §⑤ `POST /api/inquiries` 근거와 동일)
+5. 이메일 발송은 best-effort로 취급한다: 발송 실패가 답변 저장 자체(2~3단계)를 롤백하거나 이 API의 응답을 실패로 만들지 않는다 — 관리자 입장에서 "답변은 저장됐는데 메일만 실패"를 "답변 저장 자체가 실패"로 오인하게 하지 않기 위함. 실패는 로그로만 남긴다(예외를 삼키되 로깅은 필수).
 
 ### `GET /api/my/inquiries` — 내 문의 목록
 
@@ -107,6 +115,7 @@ SELECT * FROM inquiry WHERE user_id = 15 ORDER BY created_at DESC
 - **문의 등록 스팸/남용 방지 없음(2026-08-19 확정)**: 일일 등록 횟수 제한 등은 이번 범위에 넣지 않는다. 필요해지면 신청 도메인의 `ApplicationDailyLimitService` 패턴을 참고해 별도로 추가한다.
 - **재문의(추가 질문) 흐름 없음(2026-08-19 확정, 코드 확인)**: `InquiryDetailPage.tsx`에 답변에 대한 재질문·댓글·스레드 UI가 전혀 없다(하단엔 "목록"/"문의하기"만 있고 문의하기는 완전히 새 문의를 여는 링크). 문의 1건당 답변 1회의 단발성 구조로 확정 — 별도 API 불필요.
 - **첨부파일 미지원(2026-08-19 확정, 코드 확인)**: `InquiryPage.tsx` 폼에 파일 입력 자체가 없다(`category`/`name`/`email`/`phone`/`title`/`content`/동의 체크박스뿐). 이번 범위에서 제외 — 나중에 필요해지면 Board의 `BoardAttachment`(`UploadFile` join) 패턴을 재사용하면 된다.
+- **답변 등록 시 이메일 알림 발송(2026-08-19 확정)**: 관리자가 `PATCH .../answer`로 답변을 저장하면 문의자에게 답변 등록 안내 이메일을 보낸다(`AdminPage.tsx`의 답변 textarea·저장 버튼은 인앱 답변 저장 UI이며 메일 발송 자체가 아니므로 — 별도 알림으로 확정). 기존 `infra/mail/EmailSender`+`common/enums/EmailType`(현재 `SIGNUP_VERIFICATION`/`PASSWORD_RESET`/`PASSWORD_CHANGED`만 존재) 인프라를 재사용해 `EmailType.INQUIRY_ANSWERED`를 추가한다 — `EmailVerificationService`가 이미 쓰고 있는 것과 동일한 패턴. `domain/log/entity/EmailLog`(applicationId 필수 컬럼, PAYMENT_COMPLETE 등 신청 도메인 전용 상수)는 재사용하지 않는다(Inquiry에는 applicationId가 없고, 이 엔티티는 현재 실제로 어디서도 호출되지 않는 미사용 스캐폴딩이라 신뢰할 선례가 아님). 이메일 발송은 답변 저장 트랜잭션과 분리된 best-effort로 처리한다(§⑤ `PATCH .../answer` 처리 흐름 4~5단계 참고) — 발송 실패가 답변 저장 자체를 실패로 되돌리지 않는다.
 
 ## 관련 문서
 

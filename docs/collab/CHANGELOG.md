@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (Inquiry 답변 이메일 알림 정책 확정)
+
+- 변경: 관리자 답변 등록(`PATCH /api/admin/inquiries/{id}/answer`)이 인앱 저장(`AdminPage.tsx`의 답변 textarea·저장 버튼)뿐 아니라 문의자에게 이메일 알림도 발송하도록 확정. 기존 `infra/mail/EmailSender`+`common/enums/EmailType` 인프라(`EmailVerificationService`가 이미 사용 중인 패턴)를 재사용해 `EmailType.INQUIRY_ANSWERED`를 추가하는 방향으로 정했고, 신청 도메인 전용이라 재사용 부적합한 `EmailLog`(applicationId 필수, 미사용 스캐폴딩)는 채택하지 않았다. 이메일 발송은 답변 저장 트랜잭션과 분리된 best-effort로 처리(발송 실패가 답변 저장을 되돌리지 않음)하기로 확정.
+- 파일: `docs/specs/inquiry/requirements.md`(§④ 답변 API 행, §⑤ `PATCH .../answer` 처리 흐름 신설, §⑥ 정책 항목 추가)
+- 사유: "관리자 답변은 메일이니 API 불필요"라는 초기 제안이 실제 프론트 코드(인앱 답변 저장 UI)와 맞지 않아 정정하는 과정에서, 별도 이메일 알림 자체는 필요하다는 사용자 확인을 반영.
+- 관련: TODO "Inquiry(1:1 문의) 도메인 신규 구현"
+
+---
+
 ## 2026-08-19 — Claude — `main` (Inquiry 남은 정책 4건 해소 + InquiryCategory enum 선반영)
 
 - 변경: `docs/specs/inquiry/requirements.md`의 미결정 4건을 프론트 코드 확인 후 전부 확정 — (1) `category`는 enum으로 강제(신규 `InquiryCategory.java`, `@JsonValue`/`@JsonCreator`로 프론트의 한글 값을 그대로 매핑해 프론트 수정 불필요 — 기존 `LookupMethod`와 동일 패턴), (2) 일일 등록 횟수 제한 없음, (3) 재문의(추가 질문) 흐름 없음(`InquiryDetailPage.tsx`에 대응 UI 없음 확인), (4) 첨부파일 미지원(`InquiryPage.tsx` 폼에 파일 입력 없음 확인). 이로써 Inquiry 도메인의 남은 정책 결정 사항이 없어졌다.
