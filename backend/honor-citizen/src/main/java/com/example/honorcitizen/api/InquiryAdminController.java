@@ -1,13 +1,17 @@
 package com.example.honorcitizen.api;
 
 import com.example.honorcitizen.common.response.ApiResponse;
+import com.example.honorcitizen.domain.inquiry.dto.InquiryAnswerRequest;
 import com.example.honorcitizen.domain.inquiry.dto.InquiryDetailResponse;
 import com.example.honorcitizen.domain.inquiry.dto.InquiryListItemResponse;
 import com.example.honorcitizen.domain.inquiry.service.InquiryService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,5 +34,13 @@ public class InquiryAdminController {
     @GetMapping("/{inquiryId}")
     public ResponseEntity<ApiResponse<InquiryDetailResponse>> detail(@PathVariable Long inquiryId) {
         return ResponseEntity.ok(ApiResponse.success(inquiryService.getAdminDetail(inquiryId)));
+    }
+
+    @PatchMapping("/{inquiryId}/answer")
+    public ResponseEntity<ApiResponse<Void>> answer(
+            @PathVariable Long inquiryId,
+            @Valid @RequestBody InquiryAnswerRequest request) {
+        inquiryService.answer(inquiryId, request.getAnswer());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 }

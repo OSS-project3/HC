@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.inquiry.service;
 
+import com.example.honorcitizen.common.enums.EmailType;
 import com.example.honorcitizen.common.enums.InquiryCategory;
 import com.example.honorcitizen.common.enums.InquiryStatus;
 import com.example.honorcitizen.common.exception.CustomException;
@@ -10,15 +11,24 @@ import com.example.honorcitizen.domain.inquiry.dto.InquiryDetailResponse;
 import com.example.honorcitizen.domain.inquiry.dto.InquiryListItemResponse;
 import com.example.honorcitizen.domain.inquiry.entity.Inquiry;
 import com.example.honorcitizen.domain.inquiry.repository.InquiryRepository;
+import com.example.honorcitizen.infra.mail.EmailSender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 class InquiryServiceTest {
@@ -27,12 +37,15 @@ class InquiryServiceTest {
     private InquiryService inquiryService;
     @Autowired
     private InquiryRepository inquiryRepository;
+    @MockitoBean
+    private EmailSender emailSender;
 
     private static final Long USER_ID = 1L;
 
     @BeforeEach
     void setUp() {
         inquiryRepository.deleteAll();
+        reset(emailSender);
     }
 
     private InquiryCreateRequest request() {
@@ -121,6 +134,62 @@ class InquiryServiceTest {
     @Test
     void getAdminDetailForMissingInquiryThrowsNotFound() {
         assertThatThrownBy(() -> inquiryService.getAdminDetail(999999L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+    }
+
+    @Test
+    void answerSavesAnswerAndTransitionsToCompleted() {
+        InquiryCreateResponse created = inquiryService.create(USER_ID, request());
+
+        inquiryService.answer(created.getId(), "영업일 기준 5일 이내 발급됩니다.");
+
+        Inquiry updated = inquiryRepository.findById(created.getId()).orElseThrow();
+        assertThat(updated.getAnswer()).isEqualTo("영업일 기준 5일 이내 발급됩니다.");
+        assertThat(updated.getAnsweredAt()).isNotNull();
+        assertThat(updated.getStatus()).isEqualTo(InquiryStatus.COMPLETED);
+    }
+
+    @Test
+    void answerSendsEmailOnFirstAnswer() {
+        InquiryCreateResponse created = inquiryService.create(USER_ID, request());
+
+        inquiryService.answer(created.getId(), "영업일 기준 5일 이내 발급됩니다.");
+
+        verify(emailSender).send(eq("hong@example.com"), eq(EmailType.INQUIRY_ANSWERED),
+                anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void answerDoesNotResendEmailWhenAlreadyAnswered() {
+        InquiryCreateResponse created = inquiryService.create(USER_ID, request());
+        inquiryService.answer(created.getId(), "1차 답변");
+        reset(emailSender);
+
+        inquiryService.answer(created.getId(), "수정된 답변");
+
+        Inquiry updated = inquiryRepository.findById(created.getId()).orElseThrow();
+        assertThat(updated.getAnswer()).isEqualTo("수정된 답변");
+        verify(emailSender, never()).send(anyString(), any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void answerKeepsSavedAnswerEvenWhenEmailSendFails() {
+        InquiryCreateResponse created = inquiryService.create(USER_ID, request());
+        doThrow(new CustomException(ErrorCode.EMAIL_DELIVERY_FAILED))
+                .when(emailSender).send(anyString(), any(), anyString(), anyString(), anyString());
+
+        inquiryService.answer(created.getId(), "영업일 기준 5일 이내 발급됩니다.");
+
+        Inquiry updated = inquiryRepository.findById(created.getId()).orElseThrow();
+        assertThat(updated.getAnswer()).isEqualTo("영업일 기준 5일 이내 발급됩니다.");
+        assertThat(updated.getStatus()).isEqualTo(InquiryStatus.COMPLETED);
+    }
+
+    @Test
+    void answerForMissingInquiryThrowsNotFound() {
+        assertThatThrownBy(() -> inquiryService.answer(999999L, "답변"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
