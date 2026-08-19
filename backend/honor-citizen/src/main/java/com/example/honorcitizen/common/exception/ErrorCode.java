@@ -24,6 +24,8 @@ public enum ErrorCode {
     TOO_MANY_REQUESTS(429, "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
     // 불일치/만료/이미 사용됨/시도 초과를 전부 동일하게 취급한다(공격자가 원인을 구분하지 못하도록 — SIGNUP-2 정책).
     INVALID_VERIFICATION_CODE(400, "인증 코드가 올바르지 않거나 만료되었습니다."),
+    // 토큰 없음/만료와 토큰-이메일 불일치를 동일하게 취급한다(이메일 존재 여부 비노출 — AUTH-4 정책).
+    INVALID_SIGNUP_TOKEN(400, "가입 인증이 만료되었거나 유효하지 않습니다. 이메일 인증을 다시 진행해주세요."),
 
     // Application
     APPLICATION_NOT_FOUND(404, "존재하지 않는 신청입니다."),

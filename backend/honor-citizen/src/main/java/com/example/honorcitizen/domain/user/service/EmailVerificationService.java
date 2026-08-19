@@ -128,6 +128,22 @@ public class EmailVerificationService {
         return SignupEmailVerificationConfirmResponse.of(signupToken, SIGNUP_TOKEN_TTL.toSeconds());
     }
 
+    // AUTH-4 1~2단계: signupToken 해시로 Redis 조회 후 요청 이메일과 정규화 값을 비교한다.
+    // 토큰이 없거나(만료·오타) 이메일이 다르면 이메일 존재 여부를 노출하지 않는 동일한 오류로 처리한다.
+    public String consumeSignupToken(String rawSignupToken, String rawEmail) {
+        String normalizedEmail = User.normalizeEmail(rawEmail);
+        String storedEmail = redisTemplate.opsForValue().get(TOKEN_KEY_PREFIX + sha256Hex(rawSignupToken));
+        if (storedEmail == null || !storedEmail.equals(normalizedEmail)) {
+            throw new CustomException(ErrorCode.INVALID_SIGNUP_TOKEN);
+        }
+        return normalizedEmail;
+    }
+
+    // AUTH-4 6단계: User 저장이 DB에 실제로 commit된 뒤에만 호출해야 한다(호출 순서는 컨트롤러가 보장).
+    public void deleteSignupToken(String rawSignupToken) {
+        redisTemplate.delete(TOKEN_KEY_PREFIX + sha256Hex(rawSignupToken));
+    }
+
     private String generateSignupToken() {
         byte[] bytes = new byte[SIGNUP_TOKEN_BYTES];
         secureRandom.nextBytes(bytes);

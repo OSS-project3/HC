@@ -16,6 +16,7 @@ import com.example.honorcitizen.infra.security.TokenSessionStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenSessionStore tokenSessionStore;
+    private final PasswordEncoder passwordEncoder;
 
     public TermsAgreeResponse agreeTerms(Long userId, TermsAgreeRequest request) {
         User user = findById(userId);
@@ -90,6 +92,33 @@ public class UserService {
             // 사전조회 이후 동시요청으로 같은 이메일 계정이 먼저 커밋된 경우 — email UNIQUE 위반을 동일하게 처리한다.
             throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
+    }
+
+    /**
+     * AUTH-4 3~5·7단계. signupToken 검증(1~2단계)은 이 메서드 호출 전에 {@code EmailVerificationService}가
+     * 이미 끝냈다고 가정한다(호출자가 검증된 normalizedEmail을 넘긴다).
+     *
+     * 이 메서드는 클래스 레벨 {@code @Transactional}을 그대로 물려받아 User 저장과 리프레시 토큰
+     * 갱신이 하나의 트랜잭션으로 commit된다 — 호출자(AuthController)는 이 메서드가 반환된 뒤(=DB
+     * commit이 실제로 끝난 뒤)에만 Redis 가입 토큰을 삭제해야 한다(6단계, 순서를 이 메서드가 강제하지
+     * 않으므로 호출자가 지켜야 함).
+     */
+    public LocalSignupResult registerLocalUser(String normalizedEmail, String rawPassword, String name) {
+        if (userRepository.findByEmail(normalizedEmail).isPresent()) {
+            throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+
+        String passwordHash = passwordEncoder.encode(rawPassword);
+        User user;
+        try {
+            user = userRepository.save(User.createLocalUser(normalizedEmail, passwordHash, name));
+        } catch (DataIntegrityViolationException e) {
+            // 사전조회 이후 동시요청으로 같은 이메일 계정이 먼저 커밋된 경우 — email UNIQUE 위반을 동일하게 처리한다.
+            throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+
+        AuthTokens tokens = issueLoginTokens(user);
+        return new LocalSignupResult(user, tokens);
     }
 
     public AuthTokens issueLoginTokens(User user) {

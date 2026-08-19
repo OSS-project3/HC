@@ -9,8 +9,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -24,13 +22,6 @@ public class SecurityConfig {
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final OAuth2FailureHandler oAuth2FailureHandler;
 
-    // 일반 이메일 계정의 비밀번호 저장 형식. 접두사({bcrypt})로 알고리즘을 함께 저장해 향후
-    // Argon2 등으로 교체해도 기존 해시를 그대로 검증할 수 있다(2026-08-19 확정, 지금은 BCrypt strength 10 기본값).
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
-    }
-
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -40,8 +31,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .requestMatchers("/api/auth/refresh").permitAll()
-                // 이메일 회원가입 인증 코드 요청/확인은 로그인 전 단계이므로 비로그인 공개 API다(SIGNUP-1/2 정책).
-                .requestMatchers("/api/auth/signup/**").permitAll()
+                // 이메일 회원가입(가입 완료 API 포함)과 인증 코드 요청/확인은 로그인 전 단계이므로 비로그인
+                // 공개 API다(SIGNUP-1/2/AUTH-4 정책). "/api/auth/signup" 자체(하위 경로 없음)도 명시적으로
+                // 포함시켜 "/**" 접미사의 정확한 매칭 여부에 기대지 않는다.
+                .requestMatchers("/api/auth/signup", "/api/auth/signup/**").permitAll()
                 .requestMatchers("/api/applications/lookup").permitAll()
                 // 후기 목록/단건 조회는 비로그인 공개 조회다(등록/수정/삭제는 아래 hasAnyRole 규칙 그대로 적용).
                 // api.md §API 2·§API 3 참고 — 단건 조회는 로그인 여부에 따라 canEdit/canDelete만 달라진다.
