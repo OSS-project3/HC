@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (RULES.md §8 테스트 범위 정책 추가)
+
+- 변경: 작업 단위별 테스트 범위 규칙 신설 — 단위마다 변경 기능의 직접 테스트+영향받는 공통 영역 테스트만 우선 실행(`--tests`로 범위 좁힘), 단순 도메인 내부 변경마다 전체 스위트 반복 실행 금지, 커밋 전 `git diff`로 예상 밖 변경 파일 점검, 전체 스위트는 기능 묶음 완료·공통 인프라 변경·push 직전 최종 회귀 검증 시에만 실행, 실행 시 §9대로 로그 파일 리다이렉트 후 종료 코드·전체 수·신규 실패만 확인.
+- 파일: `docs/collab/RULES.md` §8
+- 사유: INQUIRY-1~3 진행 중 매 단위마다 전체 스위트(450+ 테스트)를 반복 실행해온 것이 비효율적이라는 사용자 피드백 반영 — 앞으로 INQUIRY-4/5부터 적용.
+- 관련: 없음(프로세스 규칙)
+
+---
+
 ## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-3 구현 — 관리자 문의 목록/상세 API)
 
 - 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 INQUIRY-3 단위 구현. `InquiryRepository.findAllByOrderByCreatedAtDesc` 추가, `InquiryService.listAdmin`/`getAdminDetail`(소유권 개념 없이 404만), `InquiryAdminController`(`GET /api/admin/inquiries`, `/{id}`) 신규 — `SecurityConfig`의 `/api/admin/**` → `hasRole("ADMIN")`가 이미 라우트 레벨로 강제하므로 서비스·컨트롤러에서 별도 권한 재확인 없음(Board 관리자 컨트롤러와 동일 원칙). TDD로 진행 — 컴파일 실패(red) 확인 후 최소 구현.
