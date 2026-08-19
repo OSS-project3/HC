@@ -106,13 +106,12 @@
   - ⚠️ **테스트 설계 메모**: 이 테스트들은 `UserServiceTest`(클래스 레벨 `@Transactional`, 테스트 종료 시 자동 롤백)가 아니라 별도 클래스 `UserServiceOAuthTest`(비-트랜잭셔널, `@BeforeEach deleteAll()`로 수동 정리)에 뒀다 — `createOAuthUserIfAbsent`가 REQUIRES_NEW(별도 커넥션)라서, `@Transactional` 테스트 안에서 `saveAndFlush`로 만든 선행 데이터는 커밋되지 않아 별도 커넥션에서 안 보이고, 그 결과 충돌 감지 자체가 성립하지 않는 문제를 실제로 겪고 나서 분리했다.
   - 우선순위: P0(AUTH-1 직후, 이메일 관련 API보다 먼저) — 완료
 
-- [ ] **AUTH-3** 이메일 중복 확인 API (`POST /api/auth/email/check`)
-  - 변경 내용: 정규화된 이메일로 기존 계정(OAuth 계정 포함) 존재 여부만 반환, 계정 상세는 노출하지 않음.
-  - 대상 파일: `api/AuthController.java`, `domain/user/service/UserService.java`, `domain/user/repository/UserRepository.java`(정규화 이메일 조회 메서드)
-  - 선행 작업: AUTH-1, AUTH-2
-  - 완료 조건: 중복/미중복 각각 정상 응답, OAuth로 이미 가입된 이메일도 중복으로 판정
-  - 검증할 테스트: 신규 컨트롤러 테스트(중복/미중복/OAuth 계정과 충돌)
-  - 우선순위: P1
+- [x] **AUTH-3** 이메일 중복 확인 API (`POST /api/auth/email/check`) — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: `UserService.checkEmailExists(rawEmail)`가 정규화 후 `UserRepository.existsByEmail`로 존재 여부(boolean)만 반환. 이메일은 이미 저장 시점에 항상 정규화돼 있으므로(User 생성 경로 전부 `normalizeEmail` 경유) 별도 정규화 조회 메서드가 필요 없어 기존 `findByEmail`과 나란히 `existsByEmail`만 추가했다. OAuth 계정도 같은 `email` UNIQUE 제약을 공유해 provider 구분 없이 자연히 중복 판정된다. 계정 상세(이름/role 등)는 응답에 없음.
+  - 대상 파일: `api/AuthController.java`(`POST /email/check`), `infra/security/SecurityConfig.java`(permitAll), `domain/user/service/UserService.java`(`checkEmailExists` 추가), `domain/user/repository/UserRepository.java`(`existsByEmail` 추가), `domain/user/dto/EmailCheckRequest.java`/`EmailCheckResponse.java`(신규), `AuthControllerEmailCheckTest.java`(신규)
+  - 선행 작업: AUTH-1, AUTH-2 — 완료
+  - 완료됨: 신규 `AuthControllerEmailCheckTest` 4개(로컬계정 존재/OAuth계정 존재/미가입 이메일/대소문자 무관 매칭) 전부 통과, permitAll 라우트임을 Authorization 헤더 없이 호출해 검증. 전체 스위트 431개(427+4) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — 기존 결함과 동일건(회귀 아님).
+  - 우선순위: P1 — 완료
 
 - [x] **PW-1** PasswordEncoder Bean 등록 — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
   - 변경 내용: `PasswordEncoderFactories.createDelegatingPasswordEncoder()`를 `PasswordEncoder` Bean으로 등록(저장 형식 `{bcrypt}$2a$10$...`).
@@ -192,7 +191,7 @@ PW-1 ──────────────┤
 MAIL-1 ─→ SIGNUP-1 ─→ SIGNUP-2 ─┴─→ AUTH-4 ─┐
 RATE-1 ──────────────────────────────────────┴─→ AUTH-5 ─→ AUTH-6
 
-AUTH-1/AUTH-2/PW-1/MAIL-1/SIGNUP-1/SIGNUP-2/AUTH-4 — 전부 완료(Claude, 2026-08-19). 다음은 RATE-1(AUTH-5 선행) 또는 AUTH-3(병렬 가능).
+AUTH-1/AUTH-2/AUTH-3/PW-1/MAIL-1/SIGNUP-1/SIGNUP-2/AUTH-4/RATE-1/AUTH-5 — 전부 완료(Claude, 2026-08-19). 남은 건 AUTH-6뿐.
 LOOKUP-1 — 완료(Codex, 8d178cc)
 ```
 

@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (AUTH-3: 이메일 중복 확인 API)
+
+- 변경: `POST /api/auth/email/check` 구현. 정규화된 이메일로 `existsByEmail` 조회 후 boolean만 반환(계정 상세 비노출). OAuth 계정도 같은 UNIQUE 제약을 공유해 provider 구분 없이 중복 판정된다.
+- 파일: `api/AuthController.java`, `infra/security/SecurityConfig.java`, `domain/user/service/UserService.java`, `domain/user/repository/UserRepository.java`(`existsByEmail` 추가), `domain/user/dto/EmailCheckRequest.java`/`EmailCheckResponse.java`(신규), `AuthControllerEmailCheckTest.java`(신규)
+- 테스트: 신규 4개 전부 통과. 전체 스위트 431개 중 `UserApplicationFlowTest` 1건만 실패(기존 결함, 회귀 아님).
+- 사유: AUTH-5 완료 후 남은 두 단위(AUTH-3/AUTH-6) 중 독립적으로 진행 가능한 AUTH-3 먼저 진행.
+- 관련: TODO `AUTH-3`
+
+---
+
 ## 2026-08-19 — Claude — `main` (AUTH-5: 이메일 로그인 API + 소프트탈퇴 자동복구)
 
 - 변경: `POST /api/auth/login` 구현. `LoginAttemptLimiter`로 잠금 확인 → 계정없음/OAuth전용계정/비밀번호불일치를 전부 `INVALID_CREDENTIALS`로 동일 응답 → 탈퇴 계정은 `withdrawalRequestedAt`을 직접 날짜 비교해 7일 이내면 자동복구(`restored:true`), 지났으면 동일하게 거절 → 성공 시 실패 카운터 리셋.
