@@ -3,6 +3,8 @@ package com.example.honorcitizen.api;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.response.ApiResponse;
+import com.example.honorcitizen.domain.user.dto.LoginRequest;
+import com.example.honorcitizen.domain.user.dto.LoginResponse;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationConfirmRequest;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationConfirmResponse;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationRequest;
@@ -13,6 +15,7 @@ import com.example.honorcitizen.domain.user.dto.TermsAgreeResponse;
 import com.example.honorcitizen.domain.user.dto.UserMeResponse;
 import com.example.honorcitizen.domain.user.service.EmailVerificationService;
 import com.example.honorcitizen.domain.user.service.LocalSignupResult;
+import com.example.honorcitizen.domain.user.service.LoginResult;
 import com.example.honorcitizen.domain.user.service.UserService;
 import com.example.honorcitizen.infra.security.AuthCookieManager;
 import com.example.honorcitizen.infra.security.AuthTokens;
@@ -77,6 +80,18 @@ public class AuthController {
 
         // 8단계: 약관 동의는 기존 POST /api/auth/terms 흐름 그대로(이 API에 포함하지 않음).
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(UserMeResponse.from(result.user())));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<LoginResponse>> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletResponse response) {
+        LoginResult result = userService.login(request.getEmail(), request.getPassword());
+
+        authCookieManager.addAccessTokenCookie(response, result.tokens().accessToken());
+        authCookieManager.addRefreshTokenCookie(response, result.tokens().refreshToken());
+
+        return ResponseEntity.ok(ApiResponse.success(LoginResponse.of(result.user(), result.restored())));
     }
 
     @PostMapping("/terms")

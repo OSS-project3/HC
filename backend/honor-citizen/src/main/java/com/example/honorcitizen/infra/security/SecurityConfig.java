@@ -31,6 +31,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .requestMatchers("/api/auth/refresh").permitAll()
+                // 이메일 로그인은 로그인 전 단계이므로 비로그인 공개 API다(AUTH-5 정책).
+                .requestMatchers("/api/auth/login").permitAll()
                 // 이메일 회원가입(가입 완료 API 포함)과 인증 코드 요청/확인은 로그인 전 단계이므로 비로그인
                 // 공개 API다(SIGNUP-1/2/AUTH-4 정책). "/api/auth/signup" 자체(하위 경로 없음)도 명시적으로
                 // 포함시켜 "/**" 접미사의 정확한 매칭 여부에 기대지 않는다.

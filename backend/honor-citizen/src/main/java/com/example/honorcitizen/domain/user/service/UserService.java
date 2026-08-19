@@ -12,6 +12,7 @@ import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
 import com.example.honorcitizen.infra.security.AuthTokens;
 import com.example.honorcitizen.infra.security.JwtTokenProvider;
+import com.example.honorcitizen.infra.security.LoginAttemptLimiter;
 import com.example.honorcitizen.infra.security.TokenSessionStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class UserService {
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenSessionStore tokenSessionStore;
     private final PasswordEncoder passwordEncoder;
+    private final LoginAttemptLimiter loginAttemptLimiter;
 
     public TermsAgreeResponse agreeTerms(Long userId, TermsAgreeRequest request) {
         User user = findById(userId);
@@ -122,6 +124,45 @@ public class UserService {
 
         AuthTokens tokens = issueLoginTokens(user);
         return new LocalSignupResult(user, tokens);
+    }
+
+    /**
+     * AUTH-5. 정규화 → 잠금 확인 → 자격 검증 → (탈퇴 유예기간 내면) 자동 복구 → 토큰 발급 순서.
+     * 계정없음/비밀번호불일치/OAuth전용계정/탈퇴유예기간경과는 전부 동일한 {@code INVALID_CREDENTIALS}로
+     * 응답하고 실패 카운터를 늘린다 — 이메일 존재 여부가 응답 차이로 새어나가지 않게 하기 위함이다.
+     * 계정 존재 여부와 무관하게 이 메서드가 실패 케이스마다 {@code recordFailure}를 호출하므로,
+     * {@code LoginAttemptLimiter}의 잠금 카운트 자체도 이메일 존재 여부를 노출하지 않는다.
+     */
+    public LoginResult login(String rawEmail, String rawPassword) {
+        String normalizedEmail = User.normalizeEmail(rawEmail);
+        loginAttemptLimiter.checkNotLocked(normalizedEmail);
+
+        User user = userRepository.findByEmail(normalizedEmail).orElse(null);
+        if (user == null || user.getPasswordHash() == null
+                || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+            loginAttemptLimiter.recordFailure(normalizedEmail);
+            throw new CustomException(ErrorCode.INVALID_CREDENTIALS);
+        }
+
+        boolean restored = false;
+        if (user.isWithdrawn()) {
+            boolean withinGracePeriod = user.getWithdrawalRequestedAt() != null
+                    && user.getWithdrawalRequestedAt().isAfter(LocalDateTime.now().minusDays(WITHDRAWAL_GRACE_PERIOD_DAYS));
+            if (user.isRestorable() && withinGracePeriod) {
+                user.restore();
+                restored = true;
+                log.info("보안 이벤트: 탈퇴 유예기간 내 재로그인으로 계정 자동 복구 userId={}", user.getId());
+            } else {
+                // 유예기간이 지난 탈퇴 계정은 비밀번호가 맞아도 동일하게 거절한다(익명화 스케줄러가
+                // 아직 안 돌았어도 anonymizedAt만으로 판단하는 isRestorable()과 별개로 날짜를 직접 확인).
+                loginAttemptLimiter.recordFailure(normalizedEmail);
+                throw new CustomException(ErrorCode.INVALID_CREDENTIALS);
+            }
+        }
+
+        loginAttemptLimiter.reset(normalizedEmail);
+        AuthTokens tokens = issueLoginTokens(user);
+        return new LoginResult(user, tokens, restored);
     }
 
     public AuthTokens issueLoginTokens(User user) {
