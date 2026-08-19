@@ -69,6 +69,7 @@
 ### 1.3 1:1 문의(Inquiry) — 도메인 전체 없음 (BLOCKED)
 - **프론트 사용처**: `pages/InquiryPage`(작성), `pages/InquiryDetailPage`(상세), `pages/MyPage`(내 문의), `pages/AdminPage`(관리자 목록+답변). 저장소 `data/inquiries.ts`(`localStorage["customer-inquiries"]`).
 - **✅ 서비스 흐름·API 명세·정책 확정(2026-08-19)** — 상세 내용은 이 문서에 중복 유지하지 않고 전용 문서로 옮겼다. **`docs/specs/inquiry/requirements.md`가 이 도메인의 source of truth다**(로그인 필수·`userId`는 JWT에서 추출·검색 API 미포함·`PATCH .../answer`+`PATCH .../status` 6개 API·제출 후 수정·삭제 불가 등 전부 그 문서에 정리). 착수 시 바로 구현 가능한 상태.
+- **⚠️ 신규 프론트 작업 필요(2026-08-19)**: 개인정보 수집·이용 동의를 서버에서도 강제하기로 정책 확정(`requirements.md` §⑤·§⑥·§⑦) — `POST /api/inquiries` 요청 바디에 `privacyConsent: true`가 필수다. 현재 `InquiryPage.tsx`의 동의 체크박스 상태(`agreed`)는 제출 버튼 비활성화에만 쓰이고 `FormData`에는 포함되지 않는다. **프론트가 `privacyConsent` 필드를 요청 바디에 추가로 실어 보내지 않으면 문의 등록이 매번 400으로 거절된다** — 연동 전 프론트 담당자 확인 필요.
 
 ### 1.4 관리자 신청관리·통계 — 없음 (BLOCKED)
 - **프론트 사용처**: `pages/AdminPage`(신청 목록·상태 변경, 통계 카드, 문의 답변). 저장소 `data/adminMock.ts`.

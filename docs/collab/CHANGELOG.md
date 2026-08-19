@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (Inquiry 구현 착수 체크리스트 + 6개 잔여 정책 확정)
+
+- 변경: 구현 착수 전 5단계 체크리스트(INQUIRY-1~5, 각 단위 독립 커밋 대상) 신설. 그와 별개로 사용자가 제시한 6개 정책을 반영: (1) 탈퇴 회원 데이터는 `Inquiry.userId`가 FK 없는 순수 참조라 cascade 없이 자동 보존됨을 확인·문서화, (2) 6개월 파기는 `status`와 무관하게 `createdAt` 단일 기준임을 명확화, (3) 답변 "수정" 시에는 이메일 재발송하지 않음(최초 등록 여부는 갱신 직전 `answer == null` 판정으로 구분), (4) 탈퇴→재가입 시 신규 `userId`라 과거 문의 자동 연결 안 됨(설계상 자연히 보장), (5) 전화상담 등으로 `status=COMPLETED`이면서 `answer=null`인 상태도 유효 — 두 필드 간 불변식을 걸지 않음, (6) 개인정보 동의 체크박스를 서버 미검증 UI 전용 게이트로 둔 기존 설계가 API 직접 호출로 우회 가능하다는 문제 제기를 받아 `privacyConsent: true` 서버 검증(`@AssertTrue`)을 신규 추가 — 단, 이건 `InquiryPage.tsx`가 현재 이 필드를 전혀 전송하지 않아 프론트 수정이 별도로 필요한 새 의존성이라 `FRONTEND_API_GAPS.md` §1.3에 명시적으로 기록.
+- 파일: `docs/specs/inquiry/requirements.md`(§⑥ 정책 4건 추가, §⑤/§⑦/§⑨ 갱신, §⑨ 구현 체크리스트 신설), `docs/FRONTEND_API_GAPS.md` §1.3(privacyConsent 프론트 의존성 기록)
+- 사유: 구현 착수 직전 마지막 정책 라운드 + 체크리스트 없이 코드부터 작성했던 절차 실수를 바로잡음(사용자 지적).
+- 관련: TODO "Inquiry(1:1 문의) 도메인 신규 구현"
+
+---
+
 ## 2026-08-19 — Claude — `main` (Inquiry Validation 규칙 + 개인정보 보유기간 6개월 정책 확정)
 
 - 변경: Inquiry 필드별 Bean Validation 규칙(category/name/email/phone/title/content/answer) 확정, `name`은 `ApplicationCreateRequest.Applicant.name` 관례(max 100)를 따름. `phone`은 사용자가 언급한 공용 `ValidPhone` 어노테이션이 실제로는 존재하지 않음을 코드로 확인해 정정 — 기존 `SignupRequest`/`UserUpdateRequest`가 쓰는 인라인 `@Pattern(regexp = "^[0-9\\-]{9,20}$")`을 그대로 재사용하는 걸로 확정. 개인정보 보유기간은 `createdAt + 6개월 → 파기 대상`으로 확정(파기 배치 구현은 `docs/api/user.md`의 "완전탈퇴 배치 스케줄러"와 묶어 이후 진행, 이번엔 정책만). 저장소의 실제 개인정보처리방침 텍스트(`frontend/src/data/policies.ts`)엔 "6개월" 구체 문구가 없고 placeholder임을 확인해 문서에 남김.
