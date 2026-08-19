@@ -13,11 +13,10 @@ class UserTest {
 
         assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(user.isWithdrawn()).isFalse();
-        assertThat(user.isRestorable()).isFalse();
     }
 
     @Test
-    void withdrawMarksUserWithdrawnAndRestorable() {
+    void withdrawMarksUserWithdrawn() {
         User user = User.createOAuthUser("test@example.com", "oauth-1", "google", "Test");
 
         user.withdraw();
@@ -25,26 +24,6 @@ class UserTest {
         assertThat(user.getStatus()).isEqualTo(UserStatus.WITHDRAWN);
         assertThat(user.isWithdrawn()).isTrue();
         assertThat(user.getWithdrawalRequestedAt()).isNotNull();
-        assertThat(user.isRestorable()).isTrue();
-    }
-
-    @Test
-    void restoreClearsWithdrawnStateWithinGracePeriod() {
-        User user = User.createOAuthUser("test@example.com", "oauth-1", "google", "Test");
-        user.withdraw();
-
-        user.restore();
-
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(user.isWithdrawn()).isFalse();
-        assertThat(user.getWithdrawalRequestedAt()).isNull();
-    }
-
-    @Test
-    void activeUserIsNotRestorable() {
-        User user = User.createOAuthUser("test@example.com", "oauth-1", "google", "Test");
-
-        assertThat(user.isRestorable()).isFalse();
     }
 
     @Test
@@ -75,14 +54,5 @@ class UserTest {
         assertThat(user.getPasswordHash()).isEqualTo("hashed-value");
         assertThat(user.getOauthId()).isNull();
         assertThat(user.getOauthProvider()).isNull();
-    }
-
-    @Test
-    void anonymizeClearsPasswordHash() {
-        User user = User.createLocalUser("test@example.com", "hashed-value", "Test");
-
-        user.anonymize();
-
-        assertThat(user.getPasswordHash()).isNull();
     }
 }

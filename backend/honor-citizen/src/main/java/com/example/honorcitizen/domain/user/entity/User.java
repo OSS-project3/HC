@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
-import java.util.UUID;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
@@ -117,27 +116,6 @@ public class User extends BaseTimeEntity {
 
     public boolean isWithdrawn() {
         return this.status == UserStatus.WITHDRAWN;
-    }
-
-    public boolean isRestorable() {
-        return isWithdrawn() && this.anonymizedAt == null;
-    }
-
-    public void restore() {
-        this.status = UserStatus.ACTIVE;
-        this.withdrawalRequestedAt = null;
-    }
-
-    public void anonymize() {
-        String anonymousSuffix = UUID.randomUUID().toString();
-        this.email = "withdrawn-" + this.id + "@anonymized.local";
-        this.name = "탈퇴한 사용자";
-        this.oauthId = "anon-" + anonymousSuffix;
-        this.oauthProvider = "ANONYMIZED";
-        this.passwordHash = null;
-        this.phone = null;
-        this.address = null;
-        this.anonymizedAt = LocalDateTime.now();
     }
 
     public void agreeTerms(boolean privacy, boolean imageUpload, boolean shipping) {

@@ -23,15 +23,12 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class UserService {
-
-    private static final int WITHDRAWAL_GRACE_PERIOD_DAYS = 7;
 
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
@@ -250,16 +247,4 @@ public class UserService {
         }
     }
 
-    public int anonymizeExpiredWithdrawnUsers() {
-        LocalDateTime threshold = LocalDateTime.now().minusDays(WITHDRAWAL_GRACE_PERIOD_DAYS);
-        List<User> targets = userRepository.findByStatusAndAnonymizedAtIsNullAndWithdrawalRequestedAtBefore(
-                UserStatus.WITHDRAWN, threshold);
-
-        targets.forEach(User::anonymize);
-
-        if (!targets.isEmpty()) {
-            log.info("보안 이벤트: 완전탈퇴(익명화) 처리 {}건", targets.size());
-        }
-        return targets.size();
-    }
 }
