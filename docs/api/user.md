@@ -83,7 +83,9 @@ Cookie: accessToken={JWT}
 
 ---
 
-### API 4 / 4 — 회원탈퇴(소프트) (2026-07-31 추가, 로그인 필수) ⚠️ 확인필요 — 프론트에 탈퇴 버튼/화면 자체가 없음(신규)
+### API 4 / 4 — 회원탈퇴 (2026-07-31 추가 → 2026-08-19 소프트 삭제 폐지, 즉시 하드 삭제로 정책 변경. 로그인 필수) ⚠️ 확인필요 — 프론트에 탈퇴 버튼/화면 자체가 없음(신규)
+
+> ⚠️ 2026-08-19 정책 변경: 아래 ⑤~⑥은 "소프트 탈퇴(7일 유예+익명화)" 시절 내용이 섞여 있었다. **확정된 새 정책의 source of truth는 `docs/collab/user.md`("회원정보·개인정보 보유·탈퇴·파기 정책")** — `arch.md` §4.1 "탈퇴 정책" 표와 `backend/FRONTEND_API_REQUIREMENTS.md` §3 "회원탈퇴 정책"은 그 요약이다. 요약: **탈퇴 즉시(배치로 미루지 않고 탈퇴 처리 과정에서 바로) `User` row 하드 삭제, 유예기간·자동복구 없음, `RefreshTokenSession`도 revoke가 아니라 즉시 하드 삭제, `ApplicationDailyLimit`도 삭제, `Application`/`Inquiry`/`Review`/결제 이력/`Board`/감사로그는 삭제하지 않고 각자의 보존정책(상품 수령일+6개월, 접수일+6개월 등)을 따름.** 구현 시 아래 ⑤~⑥을 이 정책에 맞춰 다시 작성해야 한다(현재는 이전 정책 그대로 남아있는 참고용 초안).
 
 #### ④ Request/Response 설계
 
@@ -188,9 +190,11 @@ Content-Type: application/json
 
 ---
 
-### 회원탈퇴 관련 로직 변경 (API 아님 — 기존 인프라 수정)
+### ~~회원탈퇴 관련 로직 변경~~ (2026-08-19 정책 변경으로 전면 대체, API 아님 — 기존 인프라 수정)
 
-**1) 재로그인 시 자동 복구 (`OAuth2SuccessHandler` 수정)**
+> ⚠️ 아래 1)·2)는 실제로 구현까지 됐던 "소프트 탈퇴" 정책(자동복구+7일 후 익명화 스케줄러)의 설계 기록이다. 2026-08-19에 이 정책 자체를 폐지하고 즉시 하드 삭제로 바꾸기로 확정했다 — 아래는 더 이상 목표 상태가 아니라 "이전엔 이렇게 설계·구현했었다"는 이력으로만 남긴다. 실제 구현 변경 시 체크리스트: `User.anonymize()`/`isRestorable()`/`restore()` 제거(또는 재설계), `OAuth2SuccessHandler`의 자동복구 분기 제거, `UserWithdrawalScheduler`/`UserService.anonymizeExpiredWithdrawnUsers()`를 "하드 삭제"로 교체, `withdraw()`에서 `RefreshTokenSession`/`ApplicationDailyLimit` 하드 삭제 추가.
+
+**1) (폐지) 재로그인 시 자동 복구 (`OAuth2SuccessHandler` 수정)**
 기존 회원 재로그인 시(`existsByOauthIdAndOauthProvider`로 판별), 해당 User의 `status=WITHDRAWN`이고 `anonymized_at IS NULL`이면(= 완전탈퇴 전, 유예기간 내) 로그인 처리 직전에 자동 복구:
 ```
 status: WITHDRAWN → ACTIVE
@@ -198,7 +202,7 @@ withdrawal_requested_at = NULL
 ```
 그 다음은 기존 로그인 흐름 그대로 진행(신규회원 아님, `/`로 리다이렉트).
 
-**2) 완전탈퇴 배치 (신규 스케줄러, API 아님)**
+**2) (폐지) 완전탈퇴 배치 (신규 스케줄러, API 아님)**
 - 대상: `status=WITHDRAWN` AND `anonymized_at IS NULL` AND `withdrawal_requested_at` ≤ NOW - 7일
 - 처리: `email`/`name`/`oauth_id`/`oauth_provider`(+`phone`/`address`가 있다면) 스크램블 값으로 치환, `anonymized_at = NOW`
 - 실행 주기: 일 1회 배치로 충분(신청일로부터 3일 이내 미입금 자동취소 스케줄러와 같은 성격 — 둘 다 아직 구현 안 됨, 별도 작업)
@@ -212,14 +216,14 @@ withdrawal_requested_at = NULL
 | 1 | `GET /oauth2/authorization/{provider}` (+콜백) | 설계 완료 |
 | 2 | `GET /api/users/me` | 구현 완료 |
 | 3 | `POST /api/auth/logout` | 설계 완료 |
-| 4 | `POST /api/users/me/withdraw` (회원탈퇴, 소프트) | 설계 완료 |
+| 4 | `POST /api/users/me/withdraw` (회원탈퇴) | 구현 완료(소프트 삭제 방식) — ⚠️ 2026-08-19 정책 변경으로 하드 삭제 재구현 필요(위 경고 박스 참고) |
 | 5 | `PATCH /api/users/me` (내 정보 수정) | 설계 완료 |
-| — | 재로그인 자동복구(`OAuth2SuccessHandler`) + 완전탈퇴 스케줄러 | 설계 완료(API 아님) |
+| — | ~~재로그인 자동복구(`OAuth2SuccessHandler`) + 완전탈퇴 스케줄러~~ | 구현은 됐었으나 2026-08-19 정책 폐지로 제거 대상(위 경고 박스 참고) |
 
 **남은 TODO (User 도메인 공통):**
 - refresh 토큰 rotation/재사용 감지용 세션 저장소를 `.md`에 추가할지 여부 (구현 단계에서 결정해도 되는 사항)
-- `ALREADY_WITHDRAWN` 에러코드는 기존 `ErrorCode.java`에 없음 — 신규 추가 필요(구현 단계에서 처리)
-- 완전탈퇴 배치 스케줄러 구현 필요 (Admin 도메인의 신청일로부터 3일 이내 미입금 자동취소 스케줄러와 함께 인프라 작업으로 묶어도 됨)
+- ~~`ALREADY_WITHDRAWN` 에러코드는 기존 `ErrorCode.java`에 없음~~ (이미 추가·사용 중, 이 TODO는 stale)
+- **회원탈퇴 하드 삭제 재구현 필요(2026-08-19 신규, 최우선)**: `arch.md` §4.1 "탈퇴 정책" 표대로 `User.anonymize()`/`isRestorable()`/`restore()` 제거, `OAuth2SuccessHandler` 자동복구 분기 제거, `UserWithdrawalScheduler` 제거, `withdraw()`에서 `User`/`RefreshTokenSession`/`ApplicationDailyLimit` 하드 삭제로 교체. 관련 테스트(`UserServiceTest`/`UserServiceLoginTest`/`UserTest`/`UserControllerTest`/`ReviewEligibilityServiceTest` 등) 재작성 필요.
 - ~~정보수정(API 5)에서 `phone`/`address`를 `null`로 지우는 것까지 지원할지~~ (2026-08-08 해결 — `address`는 수정 대상에서 완전히 제외됨, `CHANGELOG.md` 2026-08-08 "UserUpdateRequest — address를 수정 대상에서 제외" 항목 참고)
 - ⚪ 2026-08-09 추가(나중 정책사항, 미착수) — **개인정보처리방침 버전 관리**: 회원가입(OAuth) 시 동의받는 개인정보처리방침 문구(사단법인 한글과 세종, 10개 조항 — 처리 목적/수집 항목/제3자 제공/위탁/파기/정보주체 권리/안전성 확보조치/자동수집장치/보호책임자/구제방법/변경 등)를 지금 확정할지 여부. 동의 체크 자체는 기존 `TermsAgreeRequest.privacyAgreed`(`User.privacyAgreed`)로 이미 충분하며 이번 방침 문구 추가만으로는 백엔드 로직/DB 구조 변경이 필요 없음(방침 본문은 프론트 정적 콘텐츠로 처리 가능). 단, **방침 내용을 나중에 개정할 계획이 있다면** 사용자가 "몇 번째 버전에 동의했는지" 추적할 방법이 현재 없음 — `User.termsAgreedAt`은 전체 동의 항목 공통 타임스탬프 1개뿐이고 버전 컬럼이 없음. 개정 계획이 생기면 `User`에 정책 버전 컬럼(또는 별도 동의 이력 테이블) 추가 필요 — 지금은 미결정.
 

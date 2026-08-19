@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (회원탈퇴 정책 변경 — 소프트 삭제 폐지, 즉시 하드 삭제로 확정. 문서만, 코드 미착수)
+
+- 변경: 사용자가 소프트 삭제(7일 유예+익명화) 정책을 폐지하고 즉시 하드 삭제로 바꾸려는 요청에 따라, 먼저 코드베이스 전체를 대상으로 스코프 분석을 수행했다 — `User.id`를 참조하는 7개 테이블(Application/ApplicationDailyLimit/Board/RefreshTokenSession/Review/Inquiry/AdminActivityLog) 전수 확인, `arch.md` §5.1(FK 없는 Long 참조 원칙)이 전역 적용돼 있어 `User` row 하드 삭제가 DB 레벨 문제를 일으키지 않음을 확인, Application/Review/Board/Inquiry 전부 이름·이메일·전화 스냅샷 저장 패턴이라 화면 표시도 깨지지 않음을 확인. 이 분석 결과를 바탕으로 사용자가 1차 정책표를 확정했다. 이후 `git status`에서 사용자가 별도로 작성해둔 상세 정책 원본 `docs/collab/user.md`("회원정보·개인정보 보유·탈퇴·파기 정책", 미커밋 상태로 발견)를 확인 — 사용자에게 처리 방식을 물어 "이 문서를 상위 소스로 삼아 arch.md 등을 재조정"으로 확정받고, 그 기준으로 이미 작성한 문서들을 다시 보강했다: 상품 수령일 기산점(신청/결제 개인정보는 회원탈퇴와 무관하게 "상품 수령 후 6개월" 별도 기산), 법정대리인(만 14세 미만) 개인정보 조건부 조항, `RefreshTokenSession`은 revoke가 아니라 하드 삭제, Review 작성자 표시명 익명화는 "권장"일 뿐 미확정임을 명시, 파기 배치의 감사 로그 형식(파기 유형/건수/일시/결과만 남기고 원문 재저장 금지), 개인정보처리방침 문안 자체의 미해결 사항(§17: "회원가입 정보 상품수령후 6개월" 문구와 즉시 하드삭제 정책의 정합성 미해결, 비밀번호 제3자제공 문구 오류 의심 등).
+- 파일(전부 문서, 코드 변경 없음): `docs/collab/user.md`(신규, source of truth로 커밋), `arch.md` §4.1(User 모듈, "탈퇴 정책" 표 신설+보강)·§4.7(Review 모듈)·§11(스케줄러 인벤토리), `backend/FRONTEND_API_REQUIREMENTS.md` §3(회원탈퇴 정책 절 재작성+보강), `docs/api/user.md`(API 4·"회원탈퇴 관련 로직 변경" 절 폐지 표시+source of truth 링크, User 도메인 정리 표·TODO 갱신), `docs/specs/inquiry/requirements.md`(§⑥ 근거 정정), `docs/specs/review/data-model.md`(user_id 컬럼 설명 보강), `docs/collab/TODO.md`(신규 대기 항목 추가+보강).
+- 사유: 사용자가 회원정보 관리기간 정책 도입을 함께 고려해 소프트 삭제 정책을 재검토 요청. 스코프 분석 → 1차 정책 확정 → 상세 원본 문서 발견·확인 → 문서 재조정까지 이번 세션에서 완료. **실제 코드 구현(하드 삭제 로직, 관련 테스트 재작성)은 아직 착수하지 않았다** — 다음 세션 작업 대상.
+- 관련: TODO "회원탈퇴 정책 변경" 신규 항목
+
+---
+
 ## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-5 구현 + 도메인 전체 완료 마무리)
 
 - 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 마지막 단위 INQUIRY-5 구현 — `InquiryStatusUpdateRequest`, `InquiryService.changeStatus(inquiryId, status)`(답변 유무와 무관하게 상태만 변경, `answer=null`인 채 `COMPLETED` 허용), `InquiryAdminController`에 `PATCH /{inquiryId}/status` 추가. 이걸로 확정 API 6개 전부 구현 완료 — §⑨ 체크리스트 전 항목 `[x]` 처리, `docs/collab/TODO.md` 행을 🔵→✅로 변경, `docs/FRONTEND_API_GAPS.md` §1.3을 "BLOCKED"에서 "PARTIAL(연동 가능, privacyConsent 프론트 반영 필요)"로 갱신.

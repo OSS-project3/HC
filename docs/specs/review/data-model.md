@@ -12,7 +12,7 @@
 | 필드 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGINT | PK, IDENTITY | 후기 ID |
-| user_id | BIGINT | NOT NULL | 실제 작성 계정(`User.id`). `arch.md` §5.1 원칙에 따라 JPA 연관관계로 두지 않는다(`Application.userId`와 동일 방식) — 스푸핑 방지·수정/삭제 권한 판단·향후 "내 후기" 조회에 사용할 서버 판단 기준. 로그인 세션에서 서버가 채움, 요청 값으로 받지 않음 |
+| user_id | BIGINT | NOT NULL | 실제 작성 계정(`User.id`). `arch.md` §5.1 원칙에 따라 JPA 연관관계로 두지 않는다(`Application.userId`와 동일 방식) — 스푸핑 방지·수정/삭제 권한 판단·향후 "내 후기" 조회에 사용할 서버 판단 기준. 로그인 세션에서 서버가 채움, 요청 값으로 받지 않음. **회원탈퇴(하드 삭제) 후에도 이 값은 그대로 남고 Review 본문은 삭제하지 않는다**(2026-08-19 확정, `arch.md` §4.1 "탈퇴 정책"·§4.7, 원본 `docs/collab/user.md` §10 참고) — `author_display_name`이 `User.name`과 독립된 스냅샷이라 표시에 영향 없음. 탈퇴한 작성자 본인은 이후 수정·삭제 불가(로그인 자체가 불가하므로). `author_display_name` 익명화는 권장 사항일 뿐 아직 확정 아님(콘텐츠 운영정책으로 별도 결정 필요) |
 | author_display_name | VARCHAR(50) | NOT NULL | 로그인 사용자 이름을 자동 사용하지 않고 작성자가 직접 입력하는 표시용 이름. `User.name`과 다를 수 있음 |
 | title | VARCHAR(100) | NOT NULL | 제목 |
 | application_type | ENUM | NOT NULL | `INDIVIDUAL`, `GROUP` — Application 도메인의 `ApplicationType` 재사용(신규 enum 안 만듦). 저장 전 실제 신청 이력과 대조 검증(§2) |
