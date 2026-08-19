@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-1 구현 — 문의 등록 API)
+
+- 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 INQUIRY-1 단위 구현. `Inquiry` 엔티티(`create`/`isOwnedBy`/`answer`/`changeStatus`, `answer`/`changeStatus`는 이후 단위에서 사용), `InquiryRepository`(현재는 `JpaRepository` 그대로, 목록 조회 메서드는 INQUIRY-2/3에서 추가 예정), `InquiryCreateRequest`(§⑦ Validation 전부 + `privacyConsent` `@AssertTrue`), `InquiryCreateResponse`, `InquiryService.create`, `InquiryController`(`POST /api/inquiries`, USER 권한) 신규. TDD로 진행 — 실패하는 테스트(`InquiryService`/`InquiryController` 미존재로 컴파일 실패) 먼저 확인 후 최소 구현.
+- 파일: `common/enums/InquiryStatus.java`, `domain/inquiry/{entity/Inquiry,repository/InquiryRepository,dto/InquiryCreateRequest,dto/InquiryCreateResponse,service/InquiryService}.java`, `api/InquiryController.java`, 테스트 3개(`InquiryTest`, `InquiryServiceTest`, `InquiryControllerTest`)
+- 테스트 결과: 신규 7개 전부 통과, 전체 스위트 443개 중 기존과 동일하게 `UserApplicationFlowTest.fullUserApplicationFlow`(pre-existing, TERMS_NOT_AGREED) 1건만 실패(회귀 없음).
+- 사유: 체크리스트(§⑨) 순서대로 구현 착수.
+- 관련: TODO "Inquiry(1:1 문의) 도메인 신규 구현" — 다음 단위 INQUIRY-2
+
+---
+
 ## 2026-08-19 — Claude — `main` (Inquiry 구현 착수 체크리스트 + 6개 잔여 정책 확정)
 
 - 변경: 구현 착수 전 5단계 체크리스트(INQUIRY-1~5, 각 단위 독립 커밋 대상) 신설. 그와 별개로 사용자가 제시한 6개 정책을 반영: (1) 탈퇴 회원 데이터는 `Inquiry.userId`가 FK 없는 순수 참조라 cascade 없이 자동 보존됨을 확인·문서화, (2) 6개월 파기는 `status`와 무관하게 `createdAt` 단일 기준임을 명확화, (3) 답변 "수정" 시에는 이메일 재발송하지 않음(최초 등록 여부는 갱신 직전 `answer == null` 판정으로 구분), (4) 탈퇴→재가입 시 신규 `userId`라 과거 문의 자동 연결 안 됨(설계상 자연히 보장), (5) 전화상담 등으로 `status=COMPLETED`이면서 `answer=null`인 상태도 유효 — 두 필드 간 불변식을 걸지 않음, (6) 개인정보 동의 체크박스를 서버 미검증 UI 전용 게이트로 둔 기존 설계가 API 직접 호출로 우회 가능하다는 문제 제기를 받아 `privacyConsent: true` 서버 검증(`@AssertTrue`)을 신규 추가 — 단, 이건 `InquiryPage.tsx`가 현재 이 필드를 전혀 전송하지 않아 프론트 수정이 별도로 필요한 새 의존성이라 `FRONTEND_API_GAPS.md` §1.3에 명시적으로 기록.
