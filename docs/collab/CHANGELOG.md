@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (회원탈퇴 WITHDRAW-1 구현 — OAuth 자동복구 제거)
+
+- 변경: `docs/collab/user.md` §19 체크리스트의 WITHDRAW-1 단위 구현. `OAuth2SuccessHandler.onAuthenticationSuccess()`에서 기존 회원 재로그인 시 `user.isRestorable()`/`user.restore()`를 호출해 탈퇴 유예기간 내 자동 복구하던 분기를 제거. `User` 엔티티의 `isRestorable()`/`restore()` 메서드 자체는 아직 남아있음(WITHDRAW-3에서 제거 예정, 이번 단위는 호출부만 정리 — 컴파일 의존성 순서).
+- 파일: `infra/security/OAuth2SuccessHandler.java`
+- 테스트 결과: 이 클래스를 직접 테스트하는 전용 테스트가 없음(OAuth2AuthenticationToken 목킹 인프라 자체가 프로젝트에 없음, `UserApplicationFlowTest`도 "OAuth2SuccessHandler와 동일한 코드 경로"라는 주석과 달리 이 클래스를 직접 호출하지 않고 `User.createOAuthUser`+`issueLoginTokens`만 재현 — 이번 변경이 어떤 기존 테스트에도 걸리지 않음을 확인). RULES.md §8대로 영향 범위(`domain.user.*`, `UserController*`, `AuthController*`, `UserApplicationFlowTest`) 65개 실행 — pre-existing 실패 1건(`UserApplicationFlowTest.fullUserApplicationFlow`, 무관)만, 나머지 전부 통과.
+- 사유: 체크리스트(§19) 순서대로 구현 착수.
+- 관련: TODO "회원탈퇴 정책 변경" — 다음 단위 WITHDRAW-2
+
+---
+
 ## 2026-08-19 — Claude — `main` (회원가입 정보 보유기간 정합성 해소 — "상품 수령 후 6개월" vs 즉시 탈퇴 하드 삭제)
 
 - 변경: 사용자가 확인해준 개인정보처리방침 고지 보유기간 5개 항목(본인확인정보=즉시파기, 신청정보/결제정보=상품수령후6개월, 상담정보=상담일로부터6개월, 회원가입정보=상품수령후6개월)을 `docs/collab/user.md` §1.1에 표로 정리. 이어서 남아있던 미해결 항목("회원가입 정보 6개월" 문구와 즉시 하드 삭제 정책의 정합성)을 사용자가 확정: **6개월은 탈퇴하지 않고 활동하는 회원의 기본 보유기간이고, 회원탈퇴 시에는 그 기간을 기다리지 않고 지체 없이 파기한다** — 탈퇴/보유기간만료 중 먼저 도래하는 사유로 파기되는 구조.
