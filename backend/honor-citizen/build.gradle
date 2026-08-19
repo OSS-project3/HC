@@ -63,4 +63,5 @@ tasks.named('test') {
     environment 'AWS_S3_BASE_URL', 'http://localhost/test-s3'
     environment 'MAIL_USERNAME', 'test-mail-username'
     environment 'MAIL_PASSWORD', 'test-mail-password'
+    environment 'EMAIL_CODE_SECRET', 'test-email-code-secret'
 }

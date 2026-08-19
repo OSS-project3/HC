@@ -3,8 +3,11 @@ package com.example.honorcitizen.api;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.response.ApiResponse;
+import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationRequest;
+import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationResponse;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeRequest;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeResponse;
+import com.example.honorcitizen.domain.user.service.EmailVerificationService;
 import com.example.honorcitizen.domain.user.service.UserService;
 import com.example.honorcitizen.infra.security.AuthCookieManager;
 import com.example.honorcitizen.infra.security.AuthTokens;
@@ -31,6 +34,16 @@ public class AuthController {
 
     private final UserService userService;
     private final AuthCookieManager authCookieManager;
+    private final EmailVerificationService emailVerificationService;
+
+    @PostMapping("/signup/email-verification/request")
+    public ResponseEntity<ApiResponse<SignupEmailVerificationResponse>> requestSignupEmailVerification(
+            @Valid @RequestBody SignupEmailVerificationRequest request,
+            HttpServletRequest servletRequest) {
+        String clientIp = servletRequest.getRemoteAddr();
+        return ResponseEntity.ok(ApiResponse.success(
+                emailVerificationService.requestCode(request.getEmail(), clientIp)));
+    }
 
     @PostMapping("/terms")
     public ResponseEntity<ApiResponse<TermsAgreeResponse>> agreeTerms(

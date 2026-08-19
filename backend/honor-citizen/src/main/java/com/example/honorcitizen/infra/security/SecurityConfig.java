@@ -40,6 +40,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .requestMatchers("/api/auth/refresh").permitAll()
+                // 이메일 회원가입 인증 코드 요청/확인은 로그인 전 단계이므로 비로그인 공개 API다(SIGNUP-1/2 정책).
+                .requestMatchers("/api/auth/signup/**").permitAll()
                 .requestMatchers("/api/applications/lookup").permitAll()
                 // 후기 목록/단건 조회는 비로그인 공개 조회다(등록/수정/삭제는 아래 hasAnyRole 규칙 그대로 적용).
                 // api.md §API 2·§API 3 참고 — 단건 조회는 로그인 여부에 따라 canEdit/canDelete만 달라진다.
