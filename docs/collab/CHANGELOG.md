@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-3 구현 — 관리자 문의 목록/상세 API)
+
+- 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 INQUIRY-3 단위 구현. `InquiryRepository.findAllByOrderByCreatedAtDesc` 추가, `InquiryService.listAdmin`/`getAdminDetail`(소유권 개념 없이 404만), `InquiryAdminController`(`GET /api/admin/inquiries`, `/{id}`) 신규 — `SecurityConfig`의 `/api/admin/**` → `hasRole("ADMIN")`가 이미 라우트 레벨로 강제하므로 서비스·컨트롤러에서 별도 권한 재확인 없음(Board 관리자 컨트롤러와 동일 원칙). TDD로 진행 — 컴파일 실패(red) 확인 후 최소 구현.
+- 파일: `domain/inquiry/{repository/InquiryRepository,service/InquiryService}.java`, `api/InquiryAdminController.java`, 테스트 2개(`InquiryServiceTest` 확장, `InquiryAdminControllerTest` 신규)
+- 테스트 결과: 신규 7개(서비스 3, 컨트롤러 4 — 전체 목록, USER 토큰 403, 상세, 미존재 404) 전부 통과. 누적 신규 테스트 23개, 전체 스위트 459개 중 기존과 동일하게 `UserApplicationFlowTest.fullUserApplicationFlow`(pre-existing) 1건만 실패(회귀 없음).
+- 사유: 체크리스트(§⑨) 순서대로 구현.
+- 관련: TODO "Inquiry(1:1 문의) 도메인 신규 구현" — 다음 단위 INQUIRY-4
+
+---
+
 ## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-2 구현 — 내 문의 목록/상세 API)
 
 - 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 INQUIRY-2 단위 구현. `ErrorCode.INQUIRY_NOT_FOUND` 추가, `InquiryRepository.findAllByUserIdOrderByCreatedAtDesc` 추가, `InquiryListItemResponse`/`InquiryDetailResponse`(내 목록·관리자 목록/상세 공용으로 설계), `InquiryService.listMine`/`getMineDetail`(존재 확인 404 → 소유권 확인 403 순서로 분리, `MyApplicationController` 선례와 동일), `MyInquiryController`(`GET /api/my/inquiries`, `GET /api/my/inquiries/{id}`) 신규. TDD로 진행 — 컴파일 실패(red) 확인 후 최소 구현.
