@@ -203,7 +203,7 @@ public class ApplicationService {
             MultipartFile schoolLogo, MultipartFile schoolSeal, boolean isStudent) {
         validateReceiverPresence(request);
         applicationPhotoValidator.validateFacePhoto(photo);
-        validateStudentFields(isStudent, request.getOrientation(), request.getSchoolType(),
+        validateStudentFields(isStudent, request.getOrientation(), request.getSchoolType(), request.getSchoolName(),
                 request.getMember().getStudentId(), request.getMember().getDepartment(), schoolLogo, schoolSeal);
     }
 
@@ -247,13 +247,16 @@ public class ApplicationService {
         if (!isPresent(logo) || (!isStudent && !isPresent(seal))) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
-        // orientation·schoolType은 개인 신청과 동일하게 신청서 전체에 1개, 학생증일 때만 필수(2026-08-14 신규).
+        // orientation·schoolType·schoolName은 개인 신청과 동일하게 신청서 전체에 1개, 학생증일 때만 필수
+        // (orientation/schoolType은 2026-08-14, schoolName은 2026-08-19 신규 — 단체 신청은 항상 한 학교 단위로 접수된다는 전제).
         // 학번·학과는 단체는 여전히 첨부 엑셀(BulkExcelParser)로만 받으므로 여기서는 검증하지 않는다.
-        boolean hasOrientationOrSchoolType = request.getOrientation() != null || request.getSchoolType() != null;
-        if (isStudent && (request.getOrientation() == null || request.getSchoolType() == null)) {
+        boolean hasStudentApplicationField = request.getOrientation() != null || request.getSchoolType() != null
+                || hasText(request.getSchoolName());
+        if (isStudent && (request.getOrientation() == null || request.getSchoolType() == null
+                || !isValidSchoolName(request.getSchoolName()))) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
-        if (!isStudent && hasOrientationOrSchoolType) {
+        if (!isStudent && hasStudentApplicationField) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
@@ -887,8 +890,8 @@ public class ApplicationService {
      * 300x400 기준이 의미가 없기 때문이다.
      */
     private void validateStudentFields(boolean isStudent, Orientation orientation, SchoolType schoolType,
-            String studentId, String department, MultipartFile schoolLogo, MultipartFile schoolSeal) {
-        boolean anyStudentFieldPresent = orientation != null || schoolType != null
+            String schoolName, String studentId, String department, MultipartFile schoolLogo, MultipartFile schoolSeal) {
+        boolean anyStudentFieldPresent = orientation != null || schoolType != null || hasText(schoolName)
                 || hasText(studentId) || hasText(department) || isPresent(schoolLogo) || isPresent(schoolSeal);
 
         if (!isStudent) {
@@ -898,7 +901,7 @@ public class ApplicationService {
             return;
         }
 
-        if (orientation == null || schoolType == null || !isPresent(schoolLogo)) {
+        if (orientation == null || schoolType == null || !isPresent(schoolLogo) || !isValidSchoolName(schoolName)) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
@@ -923,6 +926,12 @@ public class ApplicationService {
     // 이유: 국내 대학 학번은 대부분 숫자 8~10자리이며, 다른 형식은 데이터 오염 위험이 있다.
     private boolean isValidStudentId(String studentId) {
         return studentId.matches("\\d{1,10}");
+    }
+
+    // 학교명은 (DTO getter에서 이미 트림된 값 기준으로) 5~20자, 한글·영문·숫자·공백만 허용한다.
+    private boolean isValidSchoolName(String schoolName) {
+        return schoolName != null && schoolName.length() >= 5 && schoolName.length() <= 20
+                && schoolName.matches("[가-힣a-zA-Z0-9 ]+");
     }
 
     // S3 키가 비어있지 않을 때만 삭제를 시도한다.

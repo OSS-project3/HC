@@ -96,6 +96,7 @@ class ApplicationServiceUploadCompensationTest {
                   "issueType": "MOBILE",
                   "orientation": "LANDSCAPE",
                   "schoolType": "UNIVERSITY",
+                  "schoolName": "전북대학교",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "member": {
                     "englishName": "Hong Gildong",

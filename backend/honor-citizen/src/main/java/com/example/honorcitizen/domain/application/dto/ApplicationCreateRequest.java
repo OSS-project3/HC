@@ -37,6 +37,10 @@ public class ApplicationCreateRequest {
     // UNIVERSITY일 때만 MemberRequest.studentId/department가 필수가 된다.
     private SchoolType schoolType;
 
+    // 학생증(STUDENT)일 때만 사용 — 신청서 전체에 1개(개인·단체 공통). UNIVERSITY/HIGH_SCHOOL 둘 다 필수.
+    // 서비스 레벨에서 isStudent 기준으로 조건부 필수 검증(validateStudentFields).
+    private String schoolName;
+
     @NotNull
     @Valid
     private ApplicantRequest applicant;
@@ -50,6 +54,11 @@ public class ApplicationCreateRequest {
 
     public boolean isReceiverSameAsApplicant() {
         return receiver == null || receiver.isSameAsApplicant();
+    }
+
+    // schoolName은 저장·검증 전에 항상 트림된 값으로 취급한다(정책: 앞뒤 공백 트림 후 5~20자 검사).
+    public String getSchoolName() {
+        return schoolName == null ? null : schoolName.trim();
     }
 
     @Getter

@@ -27,12 +27,20 @@ public class BulkApplicationCreateRequest {
     // 학생증(STUDENT)일 때만 사용. 학번·학과는 이 필드와 무관하게 여전히 첨부 엑셀로만 받는다(BulkExcelParser).
     private SchoolType schoolType;
 
+    // 학생증(STUDENT)일 때만 사용 — 신청서 전체에 1개(개인 DTO와 동일 위치·의미). 단체 신청은 항상 한 학교 단위로 접수된다는 전제.
+    private String schoolName;
+
     @NotNull
     @Valid
     private ApplicantRequest applicant;
 
     @Valid
     private ReceiverRequest receiver;
+
+    // schoolName은 저장·검증 전에 항상 트림된 값으로 취급한다(정책: 앞뒤 공백 트림 후 5~20자 검사).
+    public String getSchoolName() {
+        return schoolName == null ? null : schoolName.trim();
+    }
 
     @Getter
     @NoArgsConstructor

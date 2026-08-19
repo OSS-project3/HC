@@ -131,17 +131,30 @@ public class Application extends BaseTimeEntity {
     @Column(length = 20)
     private SchoolType schoolType;
 
-    // 기존 호출부(비학생증 픽스처 다수)와의 하위 호환용 — orientation/schoolType 없이 호출하면 둘 다 null로 생성한다.
+    // 학생증(STUDENT)일 때만 값이 있다(개인·단체 공통, 신청서 전체에 1개) — UNIVERSITY/HIGH_SCHOOL 둘 다 필수.
+    // orientation/schoolType과 동일하게 DB는 nullable, 학생증 여부에 따른 필수 검증은 서비스 레벨(validateStudentFields)에서 강제한다.
+    @Column(length = 20)
+    private String schoolName;
+
+    // 기존 호출부(비학생증 픽스처 다수)와의 하위 호환용 — orientation/schoolType/schoolName 없이 호출하면 전부 null로 생성한다.
     public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId) {
         return createIndividual(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
-                logoFileId, sealFileId, null, null);
+                logoFileId, sealFileId, null, null, null);
+    }
+
+    // 기존 호출부(orientation/schoolType까지만 반영된 픽스처)와의 하위 호환용 — schoolName 없이 호출하면 null로 생성한다.
+    public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId,
+            Orientation orientation, SchoolType schoolType) {
+        return createIndividual(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
+                logoFileId, sealFileId, orientation, schoolType, null);
     }
 
     // 개인 신청: 대상자(ApplicationMember)는 항상 1명, submitFileId(제출 ZIP)는 없음
     public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId,
-            Orientation orientation, SchoolType schoolType) {
+            Orientation orientation, SchoolType schoolType, String schoolName) {
         Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
         application.applicationType = ApplicationType.INDIVIDUAL;
         application.totalQuantity = 1;
@@ -149,21 +162,31 @@ public class Application extends BaseTimeEntity {
         application.sealFileId = sealFileId;
         application.orientation = orientation;
         application.schoolType = schoolType;
+        application.schoolName = schoolName;
         return application;
     }
 
-    // 기존 호출부와의 하위 호환용 — orientation/schoolType 없이 호출하면 둘 다 null로 생성한다.
+    // 기존 호출부와의 하위 호환용 — orientation/schoolType/schoolName 없이 호출하면 전부 null로 생성한다.
     public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
             Long logoFileId, Long sealFileId, Long submitFileId) {
         return createGroup(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
-                totalQuantity, logoFileId, sealFileId, submitFileId, null, null);
+                totalQuantity, logoFileId, sealFileId, submitFileId, null, null, null);
+    }
+
+    // 기존 호출부(orientation/schoolType까지만 반영된 픽스처)와의 하위 호환용 — schoolName 없이 호출하면 null로 생성한다.
+    public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
+            Long logoFileId, Long sealFileId, Long submitFileId, Orientation orientation, SchoolType schoolType) {
+        return createGroup(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
+                totalQuantity, logoFileId, sealFileId, submitFileId, orientation, schoolType, null);
     }
 
     // 단체 신청: 대상자는 제출 ZIP(엑셀) 행 수만큼(totalQuantity), submitFileId로 원본 ZIP을 추적
     public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
-            Long logoFileId, Long sealFileId, Long submitFileId, Orientation orientation, SchoolType schoolType) {
+            Long logoFileId, Long sealFileId, Long submitFileId, Orientation orientation, SchoolType schoolType,
+            String schoolName) {
         Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
         application.applicationType = ApplicationType.GROUP;
         application.totalQuantity = totalQuantity;
@@ -172,6 +195,7 @@ public class Application extends BaseTimeEntity {
         application.submitFileId = submitFileId;
         application.orientation = orientation;
         application.schoolType = schoolType;
+        application.schoolName = schoolName;
         return application;
     }
 
