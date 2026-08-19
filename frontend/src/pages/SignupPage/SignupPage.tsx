@@ -25,7 +25,7 @@ export function SignupPage() {
     if (!form.email.trim()) next.email = "이메일을 입력해 주세요.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = "올바른 이메일 형식으로 입력해 주세요.";
     if (!form.password) next.password = "비밀번호를 입력해 주세요.";
-    else if (form.password.length < 8 || form.password.length > 72) next.password = "비밀번호는 8~72자로 입력해 주세요.";
+    else if (form.password.length < 8 || form.password.length > 64 || !/[A-Za-z]/.test(form.password) || !/\d/.test(form.password) || !/[^A-Za-z0-9]/.test(form.password)) next.password = "비밀번호는 8~64자의 영문, 숫자, 특수문자를 모두 포함해야 합니다.";
     if (!form.confirm) next.confirm = "비밀번호 확인을 입력해 주세요.";
     else if (form.password !== form.confirm) next.confirm = "비밀번호가 일치하지 않습니다.";
     if (!form.phone.trim()) next.phone = "전화번호를 입력해 주세요.";
@@ -94,7 +94,7 @@ export function SignupPage() {
               placeholder="비밀번호"
               required aria-invalid={Boolean(errors.password)}
             />
-            <small className="auth__field-hint">8~72자</small>
+            <small className="auth__field-hint">8~64자, 영문·숫자·특수문자 포함</small>
             {errors.password && <span className="field-error" role="alert">{errors.password}</span>}
           </label>
           <label className="field">
