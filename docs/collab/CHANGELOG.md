@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-2 구현 — 내 문의 목록/상세 API)
+
+- 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 INQUIRY-2 단위 구현. `ErrorCode.INQUIRY_NOT_FOUND` 추가, `InquiryRepository.findAllByUserIdOrderByCreatedAtDesc` 추가, `InquiryListItemResponse`/`InquiryDetailResponse`(내 목록·관리자 목록/상세 공용으로 설계), `InquiryService.listMine`/`getMineDetail`(존재 확인 404 → 소유권 확인 403 순서로 분리, `MyApplicationController` 선례와 동일), `MyInquiryController`(`GET /api/my/inquiries`, `GET /api/my/inquiries/{id}`) 신규. TDD로 진행 — 컴파일 실패(red) 확인 후 최소 구현.
+- 파일: `common/exception/ErrorCode.java`, `domain/inquiry/{repository/InquiryRepository,dto/InquiryListItemResponse,dto/InquiryDetailResponse,service/InquiryService}.java`, `api/MyInquiryController.java`, 테스트 2개(`InquiryServiceTest` 확장, `MyInquiryControllerTest` 신규)
+- 테스트 결과: 신규 9개(서비스 4, 컨트롤러 5) 전부 통과. 누적 신규 테스트 16개, 전체 스위트 452개 중 기존과 동일하게 `UserApplicationFlowTest.fullUserApplicationFlow`(pre-existing) 1건만 실패(회귀 없음).
+- 사유: 체크리스트(§⑨) 순서대로 구현.
+- 관련: TODO "Inquiry(1:1 문의) 도메인 신규 구현" — 다음 단위 INQUIRY-3
+
+---
+
 ## 2026-08-19 — Claude — `main` (Inquiry INQUIRY-1 구현 — 문의 등록 API)
 
 - 변경: `docs/specs/inquiry/requirements.md` §⑨ 체크리스트의 INQUIRY-1 단위 구현. `Inquiry` 엔티티(`create`/`isOwnedBy`/`answer`/`changeStatus`, `answer`/`changeStatus`는 이후 단위에서 사용), `InquiryRepository`(현재는 `JpaRepository` 그대로, 목록 조회 메서드는 INQUIRY-2/3에서 추가 예정), `InquiryCreateRequest`(§⑦ Validation 전부 + `privacyConsent` `@AssertTrue`), `InquiryCreateResponse`, `InquiryService.create`, `InquiryController`(`POST /api/inquiries`, USER 권한) 신규. TDD로 진행 — 실패하는 테스트(`InquiryService`/`InquiryController` 미존재로 컴파일 실패) 먼저 확인 후 최소 구현.
