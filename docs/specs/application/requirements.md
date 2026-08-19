@@ -129,12 +129,25 @@
 | 학과 | `ApplicationMember`(개인별) | 동일 |
 | 학교 로고 | `Application`(신청당 1회) | 개인/단체 무관하게 카드에 공통으로 들어가는 요소 |
 | 학교 직인 | `Application`(신청당 1회) | 선택 입력. 제공된 경우에만 저장 |
+| 가로형/세로형(`orientation`) | `Application`(신청당 1회) | ✅ 2026-08-14 확정. 카드 방향, 개인·단체 공통 |
+| 학교구분(`schoolType`) | `Application`(신청당 1회) | ✅ 2026-08-14 확정. `UNIVERSITY`/`HIGH_SCHOOL`, 개인·단체 공통 |
+| 학교명(`schoolName`) | `Application`(신청당 1회) | ✅ 2026-08-19 신규 확정. 단체 신청은 항상 한 학교 단위로 접수되므로 `orientation`/`schoolType`과 동일하게 신청서 전체에 1개 |
 
 ✅ 확정: **학생증은 개인신청/단체신청 둘 다 처리방침이 동일** — 학교 로고는 항상 필요하고 학교 직인은 선택이다.
 
-✅ 2026-08-07 확정(`APPLICATION.md` 기준): **학번은 최대 10자이며 숫자만 허용한다.** 학교명 필드 필요 여부와 공백 문자열 정책은 [TBD]다.
+✅ 2026-08-07 확정(`APPLICATION.md` 기준): **학번은 최대 10자이며 숫자만 허용한다.**
 
 [TBD] **학과 형식 제약**(글자수 등)은 여전히 미정 — ⚠️ 2026-08-07: `APPLICATION.md`는 "학과 현재 제외"라고 되어 있으나 근거가 제시되어 있지 않고 사람이 아직 미결정으로 확인(`PENDING_DECISIONS.md` 참고). 그래서 이 문서는 학과 필드를 계속 필수로 유지한다 — 위 표의 "학과" 행 그대로.
+
+### 5-0. 학교명(`schoolName`) — 2026-08-19 정책 확정
+
+기존에 "학교명 필드 필요 여부는 [TBD]"였던 항목을 아래와 같이 확정한다.
+
+- **위치**: `Application` 레벨 단일 필드(개인·단체 공통, `orientation`/`schoolType`과 동일한 위치). 단체 신청은 항상 한 학교 단위로 접수되는 것이 전제이므로 `BulkExcelParser`(엑셀 행별 필드)가 아니라 신청 폼 최상위 필드다 — 학번/학과와는 소속 단위가 다르다.
+- **필수 조건**: 카드종류=학생증(`isStudent`)이면 `schoolType`이 `UNIVERSITY`/`HIGH_SCHOOL` 어느 쪽이든 **항상 필수**다(학번/학과와 달리 `UNIVERSITY` 전용 조건 없음). 비학생증 카드는 항상 값이 없어야 하며, 있으면 `INVALID_INPUT`으로 거절한다(`orientation`/`schoolType`과 동일한 대칭 패턴).
+- **DB 제약**: `orientation`/`schoolType`/`studentId`/`department`와 동일하게 **DB 컬럼은 nullable**로 두고, "학생증일 때만 필수"는 서비스 레벨(`validateStudentFields`, `createGroup`)에서만 강제한다. DB에 `NOT NULL` 제약을 걸면 비학생증 신청(명예한국인증/명예시민증/방문증) 저장이 깨지므로 걸지 않는다.
+- **길이**: 최소 5자, 최대 20자. 저장 전 앞뒤 공백을 트림한 뒤 그 길이로 검사한다.
+- **허용 문자**: 한글 + 영문 + 숫자 + 공백만 허용(정규식으로 강제, 그 외 특수문자는 `INVALID_INPUT`).
 
 ### 5-1. 얼굴사진·학교 로고·학교 직인 파일 검증
 
@@ -149,6 +162,25 @@
 - 최소 해상도 제한은 얼굴사진에만 적용하고 학교 로고·직인에는 적용하지 않는다.
 - 모든 파일 검증은 object storage 업로드와 DB 저장 전에 완료한다.
 - 오류 코드는 기존 `FILE_TOO_LARGE`, `UNSUPPORTED_FILE_TYPE`, `INVALID_IMAGE`를 재사용하고 신규 세부 ErrorCode를 추가하지 않는다.
+
+### 5-2. `schoolName` 구현 순서 체크리스트 (2026-08-19 작성 → 2026-08-19 완료)
+
+> ✅ **SCHOOLNAME-1 구현·테스트·문서 반영 완료**(2026-08-19). 개인·단체 등록 API 둘 다 `schoolName`을 받고 저장한다. 전체 스위트 471개(신규 9개 포함, 이전 462개) 중 `UserApplicationFlowTest.fullUserApplicationFlow`(pre-existing, 이 변경과 무관) 1건만 실패, 회귀 없음.
+
+단위 내부 순서: **정책 재확인(위 5-0) → 실패하는 테스트 먼저 작성 → 최소 구현 → 단위 테스트 통과 확인 → 전체 스위트 회귀**(RULES.md §8 — 이 도메인 내부 변경이라 전체 스위트는 마지막에만 실행).
+
+### SCHOOLNAME-1. `Application.school_name` 추가 (개인 + 단체 경로 한 번에)
+
+- [x] `Application.java`: `schoolName` 컬럼 추가(`@Column(length = 20)`, nullable), `createIndividual(...)`/`createGroup(...)`에 파라미터 추가(+ 기존 하위호환 오버로드 유지)
+- [x] `ApplicationCreateRequest.java`/`BulkApplicationCreateRequest.java`: `schoolName` 최상위 필드 추가(`orientation`/`schoolType` 옆) + 커스텀 getter로 트림 적용
+- [x] `ApplicationFactory.java`/`ApplicationPersistenceService.java`: 파라미터 관통
+- [x] `ApplicationService.validateStudentFields(...)`: `schoolName` 필수/트림/길이(5~20)/문자셋(한글·영문·숫자·공백) 검증 추가 — `schoolType` 무관하게 학생증이면 항상 필수, 비학생증이면 있으면 거절
+- [x] `ApplicationService.createGroup(...)`: 동일 조건의 `schoolName` 검증 추가
+- [x] 신규 테스트 9개 (개인 6 + 단체 3): 누락/5자 미만/20자 초과/허용 외 문자/트림 후 저장값/비학생증 거절(개인), 누락/허용 외 문자/비학생증 거절(단체) — 대학교·고등학교 성공 케이스는 기존 성공 테스트에 `schoolName` 추가로 흡수
+- [x] `docs/specs/application/data-model.md`: `Application.school_name` 컬럼 추가
+- [x] `docs/specs/application/api.md`: 개인/단체 등록 API 두 곳(요청 예시, Validation 표, 매핑 표)에 `schoolName` 반영
+- [x] 영향 범위 재확인: `git diff`로 예상 밖 변경 파일 없음 확인. 학생증 픽스처가 있던 3개 파일(`ApplicationServiceTest`, `ApplicationServiceBulkTest`, `ApplicationServiceUploadCompensationTest`) 전부 갱신 — `ApplicationControllerTest`/`ApplicationBulkControllerTest`는 학생증 픽스처 자체가 없어 영향 없음(grep으로 확인)
+- [x] 전체 스위트 회귀 실행 — 결과는 위 완료 배너 참고
 
 ---
 

@@ -36,6 +36,7 @@
 | photo_reject_reason | VARCHAR(500) | NULL | ✅ 2026-07-31 신규 확정: 관리자가 사진 반려 시 입력하는 사유. `status=PHOTO_REJECTED`일 때 사용자에게 노출(`/lookup` 조회 결과) |
 | orientation | ENUM | NULL | ✅ 2026-08-14 신규 확정: 카드 가로형/세로형(`LANDSCAPE`, `PORTRAIT`). **카드종류=학생증일 때만 사용**(그 외 카드종류는 NULL), 신청서 전체에 1개(개인·단체 공통 — 단체도 신청 폼 필드이며 엑셀 컬럼 아님) |
 | school_type | ENUM | NULL | ✅ 2026-08-14 신규 확정: 학교구분(`UNIVERSITY`, `HIGH_SCHOOL`). **카드종류=학생증일 때만 사용**, orientation과 동일하게 신청서 전체에 1개(개인·단체 공통). `UNIVERSITY`일 때만 `ApplicationMember.student_id`/`department`가 필수가 된다 — `HIGH_SCHOOL`이면 오히려 둘 다 NULL이어야 한다(있으면 거절). 단체는 학번·학과를 여전히 첨부 엑셀로만 받으므로 이 필드가 학번·학과 필수 여부에 영향을 주지 않는다(개인만 해당) |
+| school_name | VARCHAR(20) | NULL | ✅ 2026-08-19 신규 확정: 학교명. **카드종류=학생증일 때만 사용**, orientation/school_type과 동일하게 신청서 전체에 1개(개인·단체 공통 — 단체는 항상 한 학교 단위로 접수된다는 전제). `UNIVERSITY`/`HIGH_SCHOOL` 둘 다 필수(학번/학과와 달리 대학교 전용 조건 없음). DB는 nullable, 학생증 여부에 따른 필수 검증은 서비스 레벨에서만 강제(비학생증이면 있으면 거절). 트림 후 5~20자, 한글·영문·숫자·공백만 허용 |
 
 > ✅ 2026-08-17 확정(Application 상태와 입금 상태 분리):
 > ```
