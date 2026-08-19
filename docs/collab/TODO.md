@@ -166,13 +166,13 @@
   - 완료됨: `UserServiceLoginTest` 8개(정상로그인/계정없음/비번불일치/OAuth전용계정/5회실패후잠금/성공시카운터리셋/유예기간내자동복구/유예기간경과거절) + `AuthControllerLoginTest` 3개(정상로그인+쿠키발급, 비번불일치 401 envelope, 5회실패후 429 ACCOUNT_LOCKED) 전부 통과. 전체 스위트 427개(416+11) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — 기존 결함과 동일건(회귀 아님).
   - 우선순위: P0 — 완료
 
-- [ ] **AUTH-6** 비밀번호 변경 API (`PATCH /api/users/me/password`)
-  - 변경 내용: 로그인 사용자의 현재 비밀번호 확인 후 새 비밀번호로 교체. OAuth 전용 계정(`passwordHash=null`)은 이 API 자체를 차단.
-  - 대상 파일: `api/UserController.java`, `domain/user/service/UserService.java`, 신규 `PasswordUpdateRequest` DTO
-  - 선행 작업: AUTH-1, AUTH-5, PW-1
-  - 완료 조건: 정상 변경, 현재 비밀번호 불일치 거절, OAuth 전용 계정 거절
-  - 검증할 테스트: 신규 테스트(성공/현재비번불일치/OAuth계정거절)
-  - 우선순위: P1
+- [x] **AUTH-6** 비밀번호 변경 API (`PATCH /api/users/me/password`) — ✅ 구현+테스트 완료(Claude, 2026-08-19, 미커밋)
+  - 변경 내용: `UserService.changePassword(userId, accessToken, currentPassword, newPassword)` — 현재 비밀번호를 `passwordEncoder.matches`로 확인 후 새 비밀번호로 교체(`User.changePasswordHash` 신규 메서드, 기존 `updateProfile`과 동일한 패턴). OAuth 전용 계정(`passwordHash==null`)은 `PASSWORD_CHANGE_NOT_ALLOWED`(403, 신규)로 API 자체를 차단, 현재 비밀번호 불일치는 `CURRENT_PASSWORD_MISMATCH`(400, 신규) — 이미 로그인된 사용자의 자기 서비스 요청이라 AUTH-5의 "동일 오류로 뭉뚱그림" 원칙은 적용하지 않고 원인을 구체적으로 알려준다. 새 비밀번호 정책은 AUTH-4와 동일(8~72자, 복잡도 규칙 없음).
+  - ⚠️ **정책에 없던 결정(사용자 확인 완료)**: "비밀번호 변경 성공 시 다른 기기 세션을 어떻게 할지"가 정책에 없어 확인 요청 → **전체 세션 무효화로 확정**(`withdraw()`와 동일 패턴 — `tokenSessionStore.invalidateUserSessions`+`blacklistAccessToken`+`updateRefreshToken(null)`). 이 요청 자체에 쓰인 accessToken도 블랙리스트되므로 프론트는 성공 후 재로그인을 유도해야 함.
+  - 대상 파일: `api/UserController.java`(`PATCH /me/password`), `domain/user/service/UserService.java`(`changePassword` 추가), `domain/user/entity/User.java`(`changePasswordHash` 추가), `domain/user/dto/PasswordUpdateRequest.java`(신규), `common/exception/ErrorCode.java`(`CURRENT_PASSWORD_MISMATCH(400)`/`PASSWORD_CHANGE_NOT_ALLOWED(403)` 신규), `UserControllerChangePasswordTest.java`(신규)
+  - 선행 작업: AUTH-1, AUTH-5, PW-1 — 완료
+  - 완료됨: 신규 `UserControllerChangePasswordTest` 5개(정상변경+세션무효화로 기존 토큰 401 확인, 현재비번불일치+비밀번호 미변경 확인, OAuth전용계정 거절, 토큰없이 401, 새비번 길이 미달 INVALID_INPUT) 전부 통과. 전체 스위트 436개(431+5) 중 `UserApplicationFlowTest.fullUserApplicationFlow()` 1건만 실패 — 기존 결함과 동일건(회귀 아님).
+  - 우선순위: P1 — 완료
 
 > **탈퇴 정책과의 정합성 확인 완료**: `User.anonymize()`가 이미 이메일을 `withdrawn-{id}@anonymized.local`로 치환하므로 영구 익명화 후엔 원래 이메일의 UNIQUE 슬롯이 자연히 해제되어 재가입 가능 — 일반 계정은 여기에 `this.passwordHash = null;` 한 줄만 추가하면 됨. 소프트탈퇴 7일 이내는 이메일·해시 유지(AUTH-5의 자동복구), 7일 후 익명화되면 기존 비밀번호로 로그인 불가 — 현재 정책과 그대로 맞음.
 
@@ -191,7 +191,7 @@ PW-1 ──────────────┤
 MAIL-1 ─→ SIGNUP-1 ─→ SIGNUP-2 ─┴─→ AUTH-4 ─┐
 RATE-1 ──────────────────────────────────────┴─→ AUTH-5 ─→ AUTH-6
 
-AUTH-1/AUTH-2/AUTH-3/PW-1/MAIL-1/SIGNUP-1/SIGNUP-2/AUTH-4/RATE-1/AUTH-5 — 전부 완료(Claude, 2026-08-19). 남은 건 AUTH-6뿐.
+AUTH-1/AUTH-2/AUTH-3/AUTH-4/AUTH-5/AUTH-6/PW-1/MAIL-1/SIGNUP-1/SIGNUP-2/RATE-1 — 전부 완료(Claude, 2026-08-19). 이 그룹(일반 이메일 인증·로그인·계정관리) 전체 완료.
 LOOKUP-1 — 완료(Codex, 8d178cc)
 ```
 

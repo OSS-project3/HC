@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (AUTH-6: 비밀번호 변경 API — 일반 이메일 인증·로그인 그룹 전체 완료)
+
+- 변경: `PATCH /api/users/me/password` 구현. 현재 비밀번호 확인 후 새 비밀번호로 교체하고, OAuth 전용 계정은 API 자체를 차단한다. **정책에 없던 "세션 처리" 확인 요청 → 사용자가 전체 세션 무효화로 확정**(withdraw()와 동일 패턴 — 다른 기기 세션까지 강제 로그아웃, 이 요청의 accessToken도 블랙리스트). 이로써 AUTH-1~6·PW-1·MAIL-1·SIGNUP-1/2·RATE-1 전부 완료 — 일반 이메일 회원가입·인증·로그인·계정관리 그룹이 통째로 끝났다.
+- 파일: `api/UserController.java`, `domain/user/service/UserService.java`, `domain/user/entity/User.java`(`changePasswordHash` 추가), `domain/user/dto/PasswordUpdateRequest.java`(신규), `common/exception/ErrorCode.java`(`CURRENT_PASSWORD_MISMATCH`/`PASSWORD_CHANGE_NOT_ALLOWED` 추가), `UserControllerChangePasswordTest.java`(신규)
+- 테스트: 신규 5개 전부 통과. 전체 스위트 436개 중 `UserApplicationFlowTest` 1건만 실패(기존 결함, 회귀 아님).
+- 사유: AUTH-3에 이어 이 그룹의 마지막 단위 진행.
+- 관련: TODO `AUTH-6`
+
+---
+
 ## 2026-08-19 — Claude — `main` (AUTH-3: 이메일 중복 확인 API)
 
 - 변경: `POST /api/auth/email/check` 구현. 정규화된 이메일로 `existsByEmail` 조회 후 boolean만 반환(계정 상세 비노출). OAuth 계정도 같은 UNIQUE 제약을 공유해 provider 구분 없이 중복 판정된다.
