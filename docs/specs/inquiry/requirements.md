@@ -103,13 +103,10 @@ SELECT * FROM inquiry WHERE user_id = 15 ORDER BY created_at DESC
 - **문의 제출 후 사용자의 수정·삭제 불가(2026-08-19 확정)**: 사용자가 접수한 문의는 이후 내용을 수정하거나 삭제할 수 없다. 프론트에도 대응하는 UI가 없다(작성 폼만 있고, 상세 페이지에는 수정·삭제 버튼이 없음). `PATCH /api/my/inquiries/{id}`나 `DELETE /api/my/inquiries/{id}` 같은 API는 만들지 않는다.
 - **`name`/`email`/`phone`은 `User`가 아니라 요청 바디에서 받는다(2026-08-19 확정)**: §⑤ `POST /api/inquiries` 근거 참고 — 프론트가 계정 값과 다르게 편집해서 보낼 수 있는 필드라 `User` 엔티티 값으로 서버가 덮어쓰지 않는다.
 - **소유자 자원 미존재/타인 소유는 동일하게 404(2026-08-19 확정)**: `GET /api/my/inquiries/{id}`에서 `findByIdAndUserId`가 빈 결과면 항상 `INQUIRY_NOT_FOUND`(404) — 403을 쓰지 않아 id 존재 여부 자체가 노출되지 않는다(`arch.md` §8.4, 신청 조회와 동일 패턴).
-
-## ⑦ 아직 정하지 않은 것
-
-- `category`를 백엔드에서 자유 문자열로 저장할지, `InquiryCategory` enum(프론트 고정 5개 값: 제작 신청/결제 및 배송/카드 발급/행사·단체 협업/기타)으로 강제할지.
-- 문의 등록에 대한 스팸/남용 방지(예: 일일 등록 횟수 제한) 필요 여부.
-- 관리자 답변에 대한 재문의(추가 질문) 흐름 필요 여부 — 현재 프론트는 문의 1건당 답변 1회의 단발성 구조로 보이며 스레드형 대화 UI가 없음.
-- 첨부파일 지원 여부 — 현재 프론트 폼에 파일 첨부 입력이 없음.
+- **`category`는 enum으로 강제(2026-08-19 확정)**: `InquiryPage.tsx`에 `SelectField`로 문의 유형 선택란이 실제로 존재하고 고정 5개 값(제작 신청/결제 및 배송/카드 발급/행사·단체 협업/기타)만 보낸다 — 자유 문자열이 아니라 닫힌 집합이므로 enum이 맞다. 신규 `common/enums/InquiryCategory.java` 작성 완료(값: `PRODUCTION`/`PAYMENT_AND_SHIPPING`/`CARD_ISSUANCE`/`EVENT_COLLABORATION`/`OTHER`). 프론트는 영문 키가 아니라 한글 문자열을 그대로 보내므로, `@JsonValue`/`@JsonCreator`로 한글 값을 매핑해 **프론트 수정 없이** 백엔드만 enum으로 검증한다(기존 `LookupMethod` enum과 동일 패턴 재사용). 목록/상세 응답도 같은 한글 문자열로 직렬화되어 프론트가 받는 형태는 지금과 동일하다.
+- **문의 등록 스팸/남용 방지 없음(2026-08-19 확정)**: 일일 등록 횟수 제한 등은 이번 범위에 넣지 않는다. 필요해지면 신청 도메인의 `ApplicationDailyLimitService` 패턴을 참고해 별도로 추가한다.
+- **재문의(추가 질문) 흐름 없음(2026-08-19 확정, 코드 확인)**: `InquiryDetailPage.tsx`에 답변에 대한 재질문·댓글·스레드 UI가 전혀 없다(하단엔 "목록"/"문의하기"만 있고 문의하기는 완전히 새 문의를 여는 링크). 문의 1건당 답변 1회의 단발성 구조로 확정 — 별도 API 불필요.
+- **첨부파일 미지원(2026-08-19 확정, 코드 확인)**: `InquiryPage.tsx` 폼에 파일 입력 자체가 없다(`category`/`name`/`email`/`phone`/`title`/`content`/동의 체크박스뿐). 이번 범위에서 제외 — 나중에 필요해지면 Board의 `BoardAttachment`(`UploadFile` join) 패턴을 재사용하면 된다.
 
 ## 관련 문서
 

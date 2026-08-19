@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (Inquiry 남은 정책 4건 해소 + InquiryCategory enum 선반영)
+
+- 변경: `docs/specs/inquiry/requirements.md`의 미결정 4건을 프론트 코드 확인 후 전부 확정 — (1) `category`는 enum으로 강제(신규 `InquiryCategory.java`, `@JsonValue`/`@JsonCreator`로 프론트의 한글 값을 그대로 매핑해 프론트 수정 불필요 — 기존 `LookupMethod`와 동일 패턴), (2) 일일 등록 횟수 제한 없음, (3) 재문의(추가 질문) 흐름 없음(`InquiryDetailPage.tsx`에 대응 UI 없음 확인), (4) 첨부파일 미지원(`InquiryPage.tsx` 폼에 파일 입력 없음 확인). 이로써 Inquiry 도메인의 남은 정책 결정 사항이 없어졌다.
+- 파일: `common/enums/InquiryCategory.java`(신규, 도메인 나머지는 아직 없음), `docs/specs/inquiry/requirements.md`, `docs/collab/TODO.md`
+- 사유: Inquiry 도메인 착수 전 정책을 계속 정하는 running 작업의 일부.
+- 관련: TODO "Inquiry(1:1 문의) 도메인 신규 구현"
+
+---
+
 ## 2026-08-19 — Claude — `main` (프론트 변경분 되돌림 — 백엔드 전용 원칙 확정)
 
 - 변경: 사용자가 "백엔드만 수정, 프론트엔드는 절대 수정하지 않는다"는 원칙을 명확히 함에 따라, `f19830e`에서 함께 완화했던 `frontend/src/pages/SignupPage/SignupPage.tsx`의 비밀번호 검증(8~72자만)을 원래 규칙(8~64자+영문/숫자/특수문자 조합)으로 되돌렸다. 백엔드 정책(AUTH-4, 8~72자·복잡도 규칙 없음)은 그대로 유지 — 프론트 자체 검증 규칙만 되돌림.
