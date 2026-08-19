@@ -154,26 +154,32 @@ Controller는 `api` 패키지에 별도로 있다(예: `api/ApplicationControlle
 
 ## 4.1 User 모듈
 
+✅ 2026-08-19 갱신: Google/Naver OAuth 전용이던 모듈에 **일반 이메일 계정**(가입/로그인/비밀번호 변경)을 추가했다(`AUTH-1~6`, `PW-1`, `MAIL-1`, `SIGNUP-1/2`, `RATE-1`). `User` 하나가 OAuth 계정과 일반 계정을 함께 표현하며(`oauthId`/`oauthProvider`와 `passwordHash`가 서로 배타적으로 nullable), 신규 도메인 분리는 하지 않았다.
+
 ### 책임
 
 - Google/Naver OAuth 사용자를 식별한다.
+- 일반 이메일 계정의 회원가입(이메일 인증 포함)·로그인·비밀번호 변경을 처리한다.
 - 약관 동의 상태를 관리한다.
 - 내 정보 조회·수정과 회원탈퇴를 처리한다.
 - 사용자 역할(`USER`, `ADMIN`)과 계정 상태를 관리한다.
 - refresh token session과 로그아웃을 관리한다.
+- 로그인 실패 횟수를 제한하고(계정 잠금), 이메일 인증 코드·가입 토큰의 발급·검증을 관리한다.
 
 ### 소유 데이터
 
-- `User`
+- `User` — `passwordHash`(일반 계정만, OAuth 계정은 null)를 포함해 두 인증 방식을 한 Entity로 표현
 - refresh token session 저장 모델 또는 Redis key
+- Redis key(Entity 아님, 상태는 전부 Redis에만 존재): `auth:signup:code:*`(인증 코드 challenge, TTL 10분), `auth:signup:token:*`(가입 토큰 해시, TTL 30분), `auth:login:fail:*`/`auth:login:lock:*`(로그인 실패 카운터·잠금, 각 TTL 15분) — 전부 정규화 이메일을 SHA-256 해시한 키를 쓰고 원문 이메일은 저장하지 않는다.
 
 ### 외부에 제공하는 기능
 
 - 현재 사용자 조회
 - 활성 사용자 여부 검증
 - 약관 동의 여부 검증
-- 탈퇴 요청 및 유예기간 내 복구
+- 탈퇴 요청 및 유예기간 내 복구(일반 계정 로그인 시에도 OAuth와 동일하게 자동 복구)
 - 관리자 역할 검증
+- 이메일 중복 확인(존재 여부만, 계정 상세 비노출)
 
 ### 규칙
 
@@ -183,6 +189,10 @@ Controller는 `api` 패키지에 별도로 있다(예: `api/ApplicationControlle
 - 회원탈퇴 후에도 신청·결제 이력을 유지하기 위해 User row를 물리 삭제하지 않는다.
 - 탈퇴 요청 시 세션을 즉시 무효화한다.
 - 7일 경과 후 PII 익명화는 스케줄러가 수행한다.
+- 이메일 인증이 완료되기 전에는 User row를 생성하지 않는다 — 인증 상태는 전부 Redis에만 두고, 미인증 계정이 DB에 남지 않게 한다.
+- 비밀번호는 `PasswordEncoder`(BCrypt)로만 저장하고 평문은 요청·로그·응답 어디에도 남기지 않는다.
+- 계정없음/비밀번호불일치/OAuth전용계정/탈퇴유예기간경과는 로그인 응답에서 전부 동일한 오류로 처리한다 — 이메일 존재 여부가 응답 차이로 새어나가지 않게 하기 위함이다(§8.4의 principal 규칙과 별개로, 이건 "타인 계정 존재 여부 비노출" 원칙).
+- `PasswordEncoder` Bean은 `SecurityConfig`가 아니라 별도의 최소 `Configuration`(`infra/security/PasswordEncoderConfig`)에 둔다 — `SecurityConfig`가 의존하는 컴포넌트(`OAuth2SuccessHandler` 등)가 `UserService`를 거쳐 다시 `PasswordEncoder`를 필요로 하면 순환 의존이 생기기 때문(2026-08-19 `BeanCurrentlyInCreationException`으로 실제 발생 확인).
 
 ---
 
@@ -985,5 +995,6 @@ CardDesign(card_type_id, is_active)
 - API 요청·응답·HTTP status 변경은 먼저 `docs/api/README.md`에 반영한다.
 - 컬럼·제약·관계·enum 변경은 먼저 `DB.md`에 반영한다.
 - 모듈 경계·의존 방향·트랜잭션 원칙 변경은 본 문서에 반영한다.
+- **구조/아키텍처 정책을 새로 정할 때마다 그 자리에서 즉시 본 문서에 반영한다(2026-08-19 확정)** — 사전 설계 단계뿐 아니라 구현 도중에 내린 결정도 포함한다. 예: 새 모듈·서브도메인 추가, Bean/Configuration 배치 원칙(순환 의존 회피 등), 인증·인가 방식 확장, 외부 상태 저장소(Redis 등) 사용 패턴 신설. 작업이 다 끝난 뒤 몰아서 갱신하지 말고, 해당 정책을 결정한 단위 작업을 커밋할 때 같이 반영한다 — 그래야 이 문서가 4순위 "참고 문서"로 밀려나도 실제 구조와 어긋나지 않는다.
 - 세 문서가 충돌하는 상태로 구현을 시작하지 않는다.
 - 미결정 항목은 `[TBD]`로 표시하고 임의 기본값으로 숨기지 않는다.
