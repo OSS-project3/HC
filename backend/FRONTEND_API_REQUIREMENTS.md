@@ -105,6 +105,9 @@
 - `/terms`에서 사용자가 동의 내용을 직접 확인하고 기존 `POST /api/auth/terms`로 제출한다.
 - 약관 동의가 완료되기 전 계정은 로그인 상태이더라도 신청 등 필수 약관 동의가 필요한 기능을 사용할 수 없다.
 - 약관 동의 성공 후 `GET /api/users/me`로 사용자 정보를 갱신하고 홈(`/`)으로 이동한다.
+- **이메일 인증 선행 필요(2026-08-19 확정, 구현 완료)**: `POST /api/auth/signup` 호출 전에 `POST /api/auth/signup/email-verification/request`(인증 코드 발송)→`POST /api/auth/signup/email-verification/confirm`(코드 확인, `signupToken` 발급)을 먼저 거쳐야 한다. `signupToken`은 30분 유효한 1회성 토큰이며 회원가입 요청에 함께 실어 보낸다. 전체 계약은 `docs/api/auth.md` 참고.
+- **회원가입 필수 필드 확정(2026-08-19)**: `email`(정규화 규칙 공통 적용), `signupToken`, `password`, `name`, `phone` 5개 모두 필수다. `phone`은 프론트 회원가입 화면(`SignupPage.tsx`)이 이미 필수 입력값으로 받고 있어 가입 시점에 함께 저장한다(형식: 숫자·하이픈 9~20자, `^[0-9\-]{9,20}$`).
+- **비밀번호 정책 확정(2026-08-19)**: 최소 8자, 최대 72자(BCrypt 해시 입력 상한). 대소문자·숫자·특수문자 조합 등 복잡도 규칙은 요구하지 않는다.
 
 #### 탈퇴 계정 로그인과 영구 탈퇴
 
@@ -120,14 +123,15 @@
 - 비밀번호 재설정 요청은 현재 프론트 입력과 같이 이메일과 전화번호를 받되, 계정 존재 여부를 노출하지 않도록 성공·실패 여부와 관계없이 동일한 접수 응답을 반환한다.
 - 재설정 메일에는 만료시간과 일회성 사용을 적용한 토큰을 포함하고, 토큰 확인 후 새 비밀번호를 저장한다.
 
-회원가입 요청 예시:
+회원가입 요청 예시(`signupToken`은 이메일 인증 확인 API 응답에서 받은 값):
 
 ```json
 {
   "name": "홍길동",
   "email": "user@example.com",
   "phone": "01012345678",
-  "password": "server-never-logs-this"
+  "password": "server-never-logs-this",
+  "signupToken": "email-verification-confirm-response-token"
 }
 ```
 

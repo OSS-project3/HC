@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-19 — Claude — `main` (AUTH-4 확인 필요 항목 확정 반영: phone 포함·비밀번호 정책)
+
+- 변경: AUTH-4 커밋 시 남겨뒀던 확인 필요 2건이 사용자 확정됨에 따라 반영. (1) 프론트 `SignupPage.tsx` 재확인 결과 회원가입 화면이 `phone`을 필수 입력값으로 받고 있어 `SignupRequest`/`registerLocalUser`에 `phone`을 추가(엔티티 팩토리는 안 바꾸고 기존 `updateProfile`로 채움). (2) 비밀번호 정책을 최소 8자·최대 72자·복잡도 규칙 없음으로 확정(이미 구현된 값과 일치, 프론트도 동일하게 완화).
+- 파일: `domain/user/dto/SignupRequest.java`, `domain/user/service/UserService.java`, `api/AuthController.java`, `AuthControllerSignupTest.java`, `backend/FRONTEND_API_REQUIREMENTS.md`, `docs/api/auth.md`(SIGNUP-1/2·AUTH-4 API 4~6 신규 문서화), `frontend/src/pages/SignupPage/SignupPage.tsx`(비밀번호 검증 8~64자+복잡도 → 8~72자만)
+- 테스트: 신규 phone 형식 거절 테스트 1개 추가, 기존 4개 전부 통과 유지(총 5개). 전체 스위트 411개 중 `UserApplicationFlowTest` 1건만 실패(기존 결함, 회귀 아님).
+- 사유: AUTH-4 완료 보고 후 사용자가 phone 필드 재확인·비밀번호 정책 확정을 요청.
+- 관련: TODO `AUTH-4`
+
+---
+
 ## 2026-08-19 — Claude — `main` (AUTH-4: 이메일 회원가입 API, 4단계 작업 완료)
 
 - 변경: `POST /api/auth/signup` 구현 — signupToken을 SHA-256 해시로 Redis 조회해 이메일 일치를 검증하고(불일치/만료 전부 `INVALID_SIGNUP_TOKEN`으로 동일 응답), 중복 재조회 → BCrypt 해시 → `User.createLocalUser` 저장 → 로그인 토큰 발급을 하나의 트랜잭션으로 처리한다. 가입 토큰은 이 트랜잭션이 실제로 commit된 뒤(컨트롤러에서 `registerLocalUser` 호출이 반환된 다음)에만 삭제한다. 이로써 MAIL-1→SIGNUP-1→SIGNUP-2→AUTH-4 4단계 이메일 회원가입 인증 작업이 전부 완료됐다.
