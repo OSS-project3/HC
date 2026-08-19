@@ -31,6 +31,9 @@ public enum ErrorCode {
     ACCOUNT_LOCKED(429, "로그인 시도가 너무 많아 일시적으로 잠겼습니다. 잠시 후 다시 시도해주세요."),
     // 계정없음/비밀번호불일치/OAuth전용계정/탈퇴유예기간경과를 전부 동일하게 취급한다(이메일 존재 여부 비노출 — AUTH-5 정책).
     INVALID_CREDENTIALS(401, "이메일 또는 비밀번호가 올바르지 않습니다."),
+    // AUTH-6: 이미 로그인된 사용자의 자기 서비스 요청이라 이메일 존재 여부 비노출과 무관 — 원인을 구체적으로 알려준다.
+    CURRENT_PASSWORD_MISMATCH(400, "현재 비밀번호가 일치하지 않습니다."),
+    PASSWORD_CHANGE_NOT_ALLOWED(403, "OAuth 계정은 비밀번호를 변경할 수 없습니다."),
 
     // Application
     APPLICATION_NOT_FOUND(404, "존재하지 않는 신청입니다."),

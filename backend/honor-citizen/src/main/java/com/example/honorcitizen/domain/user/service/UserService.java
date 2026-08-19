@@ -78,6 +78,28 @@ public class UserService {
     }
 
     /**
+     * AUTH-6. OAuth 전용 계정(passwordHash==null)은 차단, 현재 비밀번호 불일치도 거절.
+     * 성공 시 다른 기기의 세션까지 포함해 전체 세션을 무효화한다(계정 탈취 가능성에 대한 방어 —
+     * withdraw()와 동일한 패턴, 2026-08-19 사용자 확인 완료). 이 요청 자체를 보낸 현재 세션의
+     * accessToken도 함께 블랙리스트되므로, 프론트는 비밀번호 변경 성공 후 재로그인을 유도해야 한다.
+     */
+    public void changePassword(Long userId, String accessToken, String currentPassword, String newPassword) {
+        User user = findById(userId);
+        if (user.getPasswordHash() == null) {
+            throw new CustomException(ErrorCode.PASSWORD_CHANGE_NOT_ALLOWED);
+        }
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new CustomException(ErrorCode.CURRENT_PASSWORD_MISMATCH);
+        }
+
+        user.changePasswordHash(passwordEncoder.encode(newPassword));
+        user.updateRefreshToken(null);
+        tokenSessionStore.invalidateUserSessions(userId);
+        tokenSessionStore.blacklistAccessToken(accessToken);
+        log.info("보안 이벤트: 비밀번호 변경 및 전체 세션 무효화 userId={}", userId);
+    }
+
+    /**
      * OAuth 콜백에서 신규 계정을 생성한다. 이메일 UNIQUE 제약 도입 이후 같은 이메일의 다른 계정
      * (다른 provider 또는 일반 이메일 계정)이 이미 있으면 자동으로 연결하지 않고 거절한다.
      *

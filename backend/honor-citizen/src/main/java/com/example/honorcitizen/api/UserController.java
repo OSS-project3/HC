@@ -1,6 +1,7 @@
 package com.example.honorcitizen.api;
 
 import com.example.honorcitizen.common.response.ApiResponse;
+import com.example.honorcitizen.domain.user.dto.PasswordUpdateRequest;
 import com.example.honorcitizen.domain.user.dto.UserMeResponse;
 import com.example.honorcitizen.domain.user.dto.UserUpdateRequest;
 import com.example.honorcitizen.domain.user.service.UserService;
@@ -37,6 +38,16 @@ public class UserController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody UserUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success(userService.updateMe(userId, request)));
+    }
+
+    @PatchMapping("/me/password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody PasswordUpdateRequest request,
+            HttpServletRequest httpRequest) {
+        userService.changePassword(
+                userId, resolveBearerToken(httpRequest), request.getCurrentPassword(), request.getNewPassword());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     @PostMapping("/me/withdraw")

@@ -165,4 +165,9 @@ public class User extends BaseTimeEntity {
             this.phone = phone;
         }
     }
+
+    // AUTH-6 전용 — 호출 전 현재 비밀번호 확인·OAuth 전용 계정 여부 확인은 UserService가 담당한다.
+    public void changePasswordHash(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+    }
 }
