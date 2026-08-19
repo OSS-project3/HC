@@ -18,8 +18,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 // 후기 등록/수정 시 (applicationType, cardTypeId) 조합의 유효성을 검증한다 — data-model.md §2·2026-08-13 확정 참고.
-// 1) (등록만) 탈퇴한 계정이 아닌가(ALREADY_WITHDRAWN) 2) 실제 카드 발급 이력이 있는가(REVIEW_NOT_ELIGIBLE)
-// 3) 같은 조합으로 이미 작성한 후기가 없는가(REVIEW_ALREADY_EXISTS).
+// 1) 실제 카드 발급 이력이 있는가(REVIEW_NOT_ELIGIBLE) 2) 같은 조합으로 이미 작성한 후기가 없는가(REVIEW_ALREADY_EXISTS).
 // 항상 후기 작성자(userId) 기준으로 판단한다 — 관리자가 대신 수정하더라도 원 작성자 기준.
 @Component
 @RequiredArgsConstructor
@@ -33,12 +32,6 @@ class ReviewEligibilityService {
 
     void validateForCreate(Long userId, ApplicationType applicationType, Long cardTypeId) {
         User user = getUser(userId);
-        // 탈퇴 처리된 계정은 새 후기를 작성할 수 없다 — 기존 토큰이 아직 블랙리스트에 없어 인증은
-        // 통과하더라도(탈퇴 시 현재 토큰만 블랙리스트에 올림) 새 콘텐츠 생성은 여기서 막는다.
-        // 수정(validateForUpdate)에는 적용하지 않는다 — 원작성자가 나중에 탈퇴해도 기존 후기 관리(관리자 수정 등)는 계속 가능해야 한다.
-        if (user.isWithdrawn()) {
-            throw new CustomException(ErrorCode.ALREADY_WITHDRAWN);
-        }
         validateHasCompletedApplication(user, applicationType, cardTypeId);
         if (reviewRepository.existsByUserIdAndApplicationTypeAndCardTypeId(userId, applicationType, cardTypeId)) {
             throw new CustomException(ErrorCode.REVIEW_ALREADY_EXISTS);

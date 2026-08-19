@@ -6,7 +6,6 @@ import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.UploadFileType;
 import com.example.honorcitizen.common.enums.UserRole;
-import com.example.honorcitizen.common.enums.UserStatus;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.enums.LookupMethod;
@@ -420,9 +419,11 @@ public class ApplicationService {
                 .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
     }
 
+    // 2026-08-19 정책 변경: 탈퇴 계정은 즉시 하드 삭제되므로 findById가 성공했다는 것 자체가
+    // "탈퇴하지 않은 계정"이라는 뜻이다 — 별도 상태 체크가 필요 없다.
     private void validateAdmin(Long adminId) {
         User admin = userService.findById(adminId);
-        if (admin.getStatus() != UserStatus.ACTIVE || admin.getRole() != UserRole.ADMIN) {
+        if (admin.getRole() != UserRole.ADMIN) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

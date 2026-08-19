@@ -1,30 +1,13 @@
 package com.example.honorcitizen.domain.user.entity;
 
-import com.example.honorcitizen.common.enums.UserStatus;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// 2026-08-19 정책 변경(WITHDRAW-3B): User는 더 이상 탈퇴 상태를 표현하지 않는다(row 존재 자체가
+// 활성 계정이라는 뜻 — arch.md §4.1 "탈퇴 정책"). withdraw()는 WITHDRAW-4에서 실제 하드 삭제 로직이
+// 채워지기 전까지의 빈 자리라 엔티티 레벨에서 검증할 상태 변화가 없다.
 class UserTest {
-
-    @Test
-    void newUserIsActiveByDefault() {
-        User user = User.createOAuthUser("test@example.com", "oauth-1", "google", "Test");
-
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(user.isWithdrawn()).isFalse();
-    }
-
-    @Test
-    void withdrawMarksUserWithdrawn() {
-        User user = User.createOAuthUser("test@example.com", "oauth-1", "google", "Test");
-
-        user.withdraw();
-
-        assertThat(user.getStatus()).isEqualTo(UserStatus.WITHDRAWN);
-        assertThat(user.isWithdrawn()).isTrue();
-        assertThat(user.getWithdrawalRequestedAt()).isNotNull();
-    }
 
     @Test
     void normalizeEmailTrimsAndLowercases() {

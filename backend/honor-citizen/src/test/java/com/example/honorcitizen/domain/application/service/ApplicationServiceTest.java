@@ -443,13 +443,10 @@ class ApplicationServiceTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }
 
-    @Test
-    void createIndividualRejectsWithdrawnUserBeforeSideEffects() {
-        user.withdraw();
-        userRepository.save(user);
-
-        assertUserValidationFailure(user.getId(), ErrorCode.ALREADY_WITHDRAWN);
-    }
+    // 2026-08-19 정책 변경(WITHDRAW-3B): 탈퇴 계정은 즉시 하드 삭제되므로 User가 더 이상 탈퇴 상태를
+    // 표현하지 않는다 — 이 서비스 레벨에서 "탈퇴한 사용자" 시나리오를 더 이상 재현할 수 없다
+    // (findEligibleApplicationUser의 상태 체크 제거 참고). 하드 삭제 후에는 존재하지 않는 userId로
+    // USER_NOT_FOUND가 나는 것으로 자연히 대체된다.
 
     @Test
     void createIndividualRejectsNonUserRoleBeforeSideEffects() {

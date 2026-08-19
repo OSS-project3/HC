@@ -442,26 +442,8 @@ class ApplicationServiceBulkTest {
     // 개인 신청(ApplicationServiceTest)과 동일한 신청 자격 검증(findUser)이 단체 신청에도 적용되는지 확인한다.
     // 대표 케이스(탈퇴)에서만 storageService가 전혀 호출되지 않았음을 함께 검증해, User 검증이 모든 파일
     // 업로드보다 먼저 수행됨을 보장한다 — 나머지 두 케이스는 에러코드만 확인해 중복을 피한다.
-    @Test
-    void createGroupRejectsWithdrawnUserBeforeAnyFileUpload() throws Exception {
-        user.withdraw();
-        userRepository.save(user);
-
-        byte[] excel = buildExcel(false, ROW_1);
-        byte[] zip = buildZip(excel, "1");
-        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
-        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
-        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
-
-        assertThatThrownBy(() -> applicationService.createGroup(
-                user.getId(), request(honorKoreanCardType.getId()), logo, seal, submitFile))
-                .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ALREADY_WITHDRAWN);
-
-        verify(storageService, never()).upload(anyString(), any());
-        verify(storageService, never()).uploadBytes(anyString(), any(), anyString());
-        assertThat(applicationRepository.count()).isZero();
-    }
+    // 2026-08-19 정책 변경(WITHDRAW-3B): 탈퇴 계정은 즉시 하드 삭제되므로 User가 더 이상 탈퇴 상태를
+    // 표현하지 않는다 — 이 서비스 레벨에서 "탈퇴한 사용자" 시나리오를 더 이상 재현할 수 없다.
 
     @Test
     void createGroupRejectsNonUserRole() throws Exception {

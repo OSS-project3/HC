@@ -2,7 +2,6 @@ package com.example.honorcitizen.domain.user.entity;
 
 import com.example.honorcitizen.common.entity.BaseTimeEntity;
 import com.example.honorcitizen.common.enums.UserRole;
-import com.example.honorcitizen.common.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -64,14 +63,6 @@ public class User extends BaseTimeEntity {
 
     private String address;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private UserStatus status;
-
-    private LocalDateTime withdrawalRequestedAt;
-
-    private LocalDateTime anonymizedAt;
-
     // 로그인 아이디로 쓰이는 모든 이메일은 저장 전 이 메서드로 정규화한다(trim+소문자) —
     // 일반 가입/로그인/중복확인/비밀번호 재설정/아이디찾기/OAuth 콜백 전부 동일 규칙을 써야
     // "같은 이메일인데 대소문자·공백 차이로 다른 계정" 문제가 안 생긴다.
@@ -90,7 +81,6 @@ public class User extends BaseTimeEntity {
         user.privacyAgreed = false;
         user.imageUploadAgreed = false;
         user.shippingAgreed = false;
-        user.status = UserStatus.ACTIVE;
         return user;
     }
 
@@ -105,17 +95,14 @@ public class User extends BaseTimeEntity {
         user.privacyAgreed = false;
         user.imageUploadAgreed = false;
         user.shippingAgreed = false;
-        user.status = UserStatus.ACTIVE;
         return user;
     }
 
+    // 2026-08-19 정책 변경: 탈퇴는 즉시 하드 삭제이므로 이 엔티티에는 더 이상 "탈퇴 상태"가 없다
+    // (row가 존재한다는 것 자체가 활성 계정이라는 뜻). 실제 삭제는 UserService.withdraw()가
+    // UserRepository.delete(user)로 수행한다 — 이 메서드는 삭제 직전 훅이 필요해질 경우를 위해
+    // 남겨둔 빈 자리다.
     public void withdraw() {
-        this.status = UserStatus.WITHDRAWN;
-        this.withdrawalRequestedAt = LocalDateTime.now();
-    }
-
-    public boolean isWithdrawn() {
-        return this.status == UserStatus.WITHDRAWN;
     }
 
     public void agreeTerms(boolean privacy, boolean imageUpload, boolean shipping) {

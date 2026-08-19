@@ -1,11 +1,9 @@
 package com.example.honorcitizen.domain.user.service;
 
-import com.example.honorcitizen.common.enums.UserStatus;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,7 +20,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// User 저장/복구는 @Transactional로 매 테스트 후 자동 롤백한다(UserServiceTest와 동일 패턴).
+// User 저장은 @Transactional로 매 테스트 후 자동 롤백한다.
 // LoginAttemptLimiter가 건드리는 Redis 키는 JPA 트랜잭션과 무관하므로 직접 정리한다.
 @SpringBootTest
 @Transactional
@@ -36,8 +34,6 @@ class UserServiceLoginTest {
     private PasswordEncoder passwordEncoder;
     @Autowired
     private StringRedisTemplate redisTemplate;
-    @Autowired
-    private EntityManager entityManager;
 
     private static final String EMAIL = "login-test@example.com";
     private static final String PASSWORD = "correct-horse-battery";
@@ -134,23 +130,7 @@ class UserServiceLoginTest {
         assertThat(redisTemplate.hasKey("auth:login:lock:" + sha256Hex(EMAIL))).isFalse();
     }
 
-    @Test
-    void loginRejectsWithdrawnAccountEvenWithCorrectPassword() {
-        // 2026-08-19 정책 변경: 탈퇴 유예기간·자동복구 폐지 — 탈퇴한 계정은 예외 없이 거절한다.
-        User user = withdrawnUser();
-
-        assertThatThrownBy(() -> userService.login(EMAIL, PASSWORD))
-                .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_CREDENTIALS);
-
-        entityManager.clear();
-        User reloaded = userRepository.findById(user.getId()).orElseThrow();
-        assertThat(reloaded.getStatus()).isEqualTo(UserStatus.WITHDRAWN);
-    }
-
-    private User withdrawnUser() {
-        User user = saveLocalUser();
-        user.withdraw();
-        return userRepository.saveAndFlush(user);
-    }
+    // 2026-08-19 정책 변경(WITHDRAW-3B): 탈퇴 계정은 즉시 하드 삭제되므로(WITHDRAW-4에서 구현)
+    // "탈퇴한 계정으로 로그인"은 결국 loginRejectsUnknownEmail과 동일한 시나리오가 된다 —
+    // User 엔티티가 더 이상 탈퇴 상태를 표현하지 않아 여기서 별도로 시뮬레이션할 수 없다.
 }

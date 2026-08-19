@@ -120,34 +120,10 @@ class ReviewEligibilityServiceTest {
                 .doesNotThrowAnyException();
     }
 
-    @Test
-    void rejectsCreateWhenUserIsWithdrawn() {
-        Application application = completedApplication(999L, ApplicationType.INDIVIDUAL);
-        applicantRepository.save(Applicant.createIndividual(
-                application.getId(), "신청자", "applicant@example.com", "010-1111-2222"));
-        applicantUser.withdraw();
-        userRepository.save(applicantUser);
-
-        assertThatThrownBy(() -> eligibilityService.validateForCreate(
-                applicantUser.getId(), ApplicationType.INDIVIDUAL, cardType.getId()))
-                .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ALREADY_WITHDRAWN);
-    }
-
-    @Test
-    void allowsUpdateEvenWhenOriginalAuthorIsNowWithdrawn() {
-        Application application = completedApplication(999L, ApplicationType.INDIVIDUAL);
-        applicantRepository.save(Applicant.createIndividual(
-                application.getId(), "신청자", "applicant@example.com", "010-1111-2222"));
-        Review review = reviewRepository.save(Review.create(applicantUser.getId(), "신청자", "제목",
-                ApplicationType.INDIVIDUAL, cardType.getId(), "내용", null));
-        applicantUser.withdraw();
-        userRepository.save(applicantUser);
-
-        assertThatCode(() -> eligibilityService.validateForUpdate(
-                applicantUser.getId(), ApplicationType.INDIVIDUAL, cardType.getId(), review.getId()))
-                .doesNotThrowAnyException();
-    }
+    // 2026-08-19 정책 변경(WITHDRAW-3B): 탈퇴 계정은 즉시 하드 삭제되므로 User가 더 이상 탈퇴 상태를
+    // 표현하지 않는다 — validateForCreate/validateForUpdate 양쪽에서 이 필드 기반 검증 자체가 사라졌다
+    // (`ReviewEligibilityService`의 isWithdrawn() 체크 제거 참고). "탈퇴한 계정" 시나리오는 이제 UserService
+    // 레벨에서 계정 자체가 조회되지 않는 것으로만 표현되므로, 이 서비스 단위에서는 더 이상 재현할 수 없다.
 
     @Test
     void rejectsWhenNoApplicationHistoryMatchesEmail() {

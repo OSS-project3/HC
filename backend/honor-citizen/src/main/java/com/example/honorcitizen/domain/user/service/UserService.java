@@ -3,7 +3,6 @@ package com.example.honorcitizen.domain.user.service;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.enums.UserRole;
-import com.example.honorcitizen.common.enums.UserStatus;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeRequest;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeResponse;
 import com.example.honorcitizen.domain.user.dto.UserMeResponse;
@@ -154,13 +153,12 @@ public class UserService {
 
     /**
      * AUTH-5. 정규화 → 잠금 확인 → 자격 검증 → 토큰 발급 순서.
-     * 계정없음/비밀번호불일치/OAuth전용계정/탈퇴한 계정은 전부 동일한 {@code INVALID_CREDENTIALS}로
-     * 응답하고 실패 카운터를 늘린다 — 이메일 존재 여부가 응답 차이로 새어나가지 않게 하기 위함이다.
+     * 계정없음/비밀번호불일치/OAuth전용계정은 전부 동일한 {@code INVALID_CREDENTIALS}로 응답하고
+     * 실패 카운터를 늘린다 — 이메일 존재 여부가 응답 차이로 새어나가지 않게 하기 위함이다.
      * 계정 존재 여부와 무관하게 이 메서드가 실패 케이스마다 {@code recordFailure}를 호출하므로,
      * {@code LoginAttemptLimiter}의 잠금 카운트 자체도 이메일 존재 여부를 노출하지 않는다.
-     * 2026-08-19 정책 변경: 탈퇴 유예기간·자동복구를 폐지했다 — 탈퇴한 계정은 예외 없이 거절한다
-     * (`docs/collab/user.md` §2.1, WITHDRAW-4에서 탈퇴 자체가 즉시 하드 삭제로 바뀌면 이 분기 자체가
-     * 도달 불가능해지지만, 그 전까지는 기존 `WITHDRAWN` 상태 계정을 방어적으로 계속 거절한다).
+     * 2026-08-19 정책 변경: 탈퇴는 즉시 하드 삭제이므로 별도 탈퇴 상태 체크가 필요 없다 —
+     * `findByEmail`이 찾아낸 계정은 그 자체로 탈퇴하지 않은 계정이다(`docs/collab/user.md` §2.1).
      */
     public LoginResult login(String rawEmail, String rawPassword) {
         String normalizedEmail = User.normalizeEmail(rawEmail);
@@ -168,8 +166,7 @@ public class UserService {
 
         User user = userRepository.findByEmail(normalizedEmail).orElse(null);
         if (user == null || user.getPasswordHash() == null
-                || !passwordEncoder.matches(rawPassword, user.getPasswordHash())
-                || user.isWithdrawn()) {
+                || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
             loginAttemptLimiter.recordFailure(normalizedEmail);
             throw new CustomException(ErrorCode.INVALID_CREDENTIALS);
         }
@@ -206,17 +203,16 @@ public class UserService {
         log.info("보안 이벤트: 로그아웃 userId={}", userId);
     }
 
+    // 2026-08-19 정책 변경: 탈퇴는 즉시 하드 삭제이므로 findById가 성공했다는 것 자체가 "아직 탈퇴하지
+    // 않은 계정"이라는 뜻이다 — ALREADY_WITHDRAWN 재확인이 필요 없다(재호출 시 row가 이미 없어
+    // USER_NOT_FOUND로 자연히 실패한다). 실제 하드 삭제 로직 자체는 WITHDRAW-4에서 구현한다.
     public void withdraw(Long userId, String accessToken) {
         User user = findById(userId);
-        if (user.isWithdrawn()) {
-            throw new CustomException(ErrorCode.ALREADY_WITHDRAWN);
-        }
-
         user.withdraw();
         user.updateRefreshToken(null);
         tokenSessionStore.invalidateUserSessions(userId);
         tokenSessionStore.blacklistAccessToken(accessToken);
-        log.info("보안 이벤트: 회원탈퇴(소프트) userId={}", userId);
+        log.info("보안 이벤트: 회원탈퇴 userId={}", userId);
     }
 
     @Transactional(readOnly = true)
@@ -227,10 +223,9 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public User findEligibleApplicationUser(Long userId) {
+        // 2026-08-19 정책 변경: 탈퇴 계정은 즉시 하드 삭제되므로 findById가 성공했다는 것 자체가
+        // "탈퇴하지 않은 계정"이라는 뜻이다 — 별도 상태 체크가 필요 없다.
         User user = findById(userId);
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new CustomException(ErrorCode.ALREADY_WITHDRAWN);
-        }
         if (user.getRole() != UserRole.USER) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
