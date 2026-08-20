@@ -51,13 +51,18 @@
 | POST | `/api/auth/email/check` | 이메일 중복 확인 | 없음 |
 | PATCH | `/api/users/me/password` | 로그인 사용자 비밀번호 변경 | USER |
 
-**❌ 여전히 미구현 — 계정 복구(아이디/비밀번호 찾기)**
+**❌ 여전히 미구현, 정책은 확정 완료(2026-08-20) — 계정 복구(아이디/비밀번호 찾기)**
 
-| Method | 제안 경로 | 목적 | 인증 |
+계약 상세·정책 결정 근거는 `docs/api/auth.md` API 7·API 8, 작업 항목은 `docs/collab/TODO.md`의 RECOVERY-1/RECOVERY-2 참고.
+
+| Method | 경로 | 목적 | 인증 |
 |---|---|---|---|
-| POST | `/api/auth/recovery/id` | 이름·전화번호로 가입 이메일(마스킹) 안내 | 없음 |
-| POST | `/api/auth/recovery/password/request` | 이메일·전화 확인 후 재설정 토큰 메일 발송(계정 존재 여부 비노출, 동일 응답) | 없음 |
-| POST | `/api/auth/recovery/password/confirm` | 재설정 토큰으로 새 비밀번호 저장(만료·1회성) | 없음 |
+| POST | `/api/auth/recovery/id/request` | 이름·전화 일치 시 가입 이메일로 확인 코드 발송(불일치해도 동일 응답) | 없음 |
+| POST | `/api/auth/recovery/id/confirm` | 코드 확인 → 마스킹 이메일 공개 | 없음 |
+| POST | `/api/auth/recovery/password/request` | 이메일로 재설정 코드 발송(OAuth 전용/미가입도 동일 응답, 계정 존재 비노출) | 없음 |
+| POST | `/api/auth/recovery/password/confirm` | `{email, code, newPassword}` 한 번에 — 코드 검증+비밀번호 저장, 성공 시 전체 세션 무효화 | 없음 |
+
+아이디 찾기는 전화번호가 SMS 인증된 적이 없어(형식 검증만 존재) 이름+전화 일치만으로 마스킹 이메일을 즉시 공개하지 않고, 확인 코드를 한 번 더 거치는 2단계로 확정됐다(2026-08-20). `EmailVerificationService`의 HMAC 챌린지/Redis TTL/Lua 스크립트 인프라를 그대로 재사용 가능.
 
 필수 정책: 로그인 아이디는 이메일, 정규화(trim+소문자)+DB UNIQUE, 비밀번호 단방향 해시, 로그인 후 role은 서버 값으로 결정(클라이언트 값 불신), **운영 빌드에서 데모 로그인 제거**. ⚠️ 2026-08-19 정정: "소프트탈퇴 7일 유예 자동복구(`restored:true`)"는 더 이상 유효하지 않다 — 회원탈퇴 정책이 즉시 하드 삭제로 바뀌면서(`docs/collab/user.md`) 유예기간·자동복구 자체가 폐지됐다.
 프론트 추가 필요: `/terms` 라우트(신규 OAuth/이메일 가입자 약관 동의 → 기존 `POST /api/auth/terms` 사용).
