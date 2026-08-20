@@ -59,7 +59,8 @@ docker compose up -d --build
 위 시크릿 설정 외에 실제 도메인으로 배포하려면 최소한 아래가 더 필요하다:
 
 - `APP_FRONTEND_URL`을 실제 도메인(`https://...`)으로 설정 — OAuth 로그인 성공 후 리다이렉트 주소로 쓰인다(설정 안 하면 `localhost:3000`으로 리다이렉트됨).
-- HTTPS(Let's Encrypt/certbot 또는 ALB+ACM) — `frontend/nginx.conf`는 현재 80번 포트만 처리하며 인증서 설정이 없다. `COOKIE_SECURE=true`(운영 기본값)는 HTTPS 없이는 쿠키가 브라우저에 안 걸릴 수 있다.
+- HTTPS(Let's Encrypt/certbot 또는 ALB+ACM) — `frontend/nginx.conf`는 현재 80번 포트만 처리하며 인증서 설정이 없다.
+- `.env`에 `COOKIE_SECURE=true` 설정 — `docker-compose.yml`은 로컬 개발 편의를 위해 기본값이 `false`다. HTTPS 도메인으로 배포하면서 이 값을 안 바꾸면 로그인 쿠키가 `Secure` 속성 없이 발급돼 브라우저가 저장을 거부할 수 있다.
 - 구글/네이버 개발자 콘솔에 프로덕션 리다이렉트 URI(`https://실도메인/login/oauth2/code/{google|naver}`) 등록.
 - EC2 보안그룹 인바운드에 80·443 포트가 열려 있는지 확인(기본은 SSH 22번만 열려있는 경우가 많음).
 - `POSTGRES_*`/`JWT_SECRET`/`EMAIL_CODE_SECRET`/`AWS_*` 전부 로컬 placeholder가 아닌 실제 값으로 교체(위 절차의 2번 단계에서 함께 처리).

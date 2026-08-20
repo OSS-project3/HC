@@ -1,0 +1,19 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # 서버 authorized_keys에서 이 키는 deploy.sh 실행으로 고정돼 있어
+          # 아래 script 내용과 무관하게 항상 git pull + docker compose up -d --build만 수행된다.
+          script: /home/ubuntu/deploy.sh
