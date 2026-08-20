@@ -1,6 +1,6 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
-> **갱신: 2026-08-20(4차).** 사용자 지시로 회원정보 `address` 수정 정책이 재정정됐다(2026-08-08 "이름·전화번호만" 확정 → 이제 `address`도 수정 가능, 백엔드 구현 완료) — §1.9(a)를 "갭 아님"에서 "프론트 신규 구현 필요"로 되돌렸다. 3차 갱신 내용(코드 재대조로 `schoolName` 미연동 발견, §1.9 전면 정정)은 그대로 유지. 로그인/이메일중복확인/비밀번호변경(§1.1-b) 오탈 정정은 2026-08-19(2차)에 이미 반영됨. 프론트 연동 계약 종합은 `docs/FRONTEND_API_INTEGRATION_SPEC.md`(§3.13), 백엔드 API 상세는 `docs/api/auth.md`(API 4~6), 백엔드 미구현 상세는 `docs/BACKEND_API_GAPS.md`와 함께 본다. 프론트의 목데이터/localStorage 사용 자체는 결함이 아니라, 백엔드가 준비된 화면부터 순차 교체하는 방식이다.
+> **갱신: 2026-08-20(5차).** 회원정보 `address` 수정 정책이 같은 날 두 번 뒤집혔다 — (4차) "이름·전화번호만" → "address도 수정 가능"으로 바뀌었다가, (5차, 이번 갱신) **다시 "이름·전화번호만"으로 최종 확정**됐다(백엔드 코드도 원복 완료). §1.9(a)는 다시 "갭 아님"이며, 추가로 마이페이지 "내 정보" 표시 스펙도 확정됨 — 조회는 이름·전화번호·이메일만(회원 유형 표시 제거), 수정은 이름·전화번호만. `docs/api/user.md` API 5도 함께 원복 반영. 마이페이지 "제작 내역"이 실 API 미연동으로 빈 목록만 뜨는 문제(§1.2)도 이번에 코드 근거와 함께 상세화됨. 3차 갱신 내용(코드 재대조로 `schoolName` 미연동 발견, §1.9 전면 정정)은 그대로 유지. 로그인/이메일중복확인/비밀번호변경(§1.1-b) 오탈 정정은 2026-08-19(2차)에 이미 반영됨. 프론트 연동 계약 종합은 `docs/FRONTEND_API_INTEGRATION_SPEC.md`(§3.13), 백엔드 API 상세는 `docs/api/auth.md`(API 4~6), 백엔드 미구현 상세는 `docs/BACKEND_API_GAPS.md`와 함께 본다. 프론트의 목데이터/localStorage 사용 자체는 결함이 아니라, 백엔드가 준비된 화면부터 순차 교체하는 방식이다.
 
 > 대상: `frontend/src` 전체 · 근거: `services/api.ts`(실제 호출) ↔ `backend/honor-citizen/.../api/*Controller.java`(실구현) 상호 대조(현재 워킹 트리·`main` 기준).
 
@@ -10,7 +10,7 @@
 
 | 기능 영역 | 프론트 | 백엔드 | 상태 |
 |---|---|---|---|
-| OAuth 로그인·약관·세션·회원정보 | ✅ 실 API | ✅ 구현 | **연동 완료** (데모 로컬 로그인만 운영빌드에서 제거 필요) |
+| OAuth 로그인·약관·세션·회원정보 | ✅ 실 API | ✅ 구현 | **🔴 회원정보 타입 갱신 필요** — 백엔드가 `role` 응답 제거·`address` 수정 미지원으로 바뀌었는데 `api.ts`의 `ApiUser`/`updateMe` 타입이 아직 옛날 그대로라 실 관리자 로그인도 `isAdmin=false`로 떨어짐 (§1.9-a). 그 외엔 연동 완료(데모 로컬 로그인만 운영빌드에서 제거 필요) |
 | 신청 생성(개인/단체) | ✅ 실 API | ✅ 구현 | **🔴 두 가지 문제로 연동 깨짐**: ① 학생증만 — `schoolName`을 프론트가 요청에 안 보내서 학생증 신청이 400으로 실패 (§1.9). ② **개인 신청 전체** — 국적 입력란 placeholder("대한민국")가 백엔드가 요구하는 ISO 코드(`KR` 등)와 안 맞아서 placeholder대로 입력하면 무조건 400 (§1.12) |
 | 신청 조회/카드다운로드 | ✅ 실 API | ✅ 준비 | 조회 응답에 `applicationType`이 포함돼 개인 `photo`/단체 `submitFile` 재제출 분기 가능. 단체 재제출 UI 연결만 남음. 카드다운로드는 소유자 로그인 전용(비로그인 조회는 데모 폴백) |
 | 후기(Review) CRUD + 내 후기 | ✅ 실 API | ✅ 구현 | **연동 완료** |
@@ -18,15 +18,15 @@
 | 행사(Event) | ✅ 실 API | ✅ 구현 | **연동 완료** (`company`/`logoUrl` 필드 갭 §1.6) |
 | **일반 이메일 회원가입(인증 포함)** | ❌ 목/로컬 | ✅ 구현·`main` 반영 완료(`bc7d7ce`) | **프론트 신규 구현 필요**(인증코드 인라인 입력 UI) (§1.1) |
 | **일반 이메일 로그인·이메일 중복확인·비밀번호 변경** | ❌ 목/로컬 | ✅ 구현·`main` 반영 완료 | **프론트 신규 구현 필요**(연동만 하면 됨, 백엔드 작업 없음) (§1.1) |
-| **계정 복구(아이디/비밀번호 찾기)** | ⚠️ 요청 단계만 | ❌ 없음 | **백엔드 신규 구현 필요**(비번재설정 화면 UX는 결정됨) (§1.1) |
-| **내 신청 목록·상세(마이페이지)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.2) |
+| **계정 복구(아이디/비밀번호 찾기)** | ⚠️ 요청 단계만 | ❌ 없음(정책은 확정) | **백엔드 신규 구현 필요** — API 계약 확정 완료(`docs/api/auth.md` API 7·8) (§1.1) |
+| **내 신청 목록·상세(마이페이지)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료(`b5f6140`) | **🔴 연동 안 돼 있어 실사용 불가**("제작 신청 내역이 없습니다" 표시) — API 실 호출로 교체 필요, 상태 라벨·날짜 포맷도 같이 손봐야 함 (§1.2) |
 | **1:1 문의(Inquiry)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료 | **연동 가능(단, `privacyConsent` 필드 프론트 추가 전송 필요)** (§1.3) |
 | **관리자 신청관리·통계** | ❌ 목(localStorage) | ❌ 없음 | **도메인 신규 구현** (§1.4) |
 | **신청 취소** | ⚠️ 진입점만 | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.5) |
 | 행사 회사/로고·관리자 전체목록 | ⚠️ 부분 | ⚠️ 필드/엔드포인트 없음 | **백엔드 필드·API 보강** (§1.6) |
 | 공지 서버 검색 | ⚠️ 클라 검색 | ❌ keyword 파라미터 없음 | 필요 시 검색 파라미터 추가 (§1.7) |
 | 후기 다중 이미지 | ⚠️ 단일로 축소 | 단일만 지원 | 정책 확정(단일 유지 vs 확장) (§1.8) |
-| 회원정보 address 수정 | ⚠️ 화면엔 없음(예전에 제거) | ✅ 구현 완료(2026-08-20, 정책 재정정) | **프론트 신규 구현 필요** — 입력란 복원 + `updateMe` 요청에 값 포함 (§1.9) |
+| 회원정보 address 수정 | ⚠️ 화면엔 없음(정책상 제거된 상태) | ❌ 미지원(확정 정책) | **갭 아님** — 조회는 이름·전화번호·이메일만, 수정도 이름·전화번호만(§1.9-a) |
 | **학생증 schoolName** | 🔴 화면엔 있으나 요청에 미포함 | ✅ 필수 필드로 구현 완료(2026-08-19) | **프론트 연동 시급** — 안 고치면 학생증 신청 전부 400 (§1.9) |
 | 카드 종류·디자인 카탈로그 | 정적(`cards.ts`) | 🟡 내부만 존재 | **STATIC 확정**(공개 API 신설 안 함) (§2.1) |
 | 한국이름 조회(`nameResults.json`) | 정적 215KB 번들 | ❌ 없음 | 조회 API 필요 (§2.2) |
@@ -53,23 +53,34 @@
 - **조치**: `services/api.ts`에 3개 API 바인딩 추가 + `LoginPage.tsx` 제출 로직을 mock에서 실 API 호출로 교체. 백엔드 신규 작업은 필요 없음.
 - **정책**: 로그인 아이디=이메일(정규화 trim+소문자, DB UNIQUE — AUTH-1), 비밀번호 단방향 해시(BCrypt, 8~72자, 복잡도 규칙 없음 — AUTH-4), role은 서버 결정, **운영 빌드에서 데모 로그인 제거**.
 
-#### (c) 계정 복구(아이디/비밀번호 찾기) — 여전히 없음 (BLOCKED)
-- **프론트 사용처**: `pages/AccountRecoveryPage`(아이디 찾기/비밀번호 찾기 탭 — **요청 단계까지만** 구현돼 있고, 코드·토큰 검증 후 실제로 새 비밀번호를 저장하는 화면은 없음).
-- **백엔드 현황**: 아래 API는 전부 미구현. `POST /api/auth/{login,email/check}`·`PATCH /api/users/me/password`(위 (b))와는 별개다 — 혼동해서 함께 "구현 완료"로 보지 말 것.
-- **필요 API**
+#### (c) 계정 복구(아이디/비밀번호 찾기) — 정책 확정 완료(2026-08-20), 구현 대기 (BLOCKED)
+- **프론트 사용처**: `pages/AccountRecoveryPage`(아이디 찾기/비밀번호 찾기 탭 — **요청 단계까지만** 구현돼 있고, 코드 확인 후 실제로 마스킹 이메일을 보여주거나 새 비밀번호를 저장하는 화면은 없음).
+- **백엔드 현황**: 아래 API는 전부 미구현이지만, **정책은 2026-08-20에 최종 확정**됐다(계약 상세는 `docs/api/auth.md` API 7·API 8). `POST /api/auth/{login,email/check}`·`PATCH /api/users/me/password`(위 (b))와는 별개다 — 혼동해서 함께 "구현 완료"로 보지 말 것.
+- **필요 API(계약 확정)**
   | 메서드/경로 | 용도 | 인증 |
   |---|---|---|
-  | `POST /api/auth/recovery/id` | 이름·전화로 가입 이메일(마스킹) 안내 | 없음 |
-  | `POST /api/auth/recovery/password/request` | 이메일·전화로 재설정 코드/토큰 발송 | 없음 |
-  | `POST /api/auth/recovery/password/confirm` | 코드/토큰 검증 + 새 비밀번호 저장(1회 호출) | 없음 |
-- **프론트가 새로 만들어야 하는 것**: 비밀번호 재설정 "확인" 화면 자체가 없다(`AccountRecoveryPage`는 요청 단계로 끝남). **UX 결정(2026-08-19)**: 코드 확인과 새 비밀번호 입력을 별도 스텝으로 나누지 않고 **한 화면에 통합**한다(스텝 최소화) — 코드/토큰 입력란과 새 비밀번호(+확인) 입력란을 함께 보여주고 "재설정" 버튼 한 번으로 제출.
-- **⚠️ 이 UX 결정이 백엔드 API 설계에 미치는 영향**: 화면이 코드와 새 비밀번호를 한 번에 제출하므로, `POST /api/auth/recovery/password/confirm`도 "코드 검증"과 "비밀번호 저장"을 별도 API 2개로 쪼개지 말고 **하나의 요청**(`{ email, code, newPassword }`)으로 설계해야 한다 — AUTH-4의 `signupToken`+`password`를 한 번에 받는 패턴과 동일한 방향. 백엔드 구현 착수 전에 이 계약으로 맞춰야 화면과 어긋나지 않는다.
-- **정책**: 복구 응답은 계정 존재 비노출.
+  | `POST /api/auth/recovery/id/request` | 이름·전화 일치 시 가입 이메일로 확인 코드 발송(불일치해도 동일 응답) | 없음 |
+  | `POST /api/auth/recovery/id/confirm` | 코드 확인 → 마스킹 이메일(`ho***@example.com`) 공개 | 없음 |
+  | `POST /api/auth/recovery/password/request` | 이메일로 재설정 코드 발송(OAuth 전용/미가입도 동일 응답) | 없음 |
+  | `POST /api/auth/recovery/password/confirm` | `{email, code, newPassword}` 한 번에 — 코드 검증+비밀번호 저장 | 없음 |
+- **⚠️ 2026-08-20 정책 결정 2건(사용자 확인 완료)**:
+  1. **아이디 찾기 인증 강도**: 전화번호가 SMS 인증된 적이 없어서(형식 검증만 존재), 이름+전화번호만으로 마스킹 이메일을 즉시 공개하지 않는다 — **일치 시 그 계정의 실제 가입 이메일로 확인 코드를 보내고, 코드를 맞춰야 마스킹 이메일을 공개**한다(요청→확인 2단계, 기존 이메일 인증 코드 인프라 재사용).
+  2. **비밀번호 재설정 대상이 OAuth 전용 계정(비밀번호 없음)이거나 미가입 이메일인 경우**: 에러를 주지 않고 **메일 발송 없이 조용히 동일한 성공 응답**만 준다(계정 존재/유형 비노출).
+- **프론트가 새로 만들어야 하는 것**: `AccountRecoveryPage`에 아이디 찾기는 "이름·전화 입력 → 확인 코드 입력 → 마스킹 이메일 표시" 3단계가, 비밀번호 찾기는 "이메일 입력 → 코드+새 비밀번호를 한 화면에서 함께 입력해 제출" 2단계가 필요하다(요청 단계 이후 화면이 아예 없음). **UX 결정(2026-08-19, 유지)**: 비밀번호 재설정은 코드 확인과 새 비밀번호 입력을 별도 스텝으로 나누지 않고 한 화면에 통합 — `POST /api/auth/recovery/password/confirm`도 이를 반영해 `{ email, code, newPassword }` 단일 요청으로 확정됐다(AUTH-4의 `signupToken`+`password` 패턴과 동일 방향).
+- **정책**: 복구 응답은 계정 존재 비노출(위 2건 결정이 이 원칙의 구체화).
 
 ### 1.2 내 신청 목록·상세(마이페이지) — ✅ `main` 반영 완료, 연동 가능
+- **🔴 현재 증상(2026-08-20 재확인)**: 실제로 신청을 제출해도 마이페이지 "제작 내역"에 "제작 신청 내역이 없습니다"만 뜬다. 원인은 이 절에 이미 적힌 그대로 — `MyPage.tsx`가 실 API를 아예 호출하지 않고 `data/adminMock.ts`의 `loadApplications()`(localStorage)만 읽기 때문(`MyPage.tsx:39` `loadApplications().filter((a) => a.applicantEmail === user.email)`). 이 localStorage 항목은 `ApplyPage.tsx`의 `saveLocalApplication()`(제출 성공 시 클라이언트에서만 mirror, `ApplyPage.tsx:60-62,108,121`)이 채우므로 (a) 제출과 조회가 같은 브라우저/오리진이어야 하고 (b) 신청서에 입력한 `applicant.email`이 로그인 계정 `user.email`과 정확히 일치해야 하고 (c) localStorage가 지워지지 않아야 보인다 — 서버에 실제로 저장된 신청과는 무관하게 뜨거나 안 뜬다. `api.ts`엔 이 엔드포인트를 부르는 함수 자체가 없다(`listMyReviews`류 패턴 없음).
 - **프론트 사용처**: `pages/MyPage` 제작 내역 — 현재 `data/adminMock.ts` localStorage(`applicantEmail === user.email` 필터).
-- **백엔드 현황**: `MyApplicationController`(`GET /api/my/applications`, `GET /api/my/applications/{id}`) 구현 완료, `main`에 커밋·푸시됨(`b5f6140`, 2026-08-19). `FRONTEND_API_INTEGRATION_SPEC.md` §3.6 계약과 동일.
-- **조치**: 이제 `MyPage` 제작 내역을 `data/adminMock.ts` localStorage 대신 이 API로 연동 가능. 응답 필드: 목록 `applicationId, applicationNumber, applicationType, cardTypeId, cardTypeName, totalQuantity, status, paymentStatus, createdAt` / 상세 `issueType, paymentGuidedAt, paymentDueAt, cancelled*, refundedAt, cardReadyAt, physicalDispatchedAt, photoRejectReason, applicant, receiver, memberCount`.
+- **백엔드 현황**: `MyApplicationController`(`GET /api/my/applications`, `GET /api/my/applications/{id}`) 구현 완료, `main`에 커밋·푸시됨(`b5f6140`, 2026-08-19). `FRONTEND_API_INTEGRATION_SPEC.md` §3.6 계약과 동일. **백엔드 쪽엔 추가 작업 없음.**
+- **조치(프론트 전용, 변경 범위)**:
+  1. `services/api.ts`에 `listMyApplications({ status?, page?, size? })`(`GET /api/my/applications`) 추가 — `listMyReviews`(`api.ts:106`)와 동일 패턴. 상세가 필요하면 `getMyApplicationDetail(applicationId)`(`GET /api/my/applications/{id}`)도 추가.
+  2. `MyPage.tsx`: `loadApplications().filter(...)`(39행) 제거, `myReviews`와 동일한 `useEffect(user.source === "api"일 때만 호출)` 패턴으로 교체.
+  3. **⚠️ 상태 라벨 매핑 재작성 필요**: 현재 렌더링(`MyPage.tsx:71`)이 쓰는 `adminStatusLabels`(`adminMock.ts:22-29`)는 옛 mock enum(`SUBMITTED/CONSULTING/PAYMENT_PENDING/IN_PRODUCTION/COMPLETED/CANCELLED`) 기준이라, 실 API가 주는 백엔드 enum(`SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING/COMPLETED/CANCELLED`)과 `SUBMITTED`/`COMPLETED`/`CANCELLED` 3개만 겹친다. 그대로 연결하면 나머지 상태에서 라벨이 빈 값으로 나온다 — §1.4에 이미 지적된 것과 동일한 enum 불일치가 여기도 적용됨. 새 상태 라벨 맵이 필요하다.
+  4. **날짜 필드 교체**: mock은 `submittedAt`(`YYYY-MM-DD` 문자열, `.replace(/-/g,".")`로 표시), 실 API는 `createdAt`(`LocalDateTime`, 예: `2026-08-20T14:32:00`) — 그대로 `.replace()`하면 시분초까지 붙어 나오므로 `.slice(0,10)` 등으로 날짜만 잘라야 함.
+  5. `cardType` 표시는 mock처럼 별도 라벨 테이블 조회가 필요 없음 — 응답에 이미 `cardTypeName`이 문자열로 온다.
+  - 응답 필드: 목록 `applicationId, applicationNumber, applicationType, cardTypeId, cardTypeName, totalQuantity, status, paymentStatus, createdAt` / 상세 `issueType, paymentGuidedAt, paymentDueAt, cancelled*, refundedAt, cardReadyAt, physicalDispatchedAt, photoRejectReason, applicant, receiver, memberCount`.
+  - **스코프 요약**: 순수 프론트 파일 2개(`api.ts` +1함수, `MyPage.tsx` 데이터소스 교체) 변경이지만, 상태 라벨 매핑과 날짜 포맷 두 가지를 놓치면 "목록은 뜨는데 상태/날짜가 깨져 보이는" 2차 버그로 이어지므로 같이 처리해야 함.
 
 ### 1.3 1:1 문의(Inquiry) — ✅ 백엔드 구현 완료, 프론트 연동 전 조치 필요 (PARTIAL)
 - **프론트 사용처**: `pages/InquiryPage`(작성), `pages/InquiryDetailPage`(상세), `pages/MyPage`(내 문의), `pages/AdminPage`(관리자 목록+답변). 현재는 `data/inquiries.ts`(`localStorage["customer-inquiries"]`) mock 그대로 — 아직 API 연동 안 됨.
@@ -104,10 +115,15 @@
 
 ### 1.9 회원정보 address 수정(⚠️ 정책 재정정, 프론트 신규 구현 필요) · 학생증 schoolName(🔴 프론트 연동 시급, 신청 깨짐)
 
-#### (a) 회원정보 address 수정 — ⚠️ 2026-08-20 정책 재정정: 이제 지원한다, 프론트가 새로 만들어야 함
-`PATCH /api/users/me`가 `name`,`phone`뿐 아니라 `address`도 처리하도록 백엔드가 바뀌었다(`UserUpdateRequest`/`User.updateProfile`/`UserService.updateMe` 전부 반영, `@Size(max=255)`). "수정 가능한 필드는 이름·전화번호뿐"이라던 2026-08-08 확정 정책은 뒤집혔다 — **더 이상 갭이 아니라 프론트가 새로 만들어야 하는 항목**이다.
-- **프론트가 새로 해야 하는 것**: `MyPage` 편집폼에서 예전에 "오해 방지"로 제거해뒀던 주소 입력란을 다시 추가하고, 제출 시 `services/api.ts`의 `updateMe` 호출에 `address` 값을 실어 보내야 한다. 참고로 `api.ts`의 `updateMe` 타입 시그니처엔 `address?: string`이 이미 있다(예전부터 죽은 파라미터로 남아있던 것 — 이제 이걸 실제로 채워서 보내면 된다).
-- 계약 상세는 `docs/api/user.md` API 5 참고.
+#### (a) 회원정보 조회/수정 — 갭 아님, 확정 정책(2026-08-08, 2026-08-20 재확인 2회)
+`PATCH /api/users/me`는 `name`/`phone`만 처리한다. **`address`는 이 API로 수정하지 않는다** — 한때(2026-08-20 세션 초반) 지원하도록 뒤집혔다가, 다시 원래 정책(이름·전화번호만 수정 가능)으로 재확정됐다. `UserUpdateRequest`엔 `address` 필드 자체가 없어 요청 바디에 보내도 무시된다.
+**추가로 `GET /api/users/me`(조회) 응답에서도 `role`(회원등급) 필드를 완전히 제거했다** — 마이페이지 "내 정보"에 회원등급 개념 자체가 없어야 한다는 요구를 반영, `UserMeResponse` DTO 자체에서 `role`을 뺐다(단순히 화면에서 안 보이게 하는 게 아니라 백엔드 응답 스키마 변경).
+- **⚠️ 프론트가 반드시 확인해야 하는 것 — `AuthContext.tsx`의 `isAdmin`**: `refreshProfile()`이 `api.getMe()`(=`GET /api/users/me`) 응답의 `profile.role`을 읽어 `user.role`/`isAdmin`을 세팅하고 있는데(`AuthContext.tsx:51`), 이제 이 필드가 응답에서 사라진다. 지금은 이 `isAdmin`이 데모 로그인(`loginAsAdmin`) mock 상태에만 실질적으로 쓰이고 실 서버 인가와는 무관한 프론트 전용 값이라 당장 보안 문제는 아니지만, `Header.tsx` 관리자 메뉴 노출·`InquiryDetailPage.tsx`의 `user.role === "admin"` 열람권한 체크가 이 값에 의존하므로 **API 응답으로 `isAdmin`을 판별하던 로직은 더 이상 동작하지 않는다.** 관리자 화면이 실제로 필요하다면 별도 신호(예: 관리자 전용 엔드포인트 접근 성패, 혹은 새 전용 API)로 바꿔야 한다 — 이번 변경 범위엔 대체 수단이 포함돼 있지 않다.
+- **마이페이지 "내 정보" 표시/수정 화면 스펙(확정)**:
+  - **조회 시 노출 필드**: 이름, 전화번호, 이메일 3개만. `UserMeResponse`는 `id, name, email, phone, address`를 반환한다 — 이름·이메일·전화번호 다 있다. **"회원 유형" 자체가 응답에 없으므로 표시할 수도 없다.**
+  - **수정 가능 필드**: 이름, 전화번호 **둘 뿐**. `UserUpdateRequest`엔 `name`, `phone` 두 필드뿐이다. `address`는 조회·수정 어느 화면에도 넣지 않는다.
+- 계약 상세는 `docs/api/user.md` API 2·API 5 참고.
+- **🔴 신규 갭(2026-08-20, `git pull` 후 재대조로 확인) — `services/api.ts`의 타입이 이 백엔드 변경을 아직 반영 못 함**: `ApiUser` 인터페이스(`api.ts:42`)가 여전히 `role: "USER" | "ADMIN"`을 필수 필드로 선언하고, `updateMe` 파라미터 타입(`api.ts:93`)도 여전히 `address?: string`을 받는다. 백엔드 응답엔 이제 `role`이 없으므로 런타임엔 `profile.role`이 `undefined`로 들어오는데, TS 타입은 항상 존재한다고 우기는 상태 — 컴파일 에러는 안 나지만 **실제 관리자 계정으로 로그인해도 `AuthContext.tsx:51`의 `profile.role === "ADMIN"` 비교가 항상 거짓이 되어 `isAdmin`이 항상 `false`로 떨어진다**(데모 로그인 전용이 아니라 실 API 로그인 시에도 이제 발생). `updateMe`에 `address`를 실어 보내는 건 여전히 컴파일은 되지만 백엔드가 조용히 무시한다. `api.ts`에서 `ApiUser`의 `role` 제거(또는 optional 처리), `updateMe` 파라미터에서 `address` 제거가 필요.
 
 #### (b) 학생증 schoolName — 🔴 백엔드는 구현 완료, **프론트가 안 보내서 학생증 신청이 지금 전부 실패**
 - **백엔드 현황(2026-08-19 구현, `docs/specs/application/requirements.md` §5-0)**: `Application.schoolName` 신규 필드. `cardTypeId`가 학생증이면 `schoolType`(대학교/고등학교) 무관하게 **항상 필수**(개인·단체 공통, 신청 폼 최상위 필드 — `orientation`/`schoolType`과 같은 위치). 트림 후 5~20자, 한글·영문·숫자·공백만 허용, 비학생증이면 값이 있으면 거절. 개인 API·단체 API 둘 다 동일하게 적용.
@@ -211,10 +227,10 @@
 | 2 | 신청 취소 진입점 | 백엔드 완료, 연동 가능 | §1.5 |
 | 3 | 1:1 문의(Inquiry) 전체 연동 | 백엔드 완료, `privacyConsent` 필드만 요청에 추가하면 됨 | §1.3 |
 | 4 | 신청 조회 응답 `applicationType`으로 재제출 UI 분기 | 백엔드 완료, 프론트가 개인 `photo`/단체 `submitFile` 파트 분기만 하면 됨 | §1.10 |
-| 4 | 회원정보 address 수정 UI 복원 | 백엔드 완료(2026-08-20), `MyPage` 편집폼에 입력란 다시 추가 + `updateMe` 요청에 포함 | §1.9-a |
+| 4 | "내 정보" 표시 정리 — 회원 유형 제거, 전화번호 노출 추가 | 백엔드 변경 없음(확정 정책 §1.9-a 반영). 조회: 이름·전화번호·이메일만 표시(현재 `MyPage.tsx`엔 전화번호 미표시 + 회원유형 표시 중 — 둘 다 수정 필요). 수정: 이름·전화번호만(현행 유지) | §1.9-a |
 | 5 | 관리자 신청관리·통계 UI | **백엔드도 아직 없음**(공동 대기) — status enum 프론트/백 매핑도 먼저 확정 필요 | §1.4 |
 | 6 | 행사 회사/로고 필드, 공지 서버검색, 후기 다중이미지 | **정책 결정 대기** — 결정 후 백엔드·프론트 함께 진행 | §1.6~§1.8 |
-| 7 | 계정복구(아이디/비밀번호 찾기) | **백엔드도 아직 없음**(공동 대기, UX는 이미 결정됨) | §1.1-c |
+| 7 | 계정복구(아이디/비밀번호 찾기) | **백엔드 구현 대기**(정책·API 계약 확정 완료, `docs/api/auth.md` API 7·8) — 백엔드 먼저 구현 후 프론트 3단계 화면(아이디 찾기)·2단계 화면(비번 재설정) 신규 필요 | §1.1-c |
 | 8 | 한국이름 조회 API 전환, 정적 마케팅 CMS화, 하이브리드 목데이터(§5) 정리 | 우선순위 낮음, 필요 시에만 | §2.2, §3, §5 |
 
 **진행 원칙**: 0번은 기존 기능을 되살리는 회귀 수정이라 다른 무엇보다 먼저. 1~4번은 백엔드가 이미 준비돼 있어 프론트 작업만으로 끝나는 항목(가장 빠르게 갭을 줄일 수 있음). 5번 이후는 백엔드 작업이나 정책 결정이 먼저 필요해 프론트 혼자 진행할 수 없는 항목.

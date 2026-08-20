@@ -20,7 +20,7 @@
 
 프론트가 실제로 필요로 하는 기능 기준:
 1. **OAuth 로그인 시작/콜백** — 로그인 자체
-2. **내 정보 조회** — 헤더의 `user.name` 표시, `isAdmin` 판별(관리자 메뉴 노출·`/admin` 접근 제어)
+2. **내 정보 조회** — 헤더의 `user.name` 표시 (⚠️ 2026-08-20 정책: `role`은 이 응답에 없음. 관리자 인가는 서버가 JWT의 role 클레임으로 별도 판단하며, 이 DTO로 `isAdmin`을 판별하지 않는다)
 3. **로그아웃** — 헤더/드로어의 로그아웃 버튼
 
 ✅ 2026-07-29 확정:
@@ -30,6 +30,8 @@
 ⚠️ 아직 TODO: refresh 토큰 rotation/재사용 감지를 위한 세션 저장소(기존 백엔드의 `refresh_token_sessions` 테이블 같은 것)를 이번 `.md`에도 추가할지는 별도 논의 필요 — 지금은 "JWT+HttpOnly 쿠키를 쓴다"는 방침만 확정, 세부 구현(DB 테이블 vs Redis 등)은 보류.
 
 ### API 2 / 3 — 내 정보 조회 (구현 완료)
+
+> ⚠️ 2026-08-20 확정: **`role`(회원등급)은 이 응답에 포함하지 않는다.** "내 정보"는 순수 사용자 표시 정보(이름·이메일·전화번호·주소)만 다루고, 관리자 권한 여부는 프론트가 이 DTO로 판단해서는 안 된다 — 서버 인가는 JWT의 role 클레임으로 별도로 이뤄진다.
 
 #### ④ Request/Response 설계
 
@@ -46,7 +48,6 @@ Cookie: accessToken={JWT}
     "id": 1,
     "name": "홍길동",
     "email": "hong@example.com",
-    "role": "USER",
     "phone": "010-1234-5678",
     "address": "서울특별시 강남구 ..."
   }
@@ -69,15 +70,14 @@ Cookie: accessToken={JWT}
 | id | id |
 | name | name |
 | email | email |
-| role | role |
 | phone | phone (NULL 가능) |
 | address | address (NULL 가능) |
 
-`provider`/`provider_id`는 응답에 안 넣음(로그인 식별용 내부 값, 프론트에서 쓸 일 없음). `phone`/`address`는 ⚠️ 2026-07-31 추가 — 내 정보 수정(API 5) 화면에서 기존 값을 미리 채워 보여줘야 해서 Read 응답에도 포함시킴(수정 API 설계하며 정합성 점검 중 반영).
+`provider`/`provider_id`는 응답에 안 넣음(로그인 식별용 내부 값, 프론트에서 쓸 일 없음). `role`은 2026-08-20 확정 정책으로 이 응답에서 뺐다(관리자 인가는 서버 JWT 클레임으로만 판단, "내 정보" 화면엔 회원등급 개념 자체가 없어야 함). `phone`/`address`는 ⚠️ 2026-07-31 추가 — 내 정보 수정(API 5) 화면에서 기존 값을 미리 채워 보여줘야 해서 Read 응답에도 포함시킴(수정 API 설계하며 정합성 점검 중 반영).
 
 #### ⑦ 누락된 필드 확인
 
-없음 — 프론트가 필요로 하는 필드(`name`, `email`, `role`)와, 신규로 필요해진 `phone`/`address`가 전부 `User` 테이블에 이미 있어서 막히는 게 없습니다.
+없음 — 프론트가 필요로 하는 필드(`name`, `email`)와, 신규로 필요해진 `phone`/`address`가 전부 `User` 테이블에 이미 있어서 막히는 게 없습니다.
 
 **API 2 완료.**
 
@@ -131,7 +131,7 @@ Cookie: accessToken={JWT}
 
 ### API 5 / 5 — 내 정보 수정 (2026-07-31 추가, 로그인 필수) ⚠️ 확인필요 — 프론트에 정보수정 화면 자체가 없음(신규)
 
-> ⚠️ 2026-08-20 재정정: **`address`도 이 API로 수정 가능하다.** "수정 가능한 필드는 이름·전화번호뿐"이라던 2026-08-08 확정 정책은 뒤집혔다 — 이름·전화번호·주소 셋 다 partial update 대상이다. 아래는 이 재정정을 반영한 최신 계약이다.
+> 확정 정책(2026-08-08, 2026-08-20 재확인): **수정 가능한 필드는 이름·전화번호뿐이며 `address`는 이 API로 수정하지 않는다.** `address`가 요청 바디에 오더라도 `UserUpdateRequest`에 필드 자체가 없어 무시된다.
 
 #### ④ Request/Response 설계
 
@@ -143,11 +143,10 @@ Content-Type: application/json
 ```json
 {
   "name": "홍길동",
-  "phone": "010-1234-5678",
-  "address": "서울특별시 강남구 ..."
+  "phone": "010-1234-5678"
 }
 ```
-(세 필드 다 선택 — 보낸 필드만 갱신하는 partial update. 단, 최소 1개는 있어야 함)
+(두 필드 다 선택 — 보낸 필드만 갱신하는 partial update. 단, 최소 1개는 있어야 함)
 
 **Response `200 OK`**
 ```json
@@ -157,27 +156,25 @@ Content-Type: application/json
     "id": 1,
     "name": "홍길동",
     "email": "hong@example.com",
-    "role": "USER",
     "phone": "010-1234-5678",
     "address": "서울특별시 강남구 ..."
   }
 }
 ```
-(API 2와 동일한 응답 형태 — 수정 직후 최신 상태를 그대로 돌려줌)
+(API 2와 동일한 응답 형태 — 수정 직후 최신 상태를 그대로 돌려줌. `address`는 응답엔 계속 포함되지만 이 API로 바꿀 수는 없다. `role`은 API 2와 동일하게 응답에 없다)
 
 #### ⑤ Validation
 
 | 상황 | errorCode | HTTP |
 |---|---|---|
 | 비로그인 | `UNAUTHORIZED` | 401 |
-| `name`/`phone`/`address` 전부 없음(빈 요청) | `INVALID_INPUT` | 400 |
+| `name`/`phone` 전부 없음(빈 요청) | `INVALID_INPUT` | 400 |
 | `name`이 빈 문자열로 옴 | `INVALID_INPUT` | 400 |
-| `address`가 빈 문자열로 옴 | `INVALID_INPUT` | 400 |
 | `phone` 형식 오류(숫자/하이픈 외 문자 등) | `INVALID_INPUT` | 400 |
 
 - `email`은 이 API로 수정 불가 — OAuth 계정 식별값이자 `Applicant.email`과 일치해야 하는 제약(`.md` 2.2절)이라, 바꾸려면 OAuth 재연동이 필요한 별개 문제. 이번 범위에서 다루지 않음.
-- `name`/`address`는 최대 255자(`@Size(max=255)`), `phone`은 기존 `@Pattern` 형식 검증 유지.
-- `phone`/`address`를 `null` 전송으로 "지우는" 것은 지원하지 않는다(빈 문자열은 검증에서 거부, `null`은 partial update에서 "값 변경 없음"으로 해석됨).
+- `name`은 최대 255자(`@Size(max=255)`), `phone`은 기존 `@Pattern` 형식 검증 유지.
+- `phone`을 `null` 전송으로 "지우는" 것은 지원하지 않는다(빈 문자열은 검증에서 거부, `null`은 partial update에서 "값 변경 없음"으로 해석됨).
 
 #### ⑥ DB 컬럼과 매핑 검증
 
@@ -185,7 +182,6 @@ Content-Type: application/json
 |---|---|
 | name | name |
 | phone | phone |
-| address | address |
 | — | updated_at 자동 갱신 |
 
 #### ⑦ 누락된 필드 확인

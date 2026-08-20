@@ -52,7 +52,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data.id").value(user.getId()))
                 .andExpect(jsonPath("$.data.name").value("Jane"))
                 .andExpect(jsonPath("$.data.email").value("jane@example.com"))
-                .andExpect(jsonPath("$.data.role").value("USER"))
+                .andExpect(jsonPath("$.data.role").doesNotExist())
                 .andExpect(jsonPath("$.data.phone").isEmpty())
                 .andExpect(jsonPath("$.data.address").isEmpty());
     }
@@ -82,10 +82,10 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data.phone").value("010-1234-5678"));
     }
 
-    // email은 OAuth 식별값이라 이 API로 수정할 수 없다. address는 2026-08-08에 한 번 제외됐다가
-    // 2026-08-20 정책 재정정으로 이름·전화번호와 동일하게 수정 가능해졌다.
+    // email은 OAuth 식별값이라 이 API로 수정할 수 없다. address는 확정 정책(2026-08-08, 2026-08-20
+    // 재확인)상 이 API의 요청 DTO에 필드 자체가 없어 요청 바디에 보내도 무시된다.
     @Test
-    void updateMeUpdatesAddress() throws Exception {
+    void updateMeIgnoresAddressEvenWhenProvidedInRequestBody() throws Exception {
         mockMvc.perform(patch("/api/users/me")
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -97,20 +97,7 @@ class UserControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("New Name"))
-                .andExpect(jsonPath("$.data.address").value("서울특별시 강남구"));
-    }
-
-    @Test
-    void updateMeReturnsInvalidInputWhenAddressIsBlank() throws Exception {
-        mockMvc.perform(patch("/api/users/me")
-                        .header("Authorization", token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                { "address": "   " }
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+                .andExpect(jsonPath("$.data.address").isEmpty());
     }
 
     @Test

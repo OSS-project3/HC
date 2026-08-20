@@ -203,9 +203,15 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 
 - **`UserApplicationFlowTest.fullUserApplicationFlow()` 403 실패**(발견: Claude, 2026-08-19, SIGNUP-1 회귀 테스트 중): `POST /api/applications`가 201 대신 403을 반환. 원인은 보안/JWT 문제가 아니라 정상 동작하는 비즈니스 규칙 — `ApplicationController#createIndividual` → `ApplicationService.createIndividual()` → `findUser(userId)`([ApplicationService.java:215](../../backend/honor-citizen/src/main/java/com/example/honorcitizen/domain/application/service/ApplicationService.java)) → `UserService.findEligibleApplicationUser(userId)`([UserService.java:150-152](../../backend/honor-citizen/src/main/java/com/example/honorcitizen/domain/user/service/UserService.java))가 `!user.isAllTermsAgreed()`면 `CustomException(TERMS_NOT_AGREED)`를 던지고 `GlobalExceptionHandler`가 이를 403으로 매핑한다(응답 바디로 실측 확인: `{"errorCode":"TERMS_NOT_AGREED",...}`). 이 테스트는 "Google 로그인"을 `User.createOAuthUser(...)`를 리포지토리에 직접 save하는 방식으로 재현하는데(클래스 상단 주석에 명시된 의도적 대체), 실제 OAuth 콜백이나 `POST /api/auth/terms` 약관동의 단계를 전혀 거치지 않아 `termsAgreed=false`인 채로 신청 생성을 시도해 정상 가드에 걸린다. 즉 **프로덕션 코드 버그가 아니라 테스트 픽스처가 약관동의 필수화 이후 갱신되지 않은 것**으로 판단됨(클린 `main` HEAD 기준으로도 동일하게 재현 확인 — SIGNUP-1이 만든 회귀 아님). 고치려면 이 테스트의 로그인 재현 단계 뒤에 약관동의 단계(`POST /api/auth/terms` 호출 또는 `user.agreeToTerms(...)` 직접 호출)를 추가하면 될 것으로 보이나, User/Application 도메인 테스트 파일 수정은 이번 SIGNUP-1 작업 범위 밖이라 고치지 않고 기록만 남긴다.
 
+### 진행 중 — 백엔드 미구현
+
+- [ ] **RECOVERY-1** 계정 복구: 아이디(이메일) 찾기 (`POST /api/auth/recovery/id/request`, `/confirm`) — 정책 확정 완료(2026-08-20, Claude), 구현 대기. 이름+전화번호 일치 시 그 계정의 가입 이메일로 확인 코드를 보내고, 코드를 맞춰야 마스킹 이메일(`ho***@example.com`)을 공개한다(전화번호가 SMS 인증된 적 없어 즉시 공개하지 않기로 확정). `EmailVerificationService`의 HMAC 챌린지/Lua 스크립트/Redis TTL 패턴을 다른 키 prefix(`auth:recovery:id:*`)로 재사용. 계약 상세: `docs/api/auth.md` API 7.
+  - 선행 작업: 없음(MAIL-1/EmailVerificationService 인프라 재사용, 이미 완료)
+- [ ] **RECOVERY-2** 계정 복구: 비밀번호 재설정 (`POST /api/auth/recovery/password/request`, `/confirm`) — 정책 확정 완료(2026-08-20, Claude), 구현 대기. 확인 화면은 코드+새 비밀번호를 한 번에 제출(UX 결정 2026-08-19 유지), 대상이 OAuth 전용 계정이거나 미가입 이메일이어도 메일 발송 없이 동일한 성공 응답만 준다(계정 존재/유형 비노출). 성공 시 `UserService.changePassword`와 동일하게 전체 세션 무효화. 계약 상세: `docs/api/auth.md` API 8.
+  - 선행 작업: 없음(같은 인프라 재사용)
+
 ### 정책 결정이 필요한 항목
 
-- **계정 복구**(아이디 찾기, 비밀번호 재설정): 이메일 발송 수단(MAIL-1)은 AUTH-4 인증코드 발송용으로 구축하면 그대로 재사용 가능해진다 — 다만 "찾은 아이디를 어떻게 마스킹해서 보여줄지", "재설정 토큰 만료 시간" 등 계정복구 자체의 세부 계약은 아직 미정이라 AUTH-1~6과는 별도 작업으로 남긴다.
 - ~~이메일 인증 여부·비밀번호 해시 알고리즘·로그인 시도 제한 구체값~~ — ✅ 2026-08-19 확정(위 "정책 확정(2차)" 참고, PW-1/MAIL-1/SIGNUP-1/SIGNUP-2/RATE-1로 반영 완료).
 - **단체 신청 구성원별 상세·카드 ZIP 다운로드 API**(`/api/my/bulk-applications/{id}/members`, `/cards/download`): 프론트 `MyPage`/`MobileCardPage` 어디에도 이 데이터를 쓰는 화면이 없음을 확인함 — 실제로 필요한 화면인지부터 확인 필요. 필요 시 `MyApplicationController`에 신규 엔드포인트+`ApplicationMemberRepository` 조회 추가.
 - **카드 다운로드 가능 기준(`COMPLETED` vs `cardReadyAt`)**: 문서(`FRONTEND_API_INTEGRATION_SPEC.md`)는 `cardReadyAt` 기준이 확정 정책이라 하지만 실제 코드(`ApplicationService.getCardDownload()`)는 `COMPLETED` 단독 검사 — 이미 위 "신청 상태·취소·환불 구조 변경 체크리스트" §5(라인 166)에 동일 항목이 있음, 중복 추가하지 않고 그 항목을 그대로 참조. 관리자 API 미구현으로 `PRODUCING`/`markPhysicalDispatched` 상태에 실제로 도달시킬 방법이 없어 실질적으로 검증도 안 되는 상태.

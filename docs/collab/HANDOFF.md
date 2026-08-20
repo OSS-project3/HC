@@ -6,6 +6,11 @@
 
 ## 지금 어디까지 됐는가
 
+- **✅ 회원정보 address 수정 정책 재확정 원복 + 조회 응답에서 role 제거 + 마이페이지 스펙 확정(2026-08-20, 커밋 완료)**: 이날 세션 초반에 "이름·전화번호만" → "address도 수정 가능"으로 뒤집었던 정책을, 사용자가 다시 "수정에는 이름과 전화번호만 가능해야 한다"고 확인해 **원래대로(이름·전화번호만) 최종 원복**했다. `UserUpdateRequest`에서 `address` 필드 제거, `User.updateProfile` 2-인자로 복원, `UserService.updateMe` address 검증 삭제, `UserControllerTest`도 "address 무시" 검증으로 원복, `docs/api/user.md` API 5 원복. **교훈**: 같은 날 두 번 바뀐 정책이라 다음 세션에서 다시 헷갈릴 수 있음 — `PATCH /api/users/me`는 **이름·전화번호만** 수정 가능이 최종 확정 상태다(주소는 조회 응답엔 계속 포함되지만 수정 불가).
+  - **`UserMeResponse`에서 `role` 필드 완전 제거**: 사용자가 마이페이지 "내 정보"에 뜨던 "회원 유형"(일반회원/관리자) 표시를 등급제처럼 잘못 보인다고 지적 — 단순 화면 숨김이 아니라 `GET`/`PATCH /api/users/me` 응답 DTO(`UserMeResponse`) 자체에서 `role`을 뺐다. 관련 테스트 3곳(`UserControllerTest`/`AuthControllerSignupTest`/`UserApplicationFlowTest`)도 `.doesNotExist()`로 수정. **role은 애초에 `UserUpdateRequest`에 없어서 관리자든 일반유저든 이 API로 수정 불가**(변경 없음, 원래도 그랬음) — 이번 변경은 조회 응답에서 노출만 없앤 것.
+  - **⚠️ 프론트 영향(대응은 프론트 몫, `FRONTEND_API_GAPS.md` §1.9-a에 기록만 함)**: `AuthContext.tsx`의 `refreshProfile()`이 이 응답의 `role`을 읽어 `isAdmin`을 세팅하고 있었는데(`Header.tsx` 관리자 메뉴, `InquiryDetailPage.tsx` 열람권한 체크가 의존), 이제 그 필드가 없어 이 로직은 더 이상 동작하지 않는다. 지금은 실 서버 인가와 무관한 프론트 전용 데모 값이라 당장 보안 문제는 아님.
+  - **마이페이지 "내 정보" 표시 스펙 확정(프론트 작업, `FRONTEND_API_GAPS.md` §1.9-a에 기록만 함)**: 조회 시 이름·전화번호·이메일 3개만 노출("회원 유형"은 응답 자체에 없어 표시 불가), 수정 가능 필드는 이름·전화번호뿐. 현재 `MyPage.tsx`는 전화번호 미표시 + 회원유형 표시 중이라 둘 다 프론트에서 손봐야 함.
+  - **별건 — 마이페이지 "제작 내역" 빈 목록 문제 재확인(코드 근거 확보, 아직 미수정)**: 사용자가 실제로 신청을 제출해도 "제작 신청 내역이 없습니다"만 뜨는 걸 보고했다. 원인은 `MyPage.tsx`가 실 API(`GET /api/my/applications`, 이미 `main`에 구현 완료·`b5f6140`)를 아예 호출하지 않고 `data/adminMock.ts` localStorage(`applicantEmail === user.email` 필터)만 읽기 때문 — 서버 저장 여부와 무관하게 표시된다. **백엔드 작업은 없음(순수 프론트 스코프)**. `services/api.ts`에 `listMyApplications` 함수가 아예 없는 것, 상태 라벨(`adminStatusLabels`)이 옛 mock enum 기준이라 실 enum과 3개만 겹치는 것, 날짜 필드가 `submittedAt`(날짜만)→`createdAt`(`LocalDateTime`)로 바뀌어 포맷이 깨지는 것까지 `FRONTEND_API_GAPS.md` §1.2에 상세 기록해뒀다.
 - **✅ 배포 준비 + 버그 수정 다발(2026-08-20)**: 사용자가 EC2 배포를 진행하면서 발견된 문제들을 그때그때 고쳤다. 전부 `main`에 커밋·푸시 완료.
   - **단체신청 엑셀 템플릿 유효성검사 수식 버그 2건**(`artifact-work/bulk-excel-templates-20260818/build_templates.py`, git 미추적 로컬 스크립트): `type="custom"`(영문명/이메일/전화번호/학번/학과)과 `type="list"`(국적/성별, 이름정의 참조) 데이터 유효성검사의 `formula1`에 불필요한 선행 `=`가 있어 **한컴오피스 한셀에서 정상 입력값도 전부 거부**되던 버그. Excel은 관대하게 처리하지만 한셀은 안 그럼 — OOXML 스펙상 원래 `=` 없이 써야 하는 게 맞음. 3개 템플릿(`outputs/bulk-excel-templates-20260818/*.xlsx`) 재생성해 반영(`20ee58e`, `c0e61e4`).
   - **고등학교 단체신청 학번·학과 정책 왕복 수정**: 처음엔 "단체는 schoolType 무관하게 학번·학과 필수"인 기존 코드에 맞춰 고등학교 템플릿에 학번·학과 열 추가(`5d8af19`)했으나, 사용자가 프론트 코드(`StepInfo.tsx`의 "고등학교 선택 시 대학교 전용 항목은 비운다" 주석)를 근거로 "개인 신청처럼 단체도 고등학교면 학번·학과를 받으면 안 된다"고 정정 — `BulkExcelParser`가 `schoolType`을 아예 몰랐던 게 진짜 버그였음이 드러남. `BulkExcelParser.parse(zipFile, isStudent, schoolType)`로 시그니처 확장, `UNIVERSITY`만 필수·`HIGH_SCHOOL`이면 있으면 거절하도록 개인 신청과 통일(`6efd2b8`), 템플릿의 학번·학과 열도 다시 제거(`ba80a79`). **교훈**: 코드가 이미 있다고 정책이 맞다고 가정하지 말 것 — 프론트 실제 동작이 더 신뢰할 수 있는 정책 근거였음.
@@ -25,8 +30,9 @@
 ## 다음에 할 일
 
 - **🔴 최우선(회귀 수정, 프론트 담당)**: `ApplyPage.tsx` `submit()`에 `schoolName` 필드 추가 — 안 하면 학생증 신청 전부 400. `docs/FRONTEND_API_GAPS.md` §1.9-b 참고.
+- **🔴 마이페이지 "제작 내역" 연동(프론트 담당)**: `MyPage.tsx`가 실 API를 안 부르고 있어 실제 신청 후에도 빈 목록만 뜬다. 백엔드는 이미 준비됨(`GET /api/my/applications`) — `FRONTEND_API_GAPS.md` §1.2에 상태 라벨/날짜 포맷 이슈까지 포함해 상세 기록해둠.
 - **EC2 배포 마무리**: EC2의 `.env`에 Google/Naver 자격증명(및 나머지 값 전체)이 다 채워졌는지 확인 → `docker compose up -d --no-deps backend`로 반영 → 브라우저로 실제 OAuth 로그인 완료까지 테스트. HTTPS(certbot)는 아직 미착수 — DNS·탄력적 IP는 사용자가 이미 설정 완료.
-- **프론트 작업 우선순위 전체**는 `docs/FRONTEND_API_GAPS.md` §6 표 참고(schoolName 외에 회원가입 인증코드 UI, 로그인 연동, 마이페이지 신청목록, 문의 연동, address 입력란 복원 등 백엔드는 준비됐고 프론트만 남은 항목들).
+- **프론트 작업 우선순위 전체**는 `docs/FRONTEND_API_GAPS.md` §6 표 참고(schoolName·마이페이지 신청목록 외에 회원가입 인증코드 UI, 로그인 연동, 문의 연동, 마이페이지 "내 정보" 표시 정리(회원유형 제거·전화번호 추가) 등 백엔드는 준비됐고 프론트만 남은 항목들).
 - **AWS 자격증명 보안 권장**: 지금 쓰고 있는 AWS 키가 IAM 사용자가 아니라 계정 루트 키로 확인됨(`arn:aws:iam::...:root`) — S3 버킷 하나에만 권한 준 전용 IAM 사용자로 교체 권장(급하지 않음, 사용자에게 이미 안내함).
 - **거래·상담 데이터 파기 스케줄러**: Inquiry 6개월, 결제·거래 이력 법정 보존기간 — 담당자 미정.
 - **개인정보처리방침 문안 확인(법무 대상)**: `docs/collab/user.md` §17.2/§17.3 — 코드 작업 아님.
