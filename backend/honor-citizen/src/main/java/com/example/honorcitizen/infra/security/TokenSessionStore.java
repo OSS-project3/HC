@@ -8,6 +8,7 @@ import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.RefreshTokenSessionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -25,10 +26,16 @@ public class TokenSessionStore {
     private static final String REFRESH_SESSION_PREFIX = "auth:refresh:session:";
     private static final String USER_SESSIONS_PREFIX = "auth:refresh:user:";
     private static final String ACCESS_BLACKLIST_PREFIX = "auth:access:blacklist:";
+    private static final String USER_REVOKED_AFTER_PREFIX = "auth:access:user-revoked-after:";
+    // access token 최대 수명(15분) + clock skew 여유(RECOVERY-2 정책, 기본 TTL 16분).
+    private static final Duration REVOKED_AFTER_CLOCK_SKEW = Duration.ofMinutes(1);
 
     private final StringRedisTemplate redisTemplate;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenSessionRepository refreshTokenSessionRepository;
+
+    @Value("${jwt.access-token-expiry}")
+    private long accessTokenExpiryMillis;
 
     public String createRefreshToken(User user) {
         String sessionId = UUID.randomUUID().toString();
@@ -122,13 +129,46 @@ public class TokenSessionStore {
         );
     }
 
-    public boolean isAccessTokenBlacklisted(String accessToken) {
+    // 사용자 단위 access token 무효화 기준 시각을 기록한다(비밀번호 변경·재설정 공용 revoke primitive,
+    // RECOVERY-2 정책). 표준 JWT `iat`는 초 단위라 재설정과 새 로그인이 같은 초에 겹치면 새 토큰까지
+    // 오거절할 수 있어 millisecond 정밀도의 별도 값을 쓴다. TTL은 access token 최대 수명+clock skew —
+    // 그 이후엔 어차피 모든 구버전 토큰이 자연 만료되므로 키를 계속 들고 있을 필요가 없다.
+    public void recordUserAccessRevocation(Long userId) {
+        long revokedAfterMillis = System.currentTimeMillis();
+        Duration ttl = Duration.ofMillis(accessTokenExpiryMillis).plus(REVOKED_AFTER_CLOCK_SKEW);
+        redisTemplate.opsForValue().set(userRevokedAfterKey(userId), String.valueOf(revokedAfterMillis), ttl);
+    }
+
+    /**
+     * access token 블랙리스트와 사용자 단위 revoked-after를 하나의 세션 검증 책임으로 통합한다
+     * (RECOVERY-2). Redis 조회 자체가 실패하면 미확인 토큰을 통과시키지 않는 fail-closed로
+     * {@link ErrorCode#AUTH_SESSION_VALIDATION_UNAVAILABLE}을 던진다 — 예전의 "장애 시 blacklist
+     * 아님으로 간주" fail-open은 세션 무효화를 무력화할 수 있어 폐기한다.
+     *
+     * @param authIssuedAtMillis 토큰의 `iam` 커스텀 클레임(없으면 null — 배포 전 발급된 구버전 토큰)
+     */
+    public boolean isAccessTokenSessionValid(String accessToken, Long userId, Long authIssuedAtMillis) {
         try {
             String jti = jwtTokenProvider.getTokenId(accessToken);
-            return jti != null && Boolean.TRUE.equals(redisTemplate.hasKey(accessBlacklistKey(jti)));
+            if (jti != null && Boolean.TRUE.equals(redisTemplate.hasKey(accessBlacklistKey(jti)))) {
+                return false;
+            }
+
+            String revokedAfterRaw = redisTemplate.opsForValue().get(userRevokedAfterKey(userId));
+            if (revokedAfterRaw == null) {
+                // revoked-after 키가 아예 없는 사용자 — 재설정/비밀번호 변경을 한 번도 겪지 않은
+                // 배포 전 토큰까지 포함해 만료 전까지는 허용한다.
+                return true;
+            }
+            if (authIssuedAtMillis == null) {
+                // revoked-after 키가 있는데 클레임이 없는 토큰 = 재설정 이전에 발급된 구버전 토큰.
+                return false;
+            }
+            long revokedAfterMillis = Long.parseLong(revokedAfterRaw);
+            return authIssuedAtMillis > revokedAfterMillis;
         } catch (DataAccessException e) {
-            log.warn("Redis access token blacklist 확인 실패: {}", e.getMessage());
-            return false;
+            log.warn("Redis 세션 검증 실패(blacklist/revoked-after 조회): {}", e.getMessage());
+            throw new CustomException(ErrorCode.AUTH_SESSION_VALIDATION_UNAVAILABLE);
         }
     }
 
@@ -164,5 +204,9 @@ public class TokenSessionStore {
 
     private String accessBlacklistKey(String tokenId) {
         return ACCESS_BLACKLIST_PREFIX + tokenId;
+    }
+
+    private String userRevokedAfterKey(Long userId) {
+        return USER_REVOKED_AFTER_PREFIX + userId;
     }
 }

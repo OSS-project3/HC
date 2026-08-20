@@ -39,7 +39,9 @@ public class JwtTokenProvider {
     }
 
     public String generateAccessToken(Long userId, UserRole role) {
-        return buildToken(userId, role, "access", null, accessTokenExpiry);
+        // 표준 iat는 초 단위라, 재설정과 새 로그인이 같은 초에 겹치면 새 토큰까지 오거절할 수 있다
+        // (RECOVERY-2 정책) — millisecond 정밀도의 커스텀 클레임을 별도로 심어 무효화 비교에 쓴다.
+        return buildToken(userId, role, "access", null, accessTokenExpiry, System.currentTimeMillis());
     }
 
     public String generateAccessToken(Long userId, String email, UserRole role) {
@@ -47,14 +49,14 @@ public class JwtTokenProvider {
     }
 
     public String generateRefreshToken(Long userId, UserRole role, String sessionId) {
-        return buildToken(userId, role, "refresh", sessionId, refreshTokenExpiry);
+        return buildToken(userId, role, "refresh", sessionId, refreshTokenExpiry, null);
     }
 
     public String generateRefreshToken(Long userId, String email, UserRole role, String sessionId) {
         return generateRefreshToken(userId, role, sessionId);
     }
 
-    private String buildToken(Long userId, UserRole role, String type, String sessionId, long expiry) {
+    private String buildToken(Long userId, UserRole role, String type, String sessionId, long expiry, Long authIssuedAtMillis) {
         Date now = new Date();
         var builder = Jwts.builder()
                 .subject(String.valueOf(userId))
@@ -68,6 +70,9 @@ public class JwtTokenProvider {
 
         if (sessionId != null) {
             builder.claim("sid", sessionId);
+        }
+        if (authIssuedAtMillis != null) {
+            builder.claim("iam", authIssuedAtMillis);
         }
 
         return builder.compact();
@@ -121,6 +126,11 @@ public class JwtTokenProvider {
 
     public String getSessionId(String token) {
         return getClaims(token).get("sid", String.class);
+    }
+
+    // 배포 전 발급된 구버전 토큰이거나 refresh token이면 null(RECOVERY-2 — revoked-after 비교용).
+    public Long getAuthIssuedAtMillis(String token) {
+        return getClaims(token).get("iam", Long.class);
     }
 
     public Date getExpiration(String token) {

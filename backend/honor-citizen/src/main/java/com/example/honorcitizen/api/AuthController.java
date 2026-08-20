@@ -5,8 +5,15 @@ import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.domain.user.dto.EmailCheckRequest;
 import com.example.honorcitizen.domain.user.dto.EmailCheckResponse;
+import com.example.honorcitizen.domain.user.dto.IdRecoveryConfirmRequest;
+import com.example.honorcitizen.domain.user.dto.IdRecoveryConfirmResponse;
+import com.example.honorcitizen.domain.user.dto.IdRecoveryRequest;
+import com.example.honorcitizen.domain.user.dto.IdRecoveryResponse;
 import com.example.honorcitizen.domain.user.dto.LoginRequest;
 import com.example.honorcitizen.domain.user.dto.LoginResponse;
+import com.example.honorcitizen.domain.user.dto.PasswordRecoveryConfirmRequest;
+import com.example.honorcitizen.domain.user.dto.PasswordRecoveryRequest;
+import com.example.honorcitizen.domain.user.dto.PasswordRecoveryResponse;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationConfirmRequest;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationConfirmResponse;
 import com.example.honorcitizen.domain.user.dto.SignupEmailVerificationRequest;
@@ -15,12 +22,14 @@ import com.example.honorcitizen.domain.user.dto.SignupRequest;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeRequest;
 import com.example.honorcitizen.domain.user.dto.TermsAgreeResponse;
 import com.example.honorcitizen.domain.user.dto.UserMeResponse;
+import com.example.honorcitizen.domain.user.service.AccountRecoveryService;
 import com.example.honorcitizen.domain.user.service.EmailVerificationService;
 import com.example.honorcitizen.domain.user.service.LocalSignupResult;
 import com.example.honorcitizen.domain.user.service.LoginResult;
 import com.example.honorcitizen.domain.user.service.UserService;
 import com.example.honorcitizen.infra.security.AuthCookieManager;
 import com.example.honorcitizen.infra.security.AuthTokens;
+import com.example.honorcitizen.infra.security.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -46,12 +55,14 @@ public class AuthController {
     private final UserService userService;
     private final AuthCookieManager authCookieManager;
     private final EmailVerificationService emailVerificationService;
+    private final AccountRecoveryService accountRecoveryService;
+    private final ClientIpResolver clientIpResolver;
 
     @PostMapping("/signup/email-verification/request")
     public ResponseEntity<ApiResponse<SignupEmailVerificationResponse>> requestSignupEmailVerification(
             @Valid @RequestBody SignupEmailVerificationRequest request,
             HttpServletRequest servletRequest) {
-        String clientIp = servletRequest.getRemoteAddr();
+        String clientIp = clientIpResolver.resolve(servletRequest);
         return ResponseEntity.ok(ApiResponse.success(
                 emailVerificationService.requestCode(request.getEmail(), clientIp)));
     }
@@ -131,6 +142,40 @@ public class AuthController {
         userService.logout(userId, resolveBearerToken(request));
         authCookieManager.expireLegacyAccessTokenCookie(response);
         authCookieManager.expireRefreshTokenCookie(response);
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    // RECOVERY-1 — docs/api/auth.md API 7.
+    @PostMapping("/recovery/id/request")
+    public ResponseEntity<ApiResponse<IdRecoveryResponse>> requestIdRecovery(
+            @Valid @RequestBody IdRecoveryRequest request,
+            HttpServletRequest servletRequest) {
+        String clientIp = clientIpResolver.resolve(servletRequest);
+        return ResponseEntity.ok(ApiResponse.success(
+                accountRecoveryService.requestIdRecovery(request.getName(), request.getPhone(), clientIp)));
+    }
+
+    @PostMapping("/recovery/id/confirm")
+    public ResponseEntity<ApiResponse<IdRecoveryConfirmResponse>> confirmIdRecovery(
+            @Valid @RequestBody IdRecoveryConfirmRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                accountRecoveryService.confirmIdRecovery(request.getRequestId(), request.getCode())));
+    }
+
+    // RECOVERY-2 — docs/api/auth.md API 8.
+    @PostMapping("/recovery/password/request")
+    public ResponseEntity<ApiResponse<PasswordRecoveryResponse>> requestPasswordRecovery(
+            @Valid @RequestBody PasswordRecoveryRequest request,
+            HttpServletRequest servletRequest) {
+        String clientIp = clientIpResolver.resolve(servletRequest);
+        return ResponseEntity.ok(ApiResponse.success(
+                accountRecoveryService.requestPasswordRecovery(request.getEmail(), clientIp)));
+    }
+
+    @PostMapping("/recovery/password/confirm")
+    public ResponseEntity<ApiResponse<Void>> confirmPasswordRecovery(
+            @Valid @RequestBody PasswordRecoveryConfirmRequest request) {
+        accountRecoveryService.confirmPasswordRecovery(request.getRequestId(), request.getCode(), request.getNewPassword());
         return ResponseEntity.ok(ApiResponse.success());
     }
 

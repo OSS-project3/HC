@@ -39,6 +39,8 @@ public class SecurityConfig {
                 // 공개 API다(SIGNUP-1/2/AUTH-4 정책). "/api/auth/signup" 자체(하위 경로 없음)도 명시적으로
                 // 포함시켜 "/**" 접미사의 정확한 매칭 여부에 기대지 않는다.
                 .requestMatchers("/api/auth/signup", "/api/auth/signup/**").permitAll()
+                // 계정 복구(아이디/비밀번호 찾기)도 비로그인 상태에서 쓰는 공개 API다(RECOVERY-1/2 정책).
+                .requestMatchers("/api/auth/recovery/**").permitAll()
                 .requestMatchers("/api/applications/lookup").permitAll()
                 // 후기 목록/단건 조회는 비로그인 공개 조회다(등록/수정/삭제는 아래 hasAnyRole 규칙 그대로 적용).
                 // api.md §API 2·§API 3 참고 — 단건 조회는 로그인 여부에 따라 canEdit/canDelete만 달라진다.

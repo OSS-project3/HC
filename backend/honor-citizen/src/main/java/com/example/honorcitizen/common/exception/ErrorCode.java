@@ -33,6 +33,9 @@ public enum ErrorCode {
     // AUTH-6: 이미 로그인된 사용자의 자기 서비스 요청이라 이메일 존재 여부 비노출과 무관 — 원인을 구체적으로 알려준다.
     CURRENT_PASSWORD_MISMATCH(400, "현재 비밀번호가 일치하지 않습니다."),
     PASSWORD_CHANGE_NOT_ALLOWED(403, "OAuth 계정은 비밀번호를 변경할 수 없습니다."),
+    // access token 블랙리스트/revoked-after 조회가 Redis 장애로 확인 불가능할 때 — 미확인 토큰을
+    // 통과시키지 않는 fail-closed 정책(RECOVERY-2). 인증 실패(401)와 구분되는 인프라 장애다.
+    AUTH_SESSION_VALIDATION_UNAVAILABLE(503, "세션 확인이 일시적으로 불가능합니다. 잠시 후 다시 시도해주세요."),
 
     // Application
     APPLICATION_NOT_FOUND(404, "존재하지 않는 신청입니다."),

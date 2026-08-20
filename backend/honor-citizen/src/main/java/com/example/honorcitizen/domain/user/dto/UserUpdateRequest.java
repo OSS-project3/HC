@@ -16,6 +16,7 @@ public class UserUpdateRequest {
     @Size(max = 255)
     private String name;
 
-    @Pattern(regexp = "^[0-9\\-]{9,20}$", message = "전화번호 형식이 올바르지 않습니다.")
+    // 국제번호 대응(RECOVERY-1 정책, 2026-08-21): 회원가입·회원정보 수정·계정 복구가 같은 규칙을 쓴다.
+    @Pattern(regexp = PhoneValidation.PATTERN, message = PhoneValidation.MESSAGE)
     private String phone;
 }

@@ -70,6 +70,19 @@ public class User extends BaseTimeEntity {
         return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 
+    // 전화번호는 가입 시 형식만 검증하고 정규화해서 저장하지 않는다(기존 DB 값 일괄 변환 없음) —
+    // 아이디 찾기처럼 비교가 필요한 곳에서만 입력값·저장값 양쪽에 이 메서드를 적용해 비교한다.
+    // 공백·하이픈을 제거하고 선행 +는 보존한다(국제번호 대응, RECOVERY-1 정책).
+    public static String normalizePhone(String phone) {
+        if (phone == null) {
+            return null;
+        }
+        String trimmed = phone.trim();
+        boolean international = trimmed.startsWith("+");
+        String digitsOnly = trimmed.replaceAll("[^0-9]", "");
+        return (international ? "+" : "") + digitsOnly;
+    }
+
     public static User createOAuthUser(String email, String oauthId, String oauthProvider, String name) {
         User user = new User();
         user.email = normalizeEmail(email);
