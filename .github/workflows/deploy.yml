@@ -1,0 +1,14 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Deploy
+        # self-hosted 러너가 EC2 배포 서버 자체에서 실행되므로 SSH 없이 직접 수행한다.
+        # deploy.sh가 git pull + docker compose up -d --build까지 처리한다.
+        run: /home/ubuntu/deploy.sh
