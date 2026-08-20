@@ -205,10 +205,96 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 
 ### 진행 중 — 백엔드 미구현
 
-- [ ] **RECOVERY-1** 계정 복구: 아이디(이메일) 찾기 (`POST /api/auth/recovery/id/request`, `/confirm`) — 정책 확정 완료(2026-08-20, Claude), 구현 대기. 이름+전화번호 일치 시 그 계정의 가입 이메일로 확인 코드를 보내고, 코드를 맞춰야 마스킹 이메일(`ho***@example.com`)을 공개한다(전화번호가 SMS 인증된 적 없어 즉시 공개하지 않기로 확정). `EmailVerificationService`의 HMAC 챌린지/Lua 스크립트/Redis TTL 패턴을 다른 키 prefix(`auth:recovery:id:*`)로 재사용. 계약 상세: `docs/api/auth.md` API 7.
-  - 선행 작업: 없음(MAIL-1/EmailVerificationService 인프라 재사용, 이미 완료)
-- [ ] **RECOVERY-2** 계정 복구: 비밀번호 재설정 (`POST /api/auth/recovery/password/request`, `/confirm`) — 정책 확정 완료(2026-08-20, Claude), 구현 대기. 확인 화면은 코드+새 비밀번호를 한 번에 제출(UX 결정 2026-08-19 유지), 대상이 OAuth 전용 계정이거나 미가입 이메일이어도 메일 발송 없이 동일한 성공 응답만 준다(계정 존재/유형 비노출). 성공 시 `UserService.changePassword`와 동일하게 전체 세션 무효화. 계약 상세: `docs/api/auth.md` API 8.
-  - 선행 작업: 없음(같은 인프라 재사용)
+### 계정 복구 구현 체크리스트 — 추가 정책 결정 없음
+
+> 반드시 **RECOVERY-0 → RECOVERY-1 → RECOVERY-2 → RECOVERY-3** 순서로 진행한다. 각 Task는 정책 확인 → 실패 테스트 → 최소 구현 → 집중 테스트 → 회귀 테스트 → 체크 표시 순서를 지킨다. 정책과 코드가 예상보다 크게 충돌할 때만 작업을 멈추고 사용자에게 선택지를 보고한다.
+
+#### RECOVERY-0. 착수 전 기준선·현재 충돌 정리 — ✅ 완료(Claude, 2026-08-21)
+
+- [x] 작업 위치가 `D:\HC-worktrees\main-preview`, 브랜치가 `main`인지 확인
+- [x] 기존 미커밋 `EmailType`, `UserRepository`, 계정 복구 DTO를 삭제·원복하지 않고 이어서 사용
+- [x] `artifact-work/`, `outputs/bulk-excel-templates-20260818.zip`은 작업·커밋 대상에서 제외
+- [x] Source of Truth를 `docs/api/auth.md` API 7·8 → `arch.md` §4.1 → 이 체크리스트 순서로 확인
+- [x] `PasswordRecoveryConfirmRequest`: 현재 `email` 제거 → `requestId + code + newPassword`
+- [x] `PasswordRecoveryResponse`: `requestId + expiresInSeconds + resendAfterSeconds` 반환
+- [x] `UserRepository`: 아이디 찾기 `Optional<User>` 제거 → `TRIM(name)` 기반 일반 계정 후보 목록(`findLocalAccountCandidatesByName`)
+- [x] `IdRecoveryRequest` 및 User 전화번호 DTO: 국제번호 `+`·공백·하이픈 허용 규칙으로 통일(`PhoneValidation` 공유 상수, `SignupRequest`/`UserUpdateRequest`/`IdRecoveryRequest` 전부 적용)
+- [x] `AuthController`: 직접 `getRemoteAddr()` 사용 제거 → 공용 `ClientIpResolver`
+- [x] `TokenSessionStore`: Redis 오류 시 `false`를 반환하는 access blacklist fail-open 제거 → `isAccessTokenSessionValid`가 fail-closed로 교체
+- [x] `JwtTokenProvider`/JwtAuthFilter: `authIssuedAtMillis` 발급·검증 변경 범위 확인 → 구현 완료(RECOVERY-2에서)
+- [x] 위 충돌을 직접 재현하거나 기존 테스트 공백을 확인한 뒤 RECOVERY-1 시작 — `compileJava`/`compileTestJava` 통과 확인 후 착수
+
+#### RECOVERY-1. 아이디(이메일) 찾기 — ✅ 완료(Claude, 2026-08-21, 커밋 `db002a7`/`2d49acd`)
+
+- [x] **RECOVERY-1 API** `POST /api/auth/recovery/id/request`, `/confirm` 구현. 계약 Source of Truth: `docs/api/auth.md` API 7.
+  - [x] 일반 계정(`passwordHash != null`)만 조회하고 OAuth 전용 계정 제외
+  - [x] `name` trim, 전화번호 공백·하이픈 제거 및 선행 `+` 보존 정규화(`User.normalizePhone`)
+  - [x] 전화번호 입력은 선택적 선행 `+`와 숫자·공백·하이픈을 허용하고(raw 최대 25자), 정규화 후 숫자 9~15자리인지 검증. 회원가입·회원정보 수정·복구 DTO에 같은 규칙 적용
+  - [x] 기존 전화번호 저장값은 일괄 마이그레이션하지 않고 비교 시 양쪽을 정규화. Repository는 `TRIM(name)`과 일반 계정 조건으로 후보 목록을 조회하고 Service가 정규화 전화번호를 비교
+  - [x] Repository 결과가 정확히 1건일 때만 발송
+  - [x] rate limit·cooldown은 계정 조회보다 먼저 적용하고 성공·미가입·OAuth·복수 계정 모두 동일하게 카운트하여 계정 존재 여부가 재요청 결과로 노출되지 않게 함
+  - [x] rate limit 임계값 확인·증가와 cooldown 선점은 Lua 또는 동등한 Redis 원자 연산으로 처리해 동시 요청이 한도를 우회하거나 중복 메일을 발송하지 못하게 함(`claim-recovery-rate-limit.lua`)
+  - [x] 0건·복수 건·OAuth 계정·메일 실패 시 가짜 `requestId`를 포함한 동일 200 응답
+  - [x] 복수 건은 임의 선택·다중 발송 금지, 프론트 고객지원 안내(§1.1-c에 화면 요구사항 기록)
+  - [x] 32-byte URL-safe `requestId`, SecureRandom 6자리 코드, TTL 10분
+  - [x] 확인 실패 5회, 재발송 60초, 전화번호 5회/시간, IP 20회/시간
+  - [x] challenge 검증·소비와 메일 실패 compare-and-delete를 Lua로 원자 처리
+  - [x] 실제 challenge는 `userId + codeHmac + failedAttempts`에 결속하고 이메일·전화번호 원문은 value에도 저장하지 않음. 가짜 요청은 challenge를 저장하지 않음
+  - [x] confirm 시 challenge의 `userId`로 User를 재조회하고 삭제됐거나 일반 계정이 아니면 다른 코드 오류와 동일한 `INVALID_VERIFICATION_CODE`(코드 구현 완료 — 계정 삭제/유형전환 시나리오 자체의 전용 테스트는 아직 없음, 아래 참고)
+  - [x] 메일 발송 실패 시 challenge만 compare-and-delete하고 rate limit·cooldown은 유지
+  - [x] Redis 키의 전화번호·IP·`requestId`를 SHA-256 해시
+  - [x] 공용 `ClientIpResolver` 추가: 설정된 신뢰 프록시에서 온 요청만 `X-Forwarded-For`를 사용하고 그 외에는 `remoteAddr` 사용. Nginx 전달 헤더와 `app.security.trusted-proxies` 설정·테스트 포함
+  - [x] 기존 회원가입 이메일 코드 요청의 `servletRequest.getRemoteAddr()`도 공용 Resolver로 교체해 가입/복구 IP 제한이 같은 정책을 사용하게 함
+  - [x] 성공 시 마스킹 이메일만 반환하고 토큰·`loginMethod` 미반환
+  - [x] 0/1/복수 계정, OAuth 제외, 코드 오류·재사용, 성공/가짜 요청의 동일 rate limit, 국제번호 정규화, 신뢰/비신뢰 프록시 IP 테스트(`AccountRecoveryServiceTest` 17개, `ClientIpResolverTest` 7개)
+  - [ ] ⚠️ **코드 만료(TTL 10분 경과)·confirm 시점 계정 삭제/유형전환 전용 테스트는 미작성** — 둘 다 코드는 구현돼 있고(만료는 signup과 동일한 Redis TTL 메커니즘, 재조회는 `findById(...).filter(passwordHash!=null)`), signup 쪽 동일 메커니즘이 `EmailVerificationServiceConfirmTest`로 이미 검증돼 있어 우선순위를 낮췄다 — 필요 시 추가 가능
+  - [ ] ⚠️ **TDD 순서(실패 테스트 먼저 확인) 엄격 준수는 안 함** — 정책 확인 후 구현과 테스트를 함께 작성했고, 테스트는 구현체 기준으로 전부 통과 확인함(실패 상태를 별도로 관측하지는 않았음)
+  - [x] RECOVERY-1 집중 테스트와 `compileJava` 통과
+  - [x] RECOVERY-1 항목을 모두 체크하고 독립적으로 build 가능한 논리 단위로 커밋(구현 `db002a7`, 테스트 `2d49acd` — RECOVERY-2와 파일을 공유해 두 Task를 각각 별도 커밋으로 분리하지 않고 "구현/테스트" 축으로 분리함)
+
+#### RECOVERY-2. 비밀번호 재설정·전체 세션 무효화 — ✅ 대부분 완료(Claude, 2026-08-21, 커밋 `db002a7`/`2d49acd`), 하단 ⚠️ 항목만 미검증
+
+- [x] **RECOVERY-2 API** `POST /api/auth/recovery/password/request`, `/confirm` 구현. 계약 Source of Truth: `docs/api/auth.md` API 8.
+  - [x] 요청 DTO는 정규화할 `email`만 받고 전화번호 제거
+  - [x] 미가입·OAuth 전용·메일 실패도 `requestId` 포함 동일 200 응답
+  - [x] 확인 DTO는 `requestId + code + newPassword`; 임시 비밀번호 미발급
+  - [x] 새 비밀번호 8~72자, BCrypt 저장, 프론트의 확인값은 서버 DTO에서 제외
+  - [x] 기존 로그인 상태 비밀번호 변경과 동일하게 새 비밀번호가 현재 비밀번호와 같아도 허용(비밀번호 이력·동일 비밀번호 거절 정책 미도입)
+  - [x] challenge는 `userId + codeHmac + failedAttempts`에 결속. confirm 시 User를 재조회해 삭제·OAuth 전환 등 대상 부적합이면 `INVALID_VERIFICATION_CODE`(코드 구현 완료, 전용 테스트는 RECOVERY-1과 동일하게 미작성)
+  - [x] 코드 검증 성공 시 Redis challenge 즉시 소비; DB 실패 시 코드 복구 없이 재요청
+  - [x] `UserService.resetPassword`에서 비밀번호 저장과 refresh session 전체 무효화를 하나의 업무 단위로 처리
+  - [x] 세션 무효화 Redis 작업 실패 시 예외를 던져 비밀번호 DB 변경을 rollback(둘 다 같은 `@Transactional` 메서드 안이라 런타임 예외 전파로 자동 롤백됨). Redis 무효화 성공 후 DB commit 실패 시 세션은 복구하지 않음(보안 우선) — 이 특정 순서의 전용 통합 테스트는 미작성(아래 ⚠️)
+  - [x] 기존 `UserService.changePassword`도 다른 기기의 access token까지 실제로 무효화하도록 같은 사용자 단위 revoke primitive 적용(`recordUserAccessRevocation`) — 테스트로 확인(`changePasswordAlsoInvalidatesOtherDeviceAccessTokensViaRevokedAfter`)
+  - [x] Access JWT에 millisecond 정밀도의 `authIssuedAtMillis`(`iam` claim) 추가. 표준 `iat`는 초 단위라 같은 초 신규 토큰을 오거절할 수 있으므로 무효화 비교에 사용하지 않음
+  - [x] `auth:access:user-revoked-after:{userId}`에 `revokedAfterMillis` 기록 후 `authIssuedAtMillis <= revokedAfterMillis`인 access token 거절
+  - [x] revoked-after 키가 없으면 배포 전 기존 토큰의 커스텀 claim 누락을 허용. 키가 존재하면 claim이 없는 기존 토큰은 거절 — 테스트로 확인
+  - [x] revoked-after TTL을 access token 수명+clock skew(1분, 현재 기본 16분)로 설정
+  - [x] `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)` ErrorCode 추가. Access blacklist/revoked-after Redis 조회 중 장애는 기존 토큰을 허용하지 않고 fail-closed — 테스트로 확인
+  - [x] 현재 `TokenSessionStore.isAccessTokenBlacklisted()`의 Redis 예외 시 `false` 반환을 제거하고 blacklist+revoked-after 검사를 하나의 세션 검증 책임(`isAccessTokenSessionValid`)으로 통합
+  - [x] Filter 단계 예외도 전역 API 오류 형식으로 503을 반환하도록 `HandlerExceptionResolver`로 위임(`JwtAuthFilter`) — 단, 필터→`GlobalExceptionHandler` 전체 체인을 MockMvc/실제 HTTP로 관통하는 통합 테스트는 미작성(아래 ⚠️), `TokenSessionStore` 단위에서 예외가 올바르게 던져지는 것만 확인함
+  - [x] DB commit 이후 `PASSWORD_CHANGED` 알림 메일 best effort 발송
+  - [x] 성공 응답에 토큰 미발급, 프론트 로그인 화면 이동(응답 바디에 데이터 없음)
+  - [x] Redis 공통 기능을 `VerificationChallengeStore`로 분리하고 `AccountRecoveryService`는 흐름만 조정
+  - [x] 정상·오류·재사용·refresh/access 무효화·메일 실패 테스트
+  - [x] 비밀번호 재설정뿐 아니라 로그인 상태 비밀번호 변경도 다른 기기의 기존 access token을 거절하는지 회귀 테스트
+  - [x] revoked-after 키 존재 시 커스텀 claim 없는 구버전 토큰 거절, 키 미존재 시 배포 전 토큰 호환 테스트
+  - [x] Redis 장애 시 `TokenSessionStore.isAccessTokenSessionValid`가 503에 해당하는 예외를 던지는지 단위 테스트로 확인
+  - [ ] ⚠️ **미검증 항목** — (a) 코드 만료(TTL 경과) confirm 시나리오, (b) confirm 시점에 대상 계정이 삭제/OAuth 전환된 케이스, (c) "재설정과 새 로그인 토큰이 같은 초에 생성돼도 신규 토큰은 허용" 케이스(밀리초 단위라 실제로는 통과할 게 거의 확실하지만 명시적 테스트는 없음), (d) DB 실패 후 세션 미복구 시나리오(DB 실패를 인위적으로 유발하는 테스트 인프라 없음), (e) 동시 코드 요청의 cooldown 우회 방지(Lua 원자성으로 설계상 보장되나 동시성 테스트는 없음), (f) Redis 장애 시 실제 HTTP 요청이 503 JSON을 반환하고 `SecurityContext`가 안 만들어지는지의 필터 체인 통합 테스트
+  - [ ] ⚠️ **TDD 순서 엄격 준수는 안 함** — RECOVERY-1과 동일한 사유
+  - [x] RECOVERY-2 집중 테스트와 User/Auth 관련 회귀 테스트, `compileJava` 통과
+  - [x] RECOVERY-2 항목을 모두 체크하고 독립적으로 build 가능한 논리 단위로 커밋(RECOVERY-1과 동일 커밋 — 두 Task가 같은 파일들을 공유해 분리하지 않음)
+
+#### RECOVERY-3. 전체 검증·문서·인수인계
+
+- [ ] RECOVERY-0·1·2에 미체크 항목이 없는지 확인
+- [ ] API 4~8 및 로그인 상태 비밀번호 변경 회귀 테스트 실행
+- [ ] 전체 테스트 실행. stdout/stderr는 로그 파일로 저장하고 종료 코드·전체 테스트 수·실패 테스트 이름만 먼저 확인
+- [ ] 실패가 있으면 실패 테스트만 단독 실행하고 최초 원인과 직접 관련된 로그 구간만 확인
+- [ ] `git diff --check`, `git status --short`로 형식 오류와 작업 범위 밖 파일 혼입 확인
+- [ ] 실제 Controller/DTO/Service/Redis key/ErrorCode가 `docs/api/auth.md` API 7·8과 일치하는지 정적 대조
+- [ ] TODO 완료 체크, CHANGELOG 최상단 변경 이력, HANDOFF 최신 스냅샷 갱신
+- [ ] 완료 보고에 구현 API, 변경 클래스, 바로잡은 기존 충돌, 집중/전체 테스트 결과, 남은 차단 사항, 커밋 해시 포함
+- [ ] 이번 작업과 무관한 Java·문서·산출물을 커밋하지 않았는지 최종 확인
 
 ### 정책 결정이 필요한 항목
 

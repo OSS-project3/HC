@@ -15,6 +15,27 @@
 
 ---
 
+## 2026-08-21 — Claude — `main` (계정 복구 아이디 찾기·비밀번호 재설정 구현 완료)
+
+- 변경: Codex가 확정한 정책(`docs/api/auth.md` API 7·8, `arch.md` §4.1)에 맞춰 `POST /api/auth/recovery/{id,password}/{request,confirm}` 4개 엔드포인트를 구현했다. `AccountRecoveryService`가 흐름을 조정하고, 가입 인증과 공유하는 HMAC challenge/원자 rate-limit은 신규 `VerificationChallengeStore`로 분리했다(`EmailVerificationService`도 여기로 리팩터링, 외부 동작 불변 확인). access token 세션 무효화를 위해 JWT에 millisecond 정밀도 `authIssuedAtMillis` 클레임을 추가하고 `auth:access:user-revoked-after:{userId}` Redis 키와 비교하도록 `TokenSessionStore`/`JwtAuthFilter`를 고쳤다 — Redis 장애 시 기존 fail-open을 버리고 `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)`로 fail-closed 응답한다. `UserService.changePassword`도 같은 revoke primitive를 적용해 다른 기기의 access token까지 실제로 무효화하도록 함께 고쳤다.
+- 테스트: `AccountRecoveryServiceTest`(17) · `ClientIpResolverTest`(7) · `TokenSessionStoreSessionValidationTest`(5) 신규 작성, 전부 통과. 전체 스위트 506개 중 505개 통과(실패 1개는 이번 작업과 무관한 기존 결함 `UserApplicationFlowTest`).
+- 파일: `AccountRecoveryService`, `VerificationChallengeStore`, `VerificationChallenge`, `ClientIpResolver`(신규), `EmailVerificationService`, `UserService`, `UserRepository`, `TokenSessionStore`, `JwtTokenProvider`, `JwtAuthFilter`, `SecurityConfig`, `AuthController`, `User`, `EmailType`, `ErrorCode`, DTO 7종, `application.properties`, Lua 스크립트 2종(1개 신규)
+- 사유: `docs/collab/TODO.md` "계정 복구 구현 체크리스트" RECOVERY-0~2 수행. TDD 순서(실패 테스트 먼저)는 엄격히 지키지 않았고, 코드 만료·confirm 시점 계정삭제·DB실패후 세션미복구·동시요청·Redis장애 시 필터체인 HTTP 통합테스트 5가지는 전용 테스트 없이 코드만 구현했다 — TODO.md에 항목별로 명시.
+- 관련: `RECOVERY-1`, `RECOVERY-2`, 커밋 `db002a7`(구현), `2d49acd`(테스트)
+
+---
+
+## 2026-08-21 — Codex — `main` (계정 복구 상세 정책·책임 구조 확정)
+
+- 변경: 아이디 찾기를 일반 이메일 계정 전용으로 확정하고, 이름+정규화 전화번호가 정확히 1건일 때만 이메일 코드를 발송하도록 상세화했다. 비밀번호 재설정은 이메일만 입력받아 `requestId + code + newPassword`를 10분 안에 제출하며, 임시 비밀번호 없이 BCrypt 저장 → 코드 즉시 폐기 → refresh/access 세션 전체 무효화 → 로그인 화면 이동 순서로 확정했다. 중복 계정, 가짜 요청, Redis HMAC/Lua 원자 처리, access `revoked-after`, DB 실패·메일 실패 경계까지 문서화했다.
+- 추가 확정: 가짜 요청에도 조회 전 동일 rate limit 적용, challenge의 `userId` 결속, 국제번호 정규화와 기존 DB 값 비교, 신뢰 프록시 기반 `ClientIpResolver`, millisecond `authIssuedAtMillis` claim, `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)` fail-closed, 구버전 JWT 호환 경계까지 확정했다. RECOVERY-1/2는 더 이상 정책 질문 없이 구현 가능한 체크리스트로 보강했다.
+- 체크리스트 재구성: 긴 외부 프롬프트 없이 작업자가 검증할 수 있도록 `TODO.md`를 RECOVERY-0(기준선·현재 충돌) → 1(아이디 찾기) → 2(비밀번호 재설정·세션) → 3(전체 검증·문서·커밋) 순서의 자체 완결형 체크리스트로 재구성했다.
+- 파일: `docs/api/auth.md`, `backend/FRONTEND_API_REQUIREMENTS.md`, `docs/FRONTEND_API_GAPS.md`, `docs/BACKEND_API_GAPS.md`, `arch.md`, `docs/collab/TODO.md`, `docs/collab/CHANGELOG.md`, `docs/collab/HANDOFF.md`
+- 사유: 계정 복구 구현 전에 API 계약, 프론트 사용자 흐름, Service/Redis 책임과 전체 세션 무효화의 실패 경계를 하나의 기준으로 고정하기 위함. Java 구현은 수정하지 않았다.
+- 관련: `RECOVERY-1`, `RECOVERY-2`
+
+---
+
 ## 2026-08-20 — Claude — `main` (회원정보 address 수정 정책 재확정 원복 + 조회 응답에서 role 제거 + 마이페이지 "내 정보" 표시 스펙 확정)
 
 - 변경: 같은 날 앞서 "address도 수정 가능"으로 뒤집었던 정책을 사용자가 다시 확인해 **"수정 가능 필드는 이름·전화번호뿐"으로 최종 원복**. `UserUpdateRequest`에서 `address` 필드 제거, `User.updateProfile`을 2-인자로 복원, `UserService.updateMe`의 address 검증·전달 코드 삭제. 테스트도 "address 무시됨" 검증으로 되돌림(`updateMeIgnoresAddressEvenWhenProvidedInRequestBody`). 이어서 사용자가 마이페이지 "내 정보" 조회 화면에 뜨던 "회원 유형"(일반회원/관리자) 표시가 등급제처럼 잘못 보인다고 지적 — `UserMeResponse`(`GET`/`PATCH /api/users/me` 공통 응답)에서 `role` 필드 자체를 제거(단순 화면 숨김이 아니라 DTO 스키마 변경). 관련 테스트 3곳(`UserControllerTest`/`AuthControllerSignupTest`/`UserApplicationFlowTest`)의 `$.data.role` 값 검증을 `.doesNotExist()`로 수정. 마이페이지 "내 정보" 표시 스펙 확정 — 조회는 이름·전화번호·이메일만(회원유형 표시 불가), 수정은 이름·전화번호만, role은 관리자/유저 어느 쪽이든 이 API로 수정 불가(원래도 `UserUpdateRequest`에 필드 자체가 없었음). 이 모든 내용을 `FRONTEND_API_GAPS.md` §1.9-a에 반영, 프론트 `AuthContext.tsx`가 이 응답의 `role`로 `isAdmin`을 판별하던 로직이 더는 동작하지 않는다는 점도 경고로 남김. 별건으로 마이페이지 "제작 내역"이 실 API 미연동(localStorage mock만 읽음)이라 실제 신청 후에도 빈 목록만 뜨는 문제를 코드로 재확인해 `FRONTEND_API_GAPS.md` §1.2에 상세 기록(상태 enum 불일치·날짜 포맷 문제까지 포함, 백엔드 작업은 없음).

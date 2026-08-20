@@ -1,11 +1,15 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-08-20
+- 마지막 갱신: 2026-08-21
 - 작성자: Claude
 - 작성 브랜치: main
 
 ## 지금 어디까지 됐는가
 
+- **✅ 계정 복구(아이디 찾기·비밀번호 재설정) 구현 완료(Claude, 2026-08-21, 커밋 `db002a7` 구현 + `2d49acd` 테스트)**: Codex가 확정한 정책(`docs/api/auth.md` API 7·8, `arch.md` §4.1)을 그대로 구현했다. `AccountRecoveryService`(4개 엔드포인트) + `VerificationChallengeStore`(가입 인증과 공유하는 HMAC/Lua challenge·원자 rate-limit) + `ClientIpResolver`(신뢰 프록시 X-Forwarded-For) 신규. `EmailVerificationService`는 내부적으로 `VerificationChallengeStore`를 쓰도록 리팩터링(외부 동작 불변, 기존 테스트로 회귀 확인 완료). access token 세션 무효화 인프라(JWT `authIssuedAtMillis` 커스텀 클레임 + `auth:access:user-revoked-after:{userId}` Redis 키)를 새로 만들고, `JwtAuthFilter`가 Redis 장애 시 기존 fail-open(블랙리스트 확인 실패→통과)을 버리고 `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)`로 fail-closed 응답하도록 교체했다(`HandlerExceptionResolver`로 `GlobalExceptionHandler`와 동일한 JSON 포맷 유지). `UserService.changePassword`도 같은 revoke primitive를 적용해 다른 기기의 access token까지 실제로 무효화하도록 고쳤다(기존엔 요청에 쓰인 토큰 1개만 blacklist).
+  - **테스트**: 새로 29개 작성해 전부 통과(`AccountRecoveryServiceTest` 17, `ClientIpResolverTest` 7, `TokenSessionStoreSessionValidationTest` 5 — 마지막 건은 `StringRedisTemplate`을 Mock으로 교체해 Redis 장애 상황을 직접 재현). 전체 스위트 506개 중 505개 통과, 실패 1개는 `UserApplicationFlowTest.fullUserApplicationFlow()`(라인 143, 약관동의 안 거치는 기존 테스트 픽스처 결함 — 여러 세션째 기록된 회귀 아닌 결함, 이번 세션 변경과 무관함을 라인 단위로 확인).
+  - **⚠️ 의도적으로 안 한 것(다음에 볼 사람이 알아야 함)**: (1) TDD 순서(실패 테스트 먼저 확인 후 구현)를 엄격히 지키지 않음 — 정책 확인 후 구현·테스트를 함께 작성하고 완성본 기준으로 테스트 통과만 확인했다. (2) 코드 만료(TTL 10분 경과) confirm 시나리오, confirm 시점에 대상 계정이 삭제/OAuth 전환된 케이스, DB 실패 후 세션 미복구 시나리오, 동시 코드 요청의 cooldown 우회 방지, Redis 장애 시 실제 HTTP 요청이 503을 반환하고 `SecurityContext`가 안 만들어지는지의 필터 체인 통합 테스트 — 이 5가지는 코드는 구현돼 있지만 전용 테스트가 없다(`TODO.md` RECOVERY-1/2 체크리스트에 항목별로 명시해뒀음). 필요하면 이어서 채울 것.
+  - **프론트 작업**: `pages/AccountRecoveryPage`가 여전히 요청 단계 mock만 있고 확인 화면 자체가 없음 — `docs/FRONTEND_API_GAPS.md` §1.1-c 참고.
 - **✅ 회원정보 address 수정 정책 재확정 원복 + 조회 응답에서 role 제거 + 마이페이지 스펙 확정(2026-08-20, 커밋 완료)**: 이날 세션 초반에 "이름·전화번호만" → "address도 수정 가능"으로 뒤집었던 정책을, 사용자가 다시 "수정에는 이름과 전화번호만 가능해야 한다"고 확인해 **원래대로(이름·전화번호만) 최종 원복**했다. `UserUpdateRequest`에서 `address` 필드 제거, `User.updateProfile` 2-인자로 복원, `UserService.updateMe` address 검증 삭제, `UserControllerTest`도 "address 무시" 검증으로 원복, `docs/api/user.md` API 5 원복. **교훈**: 같은 날 두 번 바뀐 정책이라 다음 세션에서 다시 헷갈릴 수 있음 — `PATCH /api/users/me`는 **이름·전화번호만** 수정 가능이 최종 확정 상태다(주소는 조회 응답엔 계속 포함되지만 수정 불가).
   - **`UserMeResponse`에서 `role` 필드 완전 제거**: 사용자가 마이페이지 "내 정보"에 뜨던 "회원 유형"(일반회원/관리자) 표시를 등급제처럼 잘못 보인다고 지적 — 단순 화면 숨김이 아니라 `GET`/`PATCH /api/users/me` 응답 DTO(`UserMeResponse`) 자체에서 `role`을 뺐다. 관련 테스트 3곳(`UserControllerTest`/`AuthControllerSignupTest`/`UserApplicationFlowTest`)도 `.doesNotExist()`로 수정. **role은 애초에 `UserUpdateRequest`에 없어서 관리자든 일반유저든 이 API로 수정 불가**(변경 없음, 원래도 그랬음) — 이번 변경은 조회 응답에서 노출만 없앤 것.
   - **⚠️ 프론트 영향(대응은 프론트 몫, `FRONTEND_API_GAPS.md` §1.9-a에 기록만 함)**: `AuthContext.tsx`의 `refreshProfile()`이 이 응답의 `role`을 읽어 `isAdmin`을 세팅하고 있었는데(`Header.tsx` 관리자 메뉴, `InquiryDetailPage.tsx` 열람권한 체크가 의존), 이제 그 필드가 없어 이 로직은 더 이상 동작하지 않는다. 지금은 실 서버 인가와 무관한 프론트 전용 데모 값이라 당장 보안 문제는 아님.
@@ -29,6 +33,8 @@
 
 ## 다음에 할 일
 
+- **계정 복구 남은 테스트 보강(담당 미정)**: 위 "⚠️ 의도적으로 안 한 것" 5가지(코드 만료·confirm 시점 계정삭제/OAuth전환·DB실패후 세션미복구·동시요청 cooldown우회·Redis장애 시 필터체인 HTTP 통합테스트) — `docs/collab/TODO.md` RECOVERY-1/2 체크리스트에 항목별로 남겨둠.
+- **계정 복구 프론트 연동(프론트 담당)**: `pages/AccountRecoveryPage`에 아이디 찾기 3단계(이름·전화 입력 → 확인코드 → 마스킹이메일), 비밀번호 재설정 2단계(이메일 입력 → 코드+새비밀번호 한 화면) 화면 신규 필요. `docs/FRONTEND_API_GAPS.md` §1.1-c.
 - **🔴 최우선(회귀 수정, 프론트 담당)**: `ApplyPage.tsx` `submit()`에 `schoolName` 필드 추가 — 안 하면 학생증 신청 전부 400. `docs/FRONTEND_API_GAPS.md` §1.9-b 참고.
 - **🔴 마이페이지 "제작 내역" 연동(프론트 담당)**: `MyPage.tsx`가 실 API를 안 부르고 있어 실제 신청 후에도 빈 목록만 뜬다. 백엔드는 이미 준비됨(`GET /api/my/applications`) — `FRONTEND_API_GAPS.md` §1.2에 상태 라벨/날짜 포맷 이슈까지 포함해 상세 기록해둠.
 - **EC2 배포 마무리**: EC2의 `.env`에 Google/Naver 자격증명(및 나머지 값 전체)이 다 채워졌는지 확인 → `docker compose up -d --no-deps backend`로 반영 → 브라우저로 실제 OAuth 로그인 완료까지 테스트. HTTPS(certbot)는 아직 미착수 — DNS·탄력적 IP는 사용자가 이미 설정 완료.
