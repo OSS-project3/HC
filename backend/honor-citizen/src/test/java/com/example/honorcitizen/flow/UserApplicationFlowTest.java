@@ -115,7 +115,7 @@ class UserApplicationFlowTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.id").value(user.getId()))
                 .andExpect(jsonPath("$.data.email").value("flow-user@example.com"))
-                .andExpect(jsonPath("$.data.role").value("USER"));
+                .andExpect(jsonPath("$.data.role").doesNotExist());
 
         // ── 3) 개인 신청 생성 ────────────────────────────────────────────────────────
         String createRequestJson = """

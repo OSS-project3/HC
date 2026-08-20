@@ -64,17 +64,14 @@ public class UserService {
     public UserMeResponse updateMe(Long userId, UserUpdateRequest request) {
         User user = findById(userId);
 
-        if (request.getName() == null && request.getPhone() == null && request.getAddress() == null) {
+        if (request.getName() == null && request.getPhone() == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         if (request.getName() != null && request.getName().isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
-        if (request.getAddress() != null && request.getAddress().isBlank()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
-        }
 
-        user.updateProfile(request.getName(), request.getPhone(), request.getAddress());
+        user.updateProfile(request.getName(), request.getPhone());
         return UserMeResponse.from(user);
     }
 

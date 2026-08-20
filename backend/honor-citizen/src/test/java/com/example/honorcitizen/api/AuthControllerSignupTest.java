@@ -102,7 +102,7 @@ class AuthControllerSignupTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.email").value(email))
                 .andExpect(jsonPath("$.data.name").value("홍길동"))
-                .andExpect(jsonPath("$.data.role").value("USER"))
+                .andExpect(jsonPath("$.data.role").doesNotExist())
                 .andExpect(cookie().exists("accessToken"))
                 .andExpect(cookie().httpOnly("accessToken", true))
                 .andExpect(cookie().exists("refreshToken"))

@@ -118,17 +118,13 @@ public class User extends BaseTimeEntity {
         this.refreshToken = refreshToken;
     }
 
-    // ⚠️ 2026-08-20 정책 재정정: address도 이 경로로 수정 가능하다("이 경로로 수정하지 않는다"던
-    // 2026-08-08 확정 정책은 뒤집혔다).
-    public void updateProfile(String name, String phone, String address) {
+    // address는 이 경로로 수정하지 않는다(2026-08-08 확정, 2026-08-20 재확인 — 수정 가능 필드는 이름·전화번호뿐).
+    public void updateProfile(String name, String phone) {
         if (name != null) {
             this.name = name;
         }
         if (phone != null) {
             this.phone = phone;
-        }
-        if (address != null) {
-            this.address = address;
         }
     }
 
