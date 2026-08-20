@@ -26,9 +26,9 @@
 
 | 우선순위 | 도메인 | 핵심 이유 |
 |---|---|---|
-| **P0** | 계정 복구(아이디/비밀번호 찾기) | 가입·로그인·이메일 중복확인·비밀번호 변경은 백엔드 구현 완료(프론트 미연동), 복구만 여전히 백엔드 미구현(P0-1) |
+| **P0** | 계정 복구(아이디/비밀번호 찾기) | ✅ 백엔드 구현·테스트 완료(2026-08-21, 커밋 `db002a7`/`2d49acd`). 프론트 연동만 남음(P0-1) |
 | **P0** | 마이페이지 신청/문의 조회 | 사용자가 자기 신청·문의 내역을 서버에서 못 봄 (내 후기는 연동 완료) |
-| **P0** | 관리자 신청 관리 | `/admin` 전체가 localStorage mock |
+| **P0** | 관리자 신청 관리 | `/admin` 전체가 localStorage mock. 목록·상세 조회는 백엔드 완료(2026-08-21, `6575d09`), 상태 전이·통계·프론트 연동은 여전히 없음(P0-3) |
 | **P0** | 1:1 문의(Inquiry) 도메인 | 도메인 자체가 없음(사용자·관리자 양쪽 mock) |
 | **P1** | 관리자 이벤트 전체목록 / 이벤트 필드 확장 / 신청조회 applicationType | 숨긴 글 관리 불가, 협업 로고·갤러리 편집 불가, 단체 재제출 UI 불가 |
 | **P1** | 신청 폼 수집값 미저장(결제·학교명·동의) | 입금자명/입금확인·학생증 학교명·신청 동의 이력이 서버에 안 남음 (P1-4) |
@@ -38,7 +38,7 @@
 
 ## P0-1. 이메일 계정 인증 · 계정 복구
 
-> ✅ 2026-08-19 정정: 아래는 2026-08-18 작성 당시 전부 미구현이라고 적었으나, 이후 세션(AUTH-1~6)에서 회원가입·로그인·이메일 중복확인·비밀번호 변경이 이미 구현·`main` 커밋 완료됐다. **계정 복구(아이디/비밀번호 찾기)만 여전히 미구현**이다.
+> ✅ 2026-08-21 정정: 회원가입·로그인·이메일 중복확인·비밀번호 변경은 `main` 반영 완료다. 계정 복구는 정책 확정 후 구현 진행 중이며, 현재 미커밋 코드가 있으므로 커밋·통합 테스트 전에는 구현 완료로 표시하지 않는다.
 
 현재 상태: `LoginPage`(이메일/비밀번호 로그인, 데모 로그인), `SignupPage`, `AccountRecoveryPage`가 여전히 mock을 쓴다(백엔드는 준비됐으나 프론트 미연동). OAuth2(구글/네이버)만 프론트까지 실제 연동됨. `AuthContext`는 `localStorage["auth-user"]`에 role까지 저장하는 mock 인증.
 
@@ -51,7 +51,7 @@
 | POST | `/api/auth/email/check` | 이메일 중복 확인 | 없음 |
 | PATCH | `/api/users/me/password` | 로그인 사용자 비밀번호 변경 | USER |
 
-**❌ 여전히 미구현, 정책은 확정 완료(2026-08-20) — 계정 복구(아이디/비밀번호 찾기)**
+**⚠️ 정책 확정 완료(2026-08-21), 구현 진행 — 계정 복구(아이디/비밀번호 찾기)**
 
 계약 상세·정책 결정 근거는 `docs/api/auth.md` API 7·API 8, 작업 항목은 `docs/collab/TODO.md`의 RECOVERY-1/RECOVERY-2 참고.
 
@@ -60,9 +60,13 @@
 | POST | `/api/auth/recovery/id/request` | 이름·전화 일치 시 가입 이메일로 확인 코드 발송(불일치해도 동일 응답) | 없음 |
 | POST | `/api/auth/recovery/id/confirm` | 코드 확인 → 마스킹 이메일 공개 | 없음 |
 | POST | `/api/auth/recovery/password/request` | 이메일로 재설정 코드 발송(OAuth 전용/미가입도 동일 응답, 계정 존재 비노출) | 없음 |
-| POST | `/api/auth/recovery/password/confirm` | `{email, code, newPassword}` 한 번에 — 코드 검증+비밀번호 저장, 성공 시 전체 세션 무효화 | 없음 |
+| POST | `/api/auth/recovery/password/confirm` | `{requestId, code, newPassword}` 한 번에 — 코드 검증+비밀번호 저장, 성공 시 refresh/access 전체 무효화 | 없음 |
 
-아이디 찾기는 전화번호가 SMS 인증된 적이 없어(형식 검증만 존재) 이름+전화 일치만으로 마스킹 이메일을 즉시 공개하지 않고, 확인 코드를 한 번 더 거치는 2단계로 확정됐다(2026-08-20). `EmailVerificationService`의 HMAC 챌린지/Redis TTL/Lua 스크립트 인프라를 그대로 재사용 가능.
+아이디 찾기는 일반 이메일 계정만 대상으로 하며 OAuth 계정은 제외한다. 이름+정규화 전화번호가 정확히 한 계정과 일치할 때만 코드를 발송하고, 중복 일치 시 임의 선택 없이 고객지원을 안내한다. 비밀번호 재설정은 이메일만 받고 임시 비밀번호 없이 10분 유효 코드와 사용자가 정한 새 비밀번호를 한 번에 확인한다.
+
+구조상 `EmailVerificationService`에 계속 기능을 추가하지 않는다. `AccountRecoveryService`가 네 개 복구 API를 조정하고, 가입·아이디 찾기·비밀번호 재설정이 공통으로 쓰는 HMAC/TTL/Lua 원자 검증은 `VerificationChallengeStore`로 분리한다. 재설정 완료 시 `UserService.resetPassword`가 BCrypt 저장과 refresh/access 세션 무효화를 처리하며, 알림 메일은 commit 이후 best effort로 발송한다.
+
+구현 계약은 추가 결정 없이 확정됐다. 가짜 요청도 조회 전에 동일 rate limit을 적용하고, challenge는 `userId`에 결속한다. Access JWT는 초 단위 `iat`가 아니라 `authIssuedAtMillis`와 Redis `revokedAfterMillis`를 비교하며, Redis 세션 검증 장애는 `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)`로 fail-closed 처리한다. 상세 체크리스트는 RECOVERY-1/2를 따른다.
 
 필수 정책: 로그인 아이디는 이메일, 정규화(trim+소문자)+DB UNIQUE, 비밀번호 단방향 해시, 로그인 후 role은 서버 값으로 결정(클라이언트 값 불신), **운영 빌드에서 데모 로그인 제거**. ⚠️ 2026-08-19 정정: "소프트탈퇴 7일 유예 자동복구(`restored:true`)"는 더 이상 유효하지 않다 — 회원탈퇴 정책이 즉시 하드 삭제로 바뀌면서(`docs/collab/user.md`) 유예기간·자동복구 자체가 폐지됐다.
 프론트 추가 필요: `/terms` 라우트(신규 OAuth/이메일 가입자 약관 동의 → 기존 `POST /api/auth/terms` 사용).
@@ -93,21 +97,30 @@
 
 ## P0-3. 관리자 — 신청 관리 / 대시보드
 
-현재 상태: `/admin`(`AdminPage`) 전체가 localStorage mock. 신청 목록·상태 통계·상태 변경·문의 답변을 브라우저에만 저장. `data/adminMock.ts`가 목데이터 원본.
+현재 상태: `/admin`(`AdminPage`) 전체가 여전히 localStorage mock(프론트 미연동). 목록·상세 조회는 백엔드 구현 완료(2026-08-21, 커밋 `6575d09`), 상태 전이·통계는 아직 없음. `data/adminMock.ts`가 목데이터 원본.
+
+**✅ 구현 완료(2026-08-21) — 조회 2건**
+
+| Method | 경로 | 목적 |
+|---|---|---|
+| GET | `/api/admin/applications` | 상태 필터·페이지네이션(마이페이지 목록과 동일 응답 모양, 소유자 무관 전체) |
+| GET | `/api/admin/applications/{id}` | 신청자·구성원 수·결제·배송·상태(마이페이지 상세와 동일 응답, 소유권 체크 없음) |
+
+`ApplicationService.listApplicationsForAdmin`/`getApplicationDetailForAdmin` 신규, 기존 `validateAdmin`·`MyApplicationListItemResponse`/`MyApplicationDetailResponse` 재사용(관리자 전용 필드가 아직 없어 DTO 신규 분리 안 함). 상태·유형·카드종류·기간·이름/번호 복합 검색은 이번 범위에 없음(상태 단일 필터만).
+
+**❌ 여전히 없음 — 상태 전이·감사·통계**
 
 | Method | 제안 경로 | 목적 |
 |---|---|---|
-| GET | `/admin/applications` | 페이지·상태·유형·카드종류·기간·이름/번호 검색 |
-| GET | `/admin/applications/{id}` | 신청자·구성원·파일·결제·배송·상태 이력 |
-| PATCH | `/admin/applications/{id}/status` | 허용된 상태 전이 수행(`targetStatus`,`reason`, 권한·전이 검증) |
-| POST | `/admin/applications/{id}/photo-reject` | 사진 반려 사유 등록 |
-| POST/PATCH | `/admin/applications/{id}/korean-name` | 한국 이름 등록/수정 |
-| POST | `/admin/applications/{id}/issue-card` | 카드 발급 |
-| PATCH | `/admin/applications/{id}/tracking` | 배송사·송장번호 등록 |
-| GET | `/admin/applications/{id}/status-history` | 상태 변경 감사 이력 |
-| GET | `/admin/dashboard/stats` | 전체/상태별 신청 수·기간 통계(서버 집계) |
+| PATCH | `/api/admin/applications/{id}/status` | 허용된 상태 전이 수행(`targetStatus`,`reason`, 권한·전이 검증) |
+| POST | `/api/admin/applications/{id}/photo-reject` | 사진 반려 사유 등록 |
+| POST/PATCH | `/api/admin/applications/{id}/korean-name` | 한국 이름 등록/수정 |
+| POST | `/api/admin/applications/{id}/issue-card` | 카드 발급 |
+| PATCH | `/api/admin/applications/{id}/tracking` | 배송사·송장번호 등록 |
+| GET | `/api/admin/applications/{id}/status-history` | 상태 변경 감사 이력 |
+| GET | `/api/admin/dashboard/stats` | 전체/상태별 신청 수·기간 통계(서버 집계) |
 
-정책: 서버에서 관리자 권한·전이 가능 여부 재검증, 관리자 ID·전후 상태·시각 감사 로그, 통계는 프론트에서 전체목록 내려받아 계산 금지.
+정책: 서버에서 관리자 권한·전이 가능 여부 재검증, 관리자 ID·전후 상태·시각 감사 로그, 통계는 프론트에서 전체목록 내려받아 계산 금지. `Application` 엔티티의 상태 전이 메서드(`startReview`/`rejectPhoto`/`approveToNaming`/`completeNaming`/`startProducing` 등)는 이미 존재하나 이걸 호출하는 Controller/Service 오케스트레이션이 없다.
 
 관련 프론트: `pages/AdminPage`, `data/adminMock.ts`
 

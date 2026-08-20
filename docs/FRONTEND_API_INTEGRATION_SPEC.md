@@ -86,7 +86,7 @@
 | Google/Naver 로그인 | OAuth 진입, 최초 사용자 생성, JWT 쿠키, 기존 사용자 로그인 | OAuth2 성공 처리, User 생성, access/refresh 쿠키 발급 구현 | `READY` | 없음 |
 | 신규 OAuth 약관 | 개인정보·이미지·배송 약관 동의 | `POST /api/auth/terms` 구현 | `READY` | 없음. `/terms` 라우트는 프론트 작업 |
 | 일반 이메일 회원가입(이메일 인증 포함) | 이메일 인증 코드 요청·확인, 회원가입(이메일/비밀번호/이름/전화번호) | `POST /api/auth/signup/email-verification/{request,confirm}`, `POST /api/auth/signup` 전부 구현(2026-08-19) | `READY` | 없음. 상세 계약은 §3.13, 최신 소스는 `docs/api/auth.md` API 4~6 |
-| 일반 이메일 로그인·중복 확인·계정 복구 | 로그인, 이메일 중복 확인, 아이디/비밀번호 찾기 | `login`/`email/check`/`recovery/*`/`users/me/password` API 미구현 | `BLOCKED` | 로그인 API(`AUTH-5`), 이메일 중복 확인(`AUTH-3`), 계정 복구(`recovery/*`) 구현 |
+| 일반 이메일 로그인·중복 확인·계정 복구 | 로그인, 이메일 중복 확인, 아이디/비밀번호 찾기 | `login`/`email/check`는 이전부터 구현됨(AUTH-3/5). `recovery/*`(아이디 찾기·비밀번호 재설정) 4개 API도 2026-08-21 구현·테스트 완료(커밋 `db002a7`/`2d49acd`) | `READY` | 백엔드 없음. 프론트 미연동 — `AccountRecoveryPage`에 확인 화면(코드 입력·마스킹이메일 표시, 코드+새비밀번호 입력) 신규 필요. 최신 계약은 `docs/api/auth.md` API 7·8 |
 | 회원정보 조회 | id, name, email, role, phone, address | `GET /api/users/me` 응답에 전부 존재 | `READY` | 없음 |
 | 회원정보 수정 | name, phone, address | `PATCH /api/users/me`는 name, phone만 처리 | `PARTIAL` | 화면에서 address 수정이 확정 요구라면 Request/Entity 수정 경로 추가 |
 | 회원 탈퇴 | 소프트 탈퇴, 세션 무효화, 유예기간 후 처리 | 탈퇴 API와 7일 후 익명화 스케줄러 구현 | `PARTIAL` | “실제 삭제”와 “익명화 후 row 보존” 중 최종 정책 일치 필요 |
@@ -105,7 +105,7 @@
 | FAQ | 질문·답변 목록, 관리자 CRUD | Board FAQ 조회/CRUD 구현 | `READY` | 없음 |
 | 1:1 문의 | 문의 작성, 내 목록·상세, 관리자 답변 | Inquiry 도메인 없음 | `BLOCKED` | Inquiry Entity/Repository/Service/API 전체 구현 |
 | 행사 목록·상세 | BOOTH/COLLABORATION, 날짜, 장소, 주최, 회사·로고·이미지 | Event 공개 조회 및 관리자 CRUD 구현 | `PARTIAL` | 화면의 `company`, `logoUrl`에 대응하는 필드 없음. 비공개 글 관리자 목록도 없음 |
-| 관리자 신청관리 | 목록·상세·검색, 결제 안내·확인, 반려, 상태 전이, 통계 | 내부 Service 일부만 있고 관리자 HTTP API 없음 | `BLOCKED` | `/api/admin/applications/**`, stats, 상태별 명령 API 구현 |
+| 관리자 신청관리 | 목록·상세·검색, 결제 안내·확인, 반려, 상태 전이, 통계 | 목록·상세 조회(`GET /api/admin/applications`, `/{id}`)는 2026-08-21 구현 완료(커밋 `6575d09`, 상태 단일 필터만·복합검색 없음). 결제 안내·확인은 내부 Service만 있고 HTTP 미연결. 반려·상태전이·카드발급·배송추적·통계는 여전히 없음 | `PARTIAL` | `/api/admin/applications/{id}/status` 등 명령 API, `/api/admin/dashboard/stats` 구현 필요. 상세는 `docs/BACKEND_API_GAPS.md` P0-3 |
 | 카드 종류·디자인 화면 | 카드 설명과 정적 미리보기 | 정적 프론트 데이터 유지로 정책 확정 | `STATIC` | 공개 catalog API를 새로 만들 필요 없음 |
 | 회사 소개·파트너·SNS 등 | 배포 콘텐츠 | 정적 유지 가능 | `STATIC` | 운영자가 배포 없이 수정해야 할 때만 CMS 도입 |
 
@@ -486,12 +486,13 @@ thumbnailImageUrl, displayOrder
 
 다음은 프론트 문제가 아니라 백엔드 계약이 없어서 API 교체를 시작하면 안 되는 영역이다.
 
-일반 인증(회원가입은 2026-08-19 구현 완료 — §3.13로 이동, 아래는 여전히 미구현):
+일반 인증(회원가입은 2026-08-19, 계정 복구는 2026-08-21 구현 완료 — §3.13·`docs/api/auth.md` API 7·8 참고. `login`/`email/check`/`users/me/password`도 이미 구현돼 있음 — 아래는 프론트 미연동 상태만 남은 목록이지 백엔드 미구현이 아니다):
 
 ```text
 POST /api/auth/login
 POST /api/auth/email/check
-POST /api/auth/recovery/id
+POST /api/auth/recovery/id/request
+POST /api/auth/recovery/id/confirm
 POST /api/auth/recovery/password/request
 POST /api/auth/recovery/password/confirm
 PATCH /api/users/me/password
@@ -510,11 +511,11 @@ POST /api/admin/inquiries/{id}/answer
 
 위 경로는 요구 동작 목록이며 실제 구현 전 도메인 API 문서에서 확정한다.
 
-관리자 신청관리:
+관리자 신청관리(목록·상세 조회 2건은 2026-08-21 구현 완료, 커밋 `6575d09` — 나머지는 여전히 없음):
 
 ```text
-GET /api/admin/applications
-GET /api/admin/applications/{id}
+GET /api/admin/applications          # ✅ 구현 완료
+GET /api/admin/applications/{id}     # ✅ 구현 완료
 POST /api/admin/applications/{id}/payment-guide
 POST /api/admin/applications/{id}/payment-confirm
 POST /api/admin/applications/{id}/start-review
