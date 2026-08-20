@@ -6,14 +6,9 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          # 서버 authorized_keys에서 이 키는 deploy.sh 실행으로 고정돼 있어
-          # 아래 script 내용과 무관하게 항상 git pull + docker compose up -d --build만 수행된다.
-          script: /home/ubuntu/deploy.sh
+      - name: Deploy
+        # self-hosted 러너가 EC2 배포 서버 자체에서 실행되므로 SSH 없이 직접 수행한다.
+        # deploy.sh가 git pull + docker compose up -d --build까지 처리한다.
+        run: /home/ubuntu/deploy.sh
