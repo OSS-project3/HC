@@ -115,7 +115,7 @@ public class EventService {
         }
         // BOOTH가 협업 전용 데이터를 보내면 업로드 전에 즉시 거절한다(파일 검증은 S3 업로드 전에 완료).
         if (request.getEventType() != EventType.COLLABORATION
-                && (request.getCompanyName() != null || logoFile != null)) {
+                && (request.getCompany() != null || logoFile != null)) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         if (thumbnailFile != null) {
@@ -134,7 +134,7 @@ public class EventService {
             EventPost eventPost = eventPostRepository.save(EventPost.create(
                     request.getEventType(), request.getTitle(), request.getEventDate(), request.getEventDateText(),
                     request.getPlace(), request.getHost(), request.getCardLabel(), request.getContent(),
-                    thumbnailPath, request.getCompanyName(), logoPath, visibleOrDefault(request.getVisible()),
+                    thumbnailPath, request.getCompany(), logoPath, visibleOrDefault(request.getVisible()),
                     request.getDisplayOrder()));
 
             int displayOrder = 0;
@@ -173,7 +173,7 @@ public class EventService {
         // 업로드 전에 미리 걸러 불필요한 S3 업로드를 막는다. 최종 상태는 assertCollaborationInvariant로
         // 한 번 더 검증한다(엔티티가 스스로의 불변조건을 보장하는 이 프로젝트의 기존 관례).
         if (request.getEventType() != EventType.COLLABORATION) {
-            if (request.getCompanyName() != null || logoFile != null) {
+            if (request.getCompany() != null || logoFile != null) {
                 throw new CustomException(ErrorCode.INVALID_INPUT);
             }
             if (eventPost.getLogoImagePath() != null && !removeLogo) {
@@ -198,7 +198,7 @@ public class EventService {
         try {
             eventPost.update(request.getEventType(), request.getTitle(), request.getEventDate(), request.getEventDateText(),
                     request.getPlace(), request.getHost(), request.getCardLabel(), request.getContent(),
-                    request.getCompanyName(), visibleOrDefault(request.getVisible()), request.getDisplayOrder());
+                    request.getCompany(), visibleOrDefault(request.getVisible()), request.getDisplayOrder());
 
             String oldThumbnailPath = null;
             if (removeThumbnail) {

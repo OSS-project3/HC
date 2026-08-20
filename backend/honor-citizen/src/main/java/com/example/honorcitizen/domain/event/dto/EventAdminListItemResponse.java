@@ -20,14 +20,15 @@ public class EventAdminListItemResponse {
     private final String cardLabel;
     private final String content;
     private final String thumbnailImageUrl;
-    private final String companyName;
-    private final String logoImageUrl;
+    // 프론트 FeedPost(data/eventFeedPosts.ts)가 이미 쓰는 필드명(company/logoUrl)에 맞춘다.
+    private final String company;
+    private final String logoUrl;
     private final boolean visible;
     private final Integer displayOrder;
 
     private EventAdminListItemResponse(Long id, EventType eventType, String title, LocalDate eventDate,
             String eventDateText, String place, String host, String cardLabel, String content,
-            String thumbnailImageUrl, String companyName, String logoImageUrl, boolean visible, Integer displayOrder) {
+            String thumbnailImageUrl, String company, String logoUrl, boolean visible, Integer displayOrder) {
         this.id = id;
         this.eventType = eventType;
         this.title = title;
@@ -38,16 +39,16 @@ public class EventAdminListItemResponse {
         this.cardLabel = cardLabel;
         this.content = content;
         this.thumbnailImageUrl = thumbnailImageUrl;
-        this.companyName = companyName;
-        this.logoImageUrl = logoImageUrl;
+        this.company = company;
+        this.logoUrl = logoUrl;
         this.visible = visible;
         this.displayOrder = displayOrder;
     }
 
-    public static EventAdminListItemResponse of(EventPost eventPost, String thumbnailImageUrl, String logoImageUrl) {
+    public static EventAdminListItemResponse of(EventPost eventPost, String thumbnailImageUrl, String logoUrl) {
         return new EventAdminListItemResponse(eventPost.getId(), eventPost.getEventType(), eventPost.getTitle(),
                 eventPost.getEventDate(), eventPost.getEventDateText(), eventPost.getPlace(), eventPost.getHost(),
                 eventPost.getCardLabel(), eventPost.getContent(), thumbnailImageUrl, eventPost.getCompanyName(),
-                logoImageUrl, eventPost.isVisible(), eventPost.getDisplayOrder());
+                logoUrl, eventPost.isVisible(), eventPost.getDisplayOrder());
     }
 }

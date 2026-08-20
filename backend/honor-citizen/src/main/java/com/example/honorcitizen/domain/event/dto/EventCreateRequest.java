@@ -39,8 +39,10 @@ public class EventCreateRequest {
     private String content;
 
     // COLLABORATION 전용 선택값. BOOTH가 보내면 Entity가 INVALID_INPUT으로 거절한다(EVENT-EXT-1).
+    // 프론트 FeedPost(data/eventFeedPosts.ts)가 이미 쓰는 필드명(company/logoUrl)에 맞춘다 —
+    // 엔티티 컬럼명(company_name)은 내부 구현이라 그대로 두고 API 계약(DTO)만 프론트에 맞춘다.
     @Size(max = 100)
-    private String companyName;
+    private String company;
 
     // 생략하면 서비스에서 true로 채운다(data-model.md §1 기본값).
     private Boolean visible;

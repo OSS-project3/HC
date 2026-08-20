@@ -41,8 +41,9 @@ public class EventUpdateRequest {
     private String content;
 
     // COLLABORATION 전용 선택값. BOOTH가 보내면 Entity가 INVALID_INPUT으로 거절한다.
+    // 프론트 FeedPost(data/eventFeedPosts.ts)가 이미 쓰는 필드명(company/logoUrl)에 맞춘다.
     @Size(max = 100)
-    private String companyName;
+    private String company;
 
     // true면 기존 로고/썸네일 연결을 제거한다. 새 파일과 동시에 오면 INVALID_INPUT(EVENT-EXT-3).
     private Boolean removeLogo;
