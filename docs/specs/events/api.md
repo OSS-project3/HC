@@ -63,8 +63,8 @@ GET /api/events
         "cardLabel": "명예한국인증 · 방문증",
         "content": "부스를 찾은 방문객에게 한글 오행으로 지은 한국 이름과 카드를...",
         "thumbnailImageUrl": "https://.../events/thumb/....webp",
-        "companyName": null,
-        "logoImageUrl": null,
+        "company": null,
+        "logoUrl": null,
         "displayOrder": null
       }
     ],
@@ -78,7 +78,7 @@ GET /api/events
 
 - `content`(본문)는 카드/모달 둘 다 같은 문구를 쓰는 현재 프론트 구조상 목록에서도 절삭 없이 그대로 반환한다(Board 목록 API와 동일한 이유).
 - `thumbnailImageUrl`은 presigned URL(`StorageService.generatePresignedUrl`), 썸네일이 없으면 `null` — 프론트가 placeholder 표시.
-- `companyName`/`logoImageUrl`은 ✅ 2026-08-21 추가 — `COLLABORATION`에서만 값이 있을 수 있고 `BOOTH`는 항상 `null`. `logoImageUrl`도 썸네일과 동일하게 presigned URL이거나 없으면 `null`.
+- `company`/`logoUrl`은 ✅ 2026-08-21 추가 — `COLLABORATION`에서만 값이 있을 수 있고 `BOOTH`는 항상 `null`. `logoUrl`도 썸네일과 동일하게 presigned URL이거나 없으면 `null`.
 - 갤러리(`EventImage`)는 목록 API에 포함하지 않는다(상세에서만 필요).
 - 정렬: data-model.md §1 그대로 — `display_order ASC`(NULL은 맨 뒤) → `event_date DESC` → `created_at DESC`.
 
@@ -96,8 +96,8 @@ GET /api/events
 |---|---|
 | id/eventType/title/eventDate/eventDateText/place/host/cardLabel/content/displayOrder | `EventPost`의 동명 컬럼 |
 | thumbnailImageUrl | `EventPost.thumbnail_image_path` → presigned URL 변환, null이면 null |
-| companyName | `EventPost.company_name` |
-| logoImageUrl | `EventPost.logo_image_path` → presigned URL 변환, null이면 null |
+| company | `EventPost.company_name` |
+| logoUrl | `EventPost.logo_image_path` → presigned URL 변환, null이면 null |
 
 ---
 
@@ -123,8 +123,8 @@ GET /api/events/{id}
     "cardLabel": "명예한국인증 · 방문증",
     "content": "부스를 찾은 방문객에게 한글 오행으로 지은 한국 이름과 카드를...",
     "thumbnailImageUrl": "https://.../events/thumb/....webp",
-    "companyName": null,
-    "logoImageUrl": null,
+    "company": null,
+    "logoUrl": null,
     "images": [
       { "id": 10, "originalFileName": "booth-calligraphy.webp", "url": "https://.../events/gallery/..." }
     ]
@@ -147,7 +147,7 @@ GET /api/events/{id}
 
 | Response 필드 | 출처 |
 |---|---|
-| (API 1과 동일 필드, companyName/logoImageUrl 포함) | 동일 |
+| (API 1과 동일 필드, company/logoUrl 포함) | 동일 |
 | images | `EventImage`(해당 `event_post_id`), `display_order` 순 정렬 |
 
 ---
@@ -177,14 +177,14 @@ Content-Type: multipart/form-data
   "host": "(재)한국공예·디자인문화진흥원",
   "cardLabel": "명예한국인증 · 방문증",
   "content": "협업 카드 발급 프로그램 소개...",
-  "companyName": "OO기업",
+  "company": "OO기업",
   "visible": true,
   "displayOrder": null
 }
 ```
 
 - `eventType`/`title`/`eventDateText`/`place`/`host`/`cardLabel`/`content`는 필수(data-model.md §1 NOT NULL). `eventDate`/`displayOrder`는 선택.
-- `companyName`은 ✅ 2026-08-21 추가 — `COLLABORATION`에서만 선택 입력, 최대 100자(trim 후 검증). `BOOTH`인데 값이 있으면 `INVALID_INPUT`(조용히 무시하지 않음). `host`(행사 주최·운영 주체)와는 별개 개념이라 합치지 않는다.
+- `company`는 ✅ 2026-08-21 추가 — `COLLABORATION`에서만 선택 입력, 최대 100자(trim 후 검증). `BOOTH`인데 값이 있으면 `INVALID_INPUT`(조용히 무시하지 않음). `host`(행사 주최·운영 주체)와는 별개 개념이라 합치지 않는다.
 - `visible`을 생략하면 서버가 `true`로 채운다(data-model.md §1 기본값).
 - `created_by_user_id` 같은 감사 컬럼은 이번 데이터 모델에 없다 — Board와 달리 EventPost는 작성자 추적을 요구사항에 포함하지 않았다(data-model.md 참고).
 
@@ -201,8 +201,8 @@ Content-Type: multipart/form-data
 | `ADMIN`이 아님 | `FORBIDDEN` | 403 |
 | `eventType`/`title`/`eventDateText`/`place`/`host`/`cardLabel`/`content` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
 | `eventType`이 `EventType` 값이 아님 | `INVALID_INPUT` | 400 |
-| `eventType=BOOTH`인데 `companyName` 또는 `logo`가 있음 | `INVALID_INPUT` | 400 |
-| `companyName`이 100자 초과 | `INVALID_INPUT` | 400 |
+| `eventType=BOOTH`인데 `company` 또는 `logo`가 있음 | `INVALID_INPUT` | 400 |
+| `company`가 100자 초과 | `INVALID_INPUT` | 400 |
 | `images`가 10개 초과 | `INVALID_INPUT` | 400 |
 | `thumbnail`/`logo`/`images`가 크기·확장자·MIME·시그니처·디코딩 기준 위반(`EventImageValidator`) | `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE` / `INVALID_IMAGE_FILE` | 413 / 415 / 400 |
 
@@ -210,7 +210,7 @@ Content-Type: multipart/form-data
 
 | Request | 엔티티.컬럼 |
 |---|---|
-| eventType/title/eventDate/eventDateText/place/host/cardLabel/content/companyName/visible/displayOrder | `EventPost`의 동명 컬럼 |
+| eventType/title/eventDate/eventDateText/place/host/cardLabel/content/company/visible/displayOrder | `EventPost`의 동명 컬럼 |
 | thumbnail | S3 업로드 후 경로를 `EventPost.thumbnail_image_path`에 직접 저장(`UploadFile` 미경유 — Review의 `image_path`와 동일 패턴) |
 | logo | S3 업로드 후 경로를 `EventPost.logo_image_path`에 직접 저장. `thumbnail`/`images`와 별도 S3 key(`events/logos/...`) |
 | images(files) | S3 업로드 후 `EventImage` N개 생성(순서대로 `display_order` 0..N-1), `image_path`/`original_filename`에 직접 저장 |
@@ -242,7 +242,7 @@ Content-Type: multipart/form-data
   "host": "(재)한국공예·디자인문화진흥원",
   "cardLabel": "명예한국인증 · 방문증",
   "content": "협업 카드 발급 프로그램 소개...",
-  "companyName": "OO기업",
+  "company": "OO기업",
   "removeLogo": false,
   "removeThumbnail": false,
   "keepImageIds": [10, 12],
@@ -257,7 +257,7 @@ Content-Type: multipart/form-data
   - `keepImageIds`에 담긴 ID는 반드시 이 Event 소유의 `EventImage`여야 한다 — 다른 Event의 이미지 ID나 존재하지 않는 ID가 섞이면 `INVALID_INPUT`.
   - 최종 갤러리 순서는 `keepImageIds` 나열 순서 그대로 앞에 오고, 그 뒤에 이번 요청의 `images` 파일이 전송 순서대로 이어붙는다. 최종 개수가 10장을 넘으면 `INVALID_INPUT`.
 - `removeLogo=true`/`removeThumbnail=true`이면 해당 기존 파일 연결을 제거한다. 같은 요청에 새 파일과 remove flag를 동시에 보내면 `INVALID_INPUT`(의도가 모호해서 거절 — 조용히 우선순위를 정하지 않음).
-- `eventType`을 `COLLABORATION → BOOTH`로 바꾸는 경우, `companyName=null`과 `removeLogo=true`를 함께 보내야 한다 — 남은 협업 데이터(`companyName` 값이 남아있거나 로고를 지우라고 하지 않음)가 있으면 `INVALID_INPUT`.
+- `eventType`을 `COLLABORATION → BOOTH`로 바꾸는 경우, `company=null`과 `removeLogo=true`를 함께 보내야 한다 — 남은 협업 데이터(`company` 값이 남아있거나 로고를 지우라고 하지 않음)가 있으면 `INVALID_INPUT`.
 
 **Response `200 OK`**
 ```json
@@ -273,8 +273,8 @@ Content-Type: multipart/form-data
 | `id` 없음 | `EVENT_NOT_FOUND` | 404 |
 | `eventType`/`title`/`eventDateText`/`place`/`host`/`cardLabel`/`content` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
 | `eventType`이 `EventType` 값이 아님 | `INVALID_INPUT` | 400 |
-| `eventType=BOOTH`인데 `companyName` 또는(새 `logo`나 기존 로고를 `removeLogo=true`로 안 지운) 로고가 남음 | `INVALID_INPUT` | 400 |
-| `companyName`이 100자 초과 | `INVALID_INPUT` | 400 |
+| `eventType=BOOTH`인데 `company` 또는(새 `logo`나 기존 로고를 `removeLogo=true`로 안 지운) 로고가 남음 | `INVALID_INPUT` | 400 |
+| `company`가 100자 초과 | `INVALID_INPUT` | 400 |
 | `removeLogo=true`와 새 `logo` 파일을 동시 전송(`removeThumbnail`도 동일) | `INVALID_INPUT` | 400 |
 | `keepImageIds`에 타 Event 소유이거나 존재하지 않는 ID 포함 | `INVALID_INPUT` | 400 |
 | 최종 갤러리 개수(`keepImageIds` + 신규 `images`)가 10장 초과 | `INVALID_INPUT` | 400 |
@@ -282,7 +282,7 @@ Content-Type: multipart/form-data
 
 #### DB 컬럼 매핑
 
-API 3(생성)과 동일 — 텍스트 필드·`companyName`·`visible`·`displayOrder`가 각각 대응 컬럼을 덮어쓴다. `thumbnail_image_path`/`logo_image_path`는 새 파일 제공 또는 remove flag가 있을 때만 변경. `EventImage`는 `keepImageIds`+신규 `images`로 재구성(유지되는 row는 `id` 보존, `display_order`만 재배정 — 삭제되는 row는 물리 삭제).
+API 3(생성)과 동일 — 텍스트 필드·`company`·`visible`·`displayOrder`가 각각 대응 컬럼을 덮어쓴다. `thumbnail_image_path`/`logo_image_path`는 새 파일 제공 또는 remove flag가 있을 때만 변경. `EventImage`는 `keepImageIds`+신규 `images`로 재구성(유지되는 row는 `id` 보존, `display_order`만 재배정 — 삭제되는 row는 물리 삭제).
 
 기존 파일 교체·삭제는 Review `applyImageChange`와 동일하게 **DB 트랜잭션 commit 이후에만** 옛 S3 객체를 지운다. commit 실패 시 기존 파일은 그대로 두고 신규 업로드분만 역순 보상 삭제한다. after-commit 기존 파일 삭제가 실패해도 이미 완료된 수정 결과는 되돌리지 않고 경고 로그만 남긴다(운영자 수동 재삭제 대상).
 
@@ -316,8 +316,8 @@ Cookie: accessToken={JWT}
         "cardLabel": "명예한국인증 · 방문증",
         "content": "협업 카드 발급 프로그램 소개...",
         "thumbnailImageUrl": "https://.../events/thumb/....webp",
-        "companyName": "OO기업",
-        "logoImageUrl": "https://.../events/logos/....webp",
+        "company": "OO기업",
+        "logoUrl": "https://.../events/logos/....webp",
         "visible": false,
         "displayOrder": null
       }

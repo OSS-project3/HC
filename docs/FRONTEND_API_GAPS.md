@@ -15,7 +15,7 @@
 | 신청 조회/카드다운로드 | ✅ 실 API | ✅ 준비 | 조회 응답에 `applicationType`이 포함돼 개인 `photo`/단체 `submitFile` 재제출 분기 가능. 단체 재제출 UI 연결만 남음. 카드다운로드는 소유자 로그인 전용(비로그인 조회는 데모 폴백) |
 | 후기(Review) CRUD + 내 후기 | ✅ 실 API | ✅ 구현 | **연동 완료** |
 | 공지/FAQ(Board) | ✅ 실 API | ✅ 구현 | **연동 완료** |
-| 행사(Event) | ✅ 실 API | ✅ 구현(회사명/로고/관리자목록/갤러리편집 2026-08-21 추가) | **🔴 회사명/로고/관리자목록/갤러리편집 프론트 미연동** — 필드명 매핑 필요(`companyName`≠`company`) (§1.6) |
+| 행사(Event) | ✅ 실 API | ✅ 구현(회사명/로고/관리자목록/갤러리편집 2026-08-21 추가) | **🔴 회사명/로고/관리자목록/갤러리편집 프론트 미연동** — 필드명은 프론트와 동일(`company`/`logoUrl`), 매핑 불필요 (§1.6) |
 | **일반 이메일 회원가입(인증 포함)** | ❌ 목/로컬 | ✅ 구현·`main` 반영 완료(`bc7d7ce`) | **프론트 신규 구현 필요**(인증코드 인라인 입력 UI) (§1.1) |
 | **일반 이메일 로그인·이메일 중복확인·비밀번호 변경** | ❌ 목/로컬 | ✅ 구현·`main` 반영 완료 | **프론트 신규 구현 필요**(연동만 하면 됨, 백엔드 작업 없음) (§1.1) |
 | **계정 복구(아이디/비밀번호 찾기)** | ⚠️ 요청 단계만 | ❌ 없음(정책은 확정) | **백엔드 신규 구현 필요** — API 계약 확정 완료(`docs/api/auth.md` API 7·8) (§1.1) |
@@ -103,8 +103,8 @@
 
 ### 1.6 행사(Event) — 회사/로고 필드·관리자 전체목록·갤러리 편집 — ✅ 백엔드 구현 완료(2026-08-21), 프론트 미연동
 - **프론트 사용처**: `pages/EventsPage`의 `FeedPost`(`data/eventFeedPosts.ts`)가 협업 카드에 `company`/`logoUrl`로 로고 표시. 관리자 패널(`EventAdminPanel.tsx`)이 숨긴(`visible=false`) 글 재편집·갤러리 편집 필요.
-- **백엔드 현황(2026-08-21 구현 완료, 커밋은 별도 push 예정)**: `EventPost`에 `companyName`/`logoImagePath`(`COLLABORATION` 전용) 추가, 공개·관리자 응답 모두 `companyName`/`logoImageUrl` 필드로 노출. `GET /api/admin/events`(`visible` 무관 전체, `type`/`visible` 선택 필터)·`GET /api/admin/events/{id}` 신규. `PATCH /api/admin/events/{id}`에 갤러리 편집(`keepImageIds`) + 로고 유지·교체·삭제(`removeLogo`) 추가. 계약 상세는 `docs/specs/events/api.md` API 3·4·6·7.
-- **⚠️ 필드명이 프론트 기존 타입과 다름 — 연동 시 매핑 필요**: 백엔드 응답은 `companyName`/`logoImageUrl`인데(`thumbnailImageUrl`과 같은 명명 규칙), 프론트 `FeedPost`(`data/eventFeedPosts.ts:10-11`)는 `company`/`logoUrl`을 쓴다. 이미 `EventListItem.thumbnailImageUrl` → `FeedPost.image`로 변환하는 `eventToFeedPost()`(`data/eventFeedPosts.ts:22`)가 있으니, 같은 함수에 `company: dto.companyName, logoUrl: dto.logoImageUrl` 두 줄만 추가하면 된다 — 백엔드 필드명을 프론트에 맞춰 바꿀 필요 없음.
+- **백엔드 현황(2026-08-21 구현 완료·push 완료)**: `EventPost`에 `companyName`/`logoImagePath`(`COLLABORATION` 전용, 내부 엔티티/컬럼명) 추가. 응답 DTO(`EventListItemResponse`/`EventDetailResponse`/`EventAdminListItemResponse`/`EventAdminDetailResponse`)와 요청 DTO(`EventCreateRequest`/`EventUpdateRequest`)는 프론트 `FeedPost`(`data/eventFeedPosts.ts`)와 동일하게 `company`/`logoUrl` 필드명을 쓴다(엔티티 내부명과 API 계약명을 분리, 커밋 `1e5a7b3`). `GET /api/admin/events`(`visible` 무관 전체, `type`/`visible` 선택 필터)·`GET /api/admin/events/{id}` 신규. `PATCH /api/admin/events/{id}`에 갤러리 편집(`keepImageIds`) + 로고 유지·교체·삭제(`removeLogo`) 추가. 계약 상세는 `docs/specs/events/api.md` API 3·4·6·7.
+- **필드명 매핑 불필요**: 백엔드 응답이 이미 `company`/`logoUrl`로 프론트 `FeedPost`(`data/eventFeedPosts.ts:10-11`)와 동일 — `eventToFeedPost()`(`data/eventFeedPosts.ts:22`)에서 그대로 대입하면 된다.
 - **남은 프론트 작업**: `EventAdminPanel.tsx`에 회사명 입력·로고 업로드·기존 로고 유지/교체/삭제 UI, 갤러리 유지/추가/삭제 UI, 관리자 전체목록(숨긴 글 포함) 화면 연결.
 
 ### 1.7 공지 서버 검색 — 없음 (PARTIAL)
