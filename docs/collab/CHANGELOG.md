@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-20 — Claude — `main` (회원정보 address 수정 정책 재확정 원복 + 조회 응답에서 role 제거 + 마이페이지 "내 정보" 표시 스펙 확정)
+
+- 변경: 같은 날 앞서 "address도 수정 가능"으로 뒤집었던 정책을 사용자가 다시 확인해 **"수정 가능 필드는 이름·전화번호뿐"으로 최종 원복**. `UserUpdateRequest`에서 `address` 필드 제거, `User.updateProfile`을 2-인자로 복원, `UserService.updateMe`의 address 검증·전달 코드 삭제. 테스트도 "address 무시됨" 검증으로 되돌림(`updateMeIgnoresAddressEvenWhenProvidedInRequestBody`). 이어서 사용자가 마이페이지 "내 정보" 조회 화면에 뜨던 "회원 유형"(일반회원/관리자) 표시가 등급제처럼 잘못 보인다고 지적 — `UserMeResponse`(`GET`/`PATCH /api/users/me` 공통 응답)에서 `role` 필드 자체를 제거(단순 화면 숨김이 아니라 DTO 스키마 변경). 관련 테스트 3곳(`UserControllerTest`/`AuthControllerSignupTest`/`UserApplicationFlowTest`)의 `$.data.role` 값 검증을 `.doesNotExist()`로 수정. 마이페이지 "내 정보" 표시 스펙 확정 — 조회는 이름·전화번호·이메일만(회원유형 표시 불가), 수정은 이름·전화번호만, role은 관리자/유저 어느 쪽이든 이 API로 수정 불가(원래도 `UserUpdateRequest`에 필드 자체가 없었음). 이 모든 내용을 `FRONTEND_API_GAPS.md` §1.9-a에 반영, 프론트 `AuthContext.tsx`가 이 응답의 `role`로 `isAdmin`을 판별하던 로직이 더는 동작하지 않는다는 점도 경고로 남김. 별건으로 마이페이지 "제작 내역"이 실 API 미연동(localStorage mock만 읽음)이라 실제 신청 후에도 빈 목록만 뜨는 문제를 코드로 재확인해 `FRONTEND_API_GAPS.md` §1.2에 상세 기록(상태 enum 불일치·날짜 포맷 문제까지 포함, 백엔드 작업은 없음).
+- 파일: `UserUpdateRequest.java`, `User.java`, `UserService.java`, `UserMeResponse.java`, `UserControllerTest.java`, `AuthControllerSignupTest.java`, `UserApplicationFlowTest.java`, `docs/api/user.md`, `docs/FRONTEND_API_GAPS.md`
+- 사유: 사용자가 "수정에는 이름과 전화번호만 가능해야 한다", "회원유형(등급제처럼 보이는 표시)은 조회 화면에 아예 없어야 한다"고 재확인 — 같은 날 두 번 바뀐 address 정책 + role 제거까지 겹쳐 혼동 방지를 위해 코드·문서·테스트 전부 명시적으로 정리.
+- 관련: `docs/collab/HANDOFF.md` 2026-08-20 항목
+
+---
+
 ## 2026-08-20 — Claude — `main` (EC2 배포 준비 중 발견한 버그 일괄 수정)
 
 - 변경: 사용자가 실제 EC2 배포를 진행하면서 실사용 중 발견한 문제 7건을 그때그때 수정. ① 단체신청 엑셀 템플릿 유효성검사 수식의 잘못된 선행 `=`(한셀에서 정상 입력도 거부되던 버그) ② 고등학교 단체신청 학번·학과 정책을 `BulkExcelParser`가 `schoolType`을 몰라 개인 신청과 어긋나 있던 것 통일(추가했다가 사용자가 프론트 근거로 재정정해 원복) ③ 회원정보 `address` 수정 정책 재정정(2026-08-08 확정을 뒤집음) ④ `User.createLocalUser`가 phone을 생성 시점에 받도록 리팩터링 ⑤ `docker-compose.yml`에 Postgres 추가(H2 인메모리로 데이터 소실되던 문제) + `MAIL_HOST`/`PORT`/`FROM` 누락 수정 ⑥ 루트 `.gitignore`에 `.env` 누락 발견해 추가(시크릿 커밋 위험 차단) ⑦ 프론트-백엔드 갭 재대조 중 `schoolName` 미연동으로 학생증 신청이 전부 깨진 회귀 발견.
