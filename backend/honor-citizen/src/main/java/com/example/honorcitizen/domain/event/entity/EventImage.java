@@ -51,4 +51,9 @@ public class EventImage {
         eventImage.createdAt = LocalDateTime.now();
         return eventImage;
     }
+
+    // 갤러리 편집(keepImageIds 재정렬, api.md §API 4) 전용 — id는 그대로 두고 순서만 바꾼다.
+    public void updateDisplayOrder(int displayOrder) {
+        this.displayOrder = displayOrder;
+    }
 }

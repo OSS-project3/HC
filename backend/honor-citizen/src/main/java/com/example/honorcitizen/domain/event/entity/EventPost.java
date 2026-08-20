@@ -2,6 +2,8 @@ package com.example.honorcitizen.domain.event.entity;
 
 import com.example.honorcitizen.common.entity.BaseTimeEntity;
 import com.example.honorcitizen.common.enums.EventType;
+import com.example.honorcitizen.common.exception.CustomException;
+import com.example.honorcitizen.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -57,6 +59,18 @@ public class EventPost extends BaseTimeEntity {
     @Column(length = 500)
     private String thumbnailImagePath;
 
+    // ✅ 2026-08-21 추가 — COLLABORATION 전용 선택 필드(EVENT-EXT-1). host(행사 주최)와는 다른 개념이라
+    // 별도 컬럼으로 둔다. BOOTH는 이 필드를 절대 갖지 않는다(validateCollaborationOnlyFields로 강제).
+    @Column(length = 100)
+    private String companyName;
+
+    // ✅ 2026-08-21 추가 — 협업 로고. thumbnailImagePath(카드 대표 이미지)·EventImage(상세 갤러리)와는
+    // 별도 파일 역할이다. companyName과 동일하게 COLLABORATION 전용.
+    @Column(length = 500)
+    private String logoImagePath;
+
+    private static final int MAX_COMPANY_NAME_LENGTH = 100;
+
     @Column(nullable = false)
     private boolean visible;
 
@@ -64,7 +78,10 @@ public class EventPost extends BaseTimeEntity {
 
     public static EventPost create(EventType eventType, String title, LocalDate eventDate, String eventDateText,
             String place, String host, String cardLabel, String content, String thumbnailImagePath,
-            boolean visible, Integer displayOrder) {
+            String companyName, String logoImagePath, boolean visible, Integer displayOrder) {
+        String normalizedCompanyName = normalizeCompanyName(companyName);
+        validateCollaborationOnlyFields(eventType, normalizedCompanyName, logoImagePath);
+
         EventPost eventPost = new EventPost();
         eventPost.eventType = eventType;
         eventPost.title = title;
@@ -75,14 +92,24 @@ public class EventPost extends BaseTimeEntity {
         eventPost.cardLabel = cardLabel;
         eventPost.content = content;
         eventPost.thumbnailImagePath = thumbnailImagePath;
+        eventPost.companyName = normalizedCompanyName;
+        eventPost.logoImagePath = logoImagePath;
         eventPost.visible = visible;
         eventPost.displayOrder = displayOrder;
         return eventPost;
     }
 
-    // 전체 재제출(api.md §API 4) — 썸네일 교체는 별도 updateThumbnailImagePath로 처리한다.
+    // 전체 재제출(api.md §API 4) — 썸네일·로고 교체는 별도 updateThumbnailImagePath/updateLogoImagePath로
+    // 처리한다. 이 메서드는 companyName까지만 반영하고, BOOTH 전환 시 "로고가 아직 안 지워졌다"는
+    // 잔여 상태 검사는 Service가 로고 교체/삭제를 먼저 적용한 뒤 assertCollaborationInvariant()로
+    // 최종 상태를 한 번에 검증한다(호출 순서에 의존하지 않기 위함).
     public void update(EventType eventType, String title, LocalDate eventDate, String eventDateText, String place,
-            String host, String cardLabel, String content, boolean visible, Integer displayOrder) {
+            String host, String cardLabel, String content, String companyName, boolean visible, Integer displayOrder) {
+        String normalizedCompanyName = normalizeCompanyName(companyName);
+        if (normalizedCompanyName != null && normalizedCompanyName.length() > MAX_COMPANY_NAME_LENGTH) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
         this.eventType = eventType;
         this.title = title;
         this.eventDate = eventDate;
@@ -91,11 +118,39 @@ public class EventPost extends BaseTimeEntity {
         this.host = host;
         this.cardLabel = cardLabel;
         this.content = content;
+        this.companyName = normalizedCompanyName;
         this.visible = visible;
         this.displayOrder = displayOrder;
     }
 
     public void updateThumbnailImagePath(String thumbnailImagePath) {
         this.thumbnailImagePath = thumbnailImagePath;
+    }
+
+    public void updateLogoImagePath(String logoImagePath) {
+        this.logoImagePath = logoImagePath;
+    }
+
+    // update() + updateLogoImagePath() 호출이 모두 끝난 뒤 Service가 한 번 호출해 최종 상태를 검증한다
+    // (EVENT-EXT-3 "COLLABORATION → BOOTH 전환 시 남은 협업 데이터가 있으면 INVALID_INPUT").
+    public void assertCollaborationInvariant() {
+        validateCollaborationOnlyFields(this.eventType, this.companyName, this.logoImagePath);
+    }
+
+    private static String normalizeCompanyName(String companyName) {
+        if (companyName == null) {
+            return null;
+        }
+        String trimmed = companyName.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static void validateCollaborationOnlyFields(EventType eventType, String companyName, String logoImagePath) {
+        if (eventType != EventType.COLLABORATION && (companyName != null || logoImagePath != null)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (companyName != null && companyName.length() > MAX_COMPANY_NAME_LENGTH) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
     }
 }

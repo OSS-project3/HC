@@ -5,9 +5,11 @@ import com.example.honorcitizen.domain.event.entity.EventPost;
 import lombok.Getter;
 
 import java.time.LocalDate;
+import java.util.List;
 
+// 관리자 상세(api.md API 7) — 공개 상세와 동일한 필드 + visible(숨긴 글도 조회 가능해야 하므로).
 @Getter
-public class EventListItemResponse {
+public class EventAdminDetailResponse {
 
     private final Long id;
     private final EventType eventType;
@@ -21,11 +23,14 @@ public class EventListItemResponse {
     private final String thumbnailImageUrl;
     private final String companyName;
     private final String logoImageUrl;
+    private final boolean visible;
     private final Integer displayOrder;
+    private final List<EventImageResponse> images;
 
-    private EventListItemResponse(Long id, EventType eventType, String title, LocalDate eventDate,
+    private EventAdminDetailResponse(Long id, EventType eventType, String title, LocalDate eventDate,
             String eventDateText, String place, String host, String cardLabel, String content,
-            String thumbnailImageUrl, String companyName, String logoImageUrl, Integer displayOrder) {
+            String thumbnailImageUrl, String companyName, String logoImageUrl, boolean visible,
+            Integer displayOrder, List<EventImageResponse> images) {
         this.id = id;
         this.eventType = eventType;
         this.title = title;
@@ -38,13 +43,16 @@ public class EventListItemResponse {
         this.thumbnailImageUrl = thumbnailImageUrl;
         this.companyName = companyName;
         this.logoImageUrl = logoImageUrl;
+        this.visible = visible;
         this.displayOrder = displayOrder;
+        this.images = images;
     }
 
-    public static EventListItemResponse of(EventPost eventPost, String thumbnailImageUrl, String logoImageUrl) {
-        return new EventListItemResponse(eventPost.getId(), eventPost.getEventType(), eventPost.getTitle(),
+    public static EventAdminDetailResponse of(EventPost eventPost, String thumbnailImageUrl, String logoImageUrl,
+            List<EventImageResponse> images) {
+        return new EventAdminDetailResponse(eventPost.getId(), eventPost.getEventType(), eventPost.getTitle(),
                 eventPost.getEventDate(), eventPost.getEventDateText(), eventPost.getPlace(), eventPost.getHost(),
                 eventPost.getCardLabel(), eventPost.getContent(), thumbnailImageUrl, eventPost.getCompanyName(),
-                logoImageUrl, eventPost.getDisplayOrder());
+                logoImageUrl, eventPost.isVisible(), eventPost.getDisplayOrder(), images);
     }
 }

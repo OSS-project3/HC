@@ -22,4 +22,14 @@ public interface EventPostRepository extends JpaRepository<EventPost, Long> {
     Page<EventPost> findVisibleByEventType(@Param("eventType") EventType eventType, Pageable pageable);
 
     Optional<EventPost> findByIdAndVisibleTrue(Long id);
+
+    // 관리자 목록(api.md API 6) — type/visible 둘 다 선택 필터, 생략하면 해당 조건은 전체.
+    @Query("""
+            SELECT e FROM EventPost e
+            WHERE (:eventType IS NULL OR e.eventType = :eventType)
+              AND (:visible IS NULL OR e.visible = :visible)
+            ORDER BY e.displayOrder ASC NULLS LAST, e.eventDate DESC NULLS LAST, e.createdAt DESC
+            """)
+    Page<EventPost> findAllForAdmin(@Param("eventType") EventType eventType, @Param("visible") Boolean visible,
+            Pageable pageable);
 }
