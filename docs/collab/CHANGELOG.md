@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-20 — Claude — `main` (EC2 배포 준비 중 발견한 버그 일괄 수정)
+
+- 변경: 사용자가 실제 EC2 배포를 진행하면서 실사용 중 발견한 문제 7건을 그때그때 수정. ① 단체신청 엑셀 템플릿 유효성검사 수식의 잘못된 선행 `=`(한셀에서 정상 입력도 거부되던 버그) ② 고등학교 단체신청 학번·학과 정책을 `BulkExcelParser`가 `schoolType`을 몰라 개인 신청과 어긋나 있던 것 통일(추가했다가 사용자가 프론트 근거로 재정정해 원복) ③ 회원정보 `address` 수정 정책 재정정(2026-08-08 확정을 뒤집음) ④ `User.createLocalUser`가 phone을 생성 시점에 받도록 리팩터링 ⑤ `docker-compose.yml`에 Postgres 추가(H2 인메모리로 데이터 소실되던 문제) + `MAIL_HOST`/`PORT`/`FROM` 누락 수정 ⑥ 루트 `.gitignore`에 `.env` 누락 발견해 추가(시크릿 커밋 위험 차단) ⑦ 프론트-백엔드 갭 재대조 중 `schoolName` 미연동으로 학생증 신청이 전부 깨진 회귀 발견.
+- 파일: `BulkExcelParser.java`, `ApplicationService.java`, `User.java`, `UserService.java`, `UserUpdateRequest.java`, `docker-compose.yml`, `.gitignore`, `.env.example`, `DOCKER.md`, `docs/api/user.md`, `docs/FRONTEND_API_GAPS.md`, `outputs/bulk-excel-templates-20260818/*.xlsx`, 관련 테스트 다수
+- 사유: 문서·설계 검토가 아니라 **실제 배포·실사용 과정에서 발견된 버그**라는 점이 이전 항목들과 다름 — 엑셀 템플릿은 실제 사용자(사용자님)가 한셀로 채우다 발견, 고등학교 정책은 사용자가 실제 신청 흐름을 검토하다 발견, `.env`/docker-compose 문제는 로컬에서 SMTP·S3·OAuth를 실제로 테스트하다 발견.
+- 관련: `docs/collab/HANDOFF.md` 2026-08-20 항목(전체 상세), `docs/collab/TODO.md` "배포 준비 + 버그 수정 다발" 행, 커밋 `20ee58e`~`30a1a52` 구간 전부(총 11개 커밋)
+
+---
+
 ## 2026-08-19 — Claude — `main` (학생증 신청 schoolName 필드 추가, SCHOOLNAME-1 완료)
 
 - 변경: 프론트-백엔드 갭 재점검(`docs/BACKEND_API_GAPS.md` P1-4) 중 발견한 "학교명 저장 필드 없음" 항목을 정책 확정 후 구현. `Application`에 `school_name` 컬럼 신규 추가(개인·단체 공통, 학생증 전용, `orientation`/`schoolType`과 동일하게 신청서 전체에 1개). `UNIVERSITY`/`HIGH_SCHOOL` 둘 다 필수(학번/학과와 달리 대학교 전용 조건 없음), 트림 후 5~20자·한글/영문/숫자/공백만 허용, 비학생증이면 있으면 거절.

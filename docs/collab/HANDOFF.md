@@ -1,52 +1,45 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-08-19
+- 마지막 갱신: 2026-08-20
 - 작성자: Claude
 - 작성 브랜치: main
 
 ## 지금 어디까지 됐는가
 
-- **✅ 학생증 신청에 학교명(schoolName) 필드 추가 완료(2026-08-19, SCHOOLNAME-1)**: 프론트-백엔드 API 갭을 사용자 요청으로 재점검하다가 `docs/BACKEND_API_GAPS.md` P1-4("학교명 저장 필드 없음")를 다시 짚어 정책 확정 후 구현까지 완료.
-  - **확정 정책**: `Application` 레벨 단일 필드(개인·단체 공통, `orientation`/`schoolType`과 동일 위치) — 단체 신청은 항상 한 학교 단위로 접수된다는 기존 전제(`schoolType`이 이미 단일값인 이유)를 그대로 이어받음. `UNIVERSITY`/`HIGH_SCHOOL` **둘 다 필수**(학번/학과와 달리 대학교 전용 조건 없음). DB 컬럼은 nullable, 학생증 여부에 따른 필수 검증은 서비스 레벨(`validateStudentFields`/`createGroup`)에서만 강제(비학생증이면 있으면 거절, 기존 orientation/schoolType과 동일 패턴). 트림 후 5~20자, 한글·영문·숫자·공백만 허용.
-  - 정책 문서: `docs/specs/application/requirements.md` §5-0(정책)/§5-2(체크리스트, SCHOOLNAME-1 완료 표시)에 기록. `data-model.md`/`api.md`(개인·단체 API 둘 다) 갱신 완료.
-  - 신규 테스트 9개(`ApplicationServiceTest` 6개, `ApplicationServiceBulkTest` 3개) 전부 통과, 기존 학생증 픽스처가 있던 3개 파일(`ApplicationServiceTest`/`ApplicationServiceBulkTest`/`ApplicationServiceUploadCompensationTest`) 보정 후 통과. 전체 스위트 471개(462+9) 중 `UserApplicationFlowTest.fullUserApplicationFlow`(아래 "기존 결함" 참고, 무관) 1건만 실패, 회귀 없음.
-  - 커밋: `575f6c0`(코드+테스트), `6653fd2`(문서).
-- **✅ 프론트-백엔드 갭 문서 오류 정정 완료(2026-08-19)**: `docs/FRONTEND_API_GAPS.md` §1.1(b)/`docs/BACKEND_API_GAPS.md` P0-1이 "`POST /api/auth/login`·`POST /api/auth/email/check`·`PATCH /api/users/me/password`가 여전히 없음"이라고 잘못 적어뒀던 것(이전 세션 AUTH-1~6에서 이미 구현·커밋된 게 갭 재점검 문서에 반영이 안 됐던 것)을 정정 — §1.1(b)를 "로그인·이메일 중복확인·비밀번호 변경(✅ 완료)"과 "(c) 계정복구(❌ 미구현)"로 분리, `BACKEND_API_GAPS.md` P0-1도 완료/미구현 표로 분리하고 이제는 유효하지 않은 "소프트탈퇴 7일 유예 자동복구" 서술도 함께 제거(WITHDRAW 정책으로 폐지됨). 코드 변경 없음, 문서만 수정.
-- **✅ 회원탈퇴 정책 변경 확정 및 구현 완료(2026-08-19)**: 사용자가 소프트 삭제(7일 유예+익명화)를 폐지하고 즉시 하드 삭제로 바꾸자고 제안 → 스코프 분석(코드베이스 전체에서 `User.id`를 참조하는 7개 테이블 전수 확인, `arch.md` §5.1의 FK-없는-Long-참조 원칙 덕분에 하드 삭제해도 DB/화면 레벨 문제가 없음을 확인) → 사용자가 최종 정책표로 확정 → **5단위 체크리스트로 구현까지 전부 완료**.
-  - **`docs/collab/user.md`가 source of truth다** — 사용자가 별도로 작성해둔 상세 정책 원본("회원정보·개인정보 보유·탈퇴·파기 정책", 19개 절, §19가 구현 체크리스트). 작업 중 미커밋 상태로 발견해 사용자 확인 후 상위 소스로 채택. **다음에 이 주제를 다시 볼 때는 이 파일을 먼저 읽을 것.**
-  - **확정 정책 요약**: 탈퇴 즉시 확정(유예기간·자동복구 폐지), `User`/`RefreshTokenSession`/`ApplicationDailyLimit`만 하드 삭제, `Application`(+`Applicant`/`Member`/`Receiver`)·결제이력·`Inquiry`·`Review`·`Board.created_by_user_id`·`AdminActivityLog.admin_id`는 삭제하지 않고 각자 보존정책 유지, 동일 이메일 재가입 가능하나 과거 데이터 자동 승계 안 됨. "회원가입 정보 상품수령후6개월" 문구는 미탈퇴 회원의 기본 보유기간일 뿐, 탈퇴 시엔 지체 없이 파기(§17.1 해소).
-  - **구현 5단위(전부 완료)**: WITHDRAW-1(OAuth 자동복구 제거, `a3bc798`) → WITHDRAW-2(로그인 자동복구+`restored` 응답 필드 제거, `b83bd65`) → WITHDRAW-3(익명화 스케줄러+`anonymize()`/`isRestorable()`/`restore()` 제거, `f956120`) → WITHDRAW-3B(`UserStatus`/`status`/`isWithdrawn()` 완전 제거 — 착수 전 전체 참조 검색으로 `ApplicationService.validateAdmin()`·`ReviewEligibilityService.validateForCreate()` 2개 도메인까지 걸치는 걸 확인해 별도 단위로 분리, `861b92e`) → WITHDRAW-4(`UserService.withdraw()`를 실제 하드 삭제로 교체 — `RefreshTokenSession`/`ApplicationDailyLimit`도 함께 삭제, `ApplicationDailyLimitService.deleteAllForUser()`를 신설해 arch.md §5.1 "다른 모듈 Repository 직접 호출 금지" 원칙 준수, `7e131f5`).
-  - `ErrorCode.ALREADY_WITHDRAWN`은 완전히 안 쓰이게 돼 삭제. `docs/api/user.md` API 4를 실제 구현 기준으로 최종 정리 완료. `arch.md` §4.1/§4.7/§11도 "구현 완료" 상태로 갱신 완료.
-  - 전체 스위트 462개 중 `UserApplicationFlowTest.fullUserApplicationFlow`(아래 "기존 결함" 참고, 무관) 1건만 실패, 회귀 없음. 각 단위 통과 후 마지막 단위(WITHDRAW-4)에서 전체 회귀까지 확인.
-  - **남은 미해결(구현과 무관, 법무 확인 대상)**: `docs/collab/user.md` §17.2(비밀번호 제3자 제공 문구 오류 의심), §17.3(제3자 제공/처리위탁 조항 혼재) — 임의 해석 금지, 담당자 확인 필요.
-- **✅ Inquiry(1:1 문의) 도메인 신규 구현 완료(2026-08-19)**: 정책 정의부터 구현까지 처음부터 끝까지 진행. 6개 API 전부 구현·테스트·커밋·푸시 완료.
-  - `POST /api/inquiries`(`1abab25`) → `GET /api/my/inquiries`·`/{id}`(`0b08b41`) → `GET /api/admin/inquiries`·`/{id}`(`3cb647f`) → `PATCH /api/admin/inquiries/{id}/answer`(`f877d2d`) → `PATCH /api/admin/inquiries/{id}/status`(`a9abff7`).
-  - 정책 문서: `docs/specs/inquiry/requirements.md`가 source of truth(①~⑨ 전부 확정).
-  - 핵심 설계: `userId`는 JWT에서만 추출, `GET /api/my/inquiries/{id}`는 미존재 404/타인소유 403 분리, `category`는 `InquiryCategory` enum(프론트 수정 불필요), 답변 등록 시 최초 1회만 이메일 발송, `COMPLETED`+`answer=null` 허용.
-- **❗ 오픈 아이템 — 프론트 `privacyConsent` 미반영**: `POST /api/inquiries`가 `privacyConsent: true`를 요구하는데(`@AssertTrue`) `InquiryPage.tsx`가 아직 이 필드를 보내지 않는다. 프론트 반영 전까지 실 연동 시 항상 400 — `docs/FRONTEND_API_GAPS.md` §1.3에 기록.
-- **⚠️ 절차 관련 — 이 세션에서 사용자 피드백으로 정착된 작업 방식(계속 적용 중)**:
-  1. 착수 전 반드시 정책 문서에 체크리스트를 먼저 작성하고 그 순서대로 진행(코드부터 쓰지 않는다).
-  2. `RULES.md` §8 — 단위별로는 영향 범위만 `--tests`로 좁혀 실행, 전체 스위트는 기능 묶음 완료·공통 인프라 변경·push 직전에만. 착수 전 전체 참조를 grep으로 검색해서 예상보다 범위가 크면 단위를 분리(WITHDRAW-3B 사례).
-- **✅ 일반 이메일 인증·로그인·계정관리 그룹(AUTH-1~6·PW-1·MAIL-1·SIGNUP-1/2·RATE-1)** — 이전 세션에 완료. `POST /api/auth/login`·`/email/check`, `PATCH /api/users/me/password` 전부 구현돼 있음(위 "갭 문서 오류" 항목 참고 — 문서만 안 따라감).
-- **⚠️ 로컬 테스트 환경 참고**: Docker 컨테이너 `honor-citizen-redis-test`(호스트 포트 **6400**). `REDIS_PORT=6400 ./gradlew.bat test`로 실행, `build.gradle`엔 커밋 안 함(로컬 전용). Docker Desktop이 꺼져 있으면 `docker start honor-citizen-redis-test`.
-- **⚠️ 발견된 기존 결함(고치지 않고 기록만 함, 여러 세션째 유지)**: `UserApplicationFlowTest.fullUserApplicationFlow()`가 403(기대 201)으로 실패 — 약관동의 단계를 안 거치는 기존 결함(회귀 아님), User/Application 도메인 작업자가 처리할 범위.
+- **✅ 배포 준비 + 버그 수정 다발(2026-08-20)**: 사용자가 EC2 배포를 진행하면서 발견된 문제들을 그때그때 고쳤다. 전부 `main`에 커밋·푸시 완료.
+  - **단체신청 엑셀 템플릿 유효성검사 수식 버그 2건**(`artifact-work/bulk-excel-templates-20260818/build_templates.py`, git 미추적 로컬 스크립트): `type="custom"`(영문명/이메일/전화번호/학번/학과)과 `type="list"`(국적/성별, 이름정의 참조) 데이터 유효성검사의 `formula1`에 불필요한 선행 `=`가 있어 **한컴오피스 한셀에서 정상 입력값도 전부 거부**되던 버그. Excel은 관대하게 처리하지만 한셀은 안 그럼 — OOXML 스펙상 원래 `=` 없이 써야 하는 게 맞음. 3개 템플릿(`outputs/bulk-excel-templates-20260818/*.xlsx`) 재생성해 반영(`20ee58e`, `c0e61e4`).
+  - **고등학교 단체신청 학번·학과 정책 왕복 수정**: 처음엔 "단체는 schoolType 무관하게 학번·학과 필수"인 기존 코드에 맞춰 고등학교 템플릿에 학번·학과 열 추가(`5d8af19`)했으나, 사용자가 프론트 코드(`StepInfo.tsx`의 "고등학교 선택 시 대학교 전용 항목은 비운다" 주석)를 근거로 "개인 신청처럼 단체도 고등학교면 학번·학과를 받으면 안 된다"고 정정 — `BulkExcelParser`가 `schoolType`을 아예 몰랐던 게 진짜 버그였음이 드러남. `BulkExcelParser.parse(zipFile, isStudent, schoolType)`로 시그니처 확장, `UNIVERSITY`만 필수·`HIGH_SCHOOL`이면 있으면 거절하도록 개인 신청과 통일(`6efd2b8`), 템플릿의 학번·학과 열도 다시 제거(`ba80a79`). **교훈**: 코드가 이미 있다고 정책이 맞다고 가정하지 말 것 — 프론트 실제 동작이 더 신뢰할 수 있는 정책 근거였음.
+  - **회원정보 `address` 수정 정책 재정정**: 2026-08-08에 "이름·전화번호만 수정 가능, address 제외"로 확정했던 걸 사용자 지시로 뒤집음 — `PATCH /api/users/me`가 이제 `address`도 받는다(`UserUpdateRequest`/`User.updateProfile`/`UserService.updateMe` 전부 반영, `10a0441`). `docs/api/user.md` API 5, `docs/FRONTEND_API_GAPS.md` §1.9(a) 갱신 완료 — 프론트가 주소 입력란을 다시 만들어야 하는 항목으로 전환.
+  - **`User.createLocalUser`가 phone을 생성 시점에 받도록 리팩터링**: `registerLocalUser()`가 생성 직후 `updateProfile(null, phone, null)`로 채우던 걸, `SignupRequest.phone`이 이미 `@NotBlank`라는 근거로 팩토리 4번째 파라미터로 승격(`1983021`). 기존 3인자 오버로드는 하위호환 없이 제거 — 호출부 12곳(운영 1+테스트 11) 전부 4인자로 이관.
+  - **배포 인프라**: `docker-compose.yml`에 Postgres 추가(이전엔 H2 인메모리로 떠서 재시작마다 데이터 소실, `8cdafb2`), `MAIL_HOST`/`MAIL_PORT`/`MAIL_FROM`이 컨테이너에 전달 안 되던 버그 수정(`.env`에 값 넣어도 무시되고 있었음, `30a1a52`), 루트 `.gitignore`에 `.env` 누락 발견해 추가(실제 AWS 시크릿이 든 `backend/.env`가 커밋될 뻔함 — git history엔 다행히 없었음 확인 완료, `d5dc282`), EC2 배포 시크릿 3단 분리(Dockerfile 무시크릿 → compose는 변수명만 → EC2 `.env`는 실값, git 미추적) 절차를 `DOCKER.md`에 문서화(`12f28bc`).
+  - **실제 배포 테스트(로컬 Docker Desktop으로 재현, EC2 아님)**: SMTP(Gmail, 앱 비밀번호)·S3(업로드/다운로드/삭제)·구글/네이버 OAuth 리다이렉트 구성을 전부 직접 호출해서 정상 동작 확인함. **EC2 자체의 `.env`는 로컬 PC의 `.env`와 별개 파일**이라는 걸 사용자가 뒤늦게 발견 — EC2 쪽엔 Google/Naver 자격증명이 비어있어서 `docker-compose.yml`의 로컬 placeholder(`docker-local-google-client` 등)로 폴백되고 있었고, 이게 `401 invalid_client`의 원인이었음. 사용자가 EC2 쪽 별도 세션에서 채우는 걸로 진행 중 — **다음에 이어서 볼 때 EC2 `.env`가 다 채워졌는지, `docker compose up -d --no-deps backend`로 반영됐는지부터 확인할 것.**
+  - **프론트-백엔드 갭 재확인(2026-08-20)**: `docs/FRONTEND_API_GAPS.md`를 실제 프론트 코드(`ApplyPage.tsx`)와 재대조하다가 **`schoolName`(2026-08-19 신규 백엔드 필수 필드)을 프론트가 요청에 안 보내서 학생증 신청이 전부 400으로 깨져 있는 회귀**를 발견(`4a6db96`). §6에 우선순위 표로 정리(`e496f6a`) — 0순위로 등록돼 있음. `updateMe`의 `address` 죽은 파라미터, `PATCH.../cancel` 미바인딩 등도 같이 점검했으나 이 둘은 실제 문제 없음(주소는 이번에 반영 완료, cancel은 원래 §1.5에 미착수로 기록돼 있던 것과 일치).
+- **✅ 학생증 신청에 학교명(schoolName) 필드 추가 완료(2026-08-19, SCHOOLNAME-1)**: `Application` 레벨 단일 필드(개인·단체 공통), `UNIVERSITY`/`HIGH_SCHOOL` 둘 다 필수, 트림 후 5~20자·한글/영문/숫자/공백만 허용. 커밋 `575f6c0`/`6653fd2`. (위 2026-08-20 항목에서 이 필드를 프론트가 아직 안 보내는 회귀를 발견함 — 별개 사안이니 혼동 주의.)
+- **✅ 회원탈퇴 정책 변경 완료(2026-08-19)**: 소프트 삭제(7일 유예+익명화) 폐지 → 즉시 하드 삭제. `docs/collab/user.md`가 source of truth(§19 체크리스트). WITHDRAW-1~4 전부 완료(`a3bc798`/`b83bd65`/`f956120`/`861b92e`/`7e131f5`). 상세는 `docs/api/user.md` API 4, `arch.md` §4.1/§4.7/§11.
+- **✅ Inquiry(1:1 문의) 도메인 신규 구현 완료(2026-08-19)**: 6개 API 전부 구현·테스트·커밋 완료(`1abab25`~`a9abff7`). `docs/specs/inquiry/requirements.md`가 source of truth.
+- **✅ 일반 이메일 인증·로그인·계정관리(AUTH-1~6·PW-1·MAIL-1·SIGNUP-1/2·RATE-1)** — 이전 세션에 완료. `POST /api/auth/login`·`/email/check`, `PATCH /api/users/me/password` 전부 구현돼 있음.
+- **⚠️ 로컬 테스트 환경 참고**: Docker 컨테이너 `honor-citizen-redis-test`(호스트 포트 **6400**). `REDIS_PORT=6400 ./gradlew.bat test`로 실행. 별도로 `docker compose`(저장소 루트, Postgres+Redis+backend+frontend 통합 실행)도 오늘 세션에서 실제 배포 테스트용으로 씀 — 둘은 다른 용도(전자는 단위테스트용 Redis만, 후자는 전체 스택).
+- **⚠️ 발견된 기존 결함(고치지 않고 기록만 함, 여러 세션째 유지)**: `UserApplicationFlowTest.fullUserApplicationFlow()`가 403으로 실패 — 약관동의 단계를 안 거치는 기존 결함(회귀 아님).
 - 그 외 도메인(Board/Event/Review 등)은 이전 세션들에서 전부 완료·커밋된 상태.
 
 ## 다음에 할 일
 
-- **프론트 `privacyConsent` 반영 확인**: `InquiryPage.tsx`에 이 필드가 추가됐는지 확인 후 실 연동 테스트.
-- **거래·상담 데이터 파기 스케줄러(별도, 회원탈퇴 정책과 무관)**: Inquiry 6개월(`docs/specs/inquiry/requirements.md` §⑧), 결제·거래 이력 법정 보존기간 경과분 — 담당자 미정. `docs/collab/user.md` §15 참고.
-- **개인정보처리방침 문안 자체 확인(법무 대상)**: §17.2(비밀번호 제3자 제공 문구), §17.3(제3자 제공/처리위탁 조항 혼재) — 코드 작업 아님.
+- **🔴 최우선(회귀 수정, 프론트 담당)**: `ApplyPage.tsx` `submit()`에 `schoolName` 필드 추가 — 안 하면 학생증 신청 전부 400. `docs/FRONTEND_API_GAPS.md` §1.9-b 참고.
+- **EC2 배포 마무리**: EC2의 `.env`에 Google/Naver 자격증명(및 나머지 값 전체)이 다 채워졌는지 확인 → `docker compose up -d --no-deps backend`로 반영 → 브라우저로 실제 OAuth 로그인 완료까지 테스트. HTTPS(certbot)는 아직 미착수 — DNS·탄력적 IP는 사용자가 이미 설정 완료.
+- **프론트 작업 우선순위 전체**는 `docs/FRONTEND_API_GAPS.md` §6 표 참고(schoolName 외에 회원가입 인증코드 UI, 로그인 연동, 마이페이지 신청목록, 문의 연동, address 입력란 복원 등 백엔드는 준비됐고 프론트만 남은 항목들).
+- **AWS 자격증명 보안 권장**: 지금 쓰고 있는 AWS 키가 IAM 사용자가 아니라 계정 루트 키로 확인됨(`arn:aws:iam::...:root`) — S3 버킷 하나에만 권한 준 전용 IAM 사용자로 교체 권장(급하지 않음, 사용자에게 이미 안내함).
+- **거래·상담 데이터 파기 스케줄러**: Inquiry 6개월, 결제·거래 이력 법정 보존기간 — 담당자 미정.
+- **개인정보처리방침 문안 확인(법무 대상)**: `docs/collab/user.md` §17.2/§17.3 — 코드 작업 아님.
 - **UserApplicationFlowTest 403 수정**: 담당자 미정.
-- 그 외 미착수 항목(관리자 신청관리, Payment 도메인, 단체 신청 구성원별 상세/카드 ZIP 다운로드 등)은 `TODO.md` 진행 보드 및 `docs/BACKEND_API_GAPS.md`(P0~P2 우선순위) 참고.
+- 그 외 미착수 항목은 `TODO.md` 진행 보드 및 `docs/BACKEND_API_GAPS.md` 참고.
 
 ## ❓ 확인 필요
 
-- 없음 — 이번 세션에서 나온 모든 질문(Inquiry 정책, 회원탈퇴 정책, schoolName 정책)은 사용자가 전부 확정해줬다.
+- 없음 — 이번 세션 질문들(고등학교 학번/학과 정책, address 정책, AWS 키 이름, SMTP 계정)은 사용자가 전부 확정해줬다.
 
 ## 참고
 
-- 회원탈퇴 정책 스코프 분석 방법(재사용 가능): `Grep`으로 `Long userId`/`createdByUserId`/`adminId` 패턴 검색해 참조 테이블 확인 → 각 도메인이 스냅샷 저장인지 재확인 → 관련 인프라 코드(`JwtAuthFilter`/`TokenSessionStore` 등) 직접 읽어서 실제 동작 확인. 코드 추측 없이 전부 실제 파일 확인 기반으로 진행.
-- 프론트-백엔드 갭 재점검 방법(재사용 가능): 갭 문서(`docs/FRONTEND_API_GAPS.md`/`docs/BACKEND_API_GAPS.md`)의 서술을 그대로 믿지 않고 실제 Controller/DTO/Entity를 grep+Read로 대조 — 이번에 그렇게 해서 login/email-check/password-change가 이미 구현돼 있는데 문서만 안 따라간 것과 schoolName이 실제로 없는 것(진짜 갭) 둘 다 정확히 구분해냄.
-- Inquiry/회원탈퇴/schoolName 전부 "착수 전 체크리스트 작성 → 단위별 TDD+독립 커밋 → 마지막 단위에서 전체 회귀"로 진행. 착수 전 grep으로 실제 참조 범위를 먼저 확인하고, 예상보다 크면(회원탈퇴 WITHDRAW-3B처럼) 단위를 쪼개는 방식이 정착됨.
-- 관련 문서: **`docs/collab/user.md`(회원탈퇴/개인정보 정책 source of truth, §19가 체크리스트)**, `docs/specs/application/requirements.md` §5-0/§5-2(schoolName 정책+체크리스트), `arch.md` §4.1/§4.7/§11, `docs/api/user.md`, `docs/specs/inquiry/requirements.md`, `docs/collab/TODO.md`, `docs/collab/CHANGELOG.md` 2026-08-19 항목 전부, `docs/collab/RULES.md` §8.
+- **EC2/docker 배포 절차**: `DOCKER.md`의 "EC2 배포 — 시크릿 3단 분리 원칙" 절 — Dockerfile(무시크릿) → docker-compose.yml(변수명만) → EC2 `.env`(실값, git 미추적) 순서, 로컬 `.env`와 EC2 `.env`는 별개 파일이라는 점 꼭 기억할 것(오늘 실수 사례).
+- **엑셀 템플릿 재생성 방법**: `artifact-work/bulk-excel-templates-20260818/build_templates.py`(Python, openpyxl) — `python3 build_templates.py`로 `outputs/bulk-excel-templates-20260818/*.xlsx` 재생성. 이 스크립트 자체는 git 미추적(Codex도 안 커밋했던 관례 유지), 산출물 xlsx만 커밋.
+- 회원탈퇴 정책 스코프 분석 방법, 프론트-백엔드 갭 재점검 방법(문서 서술을 안 믿고 실제 코드 대조) 등 재사용 가능한 방법론은 이전 HANDOFF 버전 참고(git log로 조회 가능).
+- 관련 문서: `docs/collab/user.md`(회원탈퇴 source of truth), `docs/specs/application/requirements.md` §5-0/§5-2(schoolName), `docs/api/user.md`, `docs/FRONTEND_API_GAPS.md`, `docs/BACKEND_API_GAPS.md`, `DOCKER.md`, `docs/collab/TODO.md`, `docs/collab/CHANGELOG.md`, `docs/collab/RULES.md` §8.
