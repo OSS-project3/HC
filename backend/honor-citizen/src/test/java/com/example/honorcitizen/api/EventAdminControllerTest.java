@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -125,7 +126,7 @@ class EventAdminControllerTest {
     @Test
     void updateSucceedsForAdmin() throws Exception {
         EventPost eventPost = eventPostRepository.save(EventPost.create(EventType.BOOTH, "원래 제목", null, "2026. 01",
-                "장소", "주최", "카드", "내용", null, true, null));
+                "장소", "주최", "카드", "내용", null, null, null, true, null));
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", UPDATE_REQUEST_JSON.getBytes());
 
@@ -139,7 +140,7 @@ class EventAdminControllerTest {
     @Test
     void updateReturnsForbiddenForNonAdmin() throws Exception {
         EventPost eventPost = eventPostRepository.save(EventPost.create(EventType.BOOTH, "원래 제목", null, "2026. 01",
-                "장소", "주최", "카드", "내용", null, true, null));
+                "장소", "주최", "카드", "내용", null, null, null, true, null));
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", UPDATE_REQUEST_JSON.getBytes());
 
@@ -152,7 +153,7 @@ class EventAdminControllerTest {
     @Test
     void deleteSucceedsForAdmin() throws Exception {
         EventPost eventPost = eventPostRepository.save(EventPost.create(EventType.BOOTH, "원래 제목", null, "2026. 01",
-                "장소", "주최", "카드", "내용", null, true, null));
+                "장소", "주최", "카드", "내용", null, null, null, true, null));
 
         mockMvc.perform(delete("/api/admin/events/{id}", eventPost.getId())
                         .header("Authorization", adminToken))
@@ -163,7 +164,7 @@ class EventAdminControllerTest {
     @Test
     void deleteReturnsForbiddenForNonAdmin() throws Exception {
         EventPost eventPost = eventPostRepository.save(EventPost.create(EventType.BOOTH, "원래 제목", null, "2026. 01",
-                "장소", "주최", "카드", "내용", null, true, null));
+                "장소", "주최", "카드", "내용", null, null, null, true, null));
 
         mockMvc.perform(delete("/api/admin/events/{id}", eventPost.getId())
                         .header("Authorization", userToken))
@@ -173,9 +174,58 @@ class EventAdminControllerTest {
     @Test
     void deleteReturnsUnauthorizedWithoutToken() throws Exception {
         EventPost eventPost = eventPostRepository.save(EventPost.create(EventType.BOOTH, "원래 제목", null, "2026. 01",
-                "장소", "주최", "카드", "내용", null, true, null));
+                "장소", "주최", "카드", "내용", null, null, null, true, null));
 
         mockMvc.perform(delete("/api/admin/events/{id}", eventPost.getId()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ── 관리자 목록·상세(EVENT-EXT-4) ──────────────────────────────────────
+
+    @Test
+    void listReturnsHiddenPostsForAdmin() throws Exception {
+        eventPostRepository.save(EventPost.create(EventType.BOOTH, "공개", null, "2026. 01",
+                "장소", "주최", "카드", "내용", null, null, null, true, null));
+        eventPostRepository.save(EventPost.create(EventType.BOOTH, "비공개", null, "2026. 02",
+                "장소", "주최", "카드", "내용", null, null, null, false, null));
+
+        mockMvc.perform(get("/api/admin/events")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2));
+    }
+
+    @Test
+    void listReturnsForbiddenForNonAdmin() throws Exception {
+        mockMvc.perform(get("/api/admin/events")
+                        .header("Authorization", userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listReturnsUnauthorizedWithoutToken() throws Exception {
+        mockMvc.perform(get("/api/admin/events"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void detailReturnsHiddenPostForAdmin() throws Exception {
+        EventPost hidden = eventPostRepository.save(EventPost.create(EventType.BOOTH, "비공개", null, "2026. 01",
+                "장소", "주최", "카드", "내용", null, null, null, false, null));
+
+        mockMvc.perform(get("/api/admin/events/{id}", hidden.getId())
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visible").value(false));
+    }
+
+    @Test
+    void detailReturnsForbiddenForNonAdmin() throws Exception {
+        EventPost hidden = eventPostRepository.save(EventPost.create(EventType.BOOTH, "비공개", null, "2026. 01",
+                "장소", "주최", "카드", "내용", null, null, null, false, null));
+
+        mockMvc.perform(get("/api/admin/events/{id}", hidden.getId())
+                        .header("Authorization", userToken))
+                .andExpect(status().isForbidden());
     }
 }

@@ -35,7 +35,7 @@ class EventControllerTest {
     @Test
     void listSucceedsWithoutAuthentication() throws Exception {
         eventPostRepository.save(EventPost.create(EventType.BOOTH, "서울공예트렌드페어", null, "2026. 12",
-                "서울 코엑스 Hall C", "한국공예·디자인문화진흥원", "명예한국인증 · 방문증", "내용", null, true, null));
+                "서울 코엑스 Hall C", "한국공예·디자인문화진흥원", "명예한국인증 · 방문증", "내용", null, null, null, true, null));
 
         mockMvc.perform(get("/api/events").param("type", "BOOTH"))
                 .andExpect(status().isOk())
@@ -46,7 +46,7 @@ class EventControllerTest {
     @Test
     void listHidesInvisiblePosts() throws Exception {
         eventPostRepository.save(EventPost.create(EventType.BOOTH, "비공개", null, "2026. 12",
-                "장소", "주최", "카드", "내용", null, false, null));
+                "장소", "주최", "카드", "내용", null, null, null, false, null));
 
         mockMvc.perform(get("/api/events").param("type", "BOOTH"))
                 .andExpect(status().isOk())
@@ -64,7 +64,7 @@ class EventControllerTest {
     @Test
     void detailSucceedsWithoutAuthentication() throws Exception {
         EventPost eventPost = eventPostRepository.save(EventPost.create(EventType.COLLABORATION, "협업", null, "2026. 12",
-                "장소", "주최", "카드", "내용", null, true, null));
+                "장소", "주최", "카드", "내용", null, null, null, true, null));
 
         mockMvc.perform(get("/api/events/{id}", eventPost.getId()))
                 .andExpect(status().isOk())
@@ -76,7 +76,7 @@ class EventControllerTest {
     @Test
     void detailReturnsNotFoundForHiddenPost() throws Exception {
         EventPost hidden = eventPostRepository.save(EventPost.create(EventType.BOOTH, "비공개", null, "2026. 12",
-                "장소", "주최", "카드", "내용", null, false, null));
+                "장소", "주최", "카드", "내용", null, null, null, false, null));
 
         mockMvc.perform(get("/api/events/{id}", hidden.getId()))
                 .andExpect(status().isNotFound())
