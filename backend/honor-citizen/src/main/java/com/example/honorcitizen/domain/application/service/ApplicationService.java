@@ -360,6 +360,51 @@ public class ApplicationService {
     }
 
     /**
+     * 관리자 신청 목록 — 소유자 무관 전체 조회. listMyApplications와 동일한 정렬·응답 형태이되
+     * userId 필터만 없다(응답 DTO는 마이페이지와 동일해 그대로 재사용한다 — 관리자만 볼 수 있는
+     * 별도 필드가 아직 없어 신규 DTO를 만들 이유가 없음).
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<MyApplicationListItemResponse> listApplicationsForAdmin(Long adminId, ApplicationStatus status,
+            int page, int size) {
+        validateAdmin(adminId);
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        Page<Application> applications = status == null
+                ? applicationRepository.findAll(pageable)
+                : applicationRepository.findByStatus(status, pageable);
+
+        Map<Long, CardType> cardTypeById = cardTypeRepository
+                .findAllById(applications.getContent().stream().map(Application::getCardTypeId).collect(Collectors.toSet()))
+                .stream().collect(Collectors.toMap(CardType::getId, Function.identity()));
+
+        return PageResponse.from(applications, application ->
+                MyApplicationListItemResponse.of(application, cardTypeById.get(application.getCardTypeId()).getName()));
+    }
+
+    /** 관리자 신청 상세 — 소유권 체크 없이 어떤 신청이든 조회 가능. 나머지는 getMyApplicationDetail과 동일. */
+    @Transactional(readOnly = true)
+    public MyApplicationDetailResponse getApplicationDetailForAdmin(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        CardType cardType = cardTypeRepository.findById(application.getCardTypeId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        Applicant applicant = applicantRepository.findByApplicationId(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        Receiver receiver = application.getIssueType() == IssueType.MOBILE_AND_PHYSICAL
+                ? receiverRepository.findByApplicationId(applicationId).orElse(null)
+                : null;
+        long memberCount = applicationMemberRepository.countByApplicationId(applicationId);
+
+        return MyApplicationDetailResponse.of(application, cardType.getName(), applicant, receiver, memberCount);
+    }
+
+    /**
      * 로그인 사용자가 본인 신청을 취소한다.
      *
      * Application 상태 변경과 일일 신청 슬롯 반환은 하나의 트랜잭션에서 처리한다.

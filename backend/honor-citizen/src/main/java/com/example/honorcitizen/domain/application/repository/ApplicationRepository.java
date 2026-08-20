@@ -22,6 +22,9 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
 
     Page<Application> findByUserIdAndStatus(Long userId, ApplicationStatus status, Pageable pageable);
 
+    // 관리자 신청 목록(api.md 신규) — 소유자 무관 전체 조회. status 없으면 JpaRepository.findAll(Pageable) 사용.
+    Page<Application> findByStatus(ApplicationStatus status, Pageable pageable);
+
     @Query("""
             SELECT a.id FROM Application a
             WHERE a.status = :status
