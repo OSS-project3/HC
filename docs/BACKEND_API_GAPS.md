@@ -30,7 +30,7 @@
 | **P0** | 마이페이지 신청/문의 조회 | 사용자가 자기 신청·문의 내역을 서버에서 못 봄 (내 후기는 연동 완료) |
 | **P0** | 관리자 신청 관리 | `/admin` 전체가 localStorage mock. 목록·상세 조회는 백엔드 완료(2026-08-21, `6575d09`), 상태 전이·통계·프론트 연동은 여전히 없음(P0-3) |
 | **P0** | 1:1 문의(Inquiry) 도메인 | 도메인 자체가 없음(사용자·관리자 양쪽 mock) |
-| **P1** | 관리자 이벤트 전체목록 / 이벤트 필드 확장 / 신청조회 applicationType | 숨긴 글 관리 불가, 협업 로고·갤러리 편집 불가, 단체 재제출 UI 불가 |
+| **P1** | 관리자 이벤트 전체목록 / 이벤트 필드 확장 / 신청조회 applicationType | ✅ 이벤트 둘 다 2026-08-21 백엔드 완료(P1-1·P1-2), 프론트 미연동. 단체 재제출 UI는 여전히 불가 |
 | **P1** | 신청 폼 수집값 미저장(결제·학교명·동의) | 입금자명/입금확인·학생증 학교명·신청 동의 이력이 서버에 안 남음 (P1-4) |
 | **P2** | PROGRAM 카드 · 정적 CMS | 배포 없이 관리자가 수정하려면 필요 |
 
@@ -144,29 +144,23 @@
 
 ---
 
-## P1-1. 관리자 이벤트 전체 목록 (숨긴 글 포함)
+## P1-1. 관리자 이벤트 전체 목록 (숨긴 글 포함) — ✅ 백엔드 구현 완료(2026-08-21)
 
-현재 상태: 공개 목록(`GET /api/events`)은 `visible=true`만 반환. 관리자가 숨긴(`visible=false`) 이벤트를 다시 찾을 방법이 없음 → 관리자 패널에서 비공개 글 재편집 불가.
+`GET /api/admin/events?type=&visible=&page=&size=`, `GET /api/admin/events/{id}` 구현 완료(EVENT-EXT-4) — `visible=false` 글도 조회 가능. `type`/`visible` 둘 다 선택 필터, 생략 시 전체.
 
-| Method | 제안 경로 | 목적 | 인증 |
-|---|---|---|---|
-| GET | `/api/admin/events?type=&page=&size=` | `visible` 무관 전체 목록 | ADMIN |
-
-관련 프론트: `components/admin/EventAdminPanel.tsx`
+관련 프론트: `components/admin/EventAdminPanel.tsx` — 아직 이 API로 미연동.
 
 ---
 
-## P1-2. 이벤트 필드/편집 기능 확장
+## P1-2. 이벤트 필드/편집 기능 확장 — ✅ 백엔드 구현 완료(2026-08-21)
 
-현재 상태: 아래 항목은 백엔드 Event 계약에 없어서 프론트에서 **기능이 죽어 있음**.
-
-| 갭 | 현재 결과 | 필요한 백엔드 변경 |
+| 갭 | 현재 결과 | 백엔드 변경 |
 |---|---|---|
-| 협업 `company`/`logoUrl` 필드 없음 | 협업 카드가 로고 대신 카드라벨 텍스트로 표시 | Event에 `company`·`logoUrl`(또는 로고 업로드) 필드 추가 |
-| `PATCH`가 갤러리(`images`) 편집 미지원 | 갤러리는 **등록 시에만** 설정, 이후 수정 불가 | `PATCH /api/admin/events/{id}` 갤러리 추가/삭제 지원 |
-| 상세 응답에 `visible`/`displayOrder` 없음 | 수정 시 값 유실(공개=true, 순서 초기화) | 상세 응답에 두 필드 포함 또는 관리자 상세 API 제공 |
+| 협업 `company`/`logoUrl` 필드 없음 | 협업 카드가 로고 대신 카드라벨 텍스트로 표시 | ✅ `companyName`/`logoImageUrl`(`COLLABORATION` 전용) 추가. `BOOTH`가 값을 보내면 `INVALID_INPUT` |
+| `PATCH`가 갤러리(`images`) 편집 미지원 | 갤러리는 **등록 시에만** 설정, 이후 수정 불가 | ✅ `keepImageIds`(생략=전체유지, `[]`=전체삭제)로 유지·삭제·재정렬, 신규 `images`로 추가 |
+| 상세 응답에 `visible`/`displayOrder` 없음 | 수정 시 값 유실(공개=true, 순서 초기화) | ✅ 관리자 상세 API(`GET /api/admin/events/{id}`)에 `visible` 포함(공개 응답은 여전히 미노출, 의도적) |
 
-관련 프론트: `components/admin/EventAdminPanel.tsx`, `pages/EventsPage`
+계약 상세: `docs/specs/events/api.md` API 3·4·6·7. 관련 프론트: `components/admin/EventAdminPanel.tsx`, `pages/EventsPage` — 둘 다 아직 이 신규 필드/API로 미연동.
 
 ---
 

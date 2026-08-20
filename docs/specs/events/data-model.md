@@ -35,6 +35,8 @@
 | card_label | VARCHAR(255) | NOT NULL | 발급 카드 표시값. 예: `명예한국인증 · 방문증` |
 | content | TEXT | NOT NULL | 카드 본문 및 상세 모달 본문 |
 | thumbnail_image_path | VARCHAR(500) | NULL | 카드 대표 이미지 경로. 없으면 프론트가 placeholder 표시 |
+| company_name | VARCHAR(100) | NULL | ✅ 2026-08-21 추가. 협업 법인·단체명. `COLLABORATION`에서만 선택적으로 쓰고, `BOOTH`는 이 필드를 쓰지 않는다(값이 있으면 요청 자체를 `INVALID_INPUT`으로 거절 — 조용히 무시하지 않음). `host`(행사 주최·운영 주체)와는 다른 개념이라 합치지 않는다 |
+| logo_image_path | VARCHAR(500) | NULL | ✅ 2026-08-21 추가. 협업 로고 이미지 경로. `company_name`과 동일하게 `COLLABORATION` 전용 — `thumbnail_image_path`(카드 대표 이미지)·`EventImage`(상세 갤러리)와는 별도의 파일 역할이다 |
 | visible | BOOLEAN | NOT NULL | 공개 여부. 기본값 `true` |
 | display_order | INT | NULL | 수동 정렬 순서. 값이 있으면 우선 적용 |
 | created_at | — | — | `BaseTimeEntity` 공통 규칙 |
@@ -85,16 +87,16 @@ public enum EventType {
 
 ## 4. API 설계 메모
 
-✅ 2026-08-16 확정 — 정확한 Request/Response JSON, 이미지 검증값, 삭제 방식은 [api.md](api.md) 참고.
+✅ 2026-08-16 확정, 2026-08-21 보강(협업 로고·관리자 전체목록·갤러리 편집) — 정확한 Request/Response JSON, 이미지 검증값, 삭제 방식은 [api.md](api.md) 참고.
 
 ```http
 GET /api/events?type=BOOTH&page=0&size=10      (공개, visible=true만)
 GET /api/events/{id}                            (공개, visible=false면 EVENT_NOT_FOUND)
+GET /api/admin/events?type=&visible=&page=&size= (관리자, 생략 시 전체 유형·공개여부 조회)
+GET /api/admin/events/{id}                       (관리자, visible=false도 조회 가능)
 POST /api/admin/events                           (관리자)
 PATCH /api/admin/events/{id}                     (관리자)
 DELETE /api/admin/events/{id}                    (관리자)
 ```
 
-⚪ `GET /api/admin/events`(관리자용 전체 목록, `visible` 무관) — 관리자가 숨긴 글을 다시 찾으려면 필요하지만, 이번 구현 패스 범위에서는 제외하고 이후 별도로 구현한다(2026-08-16 사용자 확인). v1에서 관리자는 생성 직후 응답의 `id`로만 수정·삭제 가능.
-
-관리자 작성/수정은 이미지 업로드가 필요하므로 multipart를 기본으로 둔다.
+관리자 작성/수정은 이미지 업로드가 필요하므로 multipart를 기본으로 둔다. 생성은 `thumbnail`/`logo`/`images` 세 파트를 각각 독립 S3 key로 받고, 수정은 여기에 `removeLogo`/`removeThumbnail`/`keepImageIds`로 유지·교체·삭제를 구분한다(api.md API 3·4 참고). 파일 역할은 셋으로 분리된다 — `thumbnail_image_path`(카드 대표 이미지), `logo_image_path`(협업 로고, `COLLABORATION` 전용), `EventImage`(상세 갤러리).

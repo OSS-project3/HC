@@ -15,6 +15,26 @@
 
 ---
 
+## 2026-08-21 — Claude — `main` (Event 협업 로고·회사명·관리자 전체목록·갤러리 편집 구현 완료)
+
+- 변경: Codex가 확정한 정책(`docs/specs/events/api.md`·`data-model.md`, `docs/collab/TODO.md` EVENT-EXT-0~6)에 맞춰 `EventPost.companyName`/`logoImagePath`(`COLLABORATION` 전용, `BOOTH` 전송 시 `INVALID_INPUT`)를 추가했다. 생성 API에 `logo` multipart part, 수정 API에 `removeLogo`/`removeThumbnail`(유지·교체·삭제)와 `keepImageIds`(생략=전체유지, `[]`=전체삭제, 그 외=재정렬+신규추가, 타 Event 이미지 ID 거절) 갤러리 편집을 추가했다. `GET /api/admin/events`·`/{id}`(visible 무관 전체) 신규. 공개 응답에도 `companyName`/`logoImageUrl` 추가(기존 필드 불변, 하위 호환). 갤러리 재정렬은 `UNIQUE(event_post_id, display_order)` 제약 충돌을 피하려고 임시 오프셋(+1000)으로 먼저 밀고 flush한 뒤 최종 값을 배정하는 2단계 방식을 썼다.
+- 테스트: `EventPostTest`(10)·`EventServiceTest`(33)·`EventAdminControllerTest`(13)·`EventControllerTest`(6) 신규/보강, Event 도메인 전체 70개 통과. 전체 스위트 543개 중 542개 통과(실패 1개는 이번 작업과 무관한 기존 결함 `UserApplicationFlowTest`).
+- 파일: `EventPost`, `EventImage`, `EventService`, `EventAdminController`, `EventPostRepository`, `EventImageRepository`, DTO 6종(`EventAdminDetailResponse`/`EventAdminListItemResponse` 신규), 테스트 4개 파일, `docs/specs/events/{api,data-model}.md`, `docs/BACKEND_API_GAPS.md`, `docs/FRONTEND_API_GAPS.md`, `docs/FRONTEND_API_INTEGRATION_SPEC.md`
+- 사유: `docs/collab/TODO.md` "Event 협업 로고·이미지 및 관리자 편집 보강 체크리스트" EVENT-EXT-0~6 수행. 구현 후 프론트 코드와 정적 대조하다가 프론트 `FeedPost`가 `company`/`logoUrl`을 쓰는데 백엔드는 `companyName`/`logoImageUrl`을 쓰는 불일치를 발견 — 필드명은 기존 `thumbnailImageUrl` 명명 규칙에 맞춰 유지하고, 이미 있는 `eventToFeedPost()` 어댑터에 매핑을 추가하는 쪽으로 정리했다(코드 변경 없음, 문서만 기록).
+- 관련: `EVENT-EXT-0`~`EVENT-EXT-6`, 커밋 `ea1a41f`(구현), `433993b`(테스트)
+
+---
+
+## 2026-08-21 — Claude — `main` (관리자 신청 목록·상세 조회 API 구현 완료)
+
+- 변경: `GET /api/admin/applications`, `/{id}` 신규 — 소유자 무관 전체 신청 조회. `ApplicationService.listApplicationsForAdmin`/`getApplicationDetailForAdmin` 추가, 기존 `validateAdmin`과 마이페이지용 응답 DTO(`MyApplicationListItemResponse`/`MyApplicationDetailResponse`)를 그대로 재사용해 신규 DTO를 만들지 않았다. 상태 전이(사진반려/카드발급/배송추적 등)·통계는 범위 밖 — 사용자가 순수 조회 2개만 명시적으로 요청.
+- 테스트: `AdminApplicationControllerTest`(7) 신규, 신청 도메인 회귀 테스트 통과 확인.
+- 파일: `AdminApplicationController`(신규), `ApplicationService`, `ApplicationRepository`, 테스트, `docs/BACKEND_API_GAPS.md`, `docs/FRONTEND_API_INTEGRATION_SPEC.md`
+- 사유: 사용자 확인 후 즉시 구현 — 기존 `MyApplicationController` 패턴을 거의 그대로 재사용할 수 있어 리스크가 낮다고 판단.
+- 관련: 커밋 `6575d09`(구현), `c99873c`(문서)
+
+---
+
 ## 2026-08-21 — Claude — `main` (계정 복구 아이디 찾기·비밀번호 재설정 구현 완료)
 
 - 변경: Codex가 확정한 정책(`docs/api/auth.md` API 7·8, `arch.md` §4.1)에 맞춰 `POST /api/auth/recovery/{id,password}/{request,confirm}` 4개 엔드포인트를 구현했다. `AccountRecoveryService`가 흐름을 조정하고, 가입 인증과 공유하는 HMAC challenge/원자 rate-limit은 신규 `VerificationChallengeStore`로 분리했다(`EmailVerificationService`도 여기로 리팩터링, 외부 동작 불변 확인). access token 세션 무효화를 위해 JWT에 millisecond 정밀도 `authIssuedAtMillis` 클레임을 추가하고 `auth:access:user-revoked-after:{userId}` Redis 키와 비교하도록 `TokenSessionStore`/`JwtAuthFilter`를 고쳤다 — Redis 장애 시 기존 fail-open을 버리고 `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)`로 fail-closed 응답한다. `UserService.changePassword`도 같은 revoke primitive를 적용해 다른 기기의 access token까지 실제로 무효화하도록 함께 고쳤다.

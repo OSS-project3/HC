@@ -301,7 +301,7 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - ~~이메일 인증 여부·비밀번호 해시 알고리즘·로그인 시도 제한 구체값~~ — ✅ 2026-08-19 확정(위 "정책 확정(2차)" 참고, PW-1/MAIL-1/SIGNUP-1/SIGNUP-2/RATE-1로 반영 완료).
 - **단체 신청 구성원별 상세·카드 ZIP 다운로드 API**(`/api/my/bulk-applications/{id}/members`, `/cards/download`): 프론트 `MyPage`/`MobileCardPage` 어디에도 이 데이터를 쓰는 화면이 없음을 확인함 — 실제로 필요한 화면인지부터 확인 필요. 필요 시 `MyApplicationController`에 신규 엔드포인트+`ApplicationMemberRepository` 조회 추가.
 - **카드 다운로드 가능 기준(`COMPLETED` vs `cardReadyAt`)**: 문서(`FRONTEND_API_INTEGRATION_SPEC.md`)는 `cardReadyAt` 기준이 확정 정책이라 하지만 실제 코드(`ApplicationService.getCardDownload()`)는 `COMPLETED` 단독 검사 — 이미 위 "신청 상태·취소·환불 구조 변경 체크리스트" §5(라인 166)에 동일 항목이 있음, 중복 추가하지 않고 그 항목을 그대로 참조. 관리자 API 미구현으로 `PRODUCING`/`markPhysicalDispatched` 상태에 실제로 도달시킬 방법이 없어 실질적으로 검증도 안 되는 상태.
-- **Event `company`/`logoUrl` 필드**: `host`(주최자 텍스트)로 대체 가능한지 먼저 결정. 결정 시 `EventPost`+DTO 4종에 필드 추가.
+- ~~**Event `company`/`logoUrl` 필드**~~ — ✅ 프론트 시안대로 `companyName`과 별도 로고 파일로 분리하기로 확정. 아래 "Event 협업 로고·이미지 및 관리자 편집 보강 체크리스트"에서 구현한다.
 - **Payment 도메인(입금자명 저장·확인)**: 도메인 신설 여부 자체가 미정.
 - **학생증 `schoolName` 저장 필드**: 실제 카드 발급에 필요한 정보인지 확인 필요.
 - **신청 건별 동의 이력(상담확인·유의사항) 저장**: 단순 UX 게이트로 충분한지, 이력 저장이 필요한지 결정 필요.
@@ -330,8 +330,93 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 
 - **관리자 신청 관리 전체**(`AdminApplicationController` — 목록/상세/상태전이/결제안내/입금확인/사진반려/한국이름등록/카드발급/배송추적/상태이력/통계): 관리자 신청 관리 페이지 자체가 이번 구현 범위 밖이라 제외. 위 진행 보드 라인 70에 이미 등록돼 있어 중복 추가 안 함. (참고: `ApplicationService.guidePayment`/`confirmPayment` Service 메서드와 `Application` 엔티티의 상태전이 메서드 대부분은 이미 존재하지만 호출하는 Controller가 없는 상태 — 나중에 착수 시 이 Service 계층을 그대로 재사용하면 됨.)
 - **1:1 문의(Inquiry) 도메인**: 사용자 접수 화면도 포함되지만 이번 범위에서 함께 제외(사용자 지시). 위 진행 보드 라인 68에 이미 등록돼 있어 중복 추가 안 함.
-- **관리자 이벤트 전체 목록·상세 API**(`GET /api/admin/events`, `/{id}`): `EventAdminController`에 GET 자체가 없음 확인됨. `components/admin/EventAdminPanel.tsx`를 확인한 결과 숨김(`visible=false`) 이벤트를 다시 불러오는 UI 자체가 없어(현재 편집은 공개 목록만 대상) 소비 화면이 없음 — 관리자 화면 없으므로 제외.
-- **이벤트 갤러리(`images`) PATCH 편집 지원**: `EventAdminPanel.tsx`가 이미 "갤러리는 생성 시에만 설정 가능"으로 프론트에서 우회 구현해뒀음(코드 주석 확인) — 현재 이걸 요구하는 소비 UI가 없어 제외.
+- ~~**관리자 이벤트 전체 목록·상세 API**(`GET /api/admin/events`, `/{id}`)~~ — ✅ 실제 관리자 편집에 필요하므로 제외 해제. 아래 Event 보강 체크리스트에 포함.
+- ~~**이벤트 갤러리(`images`) PATCH 편집 지원**~~ — ✅ 프론트 요구사항에 따라 제외 해제. 아래 Event 보강 체크리스트에 포함.
+
+---
+
+## Event 협업 로고·이미지 및 관리자 편집 보강 체크리스트
+
+> 기준: 프론트 행사 화면은 협업 게시글의 `company`·`logoUrl`·대표 이미지·상세 갤러리를 서로 다른 의미로 표시한다. 백엔드는 이 화면 모델을 계약으로 수용한다. 구현 순서는 **EVENT-EXT-0 → 1 → 2 → 3 → 4 → 5 → 6**을 지킨다.
+>
+> 확정 정책: `host`는 행사 주최·운영 주체이고 `companyName`은 협업 법인·단체명이므로 합치지 않는다. `companyName`과 로고는 `COLLABORATION`에서만 사용하는 선택값이며, `BOOTH` 요청에 들어오면 자동 무시하지 않고 `INVALID_INPUT`으로 거절한다. 로고·대표 이미지·갤러리는 서로 다른 파일 역할로 저장한다.
+
+### EVENT-EXT-0. 정책·문서 기준선 — ✅ 완료(Claude, 2026-08-21)
+
+- [x] `docs/specs/events/data-model.md`에 `EventPost.companyName`, `logoImagePath` nullable 컬럼과 역할을 반영
+- [x] `docs/specs/events/api.md`에 생성·수정 multipart의 `logo`, `thumbnail`, `images` part를 구분하여 명시
+- [x] `COLLABORATION`: `companyName`·`logo` 선택, `BOOTH`: 두 값 미사용·전송 시 거절 정책 명시
+- [x] 기존 이미지 정책 유지: 파일당 최대 2 MiB, jpg/jpeg/png/webp, 확장자·MIME·signature·decode 검증, 갤러리 최대 10장(변경 없음, `EventImageValidator` 재사용 확인)
+- [x] 기존 `host`, `thumbnailImagePath`, `EventImage` 의미를 변경하지 않아 기존 데이터·공개 API 호환성을 유지
+- [x] 구현 후 프론트 `FeedPost`(`data/eventFeedPosts.ts`)·`EventAdminPanel`·`api.ts` 계약과 정적 대조(순서상 구현 이후에 했음) — **불일치 발견**: 프론트는 `company`/`logoUrl`, 백엔드는 `companyName`/`logoImageUrl`(기존 `thumbnailImageUrl` 명명 규칙과 통일). 필드명을 프론트에 맞추지 않고, 이미 존재하는 `eventToFeedPost()` 어댑터에 매핑 2줄만 추가하면 되는 것으로 판단해 `FRONTEND_API_GAPS.md` §1.6에 기록. 코드 변경은 없음.
+
+### EVENT-EXT-1. 데이터 모델·도메인 불변조건 — ✅ 완료(Claude, 2026-08-21)
+
+- [x] `event_posts`에 nullable `company_name`, `logo_image_path` 추가
+- [x] `EventPost.create()`·`update()`에 회사명 반영, 앞뒤 공백 정리 및 최대 100자 제한 추가
+- [x] 로고 경로 변경 전용 도메인 메서드 추가(`updateLogoImagePath`)
+- [x] `BOOTH`에는 회사명·로고가 저장되지 않고 `COLLABORATION`에만 저장되는 서비스 불변조건 구현(`validateCollaborationOnlyFields`/`assertCollaborationInvariant` — 호출 순서에 의존하지 않도록 "최종 상태를 한 번에 검증"하는 방식 채택)
+- [x] 기존 레코드는 신규 컬럼 null 상태로 정상 조회되는지 확인(nullable 컬럼이라 별도 마이그레이션 불필요, `ddl-auto`로 컬럼만 추가됨)
+- [x] Entity 테스트로 생성·수정·유형별 불변조건 검증(`EventPostTest` 10개)
+
+### EVENT-EXT-2. 생성 API — 로고·대표 이미지·갤러리 분리 — ✅ 완료(Claude, 2026-08-21)
+
+- [x] `EventCreateRequest`에 nullable `companyName` 추가
+- [x] `POST /api/admin/events`에 선택 multipart part `logo` 추가
+- [x] `logo`, `thumbnail`, `images`를 각각 독립된 S3 key로 업로드(`events/logos/`, `events/thumbnails/`, `events/gallery/`)
+- [x] 로고에도 기존 `EventImageValidator`와 동일한 파일 검증 적용
+- [x] 갤러리 최대 10장 제한은 로고·썸네일을 제외한 `images` 개수에만 적용
+- [x] 파일 검증은 S3 업로드 전에 모두 완료. BOOTH+companyName/logo 조합도 업로드 전에 거절(불필요한 업로드 방지)
+- [x] 중간 업로드 또는 DB 저장 실패 시 이번 요청에서 새로 올린 S3 key를 역순 보상 삭제
+- [x] 생성 성공 응답의 기존 `id` 계약 유지
+- [x] Controller multipart 바인딩·ADMIN 인가 및 Service 성공/실패 보상 테스트 최소 보강(`EventServiceTest`)
+
+### EVENT-EXT-3. 수정 API — 유지·교체·삭제·갤러리 편집 — ✅ 완료(Claude, 2026-08-21)
+
+- [x] `EventUpdateRequest`에 `companyName`, `removeLogo`, `removeThumbnail`, `keepImageIds` 추가
+- [x] `PATCH /api/admin/events/{id}`에 선택 multipart part `logo`, `thumbnail`, `images` 추가
+- [x] 파일과 remove flag가 모두 없으면 기존 로고·썸네일 유지
+- [x] 새 로고·썸네일이 있으면 교체하고, remove flag와 새 파일을 동시에 보내면 `INVALID_INPUT`
+- [x] `removeLogo=true` / `removeThumbnail=true`이면 해당 기존 파일 연결 제거
+- [x] `keepImageIds` 생략 시 기존 갤러리 전체를 현재 순서로 유지하고, 빈 배열이면 기존 갤러리 전체 삭제
+- [x] `keepImageIds`는 해당 Event 소유 이미지 ID만 허용하고 타 Event 이미지 ID 또는 존재하지 않는 ID는 거절
+- [x] 갤러리는 `keepImageIds` 순서 뒤에 신규 `images` 전송 순서로 재정렬하고 최종 개수가 10장을 넘으면 거절. 재정렬은 UNIQUE(event_post_id, display_order) 순간 충돌을 피하려고 임시 오프셋(+1000)으로 한 번 민 뒤 최종 배정(2단계 flush)
+- [x] `COLLABORATION → BOOTH` 유형 변경 시 `companyName=null`과 `removeLogo=true`를 함께 요구하고, 남은 협업 데이터가 있으면 `INVALID_INPUT`
+- [x] DB 변경 성공 commit 이후에만 교체·삭제 대상 기존 S3 파일 삭제
+- [x] rollback 또는 commit 실패 시 기존 S3 파일은 유지하고 신규 S3 파일만 보상 삭제
+- [x] 신규 파일 보상 삭제 실패는 경고 로그만 남기고 원 예외를 보존하며, after-commit 기존 파일 삭제 실패도 경고 로그만 남기고 성공 응답을 변경하지 않음(기존 `deleteFileQuietly` 패턴 재사용)
+- [ ] ⚠️ **미검증**: "신규 파일 업로드 중간 실패·DB 실패·기존 파일 삭제 실패의 예외 우선순위" 조합을 전부 개별 테스트로 나눠 검증하지는 않음 — 코드 경로(try/catch로 신규 업로드만 역순 보상, after-commit 실패는 로그만)는 Board/Review와 동일한 기존 검증된 패턴을 그대로 재사용했다는 것으로 대체함
+- [x] 수정 성공·유지·교체·삭제·소유권 오류·트랜잭션 failure-path 테스트 최소 보강(`EventServiceTest`에 로고/갤러리 관련 테스트 다수 추가)
+
+### EVENT-EXT-4. 관리자 목록·상세 조회 — ✅ 완료(Claude, 2026-08-21)
+
+- [x] `GET /api/admin/events?type=&visible=&page=&size=` 추가
+- [x] 관리자 목록의 `type` 생략은 전체 유형, `visible` 생략은 공개·비공개 전체 조회로 정의(JPQL `(:param IS NULL OR ...)` 패턴)
+- [x] 관리자 목록은 `visible=false` 게시글도 조회 가능하고 기존 공개 정렬 정책을 유지
+- [x] `GET /api/admin/events/{id}` 추가 — 비공개 게시글도 ADMIN이면 조회 가능
+- [x] 관리자 상세 응답에 `companyName`, `logoImageUrl`, `thumbnailImageUrl`, `images`, `visible`, `displayOrder` 포함(신규 `EventAdminDetailResponse`/`EventAdminListItemResponse`)
+- [x] 공개 `GET /api/events`, `GET /api/events/{id}`는 계속 `visible=true`만 노출
+- [x] USER·비로그인 접근 403/401, ADMIN 접근 성공을 Controller 테스트로 검증(`EventAdminControllerTest`)
+
+### EVENT-EXT-5. 공개 응답·프론트 연동 계약 — ✅ 완료(Claude, 2026-08-21)
+
+- [x] 공개 목록·상세 응답에 nullable `companyName`, `logoImageUrl` 추가
+- [x] `COLLABORATION` 카드가 `companyName`과 `logoImageUrl`을 그대로 사용할 수 있는지 응답 필드명 대조 — **불일치 발견**(EVENT-EXT-0 참고), 필드명은 유지하고 매핑 필요 사실만 문서화
+- [x] 대표 이미지는 `thumbnailImageUrl`, 상세 갤러리는 `images[]`로 유지(변경 없음)
+- [x] 기존 클라이언트가 신규 nullable 필드를 무시해도 깨지지 않는 하위 호환성 확인(기존 필드는 값·타입 변경 없이 필드만 추가됐으므로 하위 호환)
+- [x] `docs/FRONTEND_API_INTEGRATION_SPEC.md`에 신규 필드·multipart part·관리자 조회·수정 계약 전달
+- [x] 프론트 담당 작업으로 실제 API `EventAdminPanel`의 회사명·로고 업로드와 갤러리 유지·추가·삭제 UI 연결 등록(`FRONTEND_API_GAPS.md` §1.6에 기록만 함 — `frontend/` 수정 안 함)
+
+### EVENT-EXT-6. 최종 검증·완료 처리 — ✅ 완료(Claude, 2026-08-21)
+
+- [x] Event Entity·Service·Controller 집중 테스트 실행 — `EventPostTest`(10)·`EventServiceTest`(33)·`EventAdminControllerTest`(13)·`EventControllerTest`(6)·`EventImageTest`(1)·`EventImageValidatorTest`(7) = 70개 전부 통과
+- [x] `compileJava`와 관련 테스트 컴파일 통과
+- [x] 전체 테스트는 로그 파일로 리다이렉트하고 종료 코드·전체 수·실패 테스트 이름만 확인 — 543개 중 542개 통과, 실패 1개는 `UserApplicationFlowTest`(기존 결함, 이번 작업과 무관 — 회원가입/약관동의 관련이라 Event 코드와 접점 없음)
+- [x] `git diff --check`, `git status --short`로 관련 없는 변경 혼입 여부 확인
+- [x] `docs/specs/events/{data-model,api}.md`, 실제 DTO·Controller·Service·Entity를 정적 대조
+- [x] TODO 완료 체크, CHANGELOG 변경 이력, HANDOFF 최신 스냅샷 갱신
+- [x] 구현 결과를 논리 단위별로 커밋하고 각 커밋이 독립적으로 build/test 가능한지 확인
+- [ ] ⚠️ **TDD 순서(실패 테스트 먼저 확인) 엄격 준수는 안 함** — RECOVERY 체크리스트 때와 동일한 사유(정책 확인 후 구현·테스트를 함께 작성, 완성본 기준 통과만 확인)
 
 ---
 

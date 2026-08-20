@@ -104,7 +104,7 @@
 | 공지사항 | 목록·상세·검색·첨부 다운로드, 관리자 CRUD | Board NOTICE 조회/CRUD와 실제 첨부 구현 | `PARTIAL` | 화면 검색을 서버에서 수행할 keyword/searchType 계약 없음 |
 | FAQ | 질문·답변 목록, 관리자 CRUD | Board FAQ 조회/CRUD 구현 | `READY` | 없음 |
 | 1:1 문의 | 문의 작성, 내 목록·상세, 관리자 답변 | Inquiry 도메인 없음 | `BLOCKED` | Inquiry Entity/Repository/Service/API 전체 구현 |
-| 행사 목록·상세 | BOOTH/COLLABORATION, 날짜, 장소, 주최, 회사·로고·이미지 | Event 공개 조회 및 관리자 CRUD 구현 | `PARTIAL` | 화면의 `company`, `logoUrl`에 대응하는 필드 없음. 비공개 글 관리자 목록도 없음 |
+| 행사 목록·상세 | BOOTH/COLLABORATION, 날짜, 장소, 주최, 회사·로고·이미지 | Event 공개 조회·관리자 CRUD 구현. 2026-08-21: `companyName`/`logoImageUrl`(COLLABORATION 전용) 응답 필드 추가, 관리자 전체목록·상세(`GET /api/admin/events`, `/{id}`) 신규, 수정 API에 로고 유지·교체·삭제 + 갤러리(`keepImageIds`) 편집 추가 | `READY` | 백엔드 없음. 프론트 미연동 — `EventAdminPanel`에 회사명·로고 업로드 UI, 갤러리 유지/추가/삭제 UI 연결 필요. 최신 계약은 `docs/specs/events/api.md` API 3·4·6·7 |
 | 관리자 신청관리 | 목록·상세·검색, 결제 안내·확인, 반려, 상태 전이, 통계 | 목록·상세 조회(`GET /api/admin/applications`, `/{id}`)는 2026-08-21 구현 완료(커밋 `6575d09`, 상태 단일 필터만·복합검색 없음). 결제 안내·확인은 내부 Service만 있고 HTTP 미연결. 반려·상태전이·카드발급·배송추적·통계는 여전히 없음 | `PARTIAL` | `/api/admin/applications/{id}/status` 등 명령 API, `/api/admin/dashboard/stats` 구현 필요. 상세는 `docs/BACKEND_API_GAPS.md` P0-3 |
 | 카드 종류·디자인 화면 | 카드 설명과 정적 미리보기 | 정적 프론트 데이터 유지로 정책 확정 | `STATIC` | 공개 catalog API를 새로 만들 필요 없음 |
 | 회사 소개·파트너·SNS 등 | 배포 콘텐츠 | 정적 유지 가능 | `STATIC` | 운영자가 배포 없이 수정해야 할 때만 CMS 도입 |

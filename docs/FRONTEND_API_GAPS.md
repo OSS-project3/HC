@@ -15,7 +15,7 @@
 | 신청 조회/카드다운로드 | ✅ 실 API | ✅ 준비 | 조회 응답에 `applicationType`이 포함돼 개인 `photo`/단체 `submitFile` 재제출 분기 가능. 단체 재제출 UI 연결만 남음. 카드다운로드는 소유자 로그인 전용(비로그인 조회는 데모 폴백) |
 | 후기(Review) CRUD + 내 후기 | ✅ 실 API | ✅ 구현 | **연동 완료** |
 | 공지/FAQ(Board) | ✅ 실 API | ✅ 구현 | **연동 완료** |
-| 행사(Event) | ✅ 실 API | ✅ 구현 | **연동 완료** (`company`/`logoUrl` 필드 갭 §1.6) |
+| 행사(Event) | ✅ 실 API | ✅ 구현(회사명/로고/관리자목록/갤러리편집 2026-08-21 추가) | **🔴 회사명/로고/관리자목록/갤러리편집 프론트 미연동** — 필드명 매핑 필요(`companyName`≠`company`) (§1.6) |
 | **일반 이메일 회원가입(인증 포함)** | ❌ 목/로컬 | ✅ 구현·`main` 반영 완료(`bc7d7ce`) | **프론트 신규 구현 필요**(인증코드 인라인 입력 UI) (§1.1) |
 | **일반 이메일 로그인·이메일 중복확인·비밀번호 변경** | ❌ 목/로컬 | ✅ 구현·`main` 반영 완료 | **프론트 신규 구현 필요**(연동만 하면 됨, 백엔드 작업 없음) (§1.1) |
 | **계정 복구(아이디/비밀번호 찾기)** | ⚠️ 요청 단계만 | ❌ 없음(정책은 확정) | **백엔드 신규 구현 필요** — API 계약 확정 완료(`docs/api/auth.md` API 7·8) (§1.1) |
@@ -53,20 +53,22 @@
 - **조치**: `services/api.ts`에 3개 API 바인딩 추가 + `LoginPage.tsx` 제출 로직을 mock에서 실 API 호출로 교체. 백엔드 신규 작업은 필요 없음.
 - **정책**: 로그인 아이디=이메일(정규화 trim+소문자, DB UNIQUE — AUTH-1), 비밀번호 단방향 해시(BCrypt, 8~72자, 복잡도 규칙 없음 — AUTH-4), role은 서버 결정, **운영 빌드에서 데모 로그인 제거**.
 
-#### (c) 계정 복구(아이디/비밀번호 찾기) — 정책 확정 완료(2026-08-20), 구현 대기 (BLOCKED)
+#### (c) 계정 복구(아이디/비밀번호 찾기) — 정책 확정 완료(2026-08-21), 백엔드 구현 진행
 - **프론트 사용처**: `pages/AccountRecoveryPage`(아이디 찾기/비밀번호 찾기 탭 — **요청 단계까지만** 구현돼 있고, 코드 확인 후 실제로 마스킹 이메일을 보여주거나 새 비밀번호를 저장하는 화면은 없음).
-- **백엔드 현황**: 아래 API는 전부 미구현이지만, **정책은 2026-08-20에 최종 확정**됐다(계약 상세는 `docs/api/auth.md` API 7·API 8). `POST /api/auth/{login,email/check}`·`PATCH /api/users/me/password`(위 (b))와는 별개다 — 혼동해서 함께 "구현 완료"로 보지 말 것.
+- **백엔드 현황**: 4개 API는 2026-08-21 확정 계약에 따라 구현 진행 중이며 아직 커밋·통합 검증 전이다. 완료로 간주하지 말고 `docs/api/auth.md` API 7·8 및 `docs/collab/TODO.md` RECOVERY-1/2를 기준으로 구현 결과를 확인한다.
 - **필요 API(계약 확정)**
   | 메서드/경로 | 용도 | 인증 |
   |---|---|---|
   | `POST /api/auth/recovery/id/request` | 이름·전화 일치 시 가입 이메일로 확인 코드 발송(불일치해도 동일 응답) | 없음 |
   | `POST /api/auth/recovery/id/confirm` | 코드 확인 → 마스킹 이메일(`ho***@example.com`) 공개 | 없음 |
   | `POST /api/auth/recovery/password/request` | 이메일로 재설정 코드 발송(OAuth 전용/미가입도 동일 응답) | 없음 |
-  | `POST /api/auth/recovery/password/confirm` | `{email, code, newPassword}` 한 번에 — 코드 검증+비밀번호 저장 | 없음 |
+  | `POST /api/auth/recovery/password/confirm` | `{requestId, code, newPassword}` 한 번에 — 코드 검증+비밀번호 저장+전체 세션 무효화 | 없음 |
 - **⚠️ 2026-08-20 정책 결정 2건(사용자 확인 완료)**:
-  1. **아이디 찾기 인증 강도**: 전화번호가 SMS 인증된 적이 없어서(형식 검증만 존재), 이름+전화번호만으로 마스킹 이메일을 즉시 공개하지 않는다 — **일치 시 그 계정의 실제 가입 이메일로 확인 코드를 보내고, 코드를 맞춰야 마스킹 이메일을 공개**한다(요청→확인 2단계, 기존 이메일 인증 코드 인프라 재사용).
+  1. **아이디 찾기 인증 강도**: 일반 이메일 계정만 대상이다. 전화번호가 SMS 인증된 적이 없어서 이름+전화번호만으로 이메일을 즉시 공개하지 않는다. 정확히 한 계정이 일치할 때만 가입 이메일로 코드를 보내고, 중복 일치 시 임의 선택 없이 고객지원을 안내한다.
   2. **비밀번호 재설정 대상이 OAuth 전용 계정(비밀번호 없음)이거나 미가입 이메일인 경우**: 에러를 주지 않고 **메일 발송 없이 조용히 동일한 성공 응답**만 준다(계정 존재/유형 비노출).
-- **프론트가 새로 만들어야 하는 것**: `AccountRecoveryPage`에 아이디 찾기는 "이름·전화 입력 → 확인 코드 입력 → 마스킹 이메일 표시" 3단계가, 비밀번호 찾기는 "이메일 입력 → 코드+새 비밀번호를 한 화면에서 함께 입력해 제출" 2단계가 필요하다(요청 단계 이후 화면이 아예 없음). **UX 결정(2026-08-19, 유지)**: 비밀번호 재설정은 코드 확인과 새 비밀번호 입력을 별도 스텝으로 나누지 않고 한 화면에 통합 — `POST /api/auth/recovery/password/confirm`도 이를 반영해 `{ email, code, newPassword }` 단일 요청으로 확정됐다(AUTH-4의 `signupToken`+`password` 패턴과 동일 방향).
+- **프론트가 새로 만들어야 하는 것**: 아이디 찾기는 "이름·전화 입력 → 확인 코드 입력 → 마스킹 이메일 표시" 3단계다. 비밀번호 찾기는 기존 전화번호 입력을 제거하고 "이메일 입력 → `requestId` 보관 → 코드+새 비밀번호를 한 화면에서 제출" 2단계로 만든다. 임시 비밀번호 표시 화면은 만들지 않는다. 성공 시 토큰을 받거나 자동 로그인하지 않고 로그인 화면으로 이동한다.
+- **세션 계약**: 재설정 성공 시 기존 refresh token과 access token이 모두 무효화된다. 다른 브라우저·기기의 로그인도 종료될 수 있음을 성공 안내에 표시한다.
+- **입력·오류 계약**: 아이디 찾기 전화번호는 국제번호 `+`·공백·하이픈 입력을 허용한다. `TOO_MANY_REQUESTS`는 실제 계정과 가짜 요청에 동일하게 적용되므로 계정 존재 여부를 의미하지 않는다. `AUTH_SESSION_VALIDATION_UNAVAILABLE`(503)은 비밀번호 오류가 아니라 인증 인프라 일시 장애로 표시하고 재시도를 안내한다.
 - **정책**: 복구 응답은 계정 존재 비노출(위 2건 결정이 이 원칙의 구체화).
 
 ### 1.2 내 신청 목록·상세(마이페이지) — ✅ `main` 반영 완료, 연동 가능
@@ -99,10 +101,11 @@
 - **백엔드 현황**: `POST /api/applications/{id}/cancel`이 `ApplicationController`에 구현 완료, `main`에 커밋·푸시됨(`b5f6140`, 2026-08-19). `FRONTEND_API_INTEGRATION_SPEC.md` §3.7 계약과 동일.
 - **조치**: 이제 연동 가능. 가능 상태 `SUBMITTED/REVIEWING/PHOTO_REJECTED`, 이미 취소면 멱등 성공, 응답 `applicationId,status,paymentStatus,refundRequired,cancelledAt`.
 
-### 1.6 행사(Event) — 회사/로고 필드·관리자 전체목록 없음 (PARTIAL)
-- **프론트 사용처**: `pages/EventsPage` 협업 카드가 `company`/`logoUrl`로 로고 표시. 관리자 패널이 숨긴(`visible=false`) 글 재편집 필요.
-- **백엔드 현황**: `Event`에 `company`/`logoUrl` 대응 필드 없음 → 협업 로고는 현재 카드라벨 텍스트로 대체 표시. 숨김 포함 관리자 목록(`GET /api/admin/events`)도 없음.
-- **필요**: Event에 회사명·로고 필드(또는 로고 업로드) 추가, `GET /api/admin/events`(visible 무관) 추가, `PATCH`의 갤러리(`images`) 편집 지원.
+### 1.6 행사(Event) — 회사/로고 필드·관리자 전체목록·갤러리 편집 — ✅ 백엔드 구현 완료(2026-08-21), 프론트 미연동
+- **프론트 사용처**: `pages/EventsPage`의 `FeedPost`(`data/eventFeedPosts.ts`)가 협업 카드에 `company`/`logoUrl`로 로고 표시. 관리자 패널(`EventAdminPanel.tsx`)이 숨긴(`visible=false`) 글 재편집·갤러리 편집 필요.
+- **백엔드 현황(2026-08-21 구현 완료, 커밋은 별도 push 예정)**: `EventPost`에 `companyName`/`logoImagePath`(`COLLABORATION` 전용) 추가, 공개·관리자 응답 모두 `companyName`/`logoImageUrl` 필드로 노출. `GET /api/admin/events`(`visible` 무관 전체, `type`/`visible` 선택 필터)·`GET /api/admin/events/{id}` 신규. `PATCH /api/admin/events/{id}`에 갤러리 편집(`keepImageIds`) + 로고 유지·교체·삭제(`removeLogo`) 추가. 계약 상세는 `docs/specs/events/api.md` API 3·4·6·7.
+- **⚠️ 필드명이 프론트 기존 타입과 다름 — 연동 시 매핑 필요**: 백엔드 응답은 `companyName`/`logoImageUrl`인데(`thumbnailImageUrl`과 같은 명명 규칙), 프론트 `FeedPost`(`data/eventFeedPosts.ts:10-11`)는 `company`/`logoUrl`을 쓴다. 이미 `EventListItem.thumbnailImageUrl` → `FeedPost.image`로 변환하는 `eventToFeedPost()`(`data/eventFeedPosts.ts:22`)가 있으니, 같은 함수에 `company: dto.companyName, logoUrl: dto.logoImageUrl` 두 줄만 추가하면 된다 — 백엔드 필드명을 프론트에 맞춰 바꿀 필요 없음.
+- **남은 프론트 작업**: `EventAdminPanel.tsx`에 회사명 입력·로고 업로드·기존 로고 유지/교체/삭제 UI, 갤러리 유지/추가/삭제 UI, 관리자 전체목록(숨긴 글 포함) 화면 연결.
 
 ### 1.7 공지 서버 검색 — 없음 (PARTIAL)
 - **프론트 사용처**: `pages/NoticesPage` 제목/작성일 검색.
@@ -237,7 +240,7 @@
 | 4 | "내 정보" 표시 정리 — 회원 유형 제거, 전화번호 노출 추가 | 백엔드 변경 없음(확정 정책 §1.9-a 반영). 조회: 이름·전화번호·이메일만 표시(현재 `MyPage.tsx`엔 전화번호 미표시 + 회원유형 표시 중 — 둘 다 수정 필요). 수정: 이름·전화번호만(현행 유지) | §1.9-a |
 | 5 | 관리자 신청관리·통계 UI | **백엔드도 아직 없음**(공동 대기) — status enum 프론트/백 매핑도 먼저 확정 필요 | §1.4 |
 | 6 | 행사 회사/로고 필드, 공지 서버검색, 후기 다중이미지 | **정책 결정 대기** — 결정 후 백엔드·프론트 함께 진행 | §1.6~§1.8 |
-| 7 | 계정복구(아이디/비밀번호 찾기) | **백엔드 구현 대기**(정책·API 계약 확정 완료, `docs/api/auth.md` API 7·8) — 백엔드 먼저 구현 후 프론트 3단계 화면(아이디 찾기)·2단계 화면(비번 재설정) 신규 필요 | §1.1-c |
+| 7 | 계정복구(아이디/비밀번호 찾기) | **백엔드 구현 진행 중**(정책·API 계약 확정 완료, `docs/api/auth.md` API 7·8) — 커밋·검증 후 프론트 3단계 화면(아이디 찾기)·2단계 화면(비번 재설정) 신규 필요 | §1.1-c |
 | 8 | 한국이름 조회 API 전환, 정적 마케팅 CMS화, 하이브리드 목데이터(§5) 정리 | 우선순위 낮음, 필요 시에만 | §2.2, §3, §5 |
 
 **진행 원칙**: 0번은 기존 기능을 되살리는 회귀 수정이라 다른 무엇보다 먼저. 1~4번은 백엔드가 이미 준비돼 있어 프론트 작업만으로 끝나는 항목(가장 빠르게 갭을 줄일 수 있음). 5번 이후는 백엔드 작업이나 정책 결정이 먼저 필요해 프론트 혼자 진행할 수 없는 항목.
