@@ -22,15 +22,47 @@ docker compose up -d --build
 - 계정/DB명은 `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD` 환경변수로 바꿀 수 있고, 기본값(`honor_citizen`/`honor_citizen`/`honor_citizen_local`)은 로컬 전용이다 — **실서비스 배포 시 반드시 실제 값으로 교체**한다.
 - `SPRING_JPA_HIBERNATE_DDL_AUTO`는 기본 `update`(누락된 테이블/컬럼만 추가, 기존 데이터 유지)다. 스키마가 안정화된 뒤에는 `validate`로 낮추는 것을 검토한다.
 
+## EC2 배포 — 시크릿 3단 분리 원칙
+
+이 저장소는 시크릿을 3곳으로 분리해서 다룬다. **이 순서를 벗어나면 안 된다**(특히 Dockerfile에 키를 절대 넣지 않는다):
+
+1. **`Dockerfile`(`backend/honor-citizen/Dockerfile`, `frontend/Dockerfile`)** — 시크릿을 전혀 참조하지 않는다. `docker build` 결과 이미지 자체엔 AWS 키·JWT 시크릿 등 어떤 값도 남지 않는다(이미지가 유출돼도 안전).
+2. **`docker-compose.yml`** — 값이 아니라 **환경변수 이름만** 참조한다(`${AWS_ACCESS_KEY}` 같은 형태). 로컬 개발 편의를 위한 placeholder 기본값(`local-access-key` 등)만 코드에 있고, 실제 값은 절대 여기 넣지 않는다.
+3. **EC2의 `.env`(저장소에 커밋되지 않음)** — 실제 자격증명이 담기는 유일한 곳. `docker compose` 명령을 실행하는 디렉터리(=저장소 루트)에 이 파일이 있으면 Compose가 자동으로 읽어서 2번의 환경변수 이름에 값을 채운다.
+
+### EC2에서 하는 절차
+
+```bash
+# 1) 저장소를 EC2로 가져온다(최초 1회는 clone, 이후는 pull)
+git clone https://github.com/OSS-project3/HC.git
+cd HC
+
+# 2) .env.example을 .env로 복사하고 실제 값을 채운다
+cp .env.example .env
+nano .env   # 또는 vim — AWS_ACCESS_KEY, AWS_SECRET_KEY, JWT_SECRET, EMAIL_CODE_SECRET,
+            # MAIL_USERNAME/PASSWORD, GOOGLE/NAVER 클라이언트 자격증명, POSTGRES_PASSWORD,
+            # APP_FRONTEND_URL(실제 도메인)까지 전부 실제 값으로 채운다
+
+# 3) 소유자만 읽을 수 있게 권한을 좁힌다
+chmod 600 .env
+
+# 4) 빌드 후 기동
+docker compose up -d --build
+```
+
+- `.gitignore`에 `.env`/`.env.*`가 이미 등록돼 있고 `.env.example`만 예외로 커밋 대상이다 — `.env`를 실수로 `git add`해도 무시된다(직접 `git add -f`로 강제하지 않는 한 안전).
+- `AWS_ACCESS_KEY`/`AWS_SECRET_KEY`는 **IAM 루트 키가 아니라, S3 버킷 하나에만 쓰기 권한을 준 전용 IAM 사용자**를 새로 만들어 그 키를 쓰는 걸 권장한다(루트 키 유출 시 계정 전체가 위험해짐 — 이건 코드가 아니라 AWS 콘솔에서 직접 처리해야 하는 부분).
+- 값을 바꾼 뒤에는 `docker compose up -d --build`를 다시 실행해야 컨테이너가 새 값을 읽는다(`.env`만 고치고 재시작 안 하면 기존 컨테이너는 옛 값을 계속 씀).
+
 ## 실서비스(도메인) 배포 시 추가로 필요한 것
 
-이 Compose 구성은 로컬/단일 서버 기동까지만 다룬다. 실제 도메인으로 배포하려면 최소한 아래가 더 필요하다:
+위 시크릿 설정 외에 실제 도메인으로 배포하려면 최소한 아래가 더 필요하다:
 
 - `APP_FRONTEND_URL`을 실제 도메인(`https://...`)으로 설정 — OAuth 로그인 성공 후 리다이렉트 주소로 쓰인다(설정 안 하면 `localhost:3000`으로 리다이렉트됨).
 - HTTPS(Let's Encrypt/certbot 또는 ALB+ACM) — `frontend/nginx.conf`는 현재 80번 포트만 처리하며 인증서 설정이 없다. `COOKIE_SECURE=true`(운영 기본값)는 HTTPS 없이는 쿠키가 브라우저에 안 걸릴 수 있다.
 - 구글/네이버 개발자 콘솔에 프로덕션 리다이렉트 URI(`https://실도메인/login/oauth2/code/{google|naver}`) 등록.
-- `MAIL_USERNAME`/`MAIL_PASSWORD`(이메일 인증 발송), `EMAIL_CODE_SECRET`(기본값 없음 — 없으면 기동 자체가 실패) — `.env.example`에 아직 반영 안 됨, 실배포 전 `.env`에 직접 채워야 한다.
-- `POSTGRES_*`/`JWT_SECRET`/`AWS_*` 전부 로컬 placeholder가 아닌 실제 값으로 교체.
+- EC2 보안그룹 인바운드에 80·443 포트가 열려 있는지 확인(기본은 SSH 22번만 열려있는 경우가 많음).
+- `POSTGRES_*`/`JWT_SECRET`/`EMAIL_CODE_SECRET`/`AWS_*` 전부 로컬 placeholder가 아닌 실제 값으로 교체(위 절차의 2번 단계에서 함께 처리).
 
 ## 종료 및 로그
 
