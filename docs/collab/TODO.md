@@ -246,13 +246,13 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
   - [x] 공용 `ClientIpResolver` 추가: 설정된 신뢰 프록시에서 온 요청만 `X-Forwarded-For`를 사용하고 그 외에는 `remoteAddr` 사용. Nginx 전달 헤더와 `app.security.trusted-proxies` 설정·테스트 포함
   - [x] 기존 회원가입 이메일 코드 요청의 `servletRequest.getRemoteAddr()`도 공용 Resolver로 교체해 가입/복구 IP 제한이 같은 정책을 사용하게 함
   - [x] 성공 시 마스킹 이메일만 반환하고 토큰·`loginMethod` 미반환
-  - [x] 0/1/복수 계정, OAuth 제외, 코드 오류·재사용, 성공/가짜 요청의 동일 rate limit, 국제번호 정규화, 신뢰/비신뢰 프록시 IP 테스트(`AccountRecoveryServiceTest` 17개, `ClientIpResolverTest` 7개)
-  - [ ] ⚠️ **코드 만료(TTL 10분 경과)·confirm 시점 계정 삭제/유형전환 전용 테스트는 미작성** — 둘 다 코드는 구현돼 있고(만료는 signup과 동일한 Redis TTL 메커니즘, 재조회는 `findById(...).filter(passwordHash!=null)`), signup 쪽 동일 메커니즘이 `EmailVerificationServiceConfirmTest`로 이미 검증돼 있어 우선순위를 낮췄다 — 필요 시 추가 가능
+  - [x] 0/1/복수 계정, OAuth 제외, 코드 오류·재사용, 성공/가짜 요청의 동일 rate limit, 국제번호 정규화, 신뢰/비신뢰 프록시 IP 테스트(`AccountRecoveryServiceTest`, `ClientIpResolverTest` 7개)
+  - [x] 코드 만료(TTL 경과)·confirm 시점 계정 삭제/유형전환 테스트 추가 완료(2026-08-21, RECOVERY-3 보강) — `confirmIdRecoveryFailsAfterChallengeKeyExpires`, `confirmIdRecoveryFailsWhenAccountDeletedAfterRequest`, `confirmIdRecoveryFailsWhenAccountConvertedToOAuthOnlyAfterRequest`
   - [ ] ⚠️ **TDD 순서(실패 테스트 먼저 확인) 엄격 준수는 안 함** — 정책 확인 후 구현과 테스트를 함께 작성했고, 테스트는 구현체 기준으로 전부 통과 확인함(실패 상태를 별도로 관측하지는 않았음)
   - [x] RECOVERY-1 집중 테스트와 `compileJava` 통과
   - [x] RECOVERY-1 항목을 모두 체크하고 독립적으로 build 가능한 논리 단위로 커밋(구현 `db002a7`, 테스트 `2d49acd` — RECOVERY-2와 파일을 공유해 두 Task를 각각 별도 커밋으로 분리하지 않고 "구현/테스트" 축으로 분리함)
 
-#### RECOVERY-2. 비밀번호 재설정·전체 세션 무효화 — ✅ 대부분 완료(Claude, 2026-08-21, 커밋 `db002a7`/`2d49acd`), 하단 ⚠️ 항목만 미검증
+#### RECOVERY-2. 비밀번호 재설정·전체 세션 무효화 — ✅ 완료(Claude, 2026-08-21 구현 `db002a7`/`2d49acd`, 2026-08-23 6개 경계 케이스 테스트 보강)
 
 - [x] **RECOVERY-2 API** `POST /api/auth/recovery/password/request`, `/confirm` 구현. 계약 Source of Truth: `docs/api/auth.md` API 8.
   - [x] 요청 DTO는 정규화할 `email`만 받고 전화번호 제거
@@ -271,7 +271,7 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
   - [x] revoked-after TTL을 access token 수명+clock skew(1분, 현재 기본 16분)로 설정
   - [x] `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)` ErrorCode 추가. Access blacklist/revoked-after Redis 조회 중 장애는 기존 토큰을 허용하지 않고 fail-closed — 테스트로 확인
   - [x] 현재 `TokenSessionStore.isAccessTokenBlacklisted()`의 Redis 예외 시 `false` 반환을 제거하고 blacklist+revoked-after 검사를 하나의 세션 검증 책임(`isAccessTokenSessionValid`)으로 통합
-  - [x] Filter 단계 예외도 전역 API 오류 형식으로 503을 반환하도록 `HandlerExceptionResolver`로 위임(`JwtAuthFilter`) — 단, 필터→`GlobalExceptionHandler` 전체 체인을 MockMvc/실제 HTTP로 관통하는 통합 테스트는 미작성(아래 ⚠️), `TokenSessionStore` 단위에서 예외가 올바르게 던져지는 것만 확인함
+  - [x] Filter 단계 예외도 전역 API 오류 형식으로 503을 반환하도록 `HandlerExceptionResolver`로 위임(`JwtAuthFilter`) — 필터→`GlobalExceptionHandler` 전체 체인을 MockMvc/실제 HTTP로 관통하는 통합 테스트 추가 완료(2026-08-21, `JwtAuthFilterSessionValidationIntegrationTest`)
   - [x] DB commit 이후 `PASSWORD_CHANGED` 알림 메일 best effort 발송
   - [x] 성공 응답에 토큰 미발급, 프론트 로그인 화면 이동(응답 바디에 데이터 없음)
   - [x] Redis 공통 기능을 `VerificationChallengeStore`로 분리하고 `AccountRecoveryService`는 흐름만 조정
@@ -279,22 +279,24 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
   - [x] 비밀번호 재설정뿐 아니라 로그인 상태 비밀번호 변경도 다른 기기의 기존 access token을 거절하는지 회귀 테스트
   - [x] revoked-after 키 존재 시 커스텀 claim 없는 구버전 토큰 거절, 키 미존재 시 배포 전 토큰 호환 테스트
   - [x] Redis 장애 시 `TokenSessionStore.isAccessTokenSessionValid`가 503에 해당하는 예외를 던지는지 단위 테스트로 확인
-  - [ ] ⚠️ **미검증 항목** — (a) 코드 만료(TTL 경과) confirm 시나리오, (b) confirm 시점에 대상 계정이 삭제/OAuth 전환된 케이스, (c) "재설정과 새 로그인 토큰이 같은 초에 생성돼도 신규 토큰은 허용" 케이스(밀리초 단위라 실제로는 통과할 게 거의 확실하지만 명시적 테스트는 없음), (d) DB 실패 후 세션 미복구 시나리오(DB 실패를 인위적으로 유발하는 테스트 인프라 없음), (e) 동시 코드 요청의 cooldown 우회 방지(Lua 원자성으로 설계상 보장되나 동시성 테스트는 없음), (f) Redis 장애 시 실제 HTTP 요청이 503 JSON을 반환하고 `SecurityContext`가 안 만들어지는지의 필터 체인 통합 테스트
+  - [x] **6개 미검증 항목 전부 테스트 추가 완료(2026-08-21)** — (a) 코드 만료(TTL 경과) confirm: `confirmPasswordRecoveryFailsAfterChallengeKeyExpires`(+id 쪽 동일 패턴). (b) confirm 시점 계정 삭제/OAuth 전환: `confirmPasswordRecoveryFailsWhenAccountDeletedAfterRequest`/`...ConvertedToOAuthOnlyAfterRequest`(+id 쪽 동일 패턴). (c) 재설정 직후 같은 초 재로그인 토큰 허용: `loginImmediatelyAfterPasswordResetIssuesTokenThatPassesSessionValidation`(end-to-end, 정확한 밀리초 경계 자체는 기존 `TokenSessionStoreSessionValidationTest.rejectsTokenIssuedAtOrBeforeRevocationCutoff`가 단위 테스트로 고정). (d) DB 실패 후 세션 미복구: `UserServiceResetPasswordRollbackTest`(신규 파일) — `TokenSessionStore`를 `@MockitoSpyBean`으로 감싸 Redis 기록은 실제로 성공시키고 그 직후 `TransactionSynchronization.beforeCommit`을 등록해 Hibernate flush 직전에 DB 실패를 결정론적으로 유발, 비밀번호는 롤백되고 Redis revoked-after 키는 실제로 남아있음을 확인. (e) 동시 요청 cooldown 우회: `concurrentIdRecoveryRequestsForSameTargetOnlyAllowExactlyOneToClaimTheCooldown`(스레드 10개 동시 실행, 정확히 1건만 성공). (f) Redis 장애 시 HTTP 필터체인: `JwtAuthFilterSessionValidationIntegrationTest`(신규 파일, MockMvc로 실제 필터→GlobalExceptionHandler까지 관통, 503 JSON 확인)
   - [ ] ⚠️ **TDD 순서 엄격 준수는 안 함** — RECOVERY-1과 동일한 사유
   - [x] RECOVERY-2 집중 테스트와 User/Auth 관련 회귀 테스트, `compileJava` 통과
   - [x] RECOVERY-2 항목을 모두 체크하고 독립적으로 build 가능한 논리 단위로 커밋(RECOVERY-1과 동일 커밋 — 두 Task가 같은 파일들을 공유해 분리하지 않음)
 
-#### RECOVERY-3. 전체 검증·문서·인수인계
+#### RECOVERY-3. 전체 검증·문서·인수인계 — ✅ 완료(Claude, 2026-08-23)
 
-- [ ] RECOVERY-0·1·2에 미체크 항목이 없는지 확인
-- [ ] API 4~8 및 로그인 상태 비밀번호 변경 회귀 테스트 실행
-- [ ] 전체 테스트 실행. stdout/stderr는 로그 파일로 저장하고 종료 코드·전체 테스트 수·실패 테스트 이름만 먼저 확인
-- [ ] 실패가 있으면 실패 테스트만 단독 실행하고 최초 원인과 직접 관련된 로그 구간만 확인
-- [ ] `git diff --check`, `git status --short`로 형식 오류와 작업 범위 밖 파일 혼입 확인
-- [ ] 실제 Controller/DTO/Service/Redis key/ErrorCode가 `docs/api/auth.md` API 7·8과 일치하는지 정적 대조
-- [ ] TODO 완료 체크, CHANGELOG 최상단 변경 이력, HANDOFF 최신 스냅샷 갱신
-- [ ] 완료 보고에 구현 API, 변경 클래스, 바로잡은 기존 충돌, 집중/전체 테스트 결과, 남은 차단 사항, 커밋 해시 포함
-- [ ] 이번 작업과 무관한 Java·문서·산출물을 커밋하지 않았는지 최종 확인
+> 2026-08-21 커밋(`e4c3287`)이 이 섹션을 "완료"라는 커밋 메시지로 추가했지만 실제로는 아래 체크박스를 하나도 체크하지 않은 채 남겨뒀었다(사용자가 직접 재확인해 지적함) — 전체 테스트 실행 자체는 그때 CHANGELOG에 기록된 대로 실질적으로 했었지만, 6개 경계 케이스 전용 테스트와 이 체크리스트의 형식적 마무리가 비어 있었다. 지금 6개를 전부 테스트로 보강하고 이 섹션을 마무리한다.
+
+- [x] RECOVERY-0·1·2에 미체크 항목이 없는지 확인 — TDD 순서 엄격 준수 2건만 의도적으로 미체크 유지(정책 확인 후 구현·테스트를 함께 작성했다는 사실 자체를 남기기 위함), 나머지는 전부 체크 또는 테스트 보강 완료
+- [x] API 4~8 및 로그인 상태 비밀번호 변경 회귀 테스트 실행 — `AccountRecoveryServiceTest`(25) 전부 통과
+- [x] 전체 테스트 실행. stdout/stderr는 로그 파일로 저장하고 종료 코드·전체 테스트 수·실패 테스트 이름만 먼저 확인 — 553개 중 552개 통과, 실패 1개
+- [x] 실패가 있으면 실패 테스트만 단독 실행하고 최초 원인과 직접 관련된 로그 구간만 확인 — `UserApplicationFlowTest.fullUserApplicationFlow()`(`UserApplicationFlowTest.java:143`), 기존에 반복 확인된 무관한 결함(OAuth 로그인 시뮬레이션이 `/api/auth/terms` 약관동의 단계를 건너뛰어 발생, 이번 작업과 무관)과 동일 라인
+- [x] `git diff --check`, `git status --short`로 형식 오류와 작업 범위 밖 파일 혼입 확인 — 신규/변경 테스트 3개 파일만 확인, 형식 오류 없음(LF→CRLF 경고만 존재, 이 저장소의 정상 동작)
+- [x] 실제 Controller/DTO/Service/Redis key/ErrorCode가 `docs/api/auth.md` API 7·8과 일치하는지 정적 대조 — TTL(10분)·재전송 쿨다운(60초)·rate limit(대상 5회/시간, IP 20회/시간)·`INVALID_VERIFICATION_CODE` 재사용·`requestId` 정책·`auth:access:user-revoked-after:{userId}` 키/TTL 전부 코드와 문서가 일치함을 재확인
+- [x] TODO 완료 체크, CHANGELOG 최상단 변경 이력, HANDOFF 최신 스냅샷 갱신
+- [x] 완료 보고에 구현 API, 변경 클래스, 바로잡은 기존 충돌, 집중/전체 테스트 결과, 남은 차단 사항, 커밋 해시 포함
+- [x] 이번 작업과 무관한 Java·문서·산출물을 커밋하지 않았는지 최종 확인
 
 ### 정책 결정이 필요한 항목
 

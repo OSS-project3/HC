@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-23 — Claude — `main` (계정 복구 RECOVERY-3 마무리 — 미검증 경계 케이스 6건 테스트 보강)
+
+- 변경: 사용자가 "정책을 임의로 넣은 거 아니냐"고 재확인을 요청해 `docs/api/auth.md` API 7·8과 코드를 다시 줄 단위로 대조했고, 그 과정에서 2026-08-21 `e4c3287` 커밋이 RECOVERY-3 섹션을 "완료"라는 메시지로 추가했지만 체크박스는 전부 미체크 상태로 남아있던 것을 발견했다(전체 테스트 실행 자체는 그때 CHANGELOG에 남긴 대로 실질적으로 했었음). TODO.md에 ⚠️로 남아있던 6개 미검증 항목(코드 만료, confirm 시점 계정삭제/OAuth전환, 재설정 직후 같은 초 재로그인, DB 실패 후 세션 미복구, 동시요청 cooldown 우회, Redis 장애 시 HTTP 필터체인)을 전부 테스트로 보강했다. (d)는 실제 DB 장애를 재현할 인프라가 없어 `TokenSessionStore`를 `@MockitoSpyBean`으로 감싸 Redis 기록은 실제로 성공시키고 그 직후 `TransactionSynchronization.beforeCommit`을 등록해 Hibernate flush 직전에 결정론적으로 실패를 유발하는 방식을 새로 썼다 — 비밀번호는 롤백되고 Redis revoked-after 키는 실제로 남아있음을 확인했다. (f)는 MockMvc로 `JwtAuthFilter`→`GlobalExceptionHandler`까지 실제 필터체인을 관통시켜 503 JSON을 확인했다.
+- 테스트: `AccountRecoveryServiceTest`(17→25, +8), `UserServiceResetPasswordRollbackTest`(신규, 1), `JwtAuthFilterSessionValidationIntegrationTest`(신규, 1) — 신규/보강 테스트 10개 전부 통과. 전체 스위트 553개 중 552개 통과(실패 1개는 이전과 동일한 `UserApplicationFlowTest:143` 기존 무관 결함).
+- 파일: `AccountRecoveryServiceTest.java`, `UserServiceResetPasswordRollbackTest.java`(신규), `JwtAuthFilterSessionValidationIntegrationTest.java`(신규), `docs/collab/TODO.md`
+- 사유: 계정 복구 정책이 임의로 만들어진 게 아니라 사전에 확정된 `docs/api/auth.md`를 따른 것임을 코드-문서 재대조로 확인했고, 그 과정에서 드러난 RECOVERY-3 체크리스트 미완료·6개 경계 케이스 미검증을 사용자 요청으로 실제 테스트로 매듭지었다.
+- 관련: `RECOVERY-3`
+
+---
+
 ## 2026-08-21 — Claude — `main` (Event 협업 로고·회사명·관리자 전체목록·갤러리 편집 구현 완료)
 
 - 변경: Codex가 확정한 정책(`docs/specs/events/api.md`·`data-model.md`, `docs/collab/TODO.md` EVENT-EXT-0~6)에 맞춰 `EventPost.companyName`/`logoImagePath`(`COLLABORATION` 전용, `BOOTH` 전송 시 `INVALID_INPUT`)를 추가했다. 생성 API에 `logo` multipart part, 수정 API에 `removeLogo`/`removeThumbnail`(유지·교체·삭제)와 `keepImageIds`(생략=전체유지, `[]`=전체삭제, 그 외=재정렬+신규추가, 타 Event 이미지 ID 거절) 갤러리 편집을 추가했다. `GET /api/admin/events`·`/{id}`(visible 무관 전체) 신규. 공개 응답에도 `companyName`/`logoImageUrl` 추가(기존 필드 불변, 하위 호환). 갤러리 재정렬은 `UNIQUE(event_post_id, display_order)` 제약 충돌을 피하려고 임시 오프셋(+1000)으로 먼저 밀고 flush한 뒤 최종 값을 배정하는 2단계 방식을 썼다.
