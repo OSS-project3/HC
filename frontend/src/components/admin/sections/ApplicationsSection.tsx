@@ -229,7 +229,8 @@ function NamingCard({ appNumber, index, member, isGroup }: { appNumber: string; 
   // 실제 만세력(생년월일/시간). 계산 불가 시 mock로 폴백.
   const realSaju = useMemo(() => computeMemberSaju(member.birthDate, member.birthTime), [member.birthDate, member.birthTime]);
   const saju: MockSaju = useMemo(() => realSaju ?? mockSaju(memberKey), [realSaju, memberKey]);
-  const recs = useMemo(() => mockRecommendations(memberKey, saju), [memberKey, saju]);
+  const [tick, setTick] = useState(0); // 새로고침 버튼: 증가 시 추천을 다시 뽑는다.
+  const recs = useMemo(() => mockRecommendations(memberKey, saju), [memberKey, saju, tick]);
   const [counts, setCounts] = useState<Record<string, number>>(() => getSelectionCounts());
   const [chosen, setChosenState] = useState<ChosenName | null>(
     () => getChosen(memberKey)
@@ -300,6 +301,12 @@ function NamingCard({ appNumber, index, member, isGroup }: { appNumber: string; 
         </div>
       </div>
 
+      <div className="admin-naming__recs-head">
+        <b className="admin-naming__subtitle">추천 이름 {recs.length}</b>
+        <button type="button" className="admin__btn admin-naming__refresh" onClick={() => setTick((t) => t + 1)}>
+          <span aria-hidden="true">↻</span> 다른 이름 추천
+        </button>
+      </div>
       <ul className="admin-naming__recs">
         {recs.map((n) => (
           <li key={n.id} className="admin-naming__rec">
