@@ -70,9 +70,12 @@ function multipart(request: unknown, files: Array<{ name: string; file: File }> 
 // ── Reviews (후기) ──────────────────────────────────────────────
 export type ReviewSearchType = "ALL" | "TITLE" | "CONTENT" | "AUTHOR";
 export interface ReviewListItem { id: number; imageUrl?: string; applicationType: ApplicationType; cardType: CardTypeSummary; title: string; content: string; authorName: string; createdAt: string; }
-export interface ReviewDetail extends ReviewListItem { next?: { id: number; title: string }; canEdit: boolean; canDelete: boolean; }
+export interface ReviewImageItem { id: number; imageUrl: string; }
+export interface ReviewDetail extends ReviewListItem { images: ReviewImageItem[]; next?: { id: number; title: string }; canEdit: boolean; canDelete: boolean; }
 export interface ReviewListParams { cardTypeId?: number; hasPhoto?: boolean; searchType?: ReviewSearchType; keyword?: string; page?: number; size?: number; }
 export interface ReviewWriteBody { title: string; applicationType: ApplicationType; cardTypeId: number; authorName: string; content: string; }
+/** Update body: keepImageIds lists existing image ids to keep (in order); new files are appended. */
+export interface ReviewUpdateBody extends ReviewWriteBody { keepImageIds: number[]; }
 
 // ── Boards (공지사항 / FAQ) ─────────────────────────────────────
 export type BoardType = "NOTICE" | "FAQ";
@@ -105,8 +108,8 @@ export const api = {
   listReviews: (params: ReviewListParams = {}) => request<PageResponse<ReviewListItem>>(`/api/reviews${qs({ ...params })}`),
   listMyReviews: (params: { page?: number; size?: number } = {}) => request<PageResponse<ReviewListItem>>(`/api/my/reviews${qs({ ...params })}`),
   getReview: (id: number) => request<ReviewDetail>(`/api/reviews/${id}`),
-  createReview: (body: ReviewWriteBody, image?: File) => request<{ id: number }>("/api/reviews", { method: "POST", body: multipart(body, image ? [{ name: "image", file: image }] : []) }),
-  updateReview: (id: number, body: ReviewWriteBody & { removeImage: boolean }, image?: File) => request<void>(`/api/reviews/${id}`, { method: "PATCH", body: multipart(body, image ? [{ name: "image", file: image }] : []) }),
+  createReview: (body: ReviewWriteBody, images: File[] = []) => request<{ id: number }>("/api/reviews", { method: "POST", body: multipart(body, images.map((file) => ({ name: "image", file }))) }),
+  updateReview: (id: number, body: ReviewUpdateBody, images: File[] = []) => request<void>(`/api/reviews/${id}`, { method: "PATCH", body: multipart(body, images.map((file) => ({ name: "image", file }))) }),
   deleteReview: (id: number) => request<void>(`/api/reviews/${id}`, { method: "DELETE" }),
 
   // Boards (notices / FAQ)

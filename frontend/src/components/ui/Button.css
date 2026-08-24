@@ -67,3 +67,14 @@
   opacity: 0.45;
   pointer-events: none;
 }
+
+/* Looks disabled (muted, no hover brighten) but stays clickable so a click can
+   surface validation feedback — used while a required form is incomplete. */
+.btn--pending {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn--pending.btn--primary:hover,
+.btn--pending.btn--primary:focus-visible {
+  background: var(--color-primary);
+}

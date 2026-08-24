@@ -118,12 +118,72 @@
   font-size: 13px;
 }
 
+/* Searchable variant: a floating panel holding a search box + scrollable list. */
+.select-field__panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  box-shadow: var(--shadow-panel);
+}
+.select-field__search {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 9px 11px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 6px;
+  font-size: 14px;
+  color: #4d453e;
+}
+.select-field__search::placeholder {
+  color: var(--color-text-muted);
+}
+.select-field__search:focus {
+  outline: none;
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-border-accent) 22%, transparent);
+}
+/* Inside the panel the list is no longer a floating layer — reset the absolute
+   base styles and make it a plain scroll area. */
+.select-field__options--scroll {
+  position: static;
+  top: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.select-field__option.is-active {
+  background: var(--color-surface-soft);
+  color: var(--color-wordmark);
+}
+.select-field__empty {
+  padding: 16px 12px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
 .field-error {
   color: #b3402f;
   font-size: 13px;
 }
-.field__input--invalid {
+.field__input--invalid,
+.field__select--invalid {
   border-color: #c8543f;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #c8543f 15%, transparent);
+}
+.field__input--invalid:focus,
+.field__select--invalid:focus {
+  border-color: #c8543f;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #c8543f 22%, transparent);
 }
 
 /* Checkbox / radio */

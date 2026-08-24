@@ -45,7 +45,8 @@ public class Review extends BaseTimeEntity {
     @Column(name = "card_type_id", nullable = false)
     private Long cardTypeId;
 
-    // S3 key만 저장 — UploadFile을 거치지 않는다(ApplicationMember.photoPath와 동일 패턴). 사진 없으면 null.
+    // 대표(썸네일) 이미지의 S3 key — 목록 썸네일·hasPhoto 필터용으로 review_images 0번(첫) 이미지 경로를
+    // 비정규화해 유지한다(전체 이미지는 ReviewImage). UploadFile을 거치지 않는다. 사진 없으면 null.
     @Column(name = "image_path", length = 500)
     private String imagePath;
 

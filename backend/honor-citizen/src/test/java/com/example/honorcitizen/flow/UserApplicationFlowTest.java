@@ -117,6 +117,14 @@ class UserApplicationFlowTest {
                 .andExpect(jsonPath("$.data.email").value("flow-user@example.com"))
                 .andExpect(jsonPath("$.data.role").doesNotExist());
 
+        // ── 2-1) 약관 동의 (신청 전 필수) — 미동의 시 신청 생성이 TERMS_NOT_AGREED(403)로 거부된다 ──
+        mockMvc.perform(post("/api/auth/terms")
+                        .cookie(accessTokenCookie)
+                        .contentType("application/json")
+                        .content("{\"privacyAgreed\":true,\"imageUploadAgreed\":true,\"shippingAgreed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
         // ── 3) 개인 신청 생성 ────────────────────────────────────────────────────────
         String createRequestJson = """
                 {
@@ -134,7 +142,7 @@ class UserApplicationFlowTest {
         MockMultipartFile createRequestPart = new MockMultipartFile(
                 "request", "", "application/json", createRequestJson.getBytes());
         MockMultipartFile originalPhoto = new MockMultipartFile(
-                "photo", "face.jpg", "image/jpeg", "original-photo-bytes".getBytes());
+                "photo", "face.jpg", "image/jpeg", imageBytes());
 
         String createResponseJson = mockMvc.perform(multipart("/api/applications")
                         .file(createRequestPart)
@@ -170,8 +178,9 @@ class UserApplicationFlowTest {
         verify(storageService).upload(eq(originalPhotoPath), eq(originalPhoto));
 
         // ── 4) 신청 조회 (전용 "내 신청 조회" API가 없어 공개 lookup으로 대체) ──────────────
+        // APPLICATION 방식 본인확인은 전화번호 + 이메일을 모두 요구한다(ApplicationService.lookup).
         String lookupAfterCreateJson = """
-                { "method": "application", "keyValue": "%s", "phone": "010-1234-5678" }
+                { "method": "application", "keyValue": "%s", "phone": "010-1234-5678", "email": "flow-user@example.com" }
                 """.formatted(applicationNumber);
 
         mockMvc.perform(post("/api/applications/lookup")
@@ -203,7 +212,7 @@ class UserApplicationFlowTest {
 
         // ── 7) 사진 재업로드 ────────────────────────────────────────────────────────
         MockMultipartFile newPhoto = new MockMultipartFile(
-                "photo", "face-retake.jpg", "image/jpeg", "retaken-photo-bytes".getBytes());
+                "photo", "face-retake.jpg", "image/jpeg", imageBytes());
         var reuploadBuilder = multipart("/api/applications/" + applicationId + "/photo")
                 .file(newPhoto)
                 .cookie(accessTokenCookie);
@@ -243,5 +252,18 @@ class UserApplicationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("REVIEWING"))
                 .andExpect(jsonPath("$.data.photoRejectReason").doesNotExist());
+    }
+
+    // 신청 사진은 실제 이미지 시그니처 + 해상도 하한 검증을 통과해야 한다(ApplicationPhotoValidator).
+    private byte[] imageBytes() {
+        try {
+            java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(
+                    300, 400, java.awt.image.BufferedImage.TYPE_INT_RGB);
+            java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(image, "jpg", output);
+            return output.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

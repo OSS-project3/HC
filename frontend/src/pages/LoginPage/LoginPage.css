@@ -97,10 +97,6 @@
   background: var(--color-border-soft);
 }
 
-.auth__demo {
-  display: grid;
-  gap: 10px;
-}
 .auth__field-hint {
   color: var(--color-text-muted);
   font-size: 11px;
@@ -166,8 +162,6 @@
   border-radius: 50%;
   background: #fff;
 }
-.auth__divider--demo { margin-block: 20px 14px; }
-
 .auth__switch {
   margin-top: 22px;
   text-align: center;

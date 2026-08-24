@@ -7,6 +7,32 @@ export type AdminStatus =
   | "COMPLETED"
   | "CANCELLED";
 
+/** Full application detail captured at submit time, shown in the admin detail row. */
+export interface AdminApplicationDetail {
+  issuanceMethod?: string;
+  email?: string;
+  // 개인 신청
+  englishName?: string;
+  nationality?: string;
+  birthPlace?: string;
+  birthDate?: string;
+  birthTime?: string;
+  gender?: string;
+  koreaEntryDate?: string;
+  // 학생증
+  schoolLevel?: string;
+  schoolName?: string;
+  studentNumber?: string;
+  department?: string;
+  // 법인·단체
+  organizationName?: string;
+  // 실물 발급 시 수령인
+  recipientName?: string;
+  recipientPhone?: string;
+  recipientAddress?: string;
+  deliveryRequest?: string;
+}
+
 export interface AdminApplication {
   applicationNumber: string;
   applicantType: "개인" | "법인·단체";
@@ -17,6 +43,8 @@ export interface AdminApplication {
   quantity: number;
   status: AdminStatus;
   submittedAt: string;
+  /** 세부 신청 내역(신청 생성 시 저장). 데모 데이터에는 없을 수 있음. */
+  detail?: AdminApplicationDetail;
 }
 
 export const adminStatusLabels: Record<AdminStatus, string> = {

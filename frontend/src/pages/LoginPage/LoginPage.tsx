@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
-import { useAuth, demoUser } from "../../features/auth/AuthContext";
+import { useAuth } from "../../features/auth/AuthContext";
 import { api } from "../../services/api";
 import "./LoginPage.css";
 
@@ -11,7 +11,7 @@ export function LoginPage() {
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("returnTo");
   const safeReturnTo = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
-  const { login, loginAsUser, loginAsAdmin } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -25,7 +25,7 @@ export function LoginPage() {
     if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
     setErrors({});
     // Mock: sign in as a regular user with the entered email.
-    login({ name: email.split("@")[0] || demoUser.name, email: email || demoUser.email, role: "user" });
+    login({ name: email.split("@")[0], email, role: "user" });
     navigate(safeReturnTo);
   };
 
@@ -33,7 +33,6 @@ export function LoginPage() {
     <section className="auth page-container">
       <div className="auth__card">
         <h1 className="auth__title">로그인</h1>
-        <p className="auth__lead">한글과 세종 · 신청 조회 및 관리 로그인</p>
 
         <form className="auth__form" onSubmit={submit}>
           <label className="field">
@@ -80,31 +79,6 @@ export function LoginPage() {
             <span className="auth__social-logo" aria-hidden="true"><NaverLogo /></span>
             <span>네이버로 계속하기</span>
           </button>
-        </div>
-
-        <div className="auth__divider auth__divider--demo"><span>데모 계정으로 체험</span></div>
-
-        <div className="auth__demo">
-          <Button
-            variant="ghost"
-            block
-            onClick={() => {
-              loginAsUser();
-              navigate(safeReturnTo);
-            }}
-          >
-            일반 사용자 데모 로그인
-          </Button>
-          <Button
-            variant="outline"
-            block
-            onClick={() => {
-              loginAsAdmin();
-              navigate("/admin");
-            }}
-          >
-            관리자 데모 로그인
-          </Button>
         </div>
 
         <p className="auth__switch">

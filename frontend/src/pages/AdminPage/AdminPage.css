@@ -66,6 +66,20 @@
 .admin__mono {
   color: var(--color-text-secondary);
 }
+
+/* Application detail (expandable row) */
+.admin__app-number { color: var(--color-wordmark); font-weight: 600; font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+.admin__app-number:hover { color: var(--color-primary); text-decoration: underline; text-underline-offset: 3px; }
+.admin__table tbody tr.is-open { background: color-mix(in srgb, var(--color-surface-soft) 26%, transparent); }
+.admin__detail-row td { background: var(--color-surface-soft); padding: 0; }
+.admin__detail-row:hover td { background: var(--color-surface-soft); }
+.admin__detail { padding: 18px 20px; }
+.admin__detail-title { display: block; margin-bottom: 10px; font-size: 13px; color: var(--color-text-secondary); }
+.admin__detail-note { margin: 0 0 12px; font-size: 12px; color: var(--color-text-muted); }
+.admin__detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 24px; margin: 0; }
+.admin__detail-item { display: flex; flex-direction: column; gap: 3px; }
+.admin__detail-item dt { font-size: 11px; color: var(--color-text-muted); }
+.admin__detail-item dd { margin: 0; font-size: 13px; color: var(--color-text-secondary); word-break: break-word; }
 .admin__inquiries,
 .admin__event-posts { margin-top: clamp(58px, 8vw, 96px); }
 .admin__section-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
@@ -85,6 +99,8 @@
 .admin__inquiry-answer:focus { outline: 2px solid var(--color-border-accent); outline-offset: 1px; }
 .admin__inquiry-answer-save { margin-top: 10px; padding: 8px 18px; border: 0; border-radius: 6px; background: var(--color-button-navy); color: var(--color-primary-foreground); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .admin__inquiry-answer-save:hover { opacity: 0.92; }
+.admin__inquiry-answer-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.admin__inquiry-answered { font-size: 12px; color: #35603f; font-weight: 600; }
 .admin__badge.is-inquiry { background: #e6ebf2; color: #35506e; }
 .admin__inquiry-status { min-width: 96px; padding: 7px 26px 7px 10px; border: 1px solid transparent; border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; cursor: pointer; }
 .admin__inquiry-status.is-waiting { background: #f6e6cf; color: #8a5a1f; }

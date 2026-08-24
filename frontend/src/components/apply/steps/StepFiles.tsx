@@ -1,4 +1,5 @@
 // Apply step: photo / document upload.
+import { useState } from "react";
 import type { ApplicationDraft } from "../../../features/apply/types";
 import { Button } from "../../ui/Button";
 import { ChevronLeft, ChevronRight } from "../../ui/icons";
@@ -14,6 +15,30 @@ interface StepFilesProps {
 export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
   const isOrg = draft.applicantType === "organization";
   const isStudent = draft.cardType === "student";
+
+  // Required uploads mirror the submit-time checks in ApplyPage (seal is optional
+  // for student cards; the ZIP + logo are always required for organizations).
+  const [showErrors, setShowErrors] = useState(false);
+  const missingKeys: string[] = [];
+  if (isOrg) {
+    if (!draft.logoFile?.file) missingKeys.push("logoFile");
+    if (!isStudent && !draft.sealFile?.file) missingKeys.push("sealFile");
+    if (!draft.archiveFile?.file) missingKeys.push("archiveFile");
+  } else {
+    if (!draft.faceFile?.file) missingKeys.push("faceFile");
+    if (isStudent && !draft.logoFile?.file) missingKeys.push("logoFile");
+  }
+  const isComplete = missingKeys.length === 0;
+  const hasError = (key: string) => showErrors && missingKeys.includes(key);
+
+  const handleNext = () => {
+    if (!isComplete) {
+      setShowErrors(true);
+      document.getElementById(`upload-${missingKeys[0]}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    onNext();
+  };
 
   const desc = isStudent
     ? isOrg
@@ -39,6 +64,8 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
                 hint="PNG, JPG 이미지"
                 variant="image"
                 file={draft.logoFile}
+                error={hasError("logoFile")}
+                id="upload-logoFile"
                 onChange={(f) => update({ logoFile: f })}
               />
               <FileUploadBox
@@ -56,6 +83,8 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
               hint="ZIP (학생별 프로필 사진과 사주 정보 파일)"
               variant="archive"
               file={draft.archiveFile}
+              error={hasError("archiveFile")}
+              id="upload-archiveFile"
               onChange={(f) => update({ archiveFile: f })}
             />
           </>
@@ -67,6 +96,8 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
               hint="PNG, JPG 이미지 1개"
               variant="image"
               file={draft.faceFile}
+              error={hasError("faceFile")}
+              id="upload-faceFile"
               onChange={(f) => update({ faceFile: f })}
             />
             <div className="upload-row">
@@ -76,6 +107,8 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
                 hint="PNG, JPG 이미지"
                 variant="image"
                 file={draft.logoFile}
+                error={hasError("logoFile")}
+                id="upload-logoFile"
                 onChange={(f) => update({ logoFile: f })}
               />
               <FileUploadBox
@@ -98,6 +131,8 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
               hint="PNG, JPG 이미지"
               variant="image"
               file={draft.logoFile}
+              error={hasError("logoFile")}
+              id="upload-logoFile"
               onChange={(f) => update({ logoFile: f })}
             />
             <FileUploadBox
@@ -106,6 +141,8 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
               hint="PNG, JPG 이미지"
               variant="image"
               file={draft.sealFile}
+              error={hasError("sealFile")}
+              id="upload-sealFile"
               onChange={(f) => update({ sealFile: f })}
             />
           </div>
@@ -116,6 +153,8 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
             hint="ZIP (개인별 프로필 사진과 사주 정보 파일)"
             variant="archive"
             file={draft.archiveFile}
+            error={hasError("archiveFile")}
+            id="upload-archiveFile"
             onChange={(f) => update({ archiveFile: f })}
           />
         </>
@@ -126,6 +165,8 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
           hint="PNG, JPG 이미지 1개"
           variant="image"
           file={draft.faceFile}
+          error={hasError("faceFile")}
+          id="upload-faceFile"
           onChange={(f) => update({ faceFile: f })}
         />
       )}
@@ -134,7 +175,7 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
         <Button variant="soft" onClick={onPrev}>
           <ChevronLeft width={16} height={16} /> 이전
         </Button>
-        <Button onClick={onNext}>
+        <Button onClick={handleNext} className={isComplete ? undefined : "btn--pending"}>
           다음 <ChevronRight width={16} height={16} />
         </Button>
       </div>

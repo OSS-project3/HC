@@ -5,6 +5,7 @@ import com.example.honorcitizen.domain.review.entity.Review;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 public class ReviewDetailResponse {
@@ -15,7 +16,9 @@ public class ReviewDetailResponse {
     private final String authorName;
     private final ApplicationType applicationType;
     private final CardTypeSummaryResponse cardType;
+    // imageUrl은 대표(첫) 이미지 — 단일 이미지 시절 클라이언트 호환용. images가 전체 목록(id 포함)이다.
     private final String imageUrl;
+    private final List<ReviewImageResponse> images;
     private final LocalDateTime createdAt;
     private final NextReview next;
     private final boolean canEdit;
@@ -23,7 +26,7 @@ public class ReviewDetailResponse {
 
     private ReviewDetailResponse(Long id, String title, String content, String authorName,
             ApplicationType applicationType, CardTypeSummaryResponse cardType, String imageUrl,
-            LocalDateTime createdAt, NextReview next, boolean canEdit, boolean canDelete) {
+            List<ReviewImageResponse> images, LocalDateTime createdAt, NextReview next, boolean canEdit, boolean canDelete) {
         this.id = id;
         this.title = title;
         this.content = content;
@@ -31,17 +34,20 @@ public class ReviewDetailResponse {
         this.applicationType = applicationType;
         this.cardType = cardType;
         this.imageUrl = imageUrl;
+        this.images = images;
         this.createdAt = createdAt;
         this.next = next;
         this.canEdit = canEdit;
         this.canDelete = canDelete;
     }
 
-    public static ReviewDetailResponse of(Review review, CardTypeSummaryResponse cardType, String imageUrl,
-            NextReview next, boolean canEdit, boolean canDelete) {
+    public static ReviewDetailResponse of(Review review, CardTypeSummaryResponse cardType,
+            List<ReviewImageResponse> images, NextReview next, boolean canEdit, boolean canDelete) {
+        List<ReviewImageResponse> safe = images == null ? List.of() : images;
+        String primary = safe.isEmpty() ? null : safe.get(0).getImageUrl();
         return new ReviewDetailResponse(review.getId(), review.getTitle(), review.getContent(),
-                review.getAuthorDisplayName(), review.getApplicationType(), cardType, imageUrl,
-                review.getCreatedAt(), next, canEdit, canDelete);
+                review.getAuthorDisplayName(), review.getApplicationType(), cardType, primary,
+                safe, review.getCreatedAt(), next, canEdit, canDelete);
     }
 
     @Getter

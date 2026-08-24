@@ -447,6 +447,10 @@
   border-color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 5%, #fff);
 }
+.upload__box--error {
+  border-color: #c8543f;
+  background: color-mix(in srgb, #c8543f 5%, #fff);
+}
 .upload__empty {
   display: grid;
   justify-items: center;

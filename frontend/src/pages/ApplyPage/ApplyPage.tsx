@@ -4,7 +4,7 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";
 import { findCardDesign, honoraryKoreanCards, honoraryCitizenCards, studentCards, visitorCards, cardTypeLabels, cardTypeIds } from "../../data/cards";
 import { toGender, toIssueType, toOrientation, toSchoolType } from "../../features/apply/mappers";
-import { loadApplications, saveApplications } from "../../data/adminMock";
+import { loadApplications, saveApplications, type AdminApplicationDetail } from "../../data/adminMock";
 import { Stepper } from "../../components/apply/Stepper";
 import { CardPreviewPanel } from "../../components/apply/CardPreviewPanel";
 import { StepType } from "../../components/apply/steps/StepType";
@@ -59,7 +59,31 @@ export function ApplyPage() {
 
   const saveLocalApplication = (num: string, serverQuantity?: number) => {
     const applications = loadApplications();
-    saveApplications([{ applicationNumber: num, applicantType: draft.applicantType === "organization" ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name || draft.applicant.englishName || "", applicantEmail: draft.applicant.email, phone: draft.applicant.phone, quantity: serverQuantity ?? draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10) }, ...applications]);
+    const isOrg = draft.applicantType === "organization";
+    const isPhysical = draft.issuanceMethod === "mobile_and_physical";
+    const genderLabel = draft.applicant.gender === "male" ? "남성" : draft.applicant.gender === "female" ? "여성" : undefined;
+    const schoolLevelLabel = draft.applicant.schoolLevel === "highschool" ? "고등학교" : draft.applicant.schoolLevel === "university" ? "대학교" : undefined;
+    const detail: AdminApplicationDetail = {
+      issuanceMethod: isPhysical ? "모바일 + 실물 발급" : "모바일 발급",
+      email: draft.applicant.email || undefined,
+      englishName: draft.applicant.englishName || undefined,
+      nationality: draft.applicant.nationality || undefined,
+      birthPlace: draft.applicant.birthPlace || undefined,
+      birthDate: draft.applicant.birthDate || undefined,
+      birthTime: draft.applicant.birthTime || undefined,
+      gender: genderLabel,
+      koreaEntryDate: draft.applicant.koreaEntryDate || undefined,
+      schoolLevel: design.cardType === "student" ? schoolLevelLabel : undefined,
+      schoolName: draft.applicant.schoolName || undefined,
+      studentNumber: draft.applicant.studentNumber || undefined,
+      department: draft.applicant.department || undefined,
+      organizationName: isOrg ? draft.applicant.organizationName || undefined : undefined,
+      recipientName: isPhysical ? draft.recipient.name || undefined : undefined,
+      recipientPhone: isPhysical ? draft.recipient.phone || undefined : undefined,
+      recipientAddress: isPhysical ? [draft.recipient.address, draft.recipient.addressDetail].filter(Boolean).join(" ") || undefined : undefined,
+      deliveryRequest: isPhysical ? draft.recipient.deliveryRequest || undefined : undefined,
+    };
+    saveApplications([{ applicationNumber: num, applicantType: isOrg ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name || draft.applicant.englishName || "", applicantEmail: draft.applicant.email, phone: draft.applicant.phone, quantity: serverQuantity ?? draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10), detail }, ...applications]);
     setApplicationNumber(num);
     goTo(4);
   };

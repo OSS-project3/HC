@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -151,12 +152,27 @@ class ReviewServiceCreateTest {
     }
 
     @Test
-    void rejectsMoreThanOneImagePart() {
+    void createsReviewWithMultipleImages() {
         grantEligibility();
         MockMultipartFile first = new MockMultipartFile("image", "a.jpg", "image/jpeg", jpegBytes());
         MockMultipartFile second = new MockMultipartFile("image", "b.jpg", "image/jpeg", jpegBytes());
 
-        assertThatThrownBy(() -> reviewService.create(user.getId(), request(), List.of(first, second)))
+        ReviewCreateResponse response = reviewService.create(user.getId(), request(), List.of(first, second));
+
+        // 대표(썸네일) 이미지 경로는 첫 번째 파일이고, 두 장 모두 스토리지에 업로드된다.
+        Review saved = reviewRepository.findById(response.getId()).orElseThrow();
+        assertThat(saved.getImagePath()).startsWith("reviews/").endsWith("-a.jpg");
+        verify(storageService, times(2)).upload(anyString(), any());
+    }
+
+    @Test
+    void rejectsMoreThanMaxImages() {
+        grantEligibility();
+        List<MockMultipartFile> images = java.util.stream.IntStream.range(0, 6)
+                .mapToObj(i -> new MockMultipartFile("image", "p" + i + ".jpg", "image/jpeg", jpegBytes()))
+                .collect(java.util.stream.Collectors.toList());
+
+        assertThatThrownBy(() -> reviewService.create(user.getId(), request(), List.copyOf(images)))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }

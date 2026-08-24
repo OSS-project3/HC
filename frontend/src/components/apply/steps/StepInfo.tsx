@@ -5,7 +5,12 @@ import { ChevronLeft, ChevronRight } from "../../ui/icons";
 import { showToast } from "../../ui/toast";
 import { openPostcodeSearch } from "../../../lib/postcode";
 import { SelectField } from "../../ui/SelectField";
-import { useRef } from "react";
+import { SearchableSelectField } from "../../ui/SearchableSelectField";
+import { countries } from "../../../data/countries";
+import { useRef, useState } from "react";
+
+// Country options are static — build once (ko is the stored value, en aids search).
+const countryOptions = countries.map((c) => ({ value: c.ko, label: c.ko, keywords: c.en }));
 
 interface StepInfoProps {
   draft: ApplicationDraft;
@@ -15,7 +20,7 @@ interface StepInfoProps {
 }
 
 export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
-  const addressDetailRef = useRef<HTMLInputElement>(null);
+  const addressDetailRef = useRef<HTMLInputElement | null>(null);
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
   const isOrg = draft.applicantType === "organization";
   const isStudent = draft.cardType === "student";
@@ -37,6 +42,75 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
     } else {
       update({ issuanceMethod: method });
     }
+  };
+
+  // Required-field validation. Errors only show after the first "다음" attempt;
+  // once shown, they clear live as fields get filled (missingKeys recomputes each
+  // render). Keys mirror the fields actually rendered for each applicant type.
+  const [showErrors, setShowErrors] = useState(false);
+  const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
+  const registerField = (key: string) => (el: HTMLElement | null) => {
+    fieldRefs.current[key] = el;
+  };
+
+  const filled = (value?: string) => (value ?? "").trim().length > 0;
+  // Korean phone (mobile/landline, hyphens optional) and a basic email shape.
+  const phonePattern = /^0\d{1,2}-?\d{3,4}-?\d{4}$/;
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isValidPhone = (value?: string) => phonePattern.test((value ?? "").replace(/\s/g, ""));
+  const isValidEmail = (value?: string) => emailPattern.test((value ?? "").trim());
+
+  const missingKeys: string[] = [];
+  if (isOrg) {
+    if (!filled(draft.applicant.name)) missingKeys.push("name");
+    if (!filled(draft.applicant.organizationName)) missingKeys.push("organizationName");
+    if (!isValidPhone(draft.applicant.phone)) missingKeys.push("phone");
+    if (!isValidEmail(draft.applicant.email)) missingKeys.push("email");
+  } else {
+    if (!filled(draft.applicant.englishName)) missingKeys.push("englishName");
+    if (!filled(draft.applicant.nationality)) missingKeys.push("nationality");
+    if (!filled(draft.applicant.birthPlace)) missingKeys.push("birthPlace");
+    if (!filled(draft.applicant.birthDate)) missingKeys.push("birthDate");
+    if (!filled(draft.applicant.gender)) missingKeys.push("gender");
+    if (isStudent) {
+      const isUniversity = (draft.applicant.schoolLevel ?? "university") === "university";
+      if (!filled(draft.applicant.schoolName)) missingKeys.push("schoolName");
+      if (isUniversity) {
+        if (!filled(draft.applicant.studentNumber)) missingKeys.push("studentNumber");
+        if (!filled(draft.applicant.department)) missingKeys.push("department");
+      }
+    }
+    if (!filled(draft.applicant.koreaEntryDate)) missingKeys.push("koreaEntryDate");
+    if (!isValidPhone(draft.applicant.phone)) missingKeys.push("phone");
+    if (!isValidEmail(draft.applicant.email)) missingKeys.push("email");
+  }
+  if (isPhysical) {
+    if (!filled(draft.recipient.name)) missingKeys.push("recipient.name");
+    if (!isValidPhone(draft.recipient.phone)) missingKeys.push("recipient.phone");
+    if (!filled(draft.recipient.postalCode)) missingKeys.push("recipient.postalCode");
+    if (!filled(draft.recipient.address)) missingKeys.push("recipient.address");
+  }
+
+  const isComplete = missingKeys.length === 0;
+  const hasError = (key: string) => showErrors && missingKeys.includes(key);
+  const inputCls = (key: string) => `field__input${hasError(key) ? " field__input--invalid" : ""}`;
+  // Format hints appear only when a field has content but the shape is wrong — an
+  // empty required field is already conveyed by the red outline alone.
+  const showPhoneFormat = (value?: string) => showErrors && filled(value) && !isValidPhone(value);
+  const showEmailFormat = (value?: string) => showErrors && filled(value) && !isValidEmail(value);
+
+  const handleNext = () => {
+    if (!isComplete) {
+      setShowErrors(true);
+      const el = fieldRefs.current[missingKeys[0]];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        const focusTarget = el.querySelector<HTMLElement>("input, select, textarea, button") ?? el;
+        focusTarget.focus?.({ preventScroll: true });
+      }
+      return;
+    }
+    onNext();
   };
 
   const toggleSame = (checked: boolean) => {
@@ -120,24 +194,24 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
           <h3 className="info-col__title">신청인 정보</h3>
           {isOrg ? (
             <>
-              <label className="field">
+              <label className="field" ref={registerField("name")}>
                 <span className="field__label">
                   이름<span className="req">*</span>
                 </span>
                 <input
-                  className="field__input"
+                  className={inputCls("name")}
                   value={draft.applicant.name}
                   onChange={(e) => setApplicant({ name: e.target.value })}
                   placeholder="담당자 이름"
                 />
               </label>
               <div className="field-row">
-                <label className="field">
+                <label className="field" ref={registerField("organizationName")}>
                   <span className="field__label">
                     {orgLabel}<span className="req">*</span>
                   </span>
                   <input
-                    className="field__input"
+                    className={inputCls("organizationName")}
                     value={draft.applicant.organizationName ?? ""}
                     onChange={(e) => setApplicant({ organizationName: e.target.value })}
                     placeholder={isStudent ? "학교명을 입력해 주세요" : "법인·단체명을 입력해 주세요"}
@@ -153,29 +227,35 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   />
                 </label>
               </div>
-              <label className="field">
+              <label className="field" ref={registerField("phone")}>
                 <span className="field__label">
                   연락처<span className="req">*</span>
                 </span>
                 <input
-                  className="field__input"
+                  className={inputCls("phone")}
                   inputMode="tel"
                   value={draft.applicant.phone}
                   onChange={(e) => setApplicant({ phone: e.target.value })}
                   placeholder="010-1234-5678"
                 />
+                {showPhoneFormat(draft.applicant.phone) && (
+                  <span className="field-error">올바른 연락처 형식으로 입력해 주세요. (예: 010-1234-5678)</span>
+                )}
               </label>
-              <label className="field">
+              <label className="field" ref={registerField("email")}>
                 <span className="field__label">
                   이메일<span className="req">*</span>
                 </span>
                 <input
-                  className="field__input"
+                  className={inputCls("email")}
                   type="email"
                   value={draft.applicant.email}
                   onChange={(e) => setApplicant({ email: e.target.value })}
                   placeholder="hong@example.com"
                 />
+                {showEmailFormat(draft.applicant.email) && (
+                  <span className="field-error">올바른 이메일 형식으로 입력해 주세요.</span>
+                )}
               </label>
               <p className="info-col__notice">
                 입력하신 연락처와 이메일로 발급된 모바일 카드를 조회할 수 있습니다.
@@ -183,35 +263,38 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
             </>
           ) : (
             <>
-              <label className="field">
+              <label className="field" ref={registerField("englishName")}>
                 <span className="field__label">
                   영문 이름<span className="req">*</span>
                 </span>
                 <input
-                  className="field__input"
+                  className={inputCls("englishName")}
                   value={draft.applicant.englishName ?? ""}
                   onChange={(e) => setApplicant({ englishName: e.target.value })}
                   placeholder="HONG GIL DONG"
                 />
               </label>
               <div className="field-row">
-                <label className="field">
+                <div className="field" ref={registerField("nationality")}>
                   <span className="field__label">
                     국적<span className="req">*</span>
                   </span>
-                  <input
-                    className="field__input"
+                  <SearchableSelectField
+                    ariaLabel="국적 선택"
+                    placeholder="국적을 선택해 주세요"
+                    searchPlaceholder="국가명을 입력해 주세요"
                     value={draft.applicant.nationality ?? ""}
-                    onChange={(e) => setApplicant({ nationality: e.target.value })}
-                    placeholder="대한민국"
+                    onChange={(value) => setApplicant({ nationality: value })}
+                    triggerClassName={`field__select${hasError("nationality") ? " field__select--invalid" : ""}`}
+                    options={countryOptions}
                   />
-                </label>
-                <label className="field">
+                </div>
+                <label className="field" ref={registerField("birthPlace")}>
                   <span className="field__label">
                     출생지역<span className="req">*</span>
                   </span>
                   <input
-                    className="field__input"
+                    className={inputCls("birthPlace")}
                     value={draft.applicant.birthPlace ?? ""}
                     onChange={(e) => setApplicant({ birthPlace: e.target.value })}
                     placeholder="서울"
@@ -219,12 +302,12 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                 </label>
               </div>
               <div className="field-row field-row--inline">
-                <label className="field">
+                <label className="field" ref={registerField("birthDate")}>
                   <span className="field__label">
                     생년월일<span className="req">*</span>
                   </span>
                   <input
-                    className="field__input"
+                    className={inputCls("birthDate")}
                     type="date"
                     value={draft.applicant.birthDate ?? ""}
                     onChange={(e) => setApplicant({ birthDate: e.target.value })}
@@ -254,7 +337,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   </label>
                 </div>
               </div>
-              <div className="field">
+              <div className="field" ref={registerField("gender")}>
                 <span className="field__label">
                   성별<span className="req">*</span>
                 </span>
@@ -263,6 +346,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   placeholder="성별을 선택해 주세요"
                   value={draft.applicant.gender ?? ""}
                   onChange={(value) => setApplicant({ gender: value as "male" | "female" | "" })}
+                  triggerClassName={`field__select${hasError("gender") ? " field__select--invalid" : ""}`}
                   options={[
                     { value: "male", label: "남성" },
                     { value: "female", label: "여성" },
@@ -300,10 +384,10 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                     </div>
                   </fieldset>
                   {draft.applicant.schoolLevel === "highschool" ? (
-                    <label className="field">
+                    <label className="field" ref={registerField("schoolName")}>
                       <span className="field__label">학교명<span className="req">*</span></span>
                       <input
-                        className="field__input"
+                        className={inputCls("schoolName")}
                         value={draft.applicant.schoolName ?? ""}
                         onChange={(e) => setApplicant({ schoolName: e.target.value })}
                         placeholder="학교명을 입력해 주세요"
@@ -311,29 +395,29 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                     </label>
                   ) : (
                     <>
-                      <label className="field">
+                      <label className="field" ref={registerField("schoolName")}>
                         <span className="field__label">대학교명<span className="req">*</span></span>
                         <input
-                          className="field__input"
+                          className={inputCls("schoolName")}
                           value={draft.applicant.schoolName ?? ""}
                           onChange={(e) => setApplicant({ schoolName: e.target.value })}
                           placeholder="대학교명을 입력해 주세요"
                         />
                       </label>
                       <div className="field-row">
-                        <label className="field">
+                        <label className="field" ref={registerField("studentNumber")}>
                           <span className="field__label">학번<span className="req">*</span></span>
                           <input
-                            className="field__input"
+                            className={inputCls("studentNumber")}
                             value={draft.applicant.studentNumber ?? ""}
                             onChange={(e) => setApplicant({ studentNumber: e.target.value })}
                             placeholder="20260001"
                           />
                         </label>
-                        <label className="field">
+                        <label className="field" ref={registerField("department")}>
                           <span className="field__label">학과<span className="req">*</span></span>
                           <input
-                            className="field__input"
+                            className={inputCls("department")}
                             value={draft.applicant.department ?? ""}
                             onChange={(e) => setApplicant({ department: e.target.value })}
                             placeholder="학과를 입력해 주세요"
@@ -344,40 +428,46 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   )}
                 </>
               )}
-              <label className="field">
+              <label className="field" ref={registerField("koreaEntryDate")}>
                 <span className="field__label">
                   한국입국일<span className="req">*</span>
                 </span>
                 <input
-                  className="field__input"
+                  className={inputCls("koreaEntryDate")}
                   type="date"
                   value={draft.applicant.koreaEntryDate ?? ""}
                   onChange={(e) => setApplicant({ koreaEntryDate: e.target.value })}
                 />
               </label>
-              <label className="field">
+              <label className="field" ref={registerField("phone")}>
                 <span className="field__label">
                   전화번호<span className="req">*</span>
                 </span>
                 <input
-                  className="field__input"
+                  className={inputCls("phone")}
                   inputMode="tel"
                   value={draft.applicant.phone}
                   onChange={(e) => setApplicant({ phone: e.target.value })}
                   placeholder="010-1234-5678"
                 />
+                {showPhoneFormat(draft.applicant.phone) && (
+                  <span className="field-error">올바른 전화번호 형식으로 입력해 주세요. (예: 010-1234-5678)</span>
+                )}
               </label>
-              <label className="field">
+              <label className="field" ref={registerField("email")}>
                 <span className="field__label">
                   이메일<span className="req">*</span>
                 </span>
                 <input
-                  className="field__input"
+                  className={inputCls("email")}
                   type="email"
                   value={draft.applicant.email}
                   onChange={(e) => setApplicant({ email: e.target.value })}
                   placeholder="hong@example.com"
                 />
+                {showEmailFormat(draft.applicant.email) && (
+                  <span className="field-error">올바른 이메일 형식으로 입력해 주세요.</span>
+                )}
               </label>
               <p className="info-col__notice">
                 입력하신 연락처와 이메일로 발급된 모바일 카드를 조회할 수 있습니다.
@@ -400,12 +490,12 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                 <span>신청인과 동일합니다</span>
               </label>
             </div>
-            <label className="field">
+            <label className="field" ref={registerField("recipient.name")}>
               <span className="field__label">
                 이름<span className="req">*</span>
               </span>
               <input
-                className="field__input"
+                className={inputCls("recipient.name")}
                 value={draft.recipient.name}
                 onChange={(e) => setRecipient({ name: e.target.value })}
               />
@@ -432,16 +522,20 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                 </label>
               </div>
             )}
-            <label className="field">
+            <label className="field" ref={registerField("recipient.phone")}>
               <span className="field__label">
                 연락처<span className="req">*</span>
               </span>
               <input
-                className="field__input"
+                className={inputCls("recipient.phone")}
                 inputMode="tel"
                 value={draft.recipient.phone}
                 onChange={(e) => setRecipient({ phone: e.target.value })}
+                placeholder="010-1234-5678"
               />
+              {showPhoneFormat(draft.recipient.phone) && (
+                <span className="field-error">올바른 연락처 형식으로 입력해 주세요. (예: 010-1234-5678)</span>
+              )}
             </label>
             <div className="field">
               <span className="field__label">
@@ -449,7 +543,8 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
               </span>
               <div className="field__with-btn">
                 <input
-                  className="field__input"
+                  ref={registerField("recipient.postalCode")}
+                  className={inputCls("recipient.postalCode")}
                   value={draft.recipient.postalCode}
                   onChange={(e) => setRecipient({ postalCode: e.target.value })}
                   placeholder="우편번호"
@@ -468,8 +563,11 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                 </button>
               </div>
               <input
-                ref={addressDetailRef}
-                className="field__input"
+                ref={(el) => {
+                  addressDetailRef.current = el;
+                  fieldRefs.current["recipient.address"] = el;
+                }}
+                className={inputCls("recipient.address")}
                 value={draft.recipient.address}
                 onChange={(e) => setRecipient({ address: e.target.value })}
                 placeholder="기본 주소"
@@ -499,7 +597,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
         <Button variant="soft" onClick={onPrev}>
           <ChevronLeft width={16} height={16} /> 이전
         </Button>
-        <Button onClick={onNext}>
+        <Button onClick={handleNext} className={isComplete ? undefined : "btn--pending"}>
           다음 <ChevronRight width={16} height={16} />
         </Button>
       </div>

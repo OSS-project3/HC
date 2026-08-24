@@ -108,7 +108,12 @@ class ReviewServiceUpdateTest {
     }
 
     private ReviewUpdateRequest request(String title, ApplicationType type, Long cardTypeId, boolean removeImage) {
-        return new ReviewUpdateRequest(title, type, cardTypeId, "새 작성자명", "새 내용", removeImage);
+        return new ReviewUpdateRequest(title, type, cardTypeId, "새 작성자명", "새 내용", removeImage, null);
+    }
+
+    private ReviewUpdateRequest request(String title, ApplicationType type, Long cardTypeId, boolean removeImage,
+            java.util.List<Long> keepImageIds) {
+        return new ReviewUpdateRequest(title, type, cardTypeId, "새 작성자명", "새 내용", removeImage, keepImageIds);
     }
 
     @Test
@@ -218,12 +223,30 @@ class ReviewServiceUpdateTest {
                 ApplicationType.INDIVIDUAL, cardTypeA.getId(), "내용", "reviews/old.jpg"));
         MockMultipartFile newImage = new MockMultipartFile("image", "new.jpg", "image/jpeg", jpegBytes());
 
+        // keepImageIds=빈 배열 → 기존 이미지 전부 버리고 새 파일로 교체.
         reviewService.update(review.getId(), owner.getId(),
-                request("제목", ApplicationType.INDIVIDUAL, cardTypeA.getId(), false), List.of(newImage));
+                request("제목", ApplicationType.INDIVIDUAL, cardTypeA.getId(), false, List.of()), List.of(newImage));
 
         Review updated = reviewRepository.findById(review.getId()).orElseThrow();
         assertThat(updated.getImagePath()).startsWith("reviews/").endsWith("-new.jpg");
         verify(storageService).delete("reviews/old.jpg");
+    }
+
+    @Test
+    void appendsNewImageWhenKeepImageIdsNullAndRemoveImageFalse() {
+        grantEligibility(owner, ApplicationType.INDIVIDUAL, cardTypeA);
+        Review review = reviewRepository.save(Review.create(owner.getId(), "홍길동", "제목",
+                ApplicationType.INDIVIDUAL, cardTypeA.getId(), "내용", "reviews/first.jpg"));
+        MockMultipartFile newImage = new MockMultipartFile("image", "second.jpg", "image/jpeg", jpegBytes());
+
+        // keepImageIds 미전송 + removeImage=false → 기존 유지하고 새 파일 추가(대표는 그대로 첫 장).
+        reviewService.update(review.getId(), owner.getId(),
+                request("제목", ApplicationType.INDIVIDUAL, cardTypeA.getId(), false), List.of(newImage));
+
+        Review updated = reviewRepository.findById(review.getId()).orElseThrow();
+        assertThat(updated.getImagePath()).isEqualTo("reviews/first.jpg");
+        assertThat(reviewService.detail(review.getId(), owner.getId()).getImages()).hasSize(2);
+        verify(storageService, never()).delete(anyString());
     }
 
     @Test
@@ -255,28 +278,32 @@ class ReviewServiceUpdateTest {
     }
 
     @Test
-    void rejectsImageAndRemoveImageTogether() {
-        grantEligibility(owner, ApplicationType.INDIVIDUAL, cardTypeA);
-        Review review = reviewRepository.save(Review.create(owner.getId(), "홍길동", "제목",
-                ApplicationType.INDIVIDUAL, cardTypeA.getId(), "내용", "reviews/old.jpg"));
-        MockMultipartFile newImage = new MockMultipartFile("image", "new.jpg", "image/jpeg", jpegBytes());
-
-        assertThatThrownBy(() -> reviewService.update(review.getId(), owner.getId(),
-                request("제목", ApplicationType.INDIVIDUAL, cardTypeA.getId(), true), List.of(newImage)))
-                .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
-    }
-
-    @Test
-    void rejectsMoreThanOneImagePart() {
+    void appendsMultipleNewImages() {
         grantEligibility(owner, ApplicationType.INDIVIDUAL, cardTypeA);
         Review review = reviewRepository.save(Review.create(owner.getId(), "홍길동", "제목",
                 ApplicationType.INDIVIDUAL, cardTypeA.getId(), "내용", null));
         MockMultipartFile first = new MockMultipartFile("image", "a.jpg", "image/jpeg", jpegBytes());
         MockMultipartFile second = new MockMultipartFile("image", "b.jpg", "image/jpeg", jpegBytes());
 
+        reviewService.update(review.getId(), owner.getId(),
+                request("제목", ApplicationType.INDIVIDUAL, cardTypeA.getId(), false), List.of(first, second));
+
+        Review updated = reviewRepository.findById(review.getId()).orElseThrow();
+        assertThat(updated.getImagePath()).startsWith("reviews/").endsWith("-a.jpg");
+        assertThat(reviewService.detail(review.getId(), owner.getId()).getImages()).hasSize(2);
+    }
+
+    @Test
+    void rejectsMoreThanMaxImages() {
+        grantEligibility(owner, ApplicationType.INDIVIDUAL, cardTypeA);
+        Review review = reviewRepository.save(Review.create(owner.getId(), "홍길동", "제목",
+                ApplicationType.INDIVIDUAL, cardTypeA.getId(), "내용", null));
+        List<MockMultipartFile> images = java.util.stream.IntStream.range(0, 6)
+                .mapToObj(i -> new MockMultipartFile("image", "p" + i + ".jpg", "image/jpeg", jpegBytes()))
+                .collect(java.util.stream.Collectors.toList());
+
         assertThatThrownBy(() -> reviewService.update(review.getId(), owner.getId(),
-                request("제목", ApplicationType.INDIVIDUAL, cardTypeA.getId(), false), List.of(first, second)))
+                request("제목", ApplicationType.INDIVIDUAL, cardTypeA.getId(), false), List.copyOf(images)))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }

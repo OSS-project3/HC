@@ -8,6 +8,10 @@
 .home-tagline {
   position: relative;
   z-index: 70;
+  /* Non-interactive text strip. It sits above the header's z-index context, so
+     without this it would swallow clicks on the top row of a header dropdown that
+     opens down into this strip. */
+  pointer-events: none;
   display: flex;
   align-items: center;
   gap: clamp(12px, 1.4vw, 20px);

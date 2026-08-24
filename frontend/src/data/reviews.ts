@@ -4,10 +4,15 @@ import type { ReviewDetail, ReviewListItem } from "../services/api";
 /**
  * Frontend review shape. Mapped from the backend Review DTOs — the review data
  * itself now lives on the server (`/api/reviews`), so this module only holds the
- * view model and the DTO→view mapping. The backend stores a single image per
- * review; `imageUrls` is kept for the existing gallery UI but will contain at
- * most one URL.
+ * view model and the DTO→view mapping. A review can carry multiple images; the
+ * detail DTO returns them as `images` ([{id, imageUrl}]), while the list DTO only
+ * carries the single `imageUrl` thumbnail.
  */
+export interface ReviewImageRef {
+  id: number;
+  imageUrl: string;
+}
+
 export interface ReviewPost {
   id: string;
   title: string;
@@ -19,6 +24,8 @@ export interface ReviewPost {
   cardType: CardType;
   imageUrl?: string;
   imageUrls?: string[];
+  /** Full images with ids — only present from the detail DTO (used by the editor). */
+  images?: ReviewImageRef[];
   canEdit?: boolean;
   canDelete?: boolean;
 }
@@ -26,6 +33,8 @@ export interface ReviewPost {
 /** Map a backend list/detail DTO into the frontend `ReviewPost` view model. */
 export function toReviewPost(dto: ReviewListItem | ReviewDetail): ReviewPost {
   const detail = dto as ReviewDetail;
+  const images = detail.images ?? [];
+  const imageUrls = images.length ? images.map((image) => image.imageUrl) : dto.imageUrl ? [dto.imageUrl] : [];
   return {
     id: String(dto.id),
     title: dto.title,
@@ -34,8 +43,9 @@ export function toReviewPost(dto: ReviewListItem | ReviewDetail): ReviewPost {
     createdAt: (dto.createdAt ?? "").slice(0, 10),
     applicantType: dto.applicationType === "GROUP" ? "organization" : "personal",
     cardType: cardTypeById[dto.cardType.id] ?? "honorary-korean",
-    imageUrl: dto.imageUrl,
-    imageUrls: dto.imageUrl ? [dto.imageUrl] : [],
+    imageUrl: dto.imageUrl ?? imageUrls[0],
+    imageUrls,
+    images: detail.images ? images : undefined,
     canEdit: detail.canEdit,
     canDelete: detail.canDelete,
   };

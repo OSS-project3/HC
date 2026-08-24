@@ -116,7 +116,7 @@ function CompanyNavItem() {
   };
   const closeSoon = () => {
     window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => setOpen(false), 260);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 500);
   };
 
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
@@ -174,7 +174,7 @@ function ApplyNavItem() {
   };
   const closeSoon = () => {
     window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => setOpen(false), 260);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 500);
   };
 
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
@@ -231,7 +231,7 @@ function DesignNavItem() {
   };
   const closeSoon = () => {
     window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => setOpen(false), 260);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 500);
   };
 
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
@@ -287,7 +287,7 @@ function SupportNavItem() {
   };
   const closeSoon = () => {
     window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => setOpen(false), 260);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 500);
   };
 
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);

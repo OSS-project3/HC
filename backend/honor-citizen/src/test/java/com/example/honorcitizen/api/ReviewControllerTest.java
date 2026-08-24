@@ -165,7 +165,7 @@ class ReviewControllerTest {
     }
 
     @Test
-    void createReturnsBadRequestForMultipleImageParts() throws Exception {
+    void createAcceptsMultipleImageParts() throws Exception {
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", REQUEST_JSON.formatted(cardType.getId()).getBytes());
         MockMultipartFile first = new MockMultipartFile("image", "a.jpg", "image/jpeg", jpegBytes());
@@ -176,8 +176,9 @@ class ReviewControllerTest {
                         .file(first)
                         .file(second)
                         .header("Authorization", token))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").exists());
     }
 
     @Test
@@ -301,9 +302,10 @@ class ReviewControllerTest {
     }
 
     @Test
-    void updateReturnsBadRequestWhenImageAndRemoveImageBothProvided() throws Exception {
+    void updateReplacesImageWhenRemoveImageTrueAndNewImageProvided() throws Exception {
         Review review = reviewRepository.save(Review.create(owner.getId(), "홍길동", "제목",
                 ApplicationType.INDIVIDUAL, cardType.getId(), "내용", "reviews/old.jpg"));
+        // 다중 이미지에서는 removeImage=true + 새 파일이 모순이 아니라 "기존 제거 후 새 파일로 교체"를 뜻한다.
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", UPDATE_REQUEST_JSON.formatted(cardType.getId(), true).getBytes());
         MockMultipartFile imagePart = new MockMultipartFile("image", "new.jpg", "image/jpeg", jpegBytes());
@@ -312,8 +314,8 @@ class ReviewControllerTest {
                         .file(requestPart)
                         .file(imagePart)
                         .header("Authorization", token))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     private byte[] jpegBytes() {

@@ -11,6 +11,10 @@ interface FileUploadBoxProps {
   variant?: "image" | "archive";
   file?: UploadFileInfo;
   onChange: (file: UploadFileInfo | undefined) => void;
+  /** Highlights the box red when a required file is missing. */
+  error?: boolean;
+  /** DOM id on the root, so the step can scroll to the first missing upload. */
+  id?: string;
 }
 
 function formatSize(bytes: number) {
@@ -19,7 +23,7 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function FileUploadBox({ label, accept, hint, variant = "image", file, onChange }: FileUploadBoxProps) {
+export function FileUploadBox({ label, accept, hint, variant = "image", file, onChange, error, id }: FileUploadBoxProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -31,7 +35,7 @@ export function FileUploadBox({ label, accept, hint, variant = "image", file, on
   };
 
   return (
-    <div className="upload">
+    <div className="upload" id={id}>
       <p className="upload__label">{label}</p>
       <div
         className={clsx(
@@ -39,6 +43,7 @@ export function FileUploadBox({ label, accept, hint, variant = "image", file, on
           variant === "archive" && "upload__box--archive",
           dragOver && "upload__box--drag",
           file && "upload__box--filled",
+          error && !file && "upload__box--error",
         )}
         role="button"
         tabIndex={0}

@@ -15,6 +15,52 @@
 
 ---
 
+## 2026-08-24 — Claude — `main` (후기 다중 사진 풀스택 + 관리자 신청상세/문의답변 + 후기 저장 버그·기존 플로우테스트 결함 수정)
+
+### 요약
+사용자 요청 3건(관리자 신청 세부내역 열람, 후기 다중 사진 첨부, 관리자 문의 상세/답변)을 구현하고, 그 과정에서 발견한 버그 1건과 이전부터 방치돼 있던 무관 테스트 결함 1건(`UserApplicationFlowTest`)을 실제로 수정했다. 백엔드 전체 테스트 **555개 전부 통과**(BUILD SUCCESSFUL)로 검증 완료.
+
+### 기능 1 — 후기 다중 사진 (풀스택, 사용자 요청)
+- 백엔드: `ReviewImage` 엔티티(`review_images`, `UNIQUE(review_id, display_order)`)와 `ReviewImageRepository` 신설. `Review.imagePath`는 목록 썸네일·`hasPhoto` 필터용 대표(첫) 이미지로 비정규화 유지. `ReviewService` 전면 개편: 생성 시 다중 업로드(최대 5장), 상세는 `images:[{id,imageUrl}]` 반환, 수정은 `keepImageIds`(유지할 기존 이미지)+새 파일 append 방식(EventService 갤러리 패턴 동일 — 임시 오프셋 재정렬·업로드 롤백·커밋 후 S3 삭제), 레거시 단일 `imagePath`는 상세/수정 시 `review_images` 행으로 지연 마이그레이션.
+- DTO: `ReviewUpdateRequest.keepImageIds`, `ReviewDetailResponse.images`, `ReviewImageResponse`(신규). 컨트롤러는 기존 `List<MultipartFile>`(part명 `image`) 그대로 다중 수용.
+- 프론트: `api.ts`(`createReview(body, File[])`·`updateReview(id, {..,keepImageIds}, File[])`·`ReviewDetail.images`), `ReviewEditorPage`(다중 선택·미리보기·개별삭제·기존이미지 유지/삭제, objectURL 누수 방지), `ReviewDetailPage`(갤러리 렌더), `reviews.ts` 매퍼.
+- `review_images` 테이블은 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`로 자동 생성(마이그레이션 스크립트 불필요).
+
+### 기능 2 — 관리자 신청 세부 내역 (프론트, 사용자 요청)
+- `AdminApplication.detail`(`AdminApplicationDetail`) 추가 — 신청 생성 시(`ApplyPage`) 발급방식·개인/단체/학생 정보·수령인·배송지를 함께 저장. `AdminPage` 신청 행의 신청번호 클릭 시 세부내역 펼침(값 있는 항목만 표시, 데모 데이터는 요약만 + 안내).
+
+### 기능 3 — 관리자 문의 상세/답변 개선 (프론트, 사용자 요청)
+- 문의 상세/답변 UI는 존재했으나 피드백이 없어 "안 된다"고 느낄 수 있어, 저장 확인 토스트·빈 답변 방지·답변완료 일시 표시·버튼 라벨(저장/수정) 전환을 추가.
+
+### 버그 수정 1 (내 변경에서 발견) — 후기 이미지 교체 시 UNIQUE 제약 위반
+- 증상: `ReviewServiceUpdateTest.replacesImageAndDeletesOldOneAfterCommit`에서 H2 `JdbcSQLIntegrityConstraintViolationException`.
+- 원인: Hibernate 기본 flush 순서(INSERT→DELETE)상, 삭제될 이미지의 `display_order 0`을 새 이미지가 재사용할 때 삭제가 반영되기 전 INSERT가 실행돼 충돌.
+- 수정: `reconcileImages`에서 `deleteAllById` 직후 `reviewImageRepository.flush()`로 삭제를 먼저 DB에 반영.
+
+### 버그 수정 2 (기존 방치 결함, 사용자 요청으로 근본 수정) — `UserApplicationFlowTest.fullUserApplicationFlow`
+- 배경: 2026-08-23 CHANGELOG에 "기존 무관 결함"으로 남겨져 있던 실패. 내 변경을 stash하고 원본 HEAD에서도 동일 실패함을 확인해 사전 존재 결함임을 규명한 뒤, 이번 pull에서 강화된 API 계약에 맞춰 테스트를 실제로 수정했다(3중 원인).
+  1. `POST /api/applications`가 **약관 동의 선행**을 요구(`TERMS_NOT_AGREED`, 403) → 로그인 후 `POST /api/auth/terms` 단계를 추가.
+  2. 신청 사진이 **실제 이미지 시그니처 + 해상도 하한** 검증을 통과해야 함(가짜 바이트 → 400) → 300x400 유효 JPEG 생성 헬퍼로 교체(생성·재업로드 2곳).
+  3. `APPLICATION` 방식 본인확인 lookup이 **전화 + 이메일 모두** 요구(`INVALID_INPUT`, 400) → lookup 요청에 이메일 추가.
+
+### 테스트 결과 (Java 21 + Redis 컨테이너, `gradle test`)
+- Redis 미기동 시 144개 실패 → 전부 `RedisConnectionFailureException`(스프링 컨텍스트 로드 실패, CI엔 Redis 존재)로 환경 문제임을 확인. Redis 컨테이너 연결 후 재실행.
+- 최종: **555개 전부 통과, BUILD SUCCESSFUL**. 프론트는 `npm run build`(tsc+vite) 통과.
+
+### 파일
+- 백엔드(main): `domain/review/entity/{Review,ReviewImage}.java`, `domain/review/repository/ReviewImageRepository.java`, `domain/review/service/ReviewService.java`, `domain/review/dto/{ReviewUpdateRequest,ReviewDetailResponse,ReviewImageResponse}.java`
+- 백엔드(test): `domain/review/service/{ReviewServiceCreateTest,ReviewServiceUpdateTest}.java`, `api/ReviewControllerTest.java`, `flow/UserApplicationFlowTest.java`
+- 프론트: `services/api.ts`, `data/reviews.ts`, `pages/ReviewEditorPage/*`, `pages/ReviewDetailPage/*`, `pages/AdminPage/*`, `data/adminMock.ts`, `pages/ApplyPage/ApplyPage.tsx`, `components/apply/FileUploadBox.tsx`
+- (같은 세션 UI 조정: 고객지원 FAQ 추가·순서변경, 로그인 데모계정 제거, 헤더 드롭다운 반응성·최상단 클릭 버그, 제작신청 필수입력 검증·자동스크롤·형식검증, 국적 검색 드롭다운)
+
+### 사유
+사용자 요청 기능 구현 + 그 과정에서 드러난 실제 버그 및 이전 세션이 방치한 테스트 결함을 "제대로 된 방향"으로(테스트를 현재 API 계약에 맞춰) 수정하고 전체 테스트로 검증.
+
+### 확인 필요
+- 후기 API 계약 변경(다중 이미지, `keepImageIds`, `images[]`)에 맞춘 `docs/api`·`docs/specs/review` 문서 갱신은 후속 과제.
+
+---
+
 ## 2026-08-23 — Claude — `main` (계정 복구 RECOVERY-3 마무리 — 미검증 경계 케이스 6건 테스트 보강)
 
 - 변경: 사용자가 "정책을 임의로 넣은 거 아니냐"고 재확인을 요청해 `docs/api/auth.md` API 7·8과 코드를 다시 줄 단위로 대조했고, 그 과정에서 2026-08-21 `e4c3287` 커밋이 RECOVERY-3 섹션을 "완료"라는 메시지로 추가했지만 체크박스는 전부 미체크 상태로 남아있던 것을 발견했다(전체 테스트 실행 자체는 그때 CHANGELOG에 남긴 대로 실질적으로 했었음). TODO.md에 ⚠️로 남아있던 6개 미검증 항목(코드 만료, confirm 시점 계정삭제/OAuth전환, 재설정 직후 같은 초 재로그인, DB 실패 후 세션 미복구, 동시요청 cooldown 우회, Redis 장애 시 HTTP 필터체인)을 전부 테스트로 보강했다. (d)는 실제 DB 장애를 재현할 인프라가 없어 `TokenSessionStore`를 `@MockitoSpyBean`으로 감싸 Redis 기록은 실제로 성공시키고 그 직후 `TransactionSynchronization.beforeCommit`을 등록해 Hibernate flush 직전에 결정론적으로 실패를 유발하는 방식을 새로 썼다 — 비밀번호는 롤백되고 Redis revoked-after 키는 실제로 남아있음을 확인했다. (f)는 MockMvc로 `JwtAuthFilter`→`GlobalExceptionHandler`까지 실제 필터체인을 관통시켜 503 JSON을 확인했다.

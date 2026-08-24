@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { showToast } from "../../components/ui/toast";
-import { toReviewPost, type ReviewPost } from "../../data/reviews";
+import { getReviewImageUrls, toReviewPost, type ReviewPost } from "../../data/reviews";
 import { cardTypeLabels } from "../../data/cards";
 import { api } from "../../services/api";
 import "../NoticeDetailPage/NoticeDetailPage.css";
@@ -50,14 +50,15 @@ export function ReviewDetailPage() {
       <header className="notice-detail__hero subpage-hero"><p className="eyebrow">후기</p><h1 className="subpage-hero__title">후기</h1></header>
       <div className="notice-detail__rule" aria-hidden="true"><i /></div>
       <header className="notice-detail__head"><h2>{review.title}</h2><div className="review-detail__meta"><span>{review.author}</span><span>{review.applicantType === "organization" ? "단체" : "개인"}</span><span>{cardTypeLabels[review.cardType]}</span><time dateTime={review.createdAt}>{review.createdAt.replace(/-/g, ".")}</time></div></header>
-      {review.imageUrl && (
+      {getReviewImageUrls(review).map((url, index) => (
         <img
+          key={url}
           className="review-detail__image"
-          src={review.imageUrl}
-          alt={`${review.title} 첨부 사진`}
+          src={url}
+          alt={`${review.title} 첨부 사진 ${index + 1}`}
           onError={(event) => { event.currentTarget.style.display = "none"; }}
         />
-      )}
+      ))}
       <div className="notice-detail__body review-detail__body">{review.content.split("\n").map((line, lineIndex) => <p key={`${lineIndex}-${line}`}>{line || " "}</p>)}</div>
       <div className="notice-detail__actions review-detail__actions">
         <Link className="notice-detail__list" to="/reviews">목록</Link>
