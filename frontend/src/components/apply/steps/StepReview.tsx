@@ -2,6 +2,7 @@
 import type { ApplicationDraft } from "../../../features/apply/types";
 import type { CardDesign } from "../../../data/cards";
 import { cardTypeLabels } from "../../../data/cards";
+import { birthCitiesFor, formatUtcOffset } from "../../../data/birthCities";
 import { Button } from "../../ui/Button";
 import { ChevronLeft, ChevronRight } from "../../ui/icons";
 
@@ -23,6 +24,17 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
   const issuanceLabel = isPhysical ? "모바일 + 실물 발급" : "모바일 발급";
   const typeLabel = isOrg ? "법인·단체 신청" : "개인 신청";
   const cardLabel = design ? cardTypeLabels[design.cardType] : draft.cardType ? cardTypeLabels[draft.cardType] : dash;
+
+  // 출생지역: 저장값(도시명)에 국적 기준 시차를 붙여 입력 화면과 동일하게 "서울 (UTC +9:00)"으로 표기.
+  // 시차 데이터가 없는 국적(자유 입력 폴백)은 도시명만 노출한다.
+  const birthCity = birthCitiesFor(draft.applicant.nationality ?? "").find(
+    (city) => city.ko === draft.applicant.birthPlace,
+  );
+  const birthPlaceLabel = draft.applicant.birthPlace
+    ? birthCity
+      ? `${draft.applicant.birthPlace} (UTC ${formatUtcOffset(birthCity.offset)})`
+      : draft.applicant.birthPlace
+    : dash;
 
   return (
     <div className="step">
@@ -51,7 +63,7 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
           <>
             <Item label="영문 이름" value={draft.applicant.englishName || dash} />
             <Item label="국적" value={draft.applicant.nationality || dash} />
-            <Item label="출생지역" value={draft.applicant.birthPlace || dash} />
+            <Item label="출생지역" value={birthPlaceLabel} />
             <Item label="생년월일" value={draft.applicant.birthDate || dash} />
             <Item
               label="출생시간"
