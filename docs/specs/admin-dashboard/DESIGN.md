@@ -116,9 +116,11 @@ POST /api/admin/applications/export        // 여러 건을 하나의 엑셀로
 ### ⚠️ 라이선스 블로커 (중요)
 - 참조 레포 `05solar/saju`에는 **LICENSE 파일이 없다** → 기본적으로 "All rights reserved".
   README는 `backend/data/*`(이름 corpus)를 "민감 데이터"로 명시하고 서버측에 둔다고 밝힌다.
-- 따라서 **names.json/코드/데이터를 우리 저장소로 복사·재배포하려면 저자(05solar)의 서면 허락이 필요**하다.
-  현재 프론트 UI의 추천 이름은 **소량의 자체 mock**(`frontend/src/data/nameRecommendationMock.ts`)이며,
-  실제 데이터/로직은 라이선스 확보 후 연동한다.
+- 따라서 **names.json/코드/데이터를 재배포하려면 저자(05solar)의 허락이 필요**하다(05solar가 본 프로젝트 소유자/협업자면 무방).
+- ✅ 현재 상태: 소유자 제공 데이터(`사주 이름 결과.xlsx`) + saju 레포 `names.json`(자원/발음오행)을 병합한
+  **실제 이름 700개**를 `frontend/src/data/sajuNames.json`으로 번들하고, `adminNamingMock.ts`가 recommend.py
+  점수화 로직(자원오행×2+발음오행×1+상생/상극 보정)을 이식해 오행 결핍 기반으로 매번 무작위 8개를 추천한다.
+  단, **만세력(四柱) 계산 자체는 여전히 mock**이다(실제 계산은 manseryeok 사이드카 필요 — 위 §3 참고).
 - `manseryeok` npm 패키지도 **별도 라이선스 확인** 후 사용한다.
 - 추가 한계: 데이터가 성(姓) 없는 2글자 이름 700개뿐 → 성명학(획수) 기반 감명이나 성-이름 궁합은 추가 데이터 필요.
 
