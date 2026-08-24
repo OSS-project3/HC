@@ -21,6 +21,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,10 @@ public class DemoDataSeeder implements CommandLineRunner {
     // 실제 가입과 충돌하지 않는 데모 전용 계정(OAuth 계정이라 비밀번호 로그인 불가). 게시글 작성자·후기 소유자 audit용.
     private static final String DEMO_EMAIL = "seed-demo@hangeul-sejong.local";
 
+    // ⚠️ 임시 데모 관리자 계정 — 운영 배포 전 제거. docs/TEMP_ADMIN_LOGIN.md 참고.
+    private static final String ADMIN_EMAIL = "admin@test.com";
+    private static final String ADMIN_PASSWORD = "admin1234!";
+
     private static final String BOOTH_TEXT =
             "부스를 찾은 방문객에게 한글 오행으로 지은 한국 이름과 카드를 현장에서 제작해 전달했습니다. 참가자와 함께한 인증 사진과 현장 후기를 이곳에 기록으로 남깁니다.";
 
@@ -56,14 +61,28 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final CardTypeRepository cardTypeRepository;
     private final EventPostRepository eventPostRepository;
     private final StorageService storageService;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
     public void run(String... args) {
         Long demoUserId = ensureDemoUser();
+        ensureAdminUser();
         seedBoards(demoUserId);
         seedReviews(demoUserId);
         seedEvents();
+    }
+
+    // ⚠️ 임시 데모 관리자 — admin@test.com / admin1234! 로 실제 로그인(ADMIN 권한) 가능하게 시드한다.
+    // 존재하지 않을 때만 생성해 idempotent하다. 운영 배포 전 제거할 것(docs/TEMP_ADMIN_LOGIN.md).
+    private void ensureAdminUser() {
+        if (userRepository.findByEmail(ADMIN_EMAIL).isPresent()) {
+            return;
+        }
+        User admin = User.createLocalUser(ADMIN_EMAIL, passwordEncoder.encode(ADMIN_PASSWORD), "관리자", "010-0000-0000");
+        admin.promoteToAdmin();
+        userRepository.save(admin);
+        log.warn("임시 데모 관리자 계정 시드됨: {} (운영 전 제거 필요)", ADMIN_EMAIL);
     }
 
     private Long ensureDemoUser() {

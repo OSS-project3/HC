@@ -42,7 +42,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = useCallback(async () => {
     try {
       const profile = await api.getMe();
-      setUser({ name: profile.name, email: profile.email, role: profile.role === "ADMIN" ? "admin" : "user", source: "api", phone: profile.phone, address: profile.address });
+      // /api/users/me는 role을 포함하지 않는다(백엔드 설계 결정) — 로그인 시 확정된 기존 role을 유지하고
+      // 프로필 표시 정보만 서버 기준으로 갱신한다. (role을 profile에서 파생하면 admin이 user로 강등된다.)
+      setUser((prev) => ({
+        name: profile.name,
+        email: profile.email,
+        role: prev?.role ?? "user",
+        source: "api",
+        phone: profile.phone,
+        address: profile.address,
+      }));
     } catch {
       // A local account or unauthenticated visitor keeps the existing mock state.
     }

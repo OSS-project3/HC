@@ -145,4 +145,10 @@ public class User extends BaseTimeEntity {
     public void changePasswordHash(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
     }
+
+    // ⚠️ 데모 관리자 시드 전용(DemoDataSeeder). 실제 관리자 승격 정책/엔드포인트는 미구현 —
+    //    운영에서는 별도 승격 경로가 필요하다. docs/TEMP_ADMIN_LOGIN.md 참고.
+    public void promoteToAdmin() {
+        this.role = UserRole.ADMIN;
+    }
 }

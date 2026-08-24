@@ -97,6 +97,35 @@ export interface EventUpdateBody extends EventWriteBody { removeThumbnail?: bool
 /** Files for create/update: thumbnail (single), logo (single, COLLABORATION only), images (gallery, multiple). */
 export interface EventFiles { thumbnail?: File; logo?: File; images?: File[]; }
 
+// ── Applications (admin, 제작신청 관리) ──────────────────────────
+export type ApplicationStatus =
+  | "SUBMITTED" | "REVIEWING" | "PHOTO_REJECTED" | "NAME_EDITING"
+  | "PRODUCTION_READY" | "PRODUCING" | "COMPLETED" | "CANCELLED";
+export type PaymentStatus = "WAITING" | "CONFIRMED";
+export type IssueType = "MOBILE" | "MOBILE_AND_PHYSICAL";
+export interface AdminApplicationListItem {
+  applicationId: number; applicationNumber: string; applicationType: ApplicationType;
+  cardTypeId: number; cardTypeName: string; totalQuantity: number;
+  status: ApplicationStatus; paymentStatus: PaymentStatus; createdAt: string;
+}
+export interface AdminApplicantSummary { name: string; email: string; phone: string; organizationName?: string; department?: string; }
+export interface AdminReceiverSummary { name: string; phone: string; zipCode?: string; address?: string; detailAddress?: string; deliveryRequest?: string; organizationName?: string; department?: string; }
+export interface AdminApplicationDetail {
+  applicationId: number; applicationNumber: string; applicationType: ApplicationType;
+  cardTypeId: number; cardTypeName: string; issueType: IssueType; totalQuantity: number;
+  status: ApplicationStatus; paymentStatus: PaymentStatus;
+  paymentGuidedAt?: string; paymentDueAt?: string; cancelledAt?: string; refundedAt?: string;
+  cardReadyAt?: string; physicalDispatchedAt?: string; photoRejectReason?: string;
+  applicant: AdminApplicantSummary; receiver?: AdminReceiverSummary;
+  memberCount: number; createdAt: string;
+}
+
+// ── Inquiries (1:1 문의, 고객지원) ───────────────────────────────
+export type InquiryCategory = "PRODUCTION" | "PAYMENT_AND_SHIPPING" | "CARD_ISSUANCE" | "EVENT_COLLABORATION" | "OTHER";
+export type InquiryStatus = "PENDING" | "COMPLETED";
+export interface InquiryListItem { id: number; category: InquiryCategory; title: string; name: string; email: string; phone: string; status: InquiryStatus; createdAt: string; }
+export interface InquiryDetail { id: number; category: InquiryCategory; name: string; email: string; phone: string; title: string; content: string; status: InquiryStatus; answer?: string; answeredAt?: string; createdAt: string; }
+
 // ── Account recovery (아이디/비밀번호 찾기) ──────────────────────
 export interface RecoveryChallenge { requestId: string; expiresInSeconds: number; resendAfterSeconds: number; }
 
@@ -107,6 +136,7 @@ export const api = {
   agreeTerms: (body: { privacyAgreed: boolean; imageUploadAgreed: boolean; shippingAgreed: boolean }) => request("/api/auth/terms", { method: "POST", body: JSON.stringify(body) }),
   refresh: () => request<void>("/api/auth/refresh", { method: "POST" }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+  loginWithPassword: (email: string, password: string) => request<ApiUser>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   createApplication: (form: FormData, bulk = false) => request<ApplicationResult>(`/api/applications${bulk ? "/bulk" : ""}`, { method: "POST", body: form }),
   lookupApplication: (body: { method: "application" | "card"; keyValue: string; phone?: string; email?: string }) => request<LookupResult>("/api/applications/lookup", { method: "POST", body: JSON.stringify(body) }),
   reuploadPhoto: (id: number, form: FormData) => request(`/api/applications/${id}/photo`, { method: "PATCH", body: form }),
@@ -131,6 +161,16 @@ export const api = {
   // Events (public)
   listEvents: (params: { type: EventType; page?: number; size?: number }) => request<PageResponse<EventListItem>>(`/api/events${qs({ ...params })}`),
   getEvent: (id: number) => request<EventDetail>(`/api/events/${id}`),
+  // Applications (admin, 제작신청 관리) — 읽기 전용(목록/상세). 상태 전이·이름확정·엑셀출력은 미구현(문서 참고).
+  listAdminApplications: (params: { status?: ApplicationStatus; page?: number; size?: number } = {}) => request<PageResponse<AdminApplicationListItem>>(`/api/admin/applications${qs({ ...params })}`),
+  getAdminApplication: (id: number) => request<AdminApplicationDetail>(`/api/admin/applications/${id}`),
+
+  // Inquiries (1:1 문의) — 관리자 목록/상세/답변/상태
+  listAdminInquiries: () => request<InquiryListItem[]>("/api/admin/inquiries"),
+  getAdminInquiry: (id: number) => request<InquiryDetail>(`/api/admin/inquiries/${id}`),
+  answerInquiry: (id: number, answer: string) => request<void>(`/api/admin/inquiries/${id}/answer`, { method: "PATCH", body: JSON.stringify({ answer }) }),
+  updateInquiryStatus: (id: number, status: InquiryStatus) => request<void>(`/api/admin/inquiries/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+
   // Events (admin)
   listAdminEvents: (params: { type?: EventType; visible?: boolean; page?: number; size?: number } = {}) => request<PageResponse<EventAdminListItem>>(`/api/admin/events${qs({ ...params })}`),
   getAdminEvent: (id: number) => request<EventAdminDetail>(`/api/admin/events/${id}`),
