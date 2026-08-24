@@ -3,22 +3,30 @@ package com.example.honorcitizen.infra.seed;
 import com.example.honorcitizen.common.enums.ApplicationType;
 import com.example.honorcitizen.common.enums.BoardType;
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import com.example.honorcitizen.common.enums.EventType;
 import com.example.honorcitizen.domain.board.entity.Board;
 import com.example.honorcitizen.domain.board.repository.BoardRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
+import com.example.honorcitizen.domain.event.entity.EventPost;
+import com.example.honorcitizen.domain.event.repository.EventPostRepository;
+import com.example.honorcitizen.infra.storage.StorageService;
 import com.example.honorcitizen.domain.review.entity.Review;
 import com.example.honorcitizen.domain.review.repository.ReviewRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +37,7 @@ import java.util.Map;
  * CardTypeSeeder(@Order 없음, 즉 LOWEST_PRECEDENCE) 뒤에 카드종류가 존재하도록 이 시더도
  * LOWEST_PRECEDENCE로 두되, 카드종류가 없으면 후기 시드는 조용히 건너뛴다.
  */
+@Slf4j
 @Component
 @Order(2) // CardTypeSeeder(@Order(1)) 뒤에 실행돼 카드종류가 존재하는 상태에서 후기를 시드한다.
 @ConditionalOnProperty(name = "app.seed-demo-data", havingValue = "true")
@@ -38,10 +47,15 @@ public class DemoDataSeeder implements CommandLineRunner {
     // 실제 가입과 충돌하지 않는 데모 전용 계정(OAuth 계정이라 비밀번호 로그인 불가). 게시글 작성자·후기 소유자 audit용.
     private static final String DEMO_EMAIL = "seed-demo@hangeul-sejong.local";
 
+    private static final String BOOTH_TEXT =
+            "부스를 찾은 방문객에게 한글 오행으로 지은 한국 이름과 카드를 현장에서 제작해 전달했습니다. 참가자와 함께한 인증 사진과 현장 후기를 이곳에 기록으로 남깁니다.";
+
     private final BoardRepository boardRepository;
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
     private final CardTypeRepository cardTypeRepository;
+    private final EventPostRepository eventPostRepository;
+    private final StorageService storageService;
 
     @Override
     @Transactional
@@ -49,6 +63,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         Long demoUserId = ensureDemoUser();
         seedBoards(demoUserId);
         seedReviews(demoUserId);
+        seedEvents();
     }
 
     private Long ensureDemoUser() {
@@ -124,5 +139,90 @@ public class DemoDataSeeder implements CommandLineRunner {
             return;
         }
         reviewRepository.save(Review.create(userId, author, title, type, cardTypeId, content, null));
+    }
+
+    // 행사사업(부스 운영/법인·단체 협업) — frontend eventFeedPosts.ts의 boothPosts/collabPosts 목데이터를 이관.
+    // 이미지(썸네일·로고)는 프론트 정적 자산을 backend resources/seed/{events,logos}로 옮겨와 시드 시 S3에
+    // 업로드하고 그 key를 EventPost에 저장한다 — EventService가 이 key로 presigned URL을 만들어 서빙한다.
+    // 정렬은 displayOrder ASC이므로 목데이터 순서대로 0..N을 부여한다.
+    private void seedEvents() {
+        if (eventPostRepository.count() > 0) {
+            return;
+        }
+        // 같은 이미지 파일이 여러 행에 재사용되므로(예: collaboration-5..8) 리소스 경로별로 업로드 결과를 캐시해
+        // S3 중복 업로드를 피한다. 값은 저장할 S3 key(업로드 실패 시 null).
+        Map<String, String> uploadedByResource = new HashMap<>();
+
+        // {일자표시, 제목, 장소, 주최, 발급카드, 썸네일파일}
+        String[][] booth = {
+                {"2026. 12", "서울공예트렌드페어", "서울 코엑스 Hall C", "(재)한국공예·디자인문화진흥원", "명예한국인증 · 방문증", "booth-hero.webp"},
+                {"2026. 10", "한국전통문화박람회", "경주 화백컨벤션센터", "문화체육관광부", "명예한국인증 · 학생증", "booth-calligraphy.webp"},
+                {"2026. 08", "한글주간 문화행사", "국립한글박물관", "국립한글박물관", "방문증", "booth-display.webp"},
+                {"2026. 06", "부산국제관광전", "부산 벡스코", "부산광역시", "방문증", "booth-card-delivery.webp"},
+                {"2026. 04", "외국인 유학생 문화 교류전", "서울글로벌센터", "서울글로벌센터", "학생증 · 명예시민증", "collaboration-1.webp"},
+                {"2026. 03", "K-컬처 관광 설명회", "인천 송도컨벤시아", "한국관광공사", "방문증", "collaboration-2.webp"},
+                {"2026. 02", "세계 한글 체험 부스", "부산 문화회관", "부산문화재단", "명예한국인증", "collaboration-3.webp"},
+                {"2026. 01", "국제 교류 환영 행사", "제주국제컨벤션센터", "제주특별자치도", "명예시민증 · 방문증", "collaboration-4.webp"},
+        };
+        for (int i = 0; i < booth.length; i++) {
+            String[] r = booth[i];
+            String thumbnailPath = uploadThumbnail(r[5], uploadedByResource);
+            eventPostRepository.save(EventPost.create(EventType.BOOTH, r[1], null, r[0], r[2], r[3], r[4],
+                    BOOTH_TEXT, thumbnailPath, null, null, true, i));
+        }
+
+        // {일자표시, 제목, 장소, 주최, 회사명, 발급카드, 내용, 썸네일파일, 로고파일}
+        String[][] collab = {
+                {"2027.01.15", "삼성 글로벌 임직원 한국 이름 체험", "삼성전자 글로벌 캠퍼스", "Samsung", "Samsung", "명예한국인증 · 방문증", "해외 임직원 온보딩 행사에 한글 이름 추천과 명예한국인증 발급 체험을 연계했습니다.", "corporate-samsung.webp", "samsung-wordmark.svg"},
+                {"2027.01.08", "네이버 글로벌 파트너 문화 프로그램", "네이버 1784", "NAVER", "NAVER", "명예시민증", "글로벌 파트너 방문 일정에 맞춰 한국 이름 카드와 디지털 기념 콘텐츠를 제공했습니다.", "corporate-naver.webp", "naver-wordmark.svg"},
+                {"2026.12.22", "현대 모빌리티 초청 고객 행사", "현대 모터스튜디오", "Hyundai", "Hyundai", "방문증", "해외 초청 고객에게 한글 이름 방문증을 발급하고 브랜드 투어 경험과 연결했습니다.", "corporate-hyundai.webp", "hyundai-wordmark.svg"},
+                {"2026.12.12", "카카오 외국인 크리에이터 밋업", "카카오 판교 아지트", "Kakao", "Kakao", "명예한국인증", "콘텐츠 크리에이터 교류 행사에서 한글 이름 카드 제작 부스를 운영했습니다.", "corporate-kakao.webp", "kakao-wordmark.svg"},
+                {"2026.11.26", "LG 글로벌 고객 초청 문화 체험", "LG 사이언스파크", "LG", "LG", "명예시민증", "글로벌 고객 초청 행사에 한국 이름 풀이와 카드 수령 경험을 더했습니다.", "collaboration-5.webp", "lg-wordmark.svg"},
+                {"2026.11.18", "기아 해외 딜러 네트워크 교류회", "기아 브랜드 체험관", "Kia", "Kia", "방문증", "해외 딜러 초청 프로그램에서 참가자별 한글 이름 방문증을 제작했습니다.", "collaboration-6.webp", "kia-wordmark.svg"},
+                {"2026.10.30", "라인 글로벌 팀 문화 교류 행사", "라인 오피스 라운지", "LINE", "LINE", "학생증 · 방문증", "다국적 팀 교류 행사에서 한글 이름 카드와 팀별 기념 촬영을 연계했습니다.", "collaboration-7.webp", "line.svg"},
+                {"2026.10.14", "구글 스타트업 캠퍼스 파트너 데이", "스타트업 캠퍼스", "Google", "Google", "명예한국인증", "해외 창업가 네트워킹 행사에 한국 이름 추천 카드 체험을 구성했습니다.", "collaboration-8.webp", "google-wordmark.svg"},
+                {"2026.09.28", "삼성 글로벌 협력사 초청 데이", "삼성 디지털시티", "Samsung", "Samsung", "방문증", "해외 협력사 방문 일정에 맞춰 한글 이름 방문증과 현장 기념 촬영 프로그램을 운영했습니다.", "collaboration-1.webp", "samsung.svg"},
+                {"2026.09.12", "네이버 해외 인턴 문화 온보딩", "네이버 1784", "NAVER", "NAVER", "학생증 · 명예시민증", "해외 인턴 참가자를 대상으로 한국 이름 추천과 디지털 카드 발급 체험을 제공했습니다.", "collaboration-2.webp", "naver.svg"},
+                {"2026.08.26", "카카오 글로벌 파트너 교류회", "카카오 판교 아지트", "Kakao", "Kakao", "명예한국인증", "파트너 교류 행사에서 참가자별 한글 이름 카드와 협업 기록 콘텐츠를 함께 제작했습니다.", "collaboration-3.webp", "kakao.svg"},
+                {"2026.08.09", "LG 해외 연구원 환영 프로그램", "LG 사이언스파크", "LG", "LG", "방문증", "해외 연구원 방문 프로그램에 한국 이름 풀이와 방문증 수령 경험을 더했습니다.", "collaboration-4.webp", "lg.svg"},
+                {"2026.07.24", "현대 글로벌 고객 브랜드 투어", "현대 모터스튜디오", "Hyundai", "Hyundai", "명예시민증", "브랜드 투어 참가 고객에게 한글 이름 카드와 맞춤형 기념 이미지를 제공했습니다.", "collaboration-5.webp", "hyundai.svg"},
+                {"2026.07.10", "기아 글로벌 트레이닝 캠프", "기아 오토랜드", "Kia", "Kia", "학생증 · 방문증", "해외 교육 참가자에게 프로그램 전용 한글 이름 학생증과 방문증을 발급했습니다.", "collaboration-6.webp", "kia.svg"},
+                {"2026.06.21", "라인 다국적 팀 리더 워크숍", "라인 오피스 라운지", "LINE", "LINE", "명예한국인증", "다국적 팀 리더 워크숍에 한글 이름 체험과 팀별 인증 카드 제작을 연계했습니다.", "collaboration-7.webp", "line.svg"},
+                {"2026.06.06", "구글 글로벌 스타트업 밋업", "스타트업 캠퍼스", "Google", "Google", "방문증", "해외 스타트업 참가자에게 한국 이름 방문증과 네트워킹용 디지털 콘텐츠를 제공했습니다.", "collaboration-8.webp", "google.svg"},
+        };
+        for (int i = 0; i < collab.length; i++) {
+            String[] r = collab[i];
+            String thumbnailPath = uploadThumbnail(r[7], uploadedByResource);
+            String logoPath = uploadLogo(r[8], uploadedByResource);
+            eventPostRepository.save(EventPost.create(EventType.COLLABORATION, r[1], null, r[0], r[2], r[3], r[5],
+                    r[6], thumbnailPath, r[4], logoPath, true, i));
+        }
+    }
+
+    private String uploadThumbnail(String filename, Map<String, String> uploadedByResource) {
+        return uploadSeedImage("seed/events/" + filename, "events/thumbnails/seed-" + filename, uploadedByResource);
+    }
+
+    private String uploadLogo(String filename, Map<String, String> uploadedByResource) {
+        return uploadSeedImage("seed/logos/" + filename, "events/logos/seed-" + filename, uploadedByResource);
+    }
+
+    // 클래스패스의 데모 이미지를 S3에 업로드하고 저장 key를 돌려준다. 리소스 누락이나 S3 오류가 나도
+    // 시드 전체(및 앱 기동)를 실패시키지 않도록 null로 폴백한다 — 이미지 없이 텍스트만 노출된다.
+    // computeIfAbsent는 실패(null)를 캐시에 남기지 않으므로 같은 파일의 다음 참조 때 재시도된다.
+    private String uploadSeedImage(String resourcePath, String key, Map<String, String> uploadedByResource) {
+        return uploadedByResource.computeIfAbsent(resourcePath, path -> {
+            try (var in = new ClassPathResource(path).getInputStream()) {
+                storageService.uploadBytes(key, in.readAllBytes(), contentTypeOf(path));
+                return key;
+            } catch (IOException | RuntimeException e) {
+                log.warn("데모 이미지 시드 실패(무시하고 진행). resource={}", path, e);
+                return null;
+            }
+        });
+    }
+
+    private String contentTypeOf(String path) {
+        return path.endsWith(".svg") ? "image/svg+xml" : "image/webp";
     }
 }
