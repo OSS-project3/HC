@@ -7,7 +7,8 @@ import { openPostcodeSearch } from "../../../lib/postcode";
 import { SelectField } from "../../ui/SelectField";
 import { SearchableSelectField } from "../../ui/SearchableSelectField";
 import { countries } from "../../../data/countries";
-import { useRef, useState } from "react";
+import { birthCitiesFor, formatUtcOffset } from "../../../data/birthCities";
+import { useMemo, useRef, useState } from "react";
 
 // Country options are static — build once (ko is the stored value, en aids search).
 const countryOptions = countries.map((c) => ({ value: c.ko, label: c.ko, keywords: c.en }));
@@ -31,6 +32,26 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
     update({ applicant: { ...draft.applicant, ...patch } });
   const setRecipient = (patch: Partial<RecipientInfo>) =>
     update({ recipient: { ...draft.recipient, ...patch } });
+
+  // 출생지역: 선택된 국적의 "시차 결정용 대표 도시"만 드롭다운에 노출하고, 라벨에 표준시 시차를
+  // 함께 표기한다(예: "서울 (+9)"). 도시 데이터가 없는 국적은 자유 입력으로 폴백한다(아래 렌더 참고).
+  const nationality = draft.applicant.nationality ?? "";
+  const birthCities = useMemo(() => birthCitiesFor(nationality), [nationality]);
+  const birthCityOptions = useMemo(
+    () =>
+      birthCities.map((city) => ({
+        value: city.ko,
+        label: `${city.ko} (UTC ${formatUtcOffset(city.offset)})`,
+        keywords: `${city.en} ${city.ko}`,
+      })),
+    [birthCities],
+  );
+
+  // 국적을 바꾸면 이전 출생도시가 새 국적의 목록에 없을 때 초기화한다(엉뚱한 도시가 남지 않도록).
+  const setNationality = (value: string) => {
+    const stillValid = birthCitiesFor(value).some((city) => city.ko === draft.applicant.birthPlace);
+    setApplicant({ nationality: value, birthPlace: stillValid ? draft.applicant.birthPlace : "" });
+  };
 
   const setIssuance = (method: IssuanceMethod) => {
     // When switching back to mobile-only, drop recipient data entirely.
@@ -284,22 +305,43 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                     placeholder="국적을 선택해 주세요"
                     searchPlaceholder="국가명을 입력해 주세요"
                     value={draft.applicant.nationality ?? ""}
-                    onChange={(value) => setApplicant({ nationality: value })}
+                    onChange={setNationality}
                     triggerClassName={`field__select${hasError("nationality") ? " field__select--invalid" : ""}`}
                     options={countryOptions}
                   />
                 </div>
-                <label className="field" ref={registerField("birthPlace")}>
+                <div className="field" ref={registerField("birthPlace")}>
                   <span className="field__label">
                     출생지역<span className="req">*</span>
                   </span>
-                  <input
-                    className={inputCls("birthPlace")}
-                    value={draft.applicant.birthPlace ?? ""}
-                    onChange={(e) => setApplicant({ birthPlace: e.target.value })}
-                    placeholder="서울"
-                  />
-                </label>
+                  {!nationality ? (
+                    // 국적이 정해져야 도시 목록이 정해지므로, 선택 전에는 비활성 안내를 보여준다.
+                    <input
+                      className="field__input"
+                      value=""
+                      disabled
+                      placeholder="국적을 먼저 선택해 주세요"
+                    />
+                  ) : birthCityOptions.length > 0 ? (
+                    <SearchableSelectField
+                      ariaLabel="출생지역 선택"
+                      placeholder="출생 도시를 선택해 주세요"
+                      searchPlaceholder="도시명을 입력해 주세요"
+                      value={draft.applicant.birthPlace ?? ""}
+                      onChange={(value) => setApplicant({ birthPlace: value })}
+                      triggerClassName={`field__select${hasError("birthPlace") ? " field__select--invalid" : ""}`}
+                      options={birthCityOptions}
+                    />
+                  ) : (
+                    // 대표 도시 데이터가 없는 국적은 자유 입력으로 폴백한다.
+                    <input
+                      className={inputCls("birthPlace")}
+                      value={draft.applicant.birthPlace ?? ""}
+                      onChange={(e) => setApplicant({ birthPlace: e.target.value })}
+                      placeholder="출생 도시를 입력해 주세요"
+                    />
+                  )}
+                </div>
               </div>
               <div className="field-row field-row--inline">
                 <label className="field" ref={registerField("birthDate")}>
