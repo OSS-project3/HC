@@ -190,35 +190,52 @@
 .admin-naming__card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
 .admin-naming__mock-tag { font-style: normal; font-size: 11px; background: var(--color-surface-soft); color: var(--color-text-muted); padding: 1px 6px; border-radius: var(--radius-pill); margin-left: 4px; }
 
-.admin-naming__saju { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.admin-naming__saju { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; margin-bottom: 14px; }
 .admin-naming__pillars { border-collapse: collapse; font-size: 13px; }
 .admin-naming__pillars th, .admin-naming__pillars td { border: 1px solid var(--color-border-soft); padding: 6px 12px; text-align: center; }
 .admin-naming__pillars thead th { background: var(--color-surface-soft); color: var(--color-text-secondary); }
 .admin-naming__pillars tbody th { background: var(--color-surface-soft); color: var(--color-text-muted); font-weight: 500; }
-.admin-naming__elements { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-/* 오행: 전통 색의 원형 아이콘 + 개수 */
+/* 오행: 만세력 표 옆 공간을 꽉 채우는 큰 박스 5개(+ 결핍 안내). */
+.admin-naming__elements {
+  flex: 1 1 440px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  align-content: center;
+}
 .admin-naming__el {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 10px 3px 3px; border-radius: var(--radius-pill);
-  background: #fff; border: 1px solid var(--color-border-soft);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  min-height: 92px; padding: 14px 8px;
+  border-radius: 12px; border: 1.5px solid var(--color-border-soft);
+  background: #fff;
 }
 .admin-naming__el-icon {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; border-radius: 50%;
-  color: #fff; font-size: 14px; font-weight: 700; line-height: 1;
-  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.12);
+  width: 42px; height: 42px; border-radius: 50%;
+  color: #fff; font-size: 21px; font-weight: 700; line-height: 1;
+  box-shadow: inset 0 -2px 5px rgba(0, 0, 0, 0.14);
 }
-.admin-naming__el-count { font-size: 14px; font-weight: 700; min-width: 12px; text-align: center; color: #4a3728; }
-.admin-naming__el.el-mok .admin-naming__el-icon { background: #3a915f; }  /* 목(木) 청 */
-.admin-naming__el.el-hwa .admin-naming__el-icon { background: #d1443a; }  /* 화(火) 적 */
-.admin-naming__el.el-to  .admin-naming__el-icon { background: #cf9b2e; }  /* 토(土) 황 */
-.admin-naming__el.el-geum .admin-naming__el-icon { background: #9aa1ab; }  /* 금(金) 백/금속 */
-.admin-naming__el.el-su  .admin-naming__el-icon { background: #2f5aa0; }  /* 수(水) 흑청 */
-/* 결핍(0개): 아이콘 흐리게 + 붉은 테두리로 보완 대상 강조 */
-.admin-naming__el.is-missing { border-color: #d98c7c; background: #fbeeeb; }
+.admin-naming__el-count { font-size: 22px; font-weight: 800; line-height: 1; color: #4a3728; }
+/* 원소별 박스 톤 + 아이콘 색 (목=청/화=적/토=황/금=금속/수=흑청) */
+.admin-naming__el.el-mok { background: #eaf5ee; border-color: #bfe0cc; }
+.admin-naming__el.el-mok .admin-naming__el-icon { background: #3a915f; }
+.admin-naming__el.el-hwa { background: #fbeae7; border-color: #f0c4bc; }
+.admin-naming__el.el-hwa .admin-naming__el-icon { background: #d1443a; }
+.admin-naming__el.el-to { background: #faf1dd; border-color: #ecd39a; }
+.admin-naming__el.el-to .admin-naming__el-icon { background: #cf9b2e; }
+.admin-naming__el.el-geum { background: #eef0f3; border-color: #cfd4db; }
+.admin-naming__el.el-geum .admin-naming__el-icon { background: #9aa1ab; }
+.admin-naming__el.el-su { background: #e9f0fa; border-color: #bcd0ec; }
+.admin-naming__el.el-su .admin-naming__el-icon { background: #2f5aa0; }
+/* 결핍(0개): 점선 붉은 테두리 + 아이콘 흐리게 */
+.admin-naming__el.is-missing { border-style: dashed; border-color: #d98c7c; }
 .admin-naming__el.is-missing .admin-naming__el-icon { opacity: 0.4; }
 .admin-naming__el.is-missing .admin-naming__el-count { color: #b3402f; }
-.admin-naming__missing-note { font-size: 12px; color: var(--color-text-muted); }
+.admin-naming__missing-note { grid-column: 1 / -1; font-size: 12px; color: var(--color-text-muted); text-align: right; margin-top: 2px; }
+
+@media (max-width: 640px) {
+  .admin-naming__elements { flex-basis: 100%; }
+}
 
 .admin-naming__recs { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .admin-naming__rec { border: 1px solid var(--color-border-soft); border-radius: 8px; padding: 12px; display: grid; gap: 5px; }
