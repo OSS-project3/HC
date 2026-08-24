@@ -16,8 +16,7 @@ export interface FeedPost {
 
 /**
  * Map a backend Event list item into the feed view model.
- * Note: the backend has no `company`/`logoUrl` fields, so collaboration logos
- * are not available from the API (see FRONTEND_API_REQUIREMENTS gap notes).
+ * ✅ 2026-08-24: 백엔드가 `company`/`logoUrl`을 제공하므로 협업(COLLABORATION) 로고·회사명도 매핑한다.
  */
 export function eventToFeedPost(dto: EventListItem): FeedPost {
   return {
@@ -26,6 +25,8 @@ export function eventToFeedPost(dto: EventListItem): FeedPost {
     title: dto.title,
     place: dto.place,
     host: dto.host,
+    company: dto.company,
+    logoUrl: dto.logoUrl,
     cardLabel: dto.cardLabel,
     text: dto.content,
     image: dto.thumbnailImageUrl,

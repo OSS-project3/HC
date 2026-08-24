@@ -1,29 +1,89 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
+import { api, ApiError } from "../../services/api";
 import "../LoginPage/LoginPage.css";
 
 type RecoveryType = "id" | "password";
+type Phase = "request" | "confirm" | "done";
 
 export function AccountRecoveryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialType: RecoveryType = searchParams.get("type") === "password" ? "password" : "id";
   const [type, setType] = useState<RecoveryType>(initialType);
-  const [result, setResult] = useState("");
+  const [phase, setPhase] = useState<Phase>("request");
 
+  // request 단계 입력
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  // confirm 단계 입력
+  const [requestId, setRequestId] = useState("");
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+
+  const [error, setError] = useState("");
+  const [result, setResult] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const reset = () => {
+    setPhase("request"); setRequestId(""); setCode("");
+    setNewPassword(""); setNewPasswordConfirm(""); setError(""); setResult("");
+  };
   const changeType = (next: RecoveryType) => {
     setType(next);
-    setResult("");
+    setName(""); setPhone(""); setEmail("");
+    reset();
     setSearchParams({ type: next });
   };
 
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+  const message = (e: unknown, fallback: string) =>
+    e instanceof ApiError ? e.message : e instanceof Error ? e.message : fallback;
+
+  const submitRequest = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setResult(
-      type === "id"
-        ? "입력하신 정보와 일치하는 아이디를 확인했습니다. 가입 이메일을 안내해 드립니다. (데모)"
-        : "입력하신 연락처로 비밀번호 재설정 안내를 발송했습니다. (데모)",
-    );
+    if (submitting) return;
+    setError(""); setResult(""); setSubmitting(true);
+    try {
+      const challenge = type === "id"
+        ? await api.requestIdRecovery({ name: name.trim(), phone: phone.trim() })
+        : await api.requestPasswordRecovery({ email: email.trim() });
+      setRequestId(challenge.requestId);
+      setPhase("confirm");
+      setResult(type === "id"
+        ? "가입 시 등록한 이메일로 인증 코드를 보냈습니다. 코드를 입력해 주세요."
+        : "입력하신 이메일로 인증 코드를 보냈습니다. 코드와 새 비밀번호를 입력해 주세요.");
+    } catch (e) {
+      setError(message(e, "요청에 실패했습니다. 입력 정보를 확인해 주세요."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submitConfirm = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submitting) return;
+    setError("");
+    if (type === "password") {
+      if (newPassword.length < 8) { setError("비밀번호는 8자 이상이어야 합니다."); return; }
+      if (newPassword !== newPasswordConfirm) { setError("비밀번호가 일치하지 않습니다."); return; }
+    }
+    setSubmitting(true);
+    try {
+      if (type === "id") {
+        const { maskedEmail } = await api.confirmIdRecovery({ requestId, code: code.trim() });
+        setResult(`회원님의 아이디(이메일)는 ${maskedEmail} 입니다.`);
+      } else {
+        await api.confirmPasswordRecovery({ requestId, code: code.trim(), newPassword });
+        setResult("비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해 주세요.");
+      }
+      setPhase("done");
+    } catch (e) {
+      setError(message(e, "인증에 실패했습니다. 코드를 확인해 주세요."));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -33,66 +93,64 @@ export function AccountRecoveryPage() {
         <p className="auth__lead">가입할 때 입력한 정보로 계정을 확인해 주세요.</p>
 
         <div className="auth__tabs" role="tablist" aria-label="계정 찾기 유형">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={type === "id"}
-            className={`auth__tab${type === "id" ? " auth__tab--active" : ""}`}
-            onClick={() => changeType("id")}
-          >
-            아이디 찾기
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={type === "password"}
-            className={`auth__tab${type === "password" ? " auth__tab--active" : ""}`}
-            onClick={() => changeType("password")}
-          >
-            비밀번호 찾기
-          </button>
+          <button type="button" role="tab" aria-selected={type === "id"} className={`auth__tab${type === "id" ? " auth__tab--active" : ""}`} onClick={() => changeType("id")}>아이디 찾기</button>
+          <button type="button" role="tab" aria-selected={type === "password"} className={`auth__tab${type === "password" ? " auth__tab--active" : ""}`} onClick={() => changeType("password")}>비밀번호 찾기</button>
         </div>
 
-        <form className="auth__form" onSubmit={submit}>
-          {type === "id" ? (
+        {phase === "request" && (
+          <form className="auth__form" onSubmit={submitRequest}>
+            {type === "id" ? (
+              <>
+                <label className="field">
+                  <span className="field__label">이름</span>
+                  <input className="field__input" autoComplete="name" placeholder="이름" value={name} onChange={(e) => setName(e.target.value)} required />
+                </label>
+                <label className="field">
+                  <span className="field__label">전화번호</span>
+                  <input className="field__input" type="tel" autoComplete="tel" placeholder="010-1234-5678" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                </label>
+              </>
+            ) : (
+              <label className="field">
+                <span className="field__label">아이디(이메일)</span>
+                <input className="field__input" type="email" autoComplete="username" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              </label>
+            )}
+            <Button type="submit" block disabled={submitting}>{submitting ? "처리 중…" : "인증 코드 받기"}</Button>
+          </form>
+        )}
+
+        {phase === "confirm" && (
+          <form className="auth__form" onSubmit={submitConfirm}>
             <label className="field">
-              <span className="field__label">이름</span>
-              <input className="field__input" autoComplete="name" placeholder="이름" required />
+              <span className="field__label">인증 코드</span>
+              <input className="field__input" inputMode="numeric" autoComplete="one-time-code" placeholder="이메일로 받은 코드" value={code} onChange={(e) => setCode(e.target.value)} required />
             </label>
-          ) : (
-            <label className="field">
-              <span className="field__label">아이디(이메일)</span>
-              <input
-                className="field__input"
-                type="email"
-                autoComplete="username"
-                placeholder="you@example.com"
-                required
-              />
-            </label>
-          )}
+            {type === "password" && (
+              <>
+                <label className="field">
+                  <span className="field__label">새 비밀번호</span>
+                  <input className="field__input" type="password" autoComplete="new-password" placeholder="8자 이상" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+                </label>
+                <label className="field">
+                  <span className="field__label">새 비밀번호 확인</span>
+                  <input className="field__input" type="password" autoComplete="new-password" placeholder="다시 입력" value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} required />
+                </label>
+              </>
+            )}
+            <Button type="submit" block disabled={submitting}>{submitting ? "처리 중…" : type === "id" ? "아이디 확인" : "비밀번호 재설정"}</Button>
+            <button type="button" className="auth__link-button" onClick={reset}>처음부터 다시</button>
+          </form>
+        )}
 
-          <label className="field">
-            <span className="field__label">전화번호</span>
-            <input
-              className="field__input"
-              type="tel"
-              autoComplete="tel"
-              placeholder="010-1234-5678"
-              required
-            />
-          </label>
-
-          <Button type="submit" block>
-            {type === "id" ? "아이디 확인" : "재설정 안내 받기"}
-          </Button>
-        </form>
-
+        {error && <p className="field-error" role="alert">{error}</p>}
         {result && <p className="auth__result" role="status">{result}</p>}
-
-        <p className="auth__switch">
-          계정이 기억나셨나요? <Link to="/login">로그인</Link>
-        </p>
+        {phase === "done" && (
+          <p className="auth__switch"><Link to="/login">로그인하러 가기</Link></p>
+        )}
+        {phase !== "done" && (
+          <p className="auth__switch">계정이 기억나셨나요? <Link to="/login">로그인</Link></p>
+        )}
       </div>
     </section>
   );

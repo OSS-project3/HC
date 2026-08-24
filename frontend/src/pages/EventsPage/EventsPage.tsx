@@ -70,7 +70,7 @@ export function EventsPage() {
         </div>
       </section>
 
-      {isAdmin && <EventAdminPanel label="부스 운영 게시글" eventType="BOOTH" items={managedBoothPosts} onChanged={reloadBooth} />}
+      {isAdmin && <EventAdminPanel label="부스 운영 게시글" eventType="BOOTH" onChanged={reloadBooth} />}
       <EventFeed
         title="부스 운영"
         tagline="현장에서 고객과 직접 만나 정성을 담은 서비스를 제공합니다"
@@ -78,7 +78,7 @@ export function EventsPage() {
         pageSize={4}
       />
 
-      {isAdmin && <EventAdminPanel label="법인·단체 협업 게시글" eventType="COLLABORATION" items={managedCollabPosts} onChanged={reloadCollab} />}
+      {isAdmin && <EventAdminPanel label="법인·단체 협업 게시글" eventType="COLLABORATION" onChanged={reloadCollab} />}
       <EventFeed
         title="법인·단체 협업"
         tagline="다양한 법인•단체와의 협업을 통해 한글 이름과 카드를 제공합니다"

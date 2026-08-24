@@ -87,9 +87,18 @@ export interface BoardWriteBody { boardType: BoardType; title: string; content: 
 // ── Events (행사사업: 부스 / 협업) ───────────────────────────────
 export type EventType = "BOOTH" | "COLLABORATION";
 export interface EventImage { id: number; originalFileName: string; url: string; }
-export interface EventListItem { id: number; eventType: EventType; title: string; eventDate?: string; eventDateText: string; place: string; host: string; cardLabel: string; content: string; thumbnailImageUrl?: string; displayOrder?: number; }
+export interface EventListItem { id: number; eventType: EventType; title: string; eventDate?: string; eventDateText: string; place: string; host: string; cardLabel: string; content: string; thumbnailImageUrl?: string; company?: string; logoUrl?: string; displayOrder?: number; }
 export interface EventDetail extends Omit<EventListItem, "displayOrder"> { images: EventImage[]; }
-export interface EventWriteBody { eventType: EventType; title: string; eventDate?: string; eventDateText: string; place: string; host: string; cardLabel: string; content: string; visible?: boolean; displayOrder?: number; }
+export interface EventAdminListItem extends EventListItem { visible: boolean; }
+export interface EventAdminDetail extends EventAdminListItem { images: EventImage[]; }
+export interface EventWriteBody { eventType: EventType; title: string; eventDate?: string; eventDateText: string; place: string; host: string; cardLabel: string; content: string; company?: string; visible?: boolean; displayOrder?: number; }
+/** Update body: gallery edit via keepImageIds (kept ids in order; new files appended); removeThumbnail/removeLogo drop those. */
+export interface EventUpdateBody extends EventWriteBody { removeThumbnail?: boolean; removeLogo?: boolean; keepImageIds?: number[]; }
+/** Files for create/update: thumbnail (single), logo (single, COLLABORATION only), images (gallery, multiple). */
+export interface EventFiles { thumbnail?: File; logo?: File; images?: File[]; }
+
+// ── Account recovery (아이디/비밀번호 찾기) ──────────────────────
+export interface RecoveryChallenge { requestId: string; expiresInSeconds: number; resendAfterSeconds: number; }
 
 export const api = {
   getMe: () => request<ApiUser>("/api/users/me"),
@@ -119,10 +128,28 @@ export const api = {
   updateBoard: (id: number, body: BoardWriteBody, attachments: File[] = []) => request<void>(`/api/admin/boards/${id}`, { method: "PATCH", body: multipart(body, attachments.map((file) => ({ name: "attachments", file }))) }),
   deleteBoard: (id: number) => request<void>(`/api/admin/boards/${id}`, { method: "DELETE" }),
 
-  // Events
+  // Events (public)
   listEvents: (params: { type: EventType; page?: number; size?: number }) => request<PageResponse<EventListItem>>(`/api/events${qs({ ...params })}`),
   getEvent: (id: number) => request<EventDetail>(`/api/events/${id}`),
-  createEvent: (body: EventWriteBody, thumbnail?: File, images: File[] = []) => request<{ id: number }>("/api/admin/events", { method: "POST", body: multipart(body, [...(thumbnail ? [{ name: "thumbnail", file: thumbnail }] : []), ...images.map((file) => ({ name: "images", file }))]) }),
-  updateEvent: (id: number, body: EventWriteBody, thumbnail?: File) => request<void>(`/api/admin/events/${id}`, { method: "PATCH", body: multipart(body, thumbnail ? [{ name: "thumbnail", file: thumbnail }] : []) }),
+  // Events (admin)
+  listAdminEvents: (params: { type?: EventType; visible?: boolean; page?: number; size?: number } = {}) => request<PageResponse<EventAdminListItem>>(`/api/admin/events${qs({ ...params })}`),
+  getAdminEvent: (id: number) => request<EventAdminDetail>(`/api/admin/events/${id}`),
+  createEvent: (body: EventWriteBody, files: EventFiles = {}) => request<{ id: number }>("/api/admin/events", { method: "POST", body: eventMultipart(body, files) }),
+  updateEvent: (id: number, body: EventUpdateBody, files: EventFiles = {}) => request<void>(`/api/admin/events/${id}`, { method: "PATCH", body: eventMultipart(body, files) }),
   deleteEvent: (id: number) => request<void>(`/api/admin/events/${id}`, { method: "DELETE" }),
+
+  // Account recovery (아이디/비밀번호 찾기) — 2-step: request → confirm(code)
+  requestIdRecovery: (body: { name: string; phone: string }) => request<RecoveryChallenge>("/api/auth/recovery/id/request", { method: "POST", body: JSON.stringify(body) }),
+  confirmIdRecovery: (body: { requestId: string; code: string }) => request<{ maskedEmail: string }>("/api/auth/recovery/id/confirm", { method: "POST", body: JSON.stringify(body) }),
+  requestPasswordRecovery: (body: { email: string }) => request<RecoveryChallenge>("/api/auth/recovery/password/request", { method: "POST", body: JSON.stringify(body) }),
+  confirmPasswordRecovery: (body: { requestId: string; code: string; newPassword: string }) => request<void>("/api/auth/recovery/password/confirm", { method: "POST", body: JSON.stringify(body) }),
 };
+
+/** Build the events multipart body: JSON `request` + thumbnail/logo (single) + images (gallery). */
+function eventMultipart(body: unknown, files: EventFiles): FormData {
+  const parts: Array<{ name: string; file: File }> = [];
+  if (files.thumbnail) parts.push({ name: "thumbnail", file: files.thumbnail });
+  if (files.logo) parts.push({ name: "logo", file: files.logo });
+  for (const file of files.images ?? []) parts.push({ name: "images", file });
+  return multipart(body, parts);
+}

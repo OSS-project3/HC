@@ -70,9 +70,26 @@
   font-weight: 600;
 }
 
+/* ── EventAdminPanel (real-API) additions ─────────────────────────── */
+.event-feed-admin__count { color: var(--color-text-muted); font-weight: 500; font-size: 13px; }
+.event-feed-admin__check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-text-secondary); }
+.event-feed-admin__form .field__label { grid-column: 1 / -1; margin-top: 4px; font-size: 12px; color: var(--color-text-muted); }
+.event-feed-admin__thumb { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
+.event-feed-admin__thumb img { width: 96px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid var(--color-border-soft); }
+.event-feed-admin__gallery { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.event-feed-admin__gallery figure { margin: 0; display: grid; gap: 6px; }
+.event-feed-admin__gallery img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; border: 1px solid var(--color-border-soft); }
+.event-feed-admin__gallery button { justify-self: start; padding: 4px 10px; font-size: 12px; }
+.event-feed-admin__empty { color: var(--color-text-muted); font-size: 13px; padding: 12px 0; }
+.event-feed-admin__row { min-height: 38px; padding: 8px 0; border-top: 1px solid var(--color-border-soft); }
+.event-feed-admin__row-date { flex: none; width: 110px; color: var(--color-border-accent); font-size: 12px; }
+.event-feed-admin__row-title { flex: none; max-width: 40%; color: var(--color-text-secondary); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-feed-admin__row-meta { flex: 1; min-width: 0; color: var(--color-text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 @media (max-width: 720px) {
   .event-feed-admin__form { grid-template-columns: 1fr; }
   .event-feed-admin__list > div { flex-wrap: wrap; }
   .event-feed-admin__list span { width: auto; }
   .event-feed-admin__list b { flex-basis: calc(100% - 90px); }
+  .event-feed-admin__row-title { max-width: 100%; }
 }

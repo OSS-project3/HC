@@ -15,6 +15,37 @@
 
 ---
 
+## 2026-08-24 — Claude — `main` (관리자 행사 게시글 실제 API+이미지 연동 / 계정 찾기 실제 API / dev 프록시 + API 미연동 원인 진단)
+
+### 원인 진단(중요)
+사용자가 "행사 페이지에 내용 없음, 후기/공지/FAQ 불러오기 안 됨, 계정 찾기 안 됨"을 보고. 조사 결과:
+- **공개 EventsPage/NoticesPage/FaqPage/ReviewsPage는 실제 API를 호출**(정상 코드)하지만, **SupportPage의 공지사항은 하드코딩 정적 배열**이라 "지원 페이지엔 보이는데 공지 페이지는 안 뜨는" 착시가 생겼다. 즉 이들 "안 뜸"의 공통 원인은 **연결된 백엔드에 데이터가 없거나(관리자/사용자가 생성해야 채워짐) 백엔드 미연결**이지 프론트 코드 버그가 아니다.
+- **진짜 코드 문제 3가지**를 수정: (1) 관리자 행사 게시글이 localStorage mock이라 공개 API와 안 이어짐, (2) 계정 찾기가 데모 스텁(API 미호출), (3) dev 환경에 API 프록시 없음.
+
+### 수정 1 — 관리자 행사 게시글 실제 API + 이미지
+- `AdminPage`가 쓰던 localStorage 기반 `EventFeedAdminPanel`을 제거하고, 실제 이벤트 API 기반 `EventAdminPanel`로 교체(자체적으로 `GET /api/admin/events`로 목록 로드).
+- 썸네일(1) + **행사 이미지 갤러리(다중, 최대 10장, 수정 시 keepImageIds로 유지/삭제/추가)** + **협업 로고(COLLABORATION 전용)** 업로드 지원. 회사·단체명·공개여부·정렬순서 필드 추가, 목록에 제목/장소/주최/비공개 표시.
+- 이제 관리자가 만든 행사가 실제 백엔드에 저장돼 공개 EventsPage에 그대로 노출된다(mock↔API 불일치 해소).
+
+### 수정 2 — 공개 행사페이지 로고/회사명
+- `eventToFeedPost`가 백엔드의 `company`/`logoUrl`을 매핑하도록 수정 → 협업 카드에 로고·회사명 표시(EventsPage 렌더는 이미 지원).
+
+### 수정 3 — 계정 찾기(아이디/비밀번호) 실제 API
+- `AccountRecoveryPage` 데모 스텁을 **2단계 실제 API 플로우**로 재작성: 아이디 찾기(이름+전화 → 코드 확인 → 마스킹 이메일), 비밀번호 찾기(이메일 → 코드+새 비밀번호 확인 → 재설정). `/api/auth/recovery/id|password/request·confirm` 사용.
+
+### 수정 4 — api.ts 계약 정합 + dev 프록시
+- `api.ts` 이벤트 계약을 강화된 백엔드에 맞춤: `company`/`logoUrl`/관리자 목록·상세(`listAdminEvents`/`getAdminEvent`) + `createEvent`/`updateEvent`가 thumbnail/logo/images 멀티파트와 `keepImageIds`/`removeThumbnail`/`removeLogo` 지원. 계정 복구 4개 메서드 추가.
+- `vite.config.ts`에 dev 프록시(`/api`·`/oauth2`·`/login/oauth2` → `VITE_DEV_BACKEND`(기본 localhost:8080)) 추가 — dev에서 API가 vite 서버로 404 나던 문제 해소(운영은 nginx가 담당).
+
+### 파일
+- 프론트: `services/api.ts`, `components/admin/EventAdminPanel.tsx`(전면 개편)·`EventFeedAdminPanel.css`, `components/admin/EventFeedAdminPanel.tsx`(삭제), `pages/AdminPage/AdminPage.tsx`, `pages/EventsPage/EventsPage.tsx`, `data/eventFeedPosts.ts`, `pages/AccountRecoveryPage/AccountRecoveryPage.tsx`, `pages/LoginPage/LoginPage.css`, `vite.config.ts`
+
+### 참고(백엔드 미연결 시)
+- reviews/notices/FAQ가 비어 보이면 백엔드가 떠 있고 데이터가 있는지 확인 필요(공지/FAQ는 관리자 생성, 후기는 사용자 작성). dev 단독 실행 시엔 별도 백엔드(localhost:8080) 기동 + 이번 vite 프록시로 연결.
+- SupportPage의 공지사항은 여전히 하드코딩(정적) — 실제 API로 바꾸려면 별도 작업 필요(이번 범위 밖).
+
+---
+
 ## 2026-08-24 — Claude — `main` (후기 다중 사진 풀스택 + 관리자 신청상세/문의답변 + 후기 저장 버그·기존 플로우테스트 결함 수정)
 
 ### 요약

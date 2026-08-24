@@ -70,6 +70,19 @@
   border-bottom-color: var(--color-primary);
   color: var(--color-primary);
 }
+.auth__link-button {
+  margin-top: 10px;
+  align-self: center;
+  background: none;
+  border: 0;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.auth__link-button:hover { color: var(--color-primary); }
 .auth__result {
   margin-top: 18px;
   padding: 14px 16px;
