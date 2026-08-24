@@ -187,7 +187,13 @@
 .admin-naming__subtitle { font-size: 13px; color: var(--color-text-secondary); }
 .admin-naming__mock-banner { font-size: 13px; color: #9a6a1c; background: #fbf3e2; border-radius: 6px; padding: 10px 12px; line-height: 1.55; }
 .admin-naming__card { border: 1px solid var(--color-border-soft); border-radius: 8px; padding: 16px; background: var(--color-surface); }
-.admin-naming__card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+.admin-naming__card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.admin-naming__head-left { display: inline-flex; align-items: center; gap: 8px; }
+/* 작명 완료(창 접힘) 상태 */
+.admin-naming__card.is-done { background: #f2f9f4; border-color: #a9d3b8; }
+.admin-naming__done { display: flex; align-items: baseline; gap: 12px; padding: 2px 0; }
+.admin-naming__done-name { font-size: 22px; font-weight: 800; color: #2f7d4f; display: inline-flex; align-items: baseline; gap: 8px; }
+.admin-naming__done-name em { font-style: normal; font-size: 16px; font-weight: 600; color: var(--color-text-secondary); }
 .admin-naming__mock-tag { font-style: normal; font-size: 11px; background: var(--color-surface-soft); color: var(--color-text-muted); padding: 1px 6px; border-radius: var(--radius-pill); margin-left: 4px; }
 
 .admin-naming__saju { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; margin-bottom: 14px; }

@@ -119,6 +119,11 @@ export interface AdminApplicationDetail {
   applicant: AdminApplicantSummary; receiver?: AdminReceiverSummary;
   memberCount: number; createdAt: string;
 }
+export interface AdminApplicationMember {
+  memberId: number; englishName?: string; nationality?: string; gender?: "MALE" | "FEMALE";
+  birthDate?: string; birthTime?: string; birthRegion?: string;
+  assignedName?: string; assignedHanja?: string;
+}
 
 // ── Inquiries (1:1 문의, 고객지원) ───────────────────────────────
 export type InquiryCategory = "PRODUCTION" | "PAYMENT_AND_SHIPPING" | "CARD_ISSUANCE" | "EVENT_COLLABORATION" | "OTHER";
@@ -164,6 +169,7 @@ export const api = {
   // Applications (admin, 제작신청 관리) — 읽기 전용(목록/상세). 상태 전이·이름확정·엑셀출력은 미구현(문서 참고).
   listAdminApplications: (params: { status?: ApplicationStatus; page?: number; size?: number } = {}) => request<PageResponse<AdminApplicationListItem>>(`/api/admin/applications${qs({ ...params })}`),
   getAdminApplication: (id: number) => request<AdminApplicationDetail>(`/api/admin/applications/${id}`),
+  getAdminApplicationMembers: (id: number) => request<AdminApplicationMember[]>(`/api/admin/applications/${id}/members`),
 
   // Inquiries (1:1 문의) — 관리자 목록/상세/답변/상태
   listAdminInquiries: () => request<InquiryListItem[]>("/api/admin/inquiries"),

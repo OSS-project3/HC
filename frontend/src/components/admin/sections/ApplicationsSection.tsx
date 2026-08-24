@@ -1,9 +1,10 @@
 // 제작신청 관리 — 목록/상세는 실제 API(/api/admin/applications) 연결.
 // 만세력·이름추천·이름확정(+1)·엑셀출력은 백엔드 미구현이라 UI만(mock). 설계: docs/specs/admin-dashboard/DESIGN.md
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { api, ApiError, type AdminApplicationDetail, type AdminApplicationListItem, type ApplicationStatus, type ApplicationType } from "../../../services/api";
+import { api, ApiError, type AdminApplicationDetail, type AdminApplicationListItem, type AdminApplicationMember, type ApplicationStatus, type ApplicationType } from "../../../services/api";
 import { showToast } from "../../ui/toast";
-import { getSelectionCounts, incrementSelection, mockRecommendations, mockSaju, type RecommendedName } from "../../../data/adminNamingMock";
+import { clearChosen, getChosen, getSelectionCounts, incrementSelection, mockRecommendations, mockSaju, setChosen, type ChosenName, type MockSaju, type RecommendedName } from "../../../data/adminNamingMock";
+import { computeMemberSaju } from "../../../lib/saju";
 
 const statusLabels: Record<ApplicationStatus, string> = {
   SUBMITTED: "접수", REVIEWING: "검토중", PHOTO_REJECTED: "사진반려", NAME_EDITING: "작명중",
@@ -144,39 +145,57 @@ export function ApplicationsSection() {
       {!loading && !error && rows.length === 0 && (
         <div className="admin-naming" style={{ marginTop: 14 }}>
           <p className="admin-naming__mock-banner">
-            실제 {tab === "INDIVIDUAL" ? "개인" : "단체"} 신청 데이터가 없어 작명 플로우를 <b>예시(mock)</b>로 미리 봅니다.
+            실제 {tab === "INDIVIDUAL" ? "개인" : "단체"} 신청 데이터가 없어 작명 플로우를 <b>예시</b>로 미리 봅니다.
             실제 신청이 들어오면 위 목록의 행을 펼쳐 동일하게 동작합니다.
           </p>
-          {tab === "INDIVIDUAL"
-            ? <NamingCard label="예시 신청인" seed="preview-individual" />
-            : ["예시 멤버 1", "예시 멤버 2", "예시 멤버 3"].map((m, i) => <NamingCard key={m} label={m} seed={`preview-group-${i}`} />)}
+          {(tab === "INDIVIDUAL" ? [0] : [0, 1, 2]).map((i) => (
+            <NamingCard
+              key={i}
+              appNumber={`PREVIEW-${tab}`}
+              index={i}
+              isGroup={tab === "GROUP"}
+              member={{
+                memberId: -1 - i,
+                englishName: tab === "INDIVIDUAL" ? "예시 신청인" : `예시 멤버 ${i + 1}`,
+                nationality: ["미국", "일본", "베트남"][i] ?? "미국",
+                gender: i % 2 === 0 ? "MALE" : "FEMALE",
+                birthDate: ["1994-03-15", "1999-08-22", "1987-12-05"][i] ?? "1996-05-20",
+                birthTime: ["08:10", "14:40", "21:05"][i] ?? "12:00",
+              }}
+            />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// 신청 상세 + 작명 플로우. 상세는 실제 API, 작명은 mock.
+function genderLabel(g?: "MALE" | "FEMALE"): string | undefined {
+  return g === "MALE" ? "남성" : g === "FEMALE" ? "여성" : undefined;
+}
+
+// 신청 상세 + 구성원 작명 플로우. 상세·구성원은 실제 API, 만세력은 실제 계산(manseryeok), 추천 이름은 실제 데이터.
 function ApplicationNaming({ app }: { app: AdminApplicationListItem }) {
   const [detail, setDetail] = useState<AdminApplicationDetail | null>(null);
+  const [members, setMembers] = useState<AdminApplicationMember[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    api.getAdminApplication(app.applicationId)
-      .then((d) => { if (alive) setDetail(d); })
+    Promise.all([
+      api.getAdminApplication(app.applicationId),
+      api.getAdminApplicationMembers(app.applicationId),
+    ])
+      .then(([d, m]) => { if (alive) { setDetail(d); setMembers(m); } })
       .catch((e) => { if (alive) setError(e instanceof ApiError ? e.message : "상세를 불러오지 못했습니다."); });
     return () => { alive = false; };
   }, [app.applicationId]);
 
   if (error) return <p className="admin-panel__note admin-panel__note--error">{error}</p>;
-  if (!detail) return <p className="admin-panel__note">상세 불러오는 중…</p>;
+  if (!detail || !members) return <p className="admin-panel__note">상세 불러오는 중…</p>;
 
   const isGroup = detail.applicationType === "GROUP";
-  // 단체는 멤버 목록 API가 없어(설계문서 §4) 시연용 mock 멤버로 대체한다.
-  const memberSeeds = isGroup
-    ? Array.from({ length: Math.min(detail.memberCount || 0, 5) }, (_, i) => ({ label: `멤버 ${i + 1}`, seed: `${detail.applicationNumber}-m${i + 1}` }))
-    : [{ label: detail.applicant.name || "신청인", seed: detail.applicationNumber }];
+  const first = members[0];
 
   return (
     <div className="admin-naming">
@@ -187,42 +206,75 @@ function ApplicationNaming({ app }: { app: AdminApplicationListItem }) {
           <Item label="카드 종류" value={detail.cardTypeName} />
           <Item label="발급 방식" value={detail.issueType === "MOBILE_AND_PHYSICAL" ? "모바일+실물" : "모바일"} />
           <Item label={isGroup ? "담당자" : "신청인"} value={detail.applicant.name} />
+          {!isGroup && <Item label="출신 국가" value={first?.nationality} />}
+          {!isGroup && <Item label="성별" value={genderLabel(first?.gender)} />}
+          {!isGroup && <Item label="생년월일" value={first?.birthDate} />}
           <Item label="이메일" value={detail.applicant.email} />
           <Item label="연락처" value={detail.applicant.phone} />
           {isGroup && <Item label="인원" value={`${detail.memberCount}명`} />}
         </dl>
       </div>
 
-      {isGroup && (
-        <p className="admin-naming__mock-banner">
-          ⚠️ 단체 멤버(엑셀 행) 목록 조회 API가 아직 없어, 아래 멤버·만세력·추천 이름은 <b>시연용 mock</b>입니다.
-          실제 연동 설계는 DESIGN.md(§2·§4)를 참고하세요.
-        </p>
-      )}
-
-      {memberSeeds.map((m) => <NamingCard key={m.seed} label={m.label} seed={m.seed} />)}
+      {members.map((m, i) => (
+        <NamingCard key={m.memberId} appNumber={detail.applicationNumber} index={i} member={m} isGroup={isGroup} />
+      ))}
+      {members.length === 0 && <p className="admin-panel__note">구성원 정보가 없습니다.</p>}
     </div>
   );
 }
 
-function NamingCard({ label, seed }: { label: string; seed: string }) {
-  const saju = useMemo(() => mockSaju(seed), [seed]);
-  const recs = useMemo(() => mockRecommendations(seed, saju), [seed, saju]);
-  const [chosen, setChosen] = useState<string | null>(null);
+function NamingCard({ appNumber, index, member, isGroup }: { appNumber: string; index: number; member: AdminApplicationMember; isGroup: boolean }) {
+  const memberKey = `${appNumber}#${member.memberId}`;
+  const label = member.englishName || (isGroup ? `멤버 ${index + 1}` : "신청인");
+  // 실제 만세력(생년월일/시간). 계산 불가 시 mock로 폴백.
+  const realSaju = useMemo(() => computeMemberSaju(member.birthDate, member.birthTime), [member.birthDate, member.birthTime]);
+  const saju: MockSaju = useMemo(() => realSaju ?? mockSaju(memberKey), [realSaju, memberKey]);
+  const recs = useMemo(() => mockRecommendations(memberKey, saju), [memberKey, saju]);
   const [counts, setCounts] = useState<Record<string, number>>(() => getSelectionCounts());
+  const [chosen, setChosenState] = useState<ChosenName | null>(
+    () => getChosen(memberKey)
+      ?? (member.assignedName
+        ? { id: `${member.assignedName}|${member.assignedHanja ?? ""}`, name: member.assignedName, hanja: member.assignedHanja ?? "" }
+        : null),
+  );
 
   const choose = (name: RecommendedName) => {
     const next = incrementSelection(name.id);
     setCounts((prev) => ({ ...prev, [name.id]: next }));
-    setChosen(name.id);
-    showToast(`"${name.name}(${name.hanja})" 이름을 확정했습니다. (선택 이력 +1 · mock)`);
+    const c: ChosenName = { id: name.id, name: name.name, hanja: name.hanja };
+    setChosen(memberKey, c);
+    setChosenState(c);
+    showToast(`"${name.name}(${name.hanja})" 이름을 확정했습니다. 상태가 '작명 완료'로 변경됩니다.`);
   };
+
+  const reopen = () => { clearChosen(memberKey); setChosenState(null); };
+
+  const metaLine = [member.nationality, genderLabel(member.gender), member.birthDate].filter(Boolean).join(" · ");
+
+  // 이름 확정 후: 상태 '작명 완료' + 창을 접어(compact) 노출한다.
+  if (chosen) {
+    return (
+      <div className="admin-naming__card is-done">
+        <div className="admin-naming__card-head">
+          <div className="admin-naming__head-left"><b>{label}</b><span className="admin__status-pill is-completed">작명 완료</span></div>
+          <button type="button" className="admin__btn" onClick={reopen}>다시 선택</button>
+        </div>
+        <div className="admin-naming__done">
+          <span className="admin-naming__done-name">{chosen.name}{chosen.hanja && <em>{chosen.hanja}</em>}</span>
+          <span className="admin__muted">확정된 이름</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-naming__card">
       <div className="admin-naming__card-head">
-        <b>{label}</b>
-        <span className="admin__muted">만세력 · 추천 이름 <em className="admin-naming__mock-tag">mock</em></span>
+        <div className="admin-naming__head-left">
+          <b>{label}</b>
+          <span className="admin__status-pill is-waiting">접수</span>
+        </div>
+        <span className="admin__muted">{metaLine}{realSaju ? "" : (metaLine ? " · " : "") + "만세력 mock"}</span>
       </div>
 
       <div className="admin-naming__saju">
@@ -250,7 +302,7 @@ function NamingCard({ label, seed }: { label: string; seed: string }) {
 
       <ul className="admin-naming__recs">
         {recs.map((n) => (
-          <li key={n.id} className={`admin-naming__rec${chosen === n.id ? " is-chosen" : ""}`}>
+          <li key={n.id} className="admin-naming__rec">
             <div className="admin-naming__rec-main">
               <b>{n.name}</b> <span className="admin__muted">{n.hanja}</span>
               <span className="admin-naming__rec-el">{n.elements.join("·")}</span>
@@ -258,9 +310,7 @@ function NamingCard({ label, seed }: { label: string; seed: string }) {
             <div className="admin-naming__rec-sub">{n.reading} — {n.meaning}</div>
             <div className="admin-naming__rec-foot">
               <span className="admin__muted">선택 이력 {counts[n.id] ?? 0}회</span>
-              <button type="button" className={`admin__btn ${chosen === n.id ? "admin__btn--chosen" : "admin__btn--primary"}`} onClick={() => choose(n)}>
-                {chosen === n.id ? "✓ 확정됨" : "이 이름 선택"}
-              </button>
+              <button type="button" className="admin__btn admin__btn--primary" onClick={() => choose(n)}>이 이름 선택</button>
             </div>
           </li>
         ))}

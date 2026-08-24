@@ -9,6 +9,7 @@ import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.enums.LookupMethod;
+import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCancelResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
@@ -402,6 +403,17 @@ public class ApplicationService {
         long memberCount = applicationMemberRepository.countByApplicationId(applicationId);
 
         return MyApplicationDetailResponse.of(application, cardType.getName(), applicant, receiver, memberCount);
+    }
+
+    /** 관리자 작명 화면용 구성원 목록 — 개인=1명, 단체=엑셀 행 N명. 만세력 계산에 필요한 생년월일 등을 포함한다. */
+    @Transactional(readOnly = true)
+    public List<AdminApplicationMemberResponse> getApplicationMembersForAdmin(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        return applicationMemberRepository.findByApplicationId(applicationId).stream()
+                .map(AdminApplicationMemberResponse::from)
+                .toList();
     }
 
     /**

@@ -3,6 +3,7 @@ package com.example.honorcitizen.api;
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.common.response.PageResponse;
+import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationDetailResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationListItemResponse;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
@@ -14,6 +15,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 // 관리자 신청 목록/상세 — 소유자 무관 전체 조회. 인가는 SecurityConfig의 /api/admin/** → ADMIN
 // 규칙으로 라우트 레벨에서 걸리고, ApplicationService.validateAdmin이 한 번 더 확인한다.
@@ -41,5 +44,14 @@ public class AdminApplicationController {
             @PathVariable Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.getApplicationDetailForAdmin(adminId, applicationId)));
+    }
+
+    // 작명 화면용 구성원 목록(개인=1명, 단체=엑셀 행 N명) — 이름·출신국가·성별·생년월일 등.
+    @GetMapping("/{applicationId}/members")
+    public ResponseEntity<ApiResponse<List<AdminApplicationMemberResponse>>> members(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.getApplicationMembersForAdmin(adminId, applicationId)));
     }
 }

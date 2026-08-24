@@ -124,3 +124,28 @@ export function incrementSelection(nameId: string): number {
   localStorage.setItem(SELECTION_KEY, JSON.stringify(counts));
   return counts[nameId];
 }
+
+// ── 멤버별 확정 이름(작명 완료 상태) — 실제 API가 없어 localStorage로 시연/영속 ─────────
+const CHOSEN_KEY = "admin:member-chosen-names";
+export interface ChosenName { id: string; name: string; hanja: string; }
+
+function readChosen(): Record<string, ChosenName> {
+  try {
+    return JSON.parse(localStorage.getItem(CHOSEN_KEY) || "{}") as Record<string, ChosenName>;
+  } catch {
+    return {};
+  }
+}
+export function getChosen(memberKey: string): ChosenName | null {
+  return readChosen()[memberKey] ?? null;
+}
+export function setChosen(memberKey: string, chosen: ChosenName): void {
+  const all = readChosen();
+  all[memberKey] = chosen;
+  localStorage.setItem(CHOSEN_KEY, JSON.stringify(all));
+}
+export function clearChosen(memberKey: string): void {
+  const all = readChosen();
+  delete all[memberKey];
+  localStorage.setItem(CHOSEN_KEY, JSON.stringify(all));
+}
