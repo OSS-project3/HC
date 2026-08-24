@@ -30,7 +30,7 @@
 | 국적 | `ApplicationMember`(nationality) | 필수 | |
 | 생년월일 | `ApplicationMember`(birth_date) | 필수 | |
 | 출생시간 | `ApplicationMember`(birth_time) | **조건부 선택** | "모름" 체크 시 미입력 가능 → **Nullable로 변경 필요**(기존 NOT NULL이었음) |
-| 출생지역 | `ApplicationMember`(birth_region) | **선택(Nullable)** | ⚠️ 기존 NOT NULL이었던 걸 Nullable로 정정 |
+| 출생지역 | `ApplicationMember`(birth_region) | **필수** | 태어난 도시/지역명 입력. 예: `Chicago`, `London`, `Tokyo`, `Beijing`, `Los Angeles`. 기존 데이터 호환을 위해 DB 컬럼은 Nullable 유지 |
 | 성별 | `ApplicationMember`(gender) | 필수 | |
 | **한국 입국날짜** | `ApplicationMember`(entry_date) | **선택(Nullable)** | ✅ 신규 추가 필드 |
 | 이메일 | 신청 폼에서 입력 | 필수 | 소속 단위는 3-1절 참고 |
@@ -42,7 +42,7 @@
 
 **엑셀 컬럼(확정)**: 사진 번호, 영문이름, 국적, 생년월일, 출생시간, 출생지역, 성별, 개별입국날짜, 이메일, 전화번호, **주소** (공통 11개)
 
-- 출생지역/개별입국날짜/주소: 선택 입력(Nullable)
+- 출생지역: **필수 입력**. 태어난 도시/지역명을 최대 200자로 입력(예: `Chicago`, `London`, `Tokyo`, `Beijing`, `Los Angeles`)
 - 이메일/전화번호: **각 신청자(행)별로 입력** — 3절 참고
 - ✅ 확정(2026-07-31): **"주소" 컬럼은 유지** — `ApplicationMember.address`(카드에 인쇄되는 주소), Nullable. 아래 `Receiver.address`(카드 실물 배송지)와는 별개 개념이니 혼동 주의:
 
@@ -217,7 +217,7 @@
 
 | | 명예한국인증/명예시민증/방문증 — 개인 | 명예한국인증/명예시민증/방문증 — 단체 | 학생증 — 개인 | 학생증 — 단체 |
 |---|---|---|---|---|
-| 사주정보(영문명/국적/생년월일/출생시간·선택/출생지역·선택/성별/**입국날짜·선택**) | ✅ (`ApplicationMember`, 1건) | 엑셀 행별(`ApplicationMember`, N건) | ✅ | 엑셀 행별 |
+| 사주정보(영문명/국적/생년월일/출생시간·선택/**출생지역·필수**/성별/**입국날짜·선택**) | ✅ (`ApplicationMember`, 1건) | 엑셀 행별(`ApplicationMember`, N건) | ✅ | 엑셀 행별 |
 | 이메일/전화번호 | ✅ (`Applicant`만, `ApplicationMember`는 NULL) | 엑셀 행별(`ApplicationMember`, 신규 컬럼) | ✅ (`Applicant`만) | 엑셀 행별 |
 | 본인 얼굴사진 | ✅ | 엑셀+ZIP 내 사진 | ✅ | 엑셀+ZIP 내 사진 |
 | 학번/학과 | — | — | ✅ (`ApplicationMember`) | 엑셀 행별(`ApplicationMember`) |
@@ -324,7 +324,7 @@ ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 
 | 단체 신청 검증 오류 | ✅ 2026-08-07 확정(`APPLICATION.md` 기준): 옛 "실패율 30% 룰"은 폐기(Legacy). **오류가 하나라도 있으면 부분 성공 없이 신청 전체를 실패 처리**하고 `BULK_APPLICATION_VALIDATION_FAILED` + `errors[]`로 상세 오류를 반환한다 |
 | 학생증 학번 누락·형식 오류 | ✅ 2026-08-07 확정: 필수값 검증으로 막음. 최대 10자·숫자만 허용 |
 | 학생증 학과 누락 | [TBD] 필수값으로 막을지, 관리자가 나중에 보완 가능하게 할지 — ⚠️ `APPLICATION.md`는 "학과 제외"로 되어 있으나 근거 없음, 사람 확인 결과 미결정 유지(`PENDING_DECISIONS.md`) |
-| 개인 신청 필수 사주정보(영문명/국적/생년월일/성별) 미입력 | 필수값 검증으로 막음(기존 방침) — 단, 출생시간/출생지역/입국날짜는 선택이라 검증 대상 아님 |
+| 개인 신청 필수 사주정보(영문명/국적/생년월일/성별) 미입력 | 필수값 검증으로 막음(기존 방침) — 단, 출생시간/입국날짜는 선택이며 출생지역은 필수 검증 |
 | 단체 신청 ZIP 미첨부 | 필수값 검증으로 막음(4절) |
 
 ---

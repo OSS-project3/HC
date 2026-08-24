@@ -79,7 +79,7 @@ Content-Type: multipart/form-data
 - ✅ 2026-08-07 정정: `receiver`는 `issueType=MOBILE`이면 **전달하면 안 되며**(전달 시 `INVALID_INPUT`), `issueType=MOBILE_AND_PHYSICAL`이면 필수다.
 - ⚠️ 2026-07-31 정정: **`cardDesignId` → `cardTypeId`로 교체.** 사용자는 카드 "종류"만 선택하고, 구체적 디자인은 관리자가 신청 검토 중 배정(`.md` 2.1절, `docs/specs/application/requirements.md` 6절) — `Application.card_design_id`는 생성 시 NULL
 - `logo`/`seal`/제출ZIP(회사용)은 이 API에 없음 — 개인 신청은 법인 전용 요소라 불필요. 단, **학생증(`CardType.code=STUDENT`)은 예외로 `schoolLogo`가 필수이고 `schoolSeal`은 선택**이다.
-- ⚠️ 2026-07-31 재정정: `member.birthTime`/`birthRegion`은 **선택 입력으로 정정**(NOT NULL이었던 걸 Nullable로 변경, "출생시간 모름" 체크 지원). `nationality`/`gender`/`birthDate`는 계속 필수
+- ✅ 2026-08-24 최신 정책: `member.birthTime`은 선택이지만 `member.birthRegion`은 **필수**다. 태어난 도시/지역명을 최대 200자로 입력한다(예: `Chicago`, `London`, `Tokyo`, `Beijing`, `Los Angeles`). DB 컬럼은 기존 데이터 호환을 위해 Nullable 유지
 - ✅ 2026-07-31 신규: `member.entryDate`(한국입국날짜, 선택) 추가
 - ✅ 2026-08-14 확정(값은 대문자 문자열, `gender`와 동일 관례 — 프론트가 내부적으로 소문자를 쓰더라도 전송 직전 `.toUpperCase()` 필요): `orientation`(`LANDSCAPE`/`PORTRAIT`, 가로형/세로형)과 `schoolType`(`UNIVERSITY`/`HIGH_SCHOOL`, 대학교/고등학교)을 최상위 필드로 신규 추가. 둘 다 `cardTypeId`가 학생증일 때만 필수이고 그 외 카드종류는 반드시 생략해야 한다.
 - ✅ 2026-08-14 조건 변경: `member.studentId`/`department`는 더 이상 "학생증이면 무조건 필수"가 아니라 **`schoolType=UNIVERSITY`일 때만** 필수다(최대 10자·숫자만 허용은 기존과 동일). `schoolType=HIGH_SCHOOL`이면 오히려 `studentId`/`department`를 보내면 안 된다(보내면 `INVALID_INPUT`). 이전 문서의 "학생증이면 무조건 필수" 서술(2026-08-07 정정분)은 이 조건으로 대체됨.
@@ -114,7 +114,7 @@ Content-Type: multipart/form-data
 | EXIF Orientation 적용 후 얼굴사진 해상도가 300×400 미만 | `INVALID_IMAGE` | 400 |
 | `issueType=MOBILE_AND_PHYSICAL`인데 `receiver` 없음 | `INVALID_INPUT` | 400 |
 | ✅ 2026-08-07 신규: `issueType=MOBILE`인데 `receiver` 전달 | `INVALID_INPUT` | 400 |
-| `member.birthDate`/`nationality`/`gender` 중 하나라도 누락, `photo` 파일 누락 | `INVALID_INPUT` | 400 |
+| `member.birthDate`/`nationality`/`birthRegion`/`gender` 중 하나라도 누락, `photo` 파일 누락 | `INVALID_INPUT` | 400 |
 | `cardTypeId`가 학생증인데 `orientation`/`schoolType`/`schoolLogo` 중 하나라도 누락 | `INVALID_INPUT` | 400 |
 | ✅ 2026-08-19 신규: `cardTypeId`가 학생증인데 `schoolName`이 없거나, 트림 후 5~20자를 벗어나거나, 한글·영문·숫자·공백 외 문자를 포함 | `INVALID_INPUT` | 400 |
 | `cardTypeId`가 학생증 + `schoolType=UNIVERSITY`인데 `studentId`/`department` 중 하나라도 누락, 또는 학번이 10자 초과·숫자 외 문자 포함 | `INVALID_INPUT` | 400 |
@@ -124,7 +124,7 @@ Content-Type: multipart/form-data
 | 비로그인 | `UNAUTHORIZED` | 401 |
 
 - ✅ 2026-08-07 정정: `receiver.sameAsApplicant=true`여도 우편번호와 기본주소는 필수이며, 이름과 연락처만 복사된 기본값을 서버가 채우고 사용자가 수정할 수 있다.
-- `member.birthTime`/`birthRegion`/`entryDate`는 선택이라 누락돼도 통과(2026-07-31 정정)
+- `member.birthTime`/`entryDate`는 선택이다. `member.birthRegion`은 필수이며 공백이면 Bean Validation에서 거절한다(2026-08-24 최신 정책)
 - ✅ 2026-07-29 확인: `quantity`는 요청에 없음 — 개인 신청은 `total_quantity=1` 서버 고정, 클라이언트가 보낼 필요 없음
 
 #### ⑥ DB 컬럼과 매핑 검증
@@ -144,7 +144,7 @@ Content-Type: multipart/form-data
 | member.birthDate | ApplicationMember.birth_date |
 | member.nationality | ApplicationMember.nationality |
 | member.birthTime | ApplicationMember.birth_time (⚠️ 2026-07-31 Nullable로 정정) |
-| member.birthRegion | ApplicationMember.birth_region (⚠️ 2026-07-31 Nullable로 정정) |
+| member.birthRegion | ApplicationMember.birth_region (요청 필수, 최대 200자. DB는 기존 데이터 호환을 위해 Nullable 유지) |
 | member.gender | ApplicationMember.gender |
 | member.entryDate | ApplicationMember.entry_date (✅ 2026-07-31 신규) |
 | member.studentId | ApplicationMember.student_id (✅ 2026-08-07 정정, 최대 10자·숫자만. ⚠️ 2026-08-14 조건 변경: 학생증+`schoolType=UNIVERSITY`일 때만 필수) |
@@ -168,7 +168,7 @@ Content-Type: multipart/form-data
 
 ⚠️ **재정정 (2026-07-31, DB.md와 정합성 점검 중 발견):** 위 "해결됨" 시점(07-29) 이후, `.md` 2.4절에서 `ApplicationMember.nationality`/`birth_time`/`birth_region`/`gender`가 **NOT NULL로 신규 확정**됐는데 이 API 설계엔 반영이 안 되어 있었음 — 그대로 두면 `ApplicationMember` 저장 시 NOT NULL 위반. `member` 요청 필드 4개 추가로 정정함(위 반영).
 
-⚠️ **재정정 2 (2026-07-31, `docs/specs/application/requirements.md` 기준 반영):** `cardDesignId`(사용자 선택) → `cardTypeId`(카드종류만 선택, 디자인은 관리자 배정)로 교체, `birthTime`/`birthRegion` 필수→선택 전환, `entryDate`/학생증 전용 필드(`studentId`/`department`/`schoolLogo`/`schoolSeal`) 신규 추가.
+> 과거 이력(2026-07-31, 2026-08-24 최신 정책으로 대체됨): `cardDesignId`(사용자 선택) → `cardTypeId`(카드종류만 선택, 디자인은 관리자 배정)로 교체, 당시 `birthTime`/`birthRegion` 필수→선택 전환, `entryDate`/학생증 전용 필드(`studentId`/`department`/`schoolLogo`/`schoolSeal`) 신규 추가.
 
 **API 1 완료.**
 
@@ -301,7 +301,7 @@ Content-Type: multipart/form-data
 | 생년월일 | birth_date | 필수 |
 | 국적 | nationality | 필수 |
 | 출생시간 | birth_time | 선택(⚠️ 2026-07-31 Nullable로 정정) |
-| 출생지역 | birth_region | 선택(⚠️ 2026-07-31 Nullable로 정정) |
+| 출생지역 | birth_region | **필수** — 태어난 도시/지역명, 최대 200자. 예: `Chicago`, `London`, `Tokyo`, `Beijing`, `Los Angeles` |
 | 성별 | gender | 필수 |
 | 개별입국날짜 | entry_date(상단 공통값과 조합해 해석) | 선택 |
 | 이메일 | email(✅ 2026-07-31 신규 — 행마다 다른 신청자 본인 이메일) | 필수 |
@@ -317,7 +317,7 @@ Content-Type: multipart/form-data
 
 ⚠️ **재정정 (2026-07-31, DB.md와 정합성 점검 중 발견):** 원래 "없음"으로 완료 처리했던 07-29 시점 이후 `.md` 2.4절에서 `nationality`/`birth_time`/`birth_region`/`gender`가 NOT NULL로 신규 확정되어, 엑셀 템플릿에 4개 컬럼을 추가로 반영했었음.
 
-⚠️ **재정정 2 (2026-07-31, `docs/specs/application/requirements.md` 기준):** `cardDesignId`→`cardTypeId` 교체, `birthTime`/`birthRegion` 필수→선택 전환, 개별입국날짜(+상단 공통값)/이메일/전화번호/학번/학과 컬럼 신규 추가.
+> 과거 이력(2026-07-31, 2026-08-24 최신 정책으로 대체됨): `cardDesignId`→`cardTypeId` 교체, 당시 `birthTime`/`birthRegion` 필수→선택 전환, 개별입국날짜(+상단 공통값)/이메일/전화번호/학번/학과 컬럼 신규 추가.
 
 **API 2 완료.**
 

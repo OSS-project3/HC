@@ -23,7 +23,6 @@ import java.time.LocalTime;
  *
  * [null 허용 필드]
  * - birthTime: 출생시간은 선택 항목 (일부 국가에서 출생 시각 미기재)
- * - birthRegion: 출생지역도 선택 항목
  * - address: 국내 연락처 주소, 선택 항목
  * - entryDate: 개별 입국날짜. 없으면 공통 입국날짜로 대체되고, 공통 날짜도 없으면 null
  * - studentId, department: 학생증 카드(isStudent=true)에서만 값이 있고 나머지는 null
@@ -37,7 +36,7 @@ record BulkMemberRow(
         LocalDate birthDate,  // 생년월일, 필수
         String nationality,   // 국적(국가명), 필수
         LocalTime birthTime,  // 출생시간, 선택 (null 가능)
-        String birthRegion,   // 출생지역, 선택 (null 가능)
+        String birthRegion,   // 출생지역(태어난 도시명), 필수
         Gender gender,        // 성별(MALE/FEMALE), 필수
 
         // 개별 입국날짜. 엑셀 7열에 값이 있으면 그 값, 없으면 공통 입국날짜로 대체.

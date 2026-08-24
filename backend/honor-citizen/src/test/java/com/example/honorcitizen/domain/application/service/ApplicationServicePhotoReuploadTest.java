@@ -232,7 +232,7 @@ class ApplicationServicePhotoReuploadTest {
     @Test
     void reuploadPhotoForGroupReplacesMembersAndUpdatesQuantity() throws Exception {
         Application application = photoRejectedGroupApplication(1L);
-        byte[] zip = buildZip("9|Jane Doe|1991-02-02|US|||FEMALE||jane@example.com|010-3333-3333|Busan");
+        byte[] zip = buildZip("9|Jane Doe|1991-02-02|US||Chicago|FEMALE||jane@example.com|010-3333-3333|Busan");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
 
         ApplicationPhotoReuploadResponse response = applicationService.reuploadPhoto(
@@ -266,7 +266,7 @@ class ApplicationServicePhotoReuploadTest {
         application.rejectPhoto("사진이 흐립니다.");
         applicationRepository.save(application);
 
-        byte[] zip = buildZip("9|Jane Doe|1991-02-02|US|||FEMALE||jane@example.com|010-3333-3333|Busan");
+        byte[] zip = buildZip("9|Jane Doe|1991-02-02|US||Chicago|FEMALE||jane@example.com|010-3333-3333|Busan");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
 
         applicationService.reuploadPhoto(1L, application.getId(), null, submitFile);
@@ -291,7 +291,7 @@ class ApplicationServicePhotoReuploadTest {
         application.startReview();
         application.rejectPhoto("사진이 흐립니다.");
         applicationRepository.save(application);
-        byte[] zip = buildZip("9|Jane Doe|1991-02-02|US|||FEMALE||jane@example.com|010-3333-3333|Busan");
+        byte[] zip = buildZip("9|Jane Doe|1991-02-02|US||Chicago|FEMALE||jane@example.com|010-3333-3333|Busan");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
         when(storageService.uploadBytes(anyString(), any(), anyString()))
                 .thenThrow(new RuntimeException("S3 member failure"));

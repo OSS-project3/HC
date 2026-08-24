@@ -10,8 +10,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// 표준 Bean Validation(@NotBlank/@Pattern/@Email/@Size/@Past)이 실제로 동작하는지가 아니라,
-// 이 프로젝트가 직접 구현한 커스텀 검증(ISO 국적 코드)이 올바른지만 검증한다.
+// 신청 필수값 Bean Validation과 이 프로젝트의 커스텀 검증(ISO 국적 코드)을 검증한다.
 // birthDate는 @NotNull + @Past(표준)로만 검증하며, 별도 근거 없는 최소연도 제한은 두지 않는다.
 class ApplicationCreateRequestValidationTest {
 
@@ -19,6 +18,10 @@ class ApplicationCreateRequestValidationTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private ApplicationCreateRequest parse(String birthDate, String nationality) {
+        return parse(birthDate, nationality, "Chicago");
+    }
+
+    private ApplicationCreateRequest parse(String birthDate, String nationality, String birthRegion) {
         String json = """
                 {
                   "cardTypeId": 1,
@@ -28,10 +31,11 @@ class ApplicationCreateRequestValidationTest {
                     "englishName": "Hong Gildong",
                     "birthDate": "%s",
                     "nationality": "%s",
+                    "birthRegion": "%s",
                     "gender": "MALE"
                   }
                 }
-                """.formatted(birthDate, nationality);
+                """.formatted(birthDate, nationality, birthRegion);
         try {
             return objectMapper.readValue(json, ApplicationCreateRequest.class);
         } catch (Exception e) {
@@ -69,5 +73,12 @@ class ApplicationCreateRequestValidationTest {
     @Test
     void validIsoAlpha2CodeIsAccepted() {
         assertThat(hasViolationOn(violationsFor("1990-05-15", "KR"), "member.nationality")).isFalse();
+    }
+
+    @Test
+    void blankBirthRegionIsRejected() {
+        var violations = validator.validate(parse("1990-05-15", "US", "   "));
+
+        assertThat(hasViolationOn(violations, "member.birthRegion")).isTrue();
     }
 }

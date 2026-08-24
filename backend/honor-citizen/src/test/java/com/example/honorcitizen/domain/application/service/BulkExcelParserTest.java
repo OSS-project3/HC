@@ -23,8 +23,8 @@ class BulkExcelParserTest {
     private final BulkExcelParser parser = new BulkExcelParser();
 
     // 컬럼 순서: 사진 번호|영문명|생년월일|국적|출생시간|출생지역|성별|개별입국날짜|이메일|전화번호|주소
-    private static final String ROW_1 = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
-    private static final String ROW_2 = "2|Mike Kim|1992-03-03|US|||MALE||mike@example.com|010-3333-4444|Busan";
+    private static final String ROW_1 = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul";
+    private static final String ROW_2 = "2|Mike Kim|1992-03-03|US||Chicago|MALE||mike@example.com|010-3333-4444|Busan";
 
     private byte[] buildExcel(String... rows) throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
@@ -67,6 +67,7 @@ class BulkExcelParserTest {
             row.createCell(1).setCellValue("John Doe");
             row.createCell(2).setCellValue("1988-01-01");
             row.createCell(3).setCellValue("US");
+            row.createCell(5).setCellValue("Chicago");
             row.createCell(6).setCellValue("MALE");
             row.createCell(8).setCellValue("john@example.com");
             row.createCell(9).setCellValue("010-1111-2222");
@@ -108,7 +109,7 @@ class BulkExcelParserTest {
 
     @Test
     void parseMatchesTextIdWithLeadingZerosToSamePhotoName() throws Exception {
-        byte[] excel = buildExcel("001|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul");
+        byte[] excel = buildExcel("001|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul");
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg");
 
         List<BulkMemberRow> rows = parser.parse(zip, false, null);
@@ -144,7 +145,7 @@ class BulkExcelParserTest {
 
     @Test
     void parseRejectsDuplicatePhotoFilesForSameId() throws Exception {
-        byte[] excel = buildExcel("001|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul");
+        byte[] excel = buildExcel("001|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul");
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg", "001.png");
 
         assertThatThrownBy(() -> parser.parse(zip, false, null))
@@ -168,7 +169,7 @@ class BulkExcelParserTest {
 
     @Test
     void parseRejectsDuplicateExcelIds() throws Exception {
-        byte[] excel = buildExcel(ROW_1, "1|Jane Doe|1991-02-02|US|||FEMALE||jane@example.com|010-3333-3333|Busan");
+        byte[] excel = buildExcel(ROW_1, "1|Jane Doe|1991-02-02|US||Chicago|FEMALE||jane@example.com|010-3333-3333|Busan");
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
         assertThatThrownBy(() -> parser.parse(zip, false, null))
@@ -224,8 +225,8 @@ class BulkExcelParserTest {
 
     @Test
     void parseCollectsErrorsFromMultipleRowsInsteadOfFailingOnFirst() throws Exception {
-        String missingNameRow = "1||1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
-        String badGenderRow = "2|Mike Kim|1992-03-03|US|||UNKNOWN||mike@example.com|010-3333-4444|Busan";
+        String missingNameRow = "1||1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul";
+        String badGenderRow = "2|Mike Kim|1992-03-03|US||Chicago|UNKNOWN||mike@example.com|010-3333-4444|Busan";
         byte[] excel = buildExcel(missingNameRow, badGenderRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg", "2.jpg");
 
@@ -241,7 +242,7 @@ class BulkExcelParserTest {
 
     @Test
     void parseRejectsStudentIdLongerThanTenDigits() throws Exception {
-        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|202612345678|컴퓨터공학과";
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|202612345678|컴퓨터공학과";
         byte[] excel = buildExcel(studentRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
@@ -268,7 +269,7 @@ class BulkExcelParserTest {
     @Test
     void parseRejectsHighSchoolStudentWithStudentIdOrDepartmentPresent() throws Exception {
         // 고등학교인데 학번·학과 열(11·12)에 값이 있으면 개인 신청과 동일하게 거절한다.
-        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
         byte[] excel = buildExcel(studentRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
@@ -320,7 +321,7 @@ class BulkExcelParserTest {
     @Test
     void parseSkipsRowsThatContainOnlyPrefilledPhotoNumber() throws Exception {
         String photoNumberOnlyRow = "001||||||||||";
-        String applicantRow = "002|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
+        String applicantRow = "002|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul";
         byte[] excel = buildExcel(photoNumberOnlyRow, applicantRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "002.jpg");
 
@@ -333,7 +334,7 @@ class BulkExcelParserTest {
     @Test
     void parseRejectsPhotoForRowThatContainsOnlyPrefilledPhotoNumber() throws Exception {
         String photoNumberOnlyRow = "001||||||||||";
-        String applicantRow = "002|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
+        String applicantRow = "002|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul";
         byte[] excel = buildExcel(photoNumberOnlyRow, applicantRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "001.jpg", "002.jpg");
 
@@ -356,7 +357,7 @@ class BulkExcelParserTest {
 
     @Test
     void parseRejectsNationalityThatIsNotAnIsoAlpha2Code() throws Exception {
-        String badNationalityRow = "1|John Doe|1988-01-01|USA|||MALE||john@example.com|010-1111-2222|Seoul";
+        String badNationalityRow = "1|John Doe|1988-01-01|USA||Chicago|MALE||john@example.com|010-1111-2222|Seoul";
         byte[] excel = buildExcel(badNationalityRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
@@ -368,8 +369,21 @@ class BulkExcelParserTest {
     }
 
     @Test
+    void parseRejectsMissingBirthRegion() throws Exception {
+        String missingBirthRegionRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
+        byte[] excel = buildExcel(missingBirthRegionRow);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("field").contains("birthRegion"));
+    }
+
+    @Test
     void parseRejectsFutureBirthDate() throws Exception {
-        String futureBirthDateRow = "1|John Doe|2999-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
+        String futureBirthDateRow = "1|John Doe|2999-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul";
         byte[] excel = buildExcel(futureBirthDateRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 

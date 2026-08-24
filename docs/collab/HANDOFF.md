@@ -1,11 +1,12 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-08-23
-- 작성자: Claude
+- 마지막 갱신: 2026-08-24
+- 작성자: Codex
 - 작성 브랜치: main
 
 ## 지금 어디까지 됐는가
 
+- **✅ 개인·단체 신청 출생지역 필수화 + Excel v1.1 양식 3종 갱신(Codex, 2026-08-24)**: 개인 `ApplicationCreateRequest.MemberRequest.birthRegion`에 `@NotBlank`를 추가하고, `BulkExcelParser`가 단체 Excel F열 출생지역을 필수 도시명으로 검증하도록 변경했다. DB 컬럼은 기존 데이터 호환을 위해 nullable 유지. 양식 작성안내에 `Chicago`, `London`, `Tokyo`, `Beijing`, `Los Angeles` 예시와 필수 표시를 추가했다. 사용자 노출 D열 명칭은 `출생국가`로 병합했으며 내부 `nationality` 키는 유지한다. 신규 테스트 2개 red→green, Application 도메인 182개 통과, 워크북 3종 각각 24개 자동 검증 및 전 시트 렌더 확인.
 - **✅ 계정 복구 RECOVERY-3 마무리 — 미검증 경계 케이스 6건 테스트 보강(Claude, 2026-08-23)**: 사용자가 "계정 복구 정책을 임의로 넣은 거 아니냐"고 재확인을 요청 → `docs/api/auth.md` API 7·8과 코드를 다시 줄 단위로 대조해 일치함을 확인하는 과정에서, 2026-08-21 `e4c3287` 커밋이 RECOVERY-3 섹션을 "완료" 메시지로 추가했지만 체크박스는 전부 미체크로 남아있던 걸 발견했다(전체 테스트 실행 자체는 그때 CHANGELOG에 남긴 대로 실질적으로 했었음 — 문서 마무리만 비어있었음). TODO.md에 ⚠️로 남아있던 6개 미검증 항목을 전부 실제 테스트로 채웠다: (a) 코드 만료(TTL) confirm, (b) confirm 시점 계정삭제/OAuth전환(id·password 양쪽), (c) 재설정 직후 같은 초 재로그인 토큰 허용(end-to-end), (d) DB 실패 후 세션 미복구, (e) 동시요청 cooldown 우회 방지, (f) Redis 장애 시 HTTP 필터체인 통합.
   - **(d)의 기술적 해법**: 진짜 DB 장애를 재현할 인프라가 없었던 문제를 `TokenSessionStore`를 `@MockitoSpyBean`으로 감싸 해결 — `recordUserAccessRevocation` 호출 시 실제 Redis 기록은 `callRealMethod()`로 그대로 성공시키고, 그 직후 현재 트랜잭션에 `TransactionSynchronization.beforeCommit`을 등록해 예외를 던진다. Spring의 `AbstractPlatformTransactionManager`는 `beforeCommit` 콜백들을 실제 `doCommit()`(및 그 안의 Hibernate flush)보다 먼저 호출하므로, "Redis는 성공했는데 DB flush 직전에 실패"하는 순서를 결정론적으로 재현할 수 있다. 결과: 비밀번호는 롤백되지만 Redis `auth:access:user-revoked-after:{userId}` 키는 실제로 남아있음을 확인 — 문서(API 8 ⑤-1)가 말하는 "세션 미복구"가 실제로 그렇게 동작함을 증명했다.
   - **(f)의 기술적 해법**: `TokenSessionStoreSessionValidationTest`는 `TokenSessionStore` 단위에서 예외가 던져지는 것만 확인했을 뿐 HTTP 레벨에서 어떻게 응답되는지는 검증한 적이 없었다 — 신규 `JwtAuthFilterSessionValidationIntegrationTest`가 `@AutoConfigureMockMvc`로 실제 필터 체인(`JwtAuthFilter`→`HandlerExceptionResolver`→`GlobalExceptionHandler`)을 관통시켜 503 JSON(`success:false`, `errorCode:AUTH_SESSION_VALIDATION_UNAVAILABLE`)을 직접 확인한다.

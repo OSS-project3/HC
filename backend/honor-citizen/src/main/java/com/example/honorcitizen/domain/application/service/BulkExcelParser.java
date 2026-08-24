@@ -289,7 +289,8 @@ class BulkExcelParser {
         String nationality = requireText(stringValue(row, 3, formatter), rowNumber, "nationality", errors);
         nationality = checkValidNationality(nationality, rowNumber, errors);
         LocalTime birthTime = readTimeCell(row, 4, formatter, rowNumber, errors); // 출생시간: 선택 항목
-        String birthRegion = checkMaxLength(stringValue(row, 5, formatter), 200, rowNumber, "birthRegion", errors); // 출생지역: 선택 항목
+        String birthRegion = requireText(stringValue(row, 5, formatter), rowNumber, "birthRegion", errors);
+        birthRegion = checkMaxLength(birthRegion, 200, rowNumber, "birthRegion", errors); // 출생지역: 필수 도시명
         Gender gender = requireGender(stringValue(row, 6, formatter), rowNumber, errors);
 
         // 개별 입국날짜가 없으면 공통 입국날짜로 폴백한다.
@@ -331,7 +332,7 @@ class BulkExcelParser {
 
         // 필수 필드 중 하나라도 null이면 이 행은 실패로 간주한다.
         // errors에는 이미 해당 필드의 오류 메시지가 추가되어 있다.
-        boolean hasRowError = englishName == null || birthDate == null || nationality == null || gender == null
+        boolean hasRowError = englishName == null || birthDate == null || nationality == null || birthRegion == null || gender == null
                 || email == null || phone == null || photo == null
                 || (isStudent && schoolType == SchoolType.UNIVERSITY && (studentId == null || department == null))
                 || (isStudent && schoolType == SchoolType.HIGH_SCHOOL

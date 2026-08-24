@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-24 — Codex — `main` (출생지역 필수화 및 단체 Excel 안내 갱신)
+
+- 변경: 개인 신청 `member.birthRegion`을 `@NotBlank` 필수값으로 전환하고, 단체 Excel 파서도 출생지역 누락을 `birthRegion/REQUIRED` 오류로 수집하도록 변경했다. 출생지역은 태어난 도시/지역명으로 정의하고 `Chicago`, `London`, `Tokyo`, `Beijing`, `Los Angeles` 예시를 정책·API·양식 작성안내에 반영했다.
+- 파일: `ApplicationCreateRequest.java`, `BulkExcelParser.java`, `BulkMemberRow.java`, `ApplicationMember.java`, 관련 테스트 6개, `docs/specs/application/{requirements,data-model,api}.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md`, `outputs/bulk-excel-templates-20260818/*_v1.1.xlsx`
+- 검증: 신규 DTO/Parser 테스트 2개가 구현 전 의도대로 실패한 뒤 통과. Application 도메인 182개 통과. Excel 3종 각각 24개 구조 검증 통과, 전 시트 렌더 montage 육안 확인.
+- 호환성: DB `birth_region`은 기존 데이터·스키마 호환을 위해 nullable을 유지하고 신규 개인 API/단체 Excel 입력 계층에서만 필수로 강제한다.
+- 병합: 동시 작업에서 확정된 사용자 노출 명칭 `출생국가`를 Excel D열·작성안내·검증 제목에 반영했다. 내부 호환성을 위해 API/Java/DB 키 `nationality`는 변경하지 않았다.
+
 ## 2026-08-24 — Claude — `main` (공지·FAQ·후기 데모 시드 추가 — 프론트 목데이터 백엔드 이관)
 
 - 변경: 사용자 요청으로 프론트 목데이터를 백엔드에 시드하는 `DemoDataSeeder`(CommandLineRunner)를 추가했다.

@@ -199,7 +199,7 @@ class ApplicationServiceDailyLimitTest {
     }
 
     private BulkApplicationCreateResponse createGroupApplication() throws Exception {
-        byte[] excel = buildExcel("1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul");
+        byte[] excel = buildExcel("1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul");
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
         MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());

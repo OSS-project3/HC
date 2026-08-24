@@ -199,8 +199,8 @@ class ApplicationServiceBulkTest {
     }
 
     // 컬럼 순서: ID|영문명|생년월일|국적|출생시간|출생지역|성별|개별입국날짜|이메일|전화번호|주소|학번|학과
-    private static final String ROW_1 = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul";
-    private static final String ROW_2 = "2|Mike Kim|1992-03-03|US|||MALE|2026-08-18|mike@example.com|010-3333-4444|Busan";
+    private static final String ROW_1 = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul";
+    private static final String ROW_2 = "2|Mike Kim|1992-03-03|US||Chicago|MALE|2026-08-18|mike@example.com|010-3333-4444|Busan";
 
     @Test
     void createGroupSavesApplicationWithMemberPerRowAndResolvesEntryDate() throws Exception {
@@ -261,7 +261,7 @@ class ApplicationServiceBulkTest {
 
     @Test
     void createGroupRejectsWholeBatchWhenAnyRowMissingRequiredField() throws Exception {
-        String invalidRow = "3||1988-01-01|US|||MALE||missing-name@example.com|010-0000-0000|Seoul";
+        String invalidRow = "3||1988-01-01|US||Chicago|MALE||missing-name@example.com|010-0000-0000|Seoul";
         byte[] excel = buildExcel(false, ROW_1, invalidRow);
         byte[] zip = buildZip(excel, "1", "3");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
@@ -307,7 +307,7 @@ class ApplicationServiceBulkTest {
 
     @Test
     void createGroupSucceedsForStudentCardWithStudentIdAndDepartment() throws Exception {
-        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
         byte[] excel = buildExcel(true, studentRow);
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
@@ -330,7 +330,7 @@ class ApplicationServiceBulkTest {
 
     @Test
     void createGroupSucceedsForStudentCardWithoutSeal() throws Exception {
-        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
         byte[] excel = buildExcel(true, studentRow);
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
@@ -366,7 +366,7 @@ class ApplicationServiceBulkTest {
 
     @Test
     void createGroupRejectsHighSchoolWithStudentIdAndDepartmentPresent() throws Exception {
-        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
         byte[] excel = buildExcel(true, studentRow);
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
@@ -381,7 +381,7 @@ class ApplicationServiceBulkTest {
 
     @Test
     void createGroupRejectsStudentCardMissingSchoolName() throws Exception {
-        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
         byte[] excel = buildExcel(true, studentRow);
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
@@ -397,7 +397,7 @@ class ApplicationServiceBulkTest {
 
     @Test
     void createGroupRejectsSchoolNameWithDisallowedCharacters() throws Exception {
-        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
         byte[] excel = buildExcel(true, studentRow);
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
@@ -428,7 +428,7 @@ class ApplicationServiceBulkTest {
 
     @Test
     void createGroupRejectsStudentCardMissingOrientation() throws Exception {
-        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
         byte[] excel = buildExcel(true, studentRow);
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
@@ -443,7 +443,7 @@ class ApplicationServiceBulkTest {
 
     @Test
     void createGroupRejectsStudentCardMissingSchoolType() throws Exception {
-        String studentRow = "1|John Doe|1988-01-01|US|||MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
         byte[] excel = buildExcel(true, studentRow);
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);

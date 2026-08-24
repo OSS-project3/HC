@@ -71,7 +71,7 @@ public class ApplicationMember extends BaseTimeEntity {
     // 사주정보용 — 선택 입력
     private LocalTime birthTime;
 
-    // 사주정보용 — 선택 입력
+    // 태어난 도시/지역 — 신청 입력에서는 필수, 기존 데이터 호환을 위해 DB nullable 유지
     @Column(length = 200)
     private String birthRegion;
 

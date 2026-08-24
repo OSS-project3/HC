@@ -127,7 +127,7 @@
 | birth_date | DATE | NOT NULL | 십이간지(캐릭터) 계산용. ✅ 2026-07-25 확인: 개인 신청도 필수 — 개인 신청 폼(`StepInfo.tsx`)에 생년월일 입력란 추가 필요 (프론트 미구현, 별도 작업 필요) |
 | nationality | VARCHAR(10) | NOT NULL | ✅ 2026-07-31 신규 확정: 국적(ISO 3166-1 alpha-2). 사주(만세력) 작명 도구 입력값 — 개인 신청 폼에 입력란 추가 필요(프론트 미구현) |
 | birth_time | TIME | NULL | ⚠️ 2026-07-31 재정정: NOT NULL이었던 걸 **NULL로 변경.** "출생시간을 모릅니다" 체크 시 미입력 가능(사용자 명세 확정) |
-| birth_region | VARCHAR(200) | NULL | ⚠️ 2026-07-31 재정정: NOT NULL이었던 걸 **NULL로 변경(선택 입력)** — `docs/specs/application/requirements.md` 2-1절 확정 |
+| birth_region | VARCHAR(200) | NULL | ✅ 2026-08-24 최신 정책: 개인 DTO·단체 Excel에서는 **필수**인 태어난 도시/지역명. 기존 데이터 호환을 위해 DB 컬럼만 Nullable 유지 |
 | gender | ENUM | NOT NULL | ✅ 2026-07-31 신규 확정: 성별(MALE, FEMALE). 사주 작명 도구 입력값 — 개인 신청 폼에 입력란 추가 필요(프론트 미구현) |
 | entry_date | DATE | NULL | ✅ 2026-07-31 신규 확정: 한국 입국날짜. 선택 입력. 단체 신청 시 엑셀의 "공통 입국날짜"(상단 셀) + "개별입국날짜"(행별, 예외자만) 2단 해석을 거친 **최종값만 저장** — "공통값" 자체는 별도 컬럼으로 안 둠(`docs/specs/application/requirements.md` 2-3절) |
 | email | VARCHAR(255) | NULL | ✅ 2026-07-31 신규 확정: 신청자 개인 이메일. **개인 신청은 항상 NULL**(로그인 계정=`Applicant.email`로 대체, 중복 저장 안 함) — **단체 신청에서만 엑셀 행별로 채워짐** |

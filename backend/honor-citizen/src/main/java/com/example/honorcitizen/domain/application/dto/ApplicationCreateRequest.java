@@ -118,6 +118,7 @@ public class ApplicationCreateRequest {
 
         private LocalTime birthTime;
 
+        @NotBlank
         @Size(max = 200)
         private String birthRegion;
 
