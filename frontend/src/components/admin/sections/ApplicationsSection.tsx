@@ -10,6 +10,10 @@ const statusLabels: Record<ApplicationStatus, string> = {
   PRODUCTION_READY: "제작대기", PRODUCING: "제작중", COMPLETED: "발급완료", CANCELLED: "취소",
 };
 
+// 오행 아이콘용 — 전통 오행 색(목=청/화=적/토=황/금=백금속/수=흑청)을 CSS 클래스로 매핑.
+const EL_KEY: Record<string, string> = { 목: "mok", 화: "hwa", 토: "to", 금: "geum", 수: "su" };
+const EL_HANJA: Record<string, string> = { 목: "木", 화: "火", 토: "土", 금: "金", 수: "水" };
+
 export function ApplicationsSection() {
   const [tab, setTab] = useState<ApplicationType>("INDIVIDUAL");
   const [all, setAll] = useState<AdminApplicationListItem[]>([]);
@@ -44,6 +48,19 @@ export function ApplicationsSection() {
     });
   };
 
+  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.applicationId));
+  const toggleAll = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (rows.every((r) => next.has(r.applicationId))) {
+        rows.forEach((r) => next.delete(r.applicationId));
+      } else {
+        rows.forEach((r) => next.add(r.applicationId));
+      }
+      return next;
+    });
+  };
+
   const exportExcel = () => {
     const ids = tab === "INDIVIDUAL" ? [...selected] : rows.map((r) => r.applicationId);
     if (ids.length === 0) { showToast("내보낼 신청을 선택해 주세요."); return; }
@@ -52,7 +69,7 @@ export function ApplicationsSection() {
   };
 
   return (
-    <div className="admin-panel">
+    <div className="admin-panel admin-apps">
       <div className="admin-panel__head">
         <div><p className="eyebrow">제작신청</p><h2 className="admin-panel__title">제작신청 관리</h2></div>
       </div>
@@ -83,7 +100,13 @@ export function ApplicationsSection() {
           <table className="admin__table">
             <thead>
               <tr>
-                {tab === "INDIVIDUAL" && <th style={{ width: 36 }}></th>}
+                {tab === "INDIVIDUAL" && (
+                  <th className="admin-apps__check">
+                    <label className="admin-apps__checkbox">
+                      <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="전체 선택" />
+                    </label>
+                  </th>
+                )}
                 <th>신청번호</th><th>카드 종류</th><th>수량</th><th>상태</th><th>결제</th><th>접수일</th>
               </tr>
             </thead>
@@ -92,7 +115,11 @@ export function ApplicationsSection() {
                 <Fragment key={a.applicationId}>
                   <tr className={openId === a.applicationId ? "is-open" : undefined}>
                     {tab === "INDIVIDUAL" && (
-                      <td><input type="checkbox" checked={selected.has(a.applicationId)} onChange={() => toggleSelect(a.applicationId)} aria-label="엑셀 대상 선택" /></td>
+                      <td className="admin-apps__check">
+                        <label className="admin-apps__checkbox">
+                          <input type="checkbox" checked={selected.has(a.applicationId)} onChange={() => toggleSelect(a.applicationId)} aria-label="엑셀 대상 선택" />
+                        </label>
+                      </td>
                     )}
                     <td className="admin__mono"><button className="admin__linklike" onClick={() => setOpenId(openId === a.applicationId ? null : a.applicationId)} aria-expanded={openId === a.applicationId}>{a.applicationNumber}</button></td>
                     <td>{a.cardTypeName}</td>
@@ -208,7 +235,14 @@ function NamingCard({ label, seed }: { label: string; seed: string }) {
         </table>
         <div className="admin-naming__elements">
           {(["목", "화", "토", "금", "수"] as const).map((el) => (
-            <span key={el} className={`admin-naming__el${saju.missing.includes(el) ? " is-missing" : ""}`}>{el} {saju.elementCounts[el]}</span>
+            <span
+              key={el}
+              className={`admin-naming__el el-${EL_KEY[el]}${saju.missing.includes(el) ? " is-missing" : ""}`}
+              title={`${el}(${EL_HANJA[el]}) ${saju.elementCounts[el]}개`}
+            >
+              <i className="admin-naming__el-icon" aria-hidden="true">{el}</i>
+              <b className="admin-naming__el-count">{saju.elementCounts[el]}</b>
+            </span>
           ))}
           {saju.missing.length > 0 && <span className="admin-naming__missing-note">결핍: {saju.missing.join("·")} → 보완 이름 우선 추천</span>}
         </div>

@@ -195,9 +195,29 @@
 .admin-naming__pillars th, .admin-naming__pillars td { border: 1px solid var(--color-border-soft); padding: 6px 12px; text-align: center; }
 .admin-naming__pillars thead th { background: var(--color-surface-soft); color: var(--color-text-secondary); }
 .admin-naming__pillars tbody th { background: var(--color-surface-soft); color: var(--color-text-muted); font-weight: 500; }
-.admin-naming__elements { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.admin-naming__el { font-size: 13px; padding: 3px 10px; border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-text-secondary); }
-.admin-naming__el.is-missing { background: #f6e5e0; color: #b3402f; }
+.admin-naming__elements { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* 오행: 전통 색의 원형 아이콘 + 개수 */
+.admin-naming__el {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px 3px 3px; border-radius: var(--radius-pill);
+  background: #fff; border: 1px solid var(--color-border-soft);
+}
+.admin-naming__el-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  color: #fff; font-size: 14px; font-weight: 700; line-height: 1;
+  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.12);
+}
+.admin-naming__el-count { font-size: 14px; font-weight: 700; min-width: 12px; text-align: center; color: #4a3728; }
+.admin-naming__el.el-mok .admin-naming__el-icon { background: #3a915f; }  /* 목(木) 청 */
+.admin-naming__el.el-hwa .admin-naming__el-icon { background: #d1443a; }  /* 화(火) 적 */
+.admin-naming__el.el-to  .admin-naming__el-icon { background: #cf9b2e; }  /* 토(土) 황 */
+.admin-naming__el.el-geum .admin-naming__el-icon { background: #9aa1ab; }  /* 금(金) 백/금속 */
+.admin-naming__el.el-su  .admin-naming__el-icon { background: #2f5aa0; }  /* 수(水) 흑청 */
+/* 결핍(0개): 아이콘 흐리게 + 붉은 테두리로 보완 대상 강조 */
+.admin-naming__el.is-missing { border-color: #d98c7c; background: #fbeeeb; }
+.admin-naming__el.is-missing .admin-naming__el-icon { opacity: 0.4; }
+.admin-naming__el.is-missing .admin-naming__el-count { color: #b3402f; }
 .admin-naming__missing-note { font-size: 12px; color: var(--color-text-muted); }
 
 .admin-naming__recs { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
@@ -208,6 +228,39 @@
 .admin-naming__rec-el { margin-left: auto; font-size: 12px; color: var(--color-text-muted); }
 .admin-naming__rec-sub { font-size: 12.5px; color: var(--color-text-secondary); line-height: 1.45; }
 .admin-naming__rec-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+
+/* ── 제작신청 관리 전용 오버라이드 ──────────────────── */
+.admin-apps { --admin-brown: #4a3728; }
+/* 표: 외곽선·radius 제거 + 밝은 배경 */
+.admin-apps .admin__table-wrap { border: none; border-radius: 0; }
+.admin-apps .admin__table thead th { background: #fbf6ee; }
+.admin-apps .admin__table td { background: #fffdf8; }
+.admin-apps .admin__table tr.is-open td,
+.admin-apps .admin__detail-row td { background: #fdf8f0; }
+/* 내부 폰트 전부 고동색 (액션 버튼·상태 배지·오행 배지는 자체 색 유지) */
+.admin-apps .admin-panel__title,
+.admin-apps .eyebrow,
+.admin-apps .admin-panel__toolbar,
+.admin-apps .admin__table th,
+.admin-apps .admin__table td,
+.admin-apps .admin__linklike,
+.admin-apps .admin__muted,
+.admin-apps .admin__detail-item dt,
+.admin-apps .admin__detail-item dd,
+.admin-apps .admin-naming__subtitle,
+.admin-apps .admin-naming__card-head b,
+.admin-apps .admin-naming__rec-main b,
+.admin-apps .admin-naming__rec-main .admin__muted,
+.admin-apps .admin-naming__rec-sub,
+.admin-apps .admin-naming__rec-el,
+.admin-apps .admin-naming__pillars th,
+.admin-apps .admin-naming__pillars td,
+.admin-apps .admin-tabs__tab { color: var(--admin-brown); }
+.admin-apps .admin-tabs__tab.is-active { color: var(--admin-brown); border-bottom-color: var(--admin-brown); }
+/* 체크박스: 크게 + 넓은 클릭 영역 + 전체선택 */
+.admin-apps__check { text-align: center; width: 48px; }
+.admin-apps__checkbox { display: inline-flex; align-items: center; justify-content: center; padding: 10px; margin: -8px 0; cursor: pointer; }
+.admin-apps__check input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--admin-brown); }
 
 /* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 860px) {
