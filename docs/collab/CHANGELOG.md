@@ -15,6 +15,20 @@
 
 ---
 
+## 2026-08-24 — Claude — `main` (공지·FAQ·후기 데모 시드 추가 — 프론트 목데이터 백엔드 이관)
+
+- 변경: 사용자 요청으로 프론트 목데이터를 백엔드에 시드하는 `DemoDataSeeder`(CommandLineRunner)를 추가했다.
+  - **공지사항 4건·FAQ 8건**: `frontend SupportPage`의 `notices`/`faqs` 배열을 그대로 `Board`(NOTICE/FAQ)로 이관. FAQ는 title=질문, content=답변.
+  - **후기**: 프론트에 목데이터가 없어(완전 API 기반) 카드종류별 대표 **샘플 6건**을 생성(개인/단체, 4개 카드종류). 실제 사용자 후기가 쌓이기 전까지 후기 페이지가 비지 않도록 함.
+  - 작성자/소유자 audit용 데모 유저(`seed-demo@hangeul-sejong.local`, OAuth 계정이라 비번 로그인 불가)를 1회 생성해 `Board.createdByUserId`(NOT NULL)·`Review.userId`에 사용.
+  - **가드**: `@ConditionalOnProperty("app.seed-demo-data")` — 프로퍼티가 없으면 빈 자체가 안 만들어져 테스트(@SpringBootTest)에 무영향. docker-compose backend에 `APP_SEED_DEMO_DATA=true` 추가(기본 켜짐, 각 도메인 비어 있을 때만 1회 채움 → idempotent).
+  - `CardTypeSeeder`에 `@Order(1)`, `DemoDataSeeder`에 `@Order(2)`를 주어 후기 시드 시 카드종류가 반드시 먼저 존재하도록 함.
+- 파일: `infra/seed/DemoDataSeeder.java`(신규), `domain/card/CardTypeSeeder.java`(@Order 추가), `docker-compose.yml`
+- 사유: reviews/공지/FAQ 페이지가 백엔드 데이터가 없어 비어 보이던 문제를, 프론트 목데이터를 백엔드로 이관해 실제 API로 채워지도록 해결.
+- 관련: 아래 2026-08-24 "API 미연동 원인 진단" 항목의 후속(데이터 없음 → 시드로 채움)
+
+---
+
 ## 2026-08-24 — Claude — `main` (관리자 행사 게시글 실제 API+이미지 연동 / 계정 찾기 실제 API / dev 프록시 + API 미연동 원인 진단)
 
 ### 원인 진단(중요)

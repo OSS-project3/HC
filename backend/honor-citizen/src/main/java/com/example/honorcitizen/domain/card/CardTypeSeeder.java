@@ -5,11 +5,13 @@ import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
 @Component
+@Order(1) // DemoDataSeeder(@Order(2))가 카드종류를 참조하므로 반드시 먼저 실행되어야 한다.
 @RequiredArgsConstructor
 public class CardTypeSeeder implements CommandLineRunner {
 
