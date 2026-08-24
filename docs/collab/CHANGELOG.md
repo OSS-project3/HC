@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-25 — Claude — `main` (관리자 신청 상태 전이 API)
+
+- 변경: 사진반려/제작시작/카드발급/실물배송/작명완료 5개 상태 전이를 관리자 API로 노출했다. 전이 규칙 자체는 이미 있던 `Application` 엔티티 메서드를 그대로 호출만 하고 재구현하지 않았다. 실물배송 처리 시 운송장번호를 `AdminActivityLog`가 아니라 `Application.trackingNumber`(신규 nullable 컬럼)에 별도 저장하도록 정책 확정. 어제 만든 `applyNamingResult`(naming-result API)가 로그를 전혀 안 남기고 있던 걸 발견해, 멤버별 `KOREAN_NAME_REGISTER`/`KOREAN_NAME_UPDATE`(신규/덮어쓰기 구분)를 추가했다. `completeNaming()`(상태 전이 자체)은 이름 저장과 의미가 달라 별도 신규 상수 `NAMING_COMPLETE`로 기록해 중복 로그를 피했다. `startProducing()`용 `PRODUCTION_START` 상수도 신규 추가.
+- 파일: `Application.java`(trackingNumber, markPhysicalDispatched 시그니처), `AdminActivityLog.java`(상수 2개), `ApplicationStatusResponse.java`/`RejectPhotoRequest.java`/`DispatchRequest.java`(신규 DTO), `ApplicationService.java`(전이 메서드 5개 + applyNamingResult 로깅), `AdminApplicationController.java`(엔드포인트 5개), 테스트 4개 파일(신규 `ApplicationServiceAdminTransitionTest` 포함)
+- 사유: 관리자 대시보드(프론트, lotus05f)가 제작신청 파이프라인을 실제로 운영하려면 이 5개 전이를 관리자가 트리거할 방법이 필요했음(엔티티엔 규칙이 있었지만 그동안 시드·테스트만 직접 호출, 노출 API가 전혀 없었음).
+- 검증: `./gradlew.bat test` 전체 596개 통과(실패 0). 로컬 환경 메모: `honor-citizen-redis-test` 컨테이너가 host 6400↔container 6379로 매핑돼 있어 `REDIS_PORT=6400`을 명시해야 정상 통과함(기본값 6379로 돌리면 기존 테스트까지 전부 503 — 코드 문제 아님).
+- 관련: TODO "관리자 신청 상태 전이 API"
+
 ## 2026-08-24 — Codex — `main` (출생지역 필수화 및 단체 Excel 안내 갱신)
 
 - 변경: 개인 신청 `member.birthRegion`을 `@NotBlank` 필수값으로 전환하고, 단체 Excel 파서도 출생지역 누락을 `birthRegion/REQUIRED` 오류로 수집하도록 변경했다. 출생지역은 태어난 도시/지역명으로 정의하고 `Chicago`, `London`, `Tokyo`, `Beijing`, `Los Angeles` 예시를 정책·API·양식 작성안내에 반영했다.

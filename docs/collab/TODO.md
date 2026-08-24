@@ -860,7 +860,7 @@ Factory, Validator, Context 등 새로운 클래스를 추가하기 전에 반�
 
 ## 관리자 신청 상태 전이 API (2026-08-25)
 
-상태: 🔵 진행중 (담당: Claude)
+상태: ✅ 완료 (담당: Claude)
 
 배경: 관리자 대시보드(프론트, lotus05f)가 실사용되려면 사진반려/제작시작/카드발급/배송/작명완료 상태 전이를
 관리자가 직접 트리거할 수 있어야 하는데, `Application` 엔티티엔 `rejectPhoto`/`startProducing`/`markCardReady`/
@@ -881,14 +881,14 @@ Factory, Validator, Context 등 새로운 클래스를 추가하기 전에 반�
 
 ### 구현 체크리스트
 
-- [ ] `Application`에 `trackingNumber`(nullable, length 100) 필드 추가
-- [ ] `Application.markPhysicalDispatched(LocalDateTime, String trackingNumber)` — 상태 가드는 기존 그대로, trackingNumber만 함께 저장하도록 시그니처 확장(기존 단일 인자 호출부 테스트 갱신)
-- [ ] `AdminActivityLog`에 `PRODUCTION_START`, `NAMING_COMPLETE` 상수 추가
-- [ ] `ApplicationStatusResponse` DTO 신규(applicationId, status)
-- [ ] `RejectPhotoRequest`(reason, `@NotBlank @Size(max=500)`), `DispatchRequest`(trackingNumber, `@NotBlank @Size(max=100)`) DTO 신규
-- [ ] `ApplicationService`에 관리자 전이 메서드 5개 추가(`validateAdmin` → `findApplication` → 엔티티 메서드 호출 → `AdminActivityLog` 기록 → `ApplicationStatusResponse` 반환): rejectPhoto/startProducing/markCardReady/dispatchPhysical/completeNaming
-- [ ] `ApplicationService.applyNamingResult`에 멤버별 `KOREAN_NAME_REGISTER`/`KOREAN_NAME_UPDATE` 로그 추가(덮어쓰기 여부는 `assignKoreanName` 호출 전 `getName()!=null` 체크로 판단)
-- [ ] `AdminApplicationController`에 엔드포인트 5개 추가: `POST /{id}/reject-photo`, `/start-producing`, `/card-ready`, `/dispatch`, `/complete-naming`
-- [ ] 테스트 먼저 작성(TDD) — 엔티티(`trackingNumber` 저장), 서비스(전이별 성공/가드실패/AdminActivityLog 기록/naming-result 로그 신규·갱신 구분), 컨트롤러(HTTP·인가 배선)
-- [ ] `./gradlew.bat test` 전체 통과 확인, 기존 픽스처(`markPhysicalDispatched` 단일 인자 호출부) 회귀 없음 확인
-- [ ] 완료 후 `CHANGELOG.md`에 항목 추가, 본 섹션 상태 ✅로 변경
+- [x] `Application`에 `trackingNumber`(nullable, length 100) 필드 추가
+- [x] `Application.markPhysicalDispatched(LocalDateTime, String trackingNumber)` — 상태 가드는 기존 그대로, trackingNumber만 함께 저장하도록 시그니처 확장(기존 단일 인자 호출부 테스트 갱신) — `ApplicationStateTransitionTest`
+- [x] `AdminActivityLog`에 `PRODUCTION_START`, `NAMING_COMPLETE` 상수 추가
+- [x] `ApplicationStatusResponse` DTO 신규(applicationId, status)
+- [x] `RejectPhotoRequest`(reason, `@NotBlank @Size(max=500)`), `DispatchRequest`(trackingNumber, `@NotBlank @Size(max=100)`) DTO 신규
+- [x] `ApplicationService`에 관리자 전이 메서드 5개 추가(`validateAdmin` → `findApplication` → 엔티티 메서드 호출 → `AdminActivityLog` 기록 → `ApplicationStatusResponse` 반환): rejectPhoto/startProducing/markCardReady/dispatchPhysical/completeNaming
+- [x] `ApplicationService.applyNamingResult`에 멤버별 `KOREAN_NAME_REGISTER`/`KOREAN_NAME_UPDATE` 로그 추가(덮어쓰기 여부는 `assignKoreanName` 호출 전 `getName()!=null` 체크로 판단)
+- [x] `AdminApplicationController`에 엔드포인트 5개 추가: `POST /{id}/reject-photo`, `/start-producing`, `/card-ready`, `/dispatch`, `/complete-naming`
+- [x] 테스트 먼저 작성(TDD) — `ApplicationServiceAdminTransitionTest`(신규, 8개), `ApplicationServiceNamingResultTest`(+2), `AdminApplicationControllerTest`(+7), `ApplicationStateTransitionTest`(trackingNumber 검증 추가)
+- [x] `./gradlew.bat test` 전체 통과 확인(596개, 실패 0) — 기존 픽스처(`markPhysicalDispatched` 단일 인자 호출부) 회귀 없음. 참고: 로컬 `honor-citizen-redis-test` 컨테이너가 host 6400↔container 6379로 매핑돼 있어 `REDIS_PORT=6400` 없이 돌리면 기존 테스트까지 전부 503으로 실패함 — 이번 세션 중 Docker Desktop이 재기동되며 재발견(코드 문제 아님, 로컬 환경 설정 이슈)
+- [x] 완료 후 `CHANGELOG.md`에 항목 추가, 본 섹션 상태 ✅로 변경
