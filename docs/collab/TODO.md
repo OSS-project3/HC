@@ -857,3 +857,38 @@ Factory, Validator, Context 등 새로운 클래스를 추가하기 전에 반�
 - [x] 일일 KST 3회 제한 DB 원자 처리 (2026-08-16 구현 완료) — §4/§5 통틀어 유일하게 남았던 항목. 신규 `ApplicationDailyLimit` 엔티티(사용자별·일자별 카운터, `UNIQUE(user_id, count_date)`) + `ApplicationDailyLimitService.reserveSlot/releaseSlot`. `reserveSlot`은 `findByUserIdAndCountDateForUpdate`(비관적 락 `PESSIMISTIC_WRITE`)로 기존 row를 잠그고 증가시키거나, 오늘 첫 신청이면 `saveAndFlush`로 INSERT 시도 — 두 요청이 동시에 "오늘 첫 신청"이면 `UNIQUE` 제약 충돌(`DataIntegrityViolationException`)이 나는데, 이건 `ApplicationService`가 새 트랜잭션으로 한 번 재시도해서 해소(같은 트랜잭션 안에서 재시도하면 이미 실패로 표시된 트랜잭션을 계속 쓰게 돼 불안정). `ApplicationService.createIndividual`/`createGroup`에 파일 업로드 이전(모든 검증 이후) 지점에서 호출, 실패(파일 업로드·DB 저장 실패) 시 `releaseSlot`으로 자리 반환. 신규 테스트 19개(`ApplicationDailyLimitTest` 5개, `ApplicationDailyLimitServiceTest` 9개 — 동시성 시나리오 2개 포함, `ApplicationServiceDailyLimitTest` 3개, `ApplicationServiceUploadCompensationTest`에 2개 추가) 전부 통과. 전체 스위트 316개 중 기존과 동일하게 Redis 미기동 3건만 실패(회귀 없음)
 - [x] `application_seq.nextval` 채번 — §4 "신청번호 DB Sequence 전환" 항목에서 이미 구현됨(2026-08-07)
 - [x] 업로드 추적 및 DB 실패 보상 삭제 — §4 "업로드 보상 삭제" 항목에서 이미 구현됨(2026-08-07, `uploadedKeys` 추적 + `storageService.delete` 역순 호출)
+
+## 관리자 신청 상태 전이 API (2026-08-25)
+
+상태: 🔵 진행중 (담당: Claude)
+
+배경: 관리자 대시보드(프론트, lotus05f)가 실사용되려면 사진반려/제작시작/카드발급/배송/작명완료 상태 전이를
+관리자가 직접 트리거할 수 있어야 하는데, `Application` 엔티티엔 `rejectPhoto`/`startProducing`/`markCardReady`/
+`markPhysicalDispatched`/`completeNaming` 메서드(상태 규칙·가드 조건 포함)가 이미 있고 시드(`DemoDataSeeder`)와
+테스트 픽스처만 직접 호출할 뿐, 이걸 노출하는 Controller/Service가 전혀 없었다(`grep` 결과 main 코드 어디서도
+호출 안 됨 확인). 상태 규칙 자체는 재구현하지 않고 기존 엔티티 메서드를 그대로 호출만 한다.
+
+정책 확정(사용자, 2026-08-25):
+- 운송장번호는 `AdminActivityLog.detail`에만 남기지 않고 `Application.trackingNumber`(nullable) 컬럼으로 별도 저장
+  (감사로그와 분리 — 향후 관리자/사용자 조회에 쓰일 업무 상태 데이터이므로).
+- 배송 처리 엔드포인트는 trackingNumber 저장 + `markPhysicalDispatched` 상태 전이를 한 트랜잭션에서 함께 처리.
+- 사진반려/제작시작/카드발급/배송/작명완료 5개 전이 전부 `AdminActivityLog`에 기록.
+- `applyNamingResult`(어제 구현한 naming-result API)는 지금 로그를 전혀 안 남기고 있었음 — 여기에
+  `KOREAN_NAME_REGISTER`/`KOREAN_NAME_UPDATE`(기존 상수, 미사용 상태였음)를 멤버별로 신규/덮어쓰기 구분해 기록.
+  `completeNaming()`(NAME_EDITING→PRODUCTION_READY 상태 전이 자체)은 이름 저장과 의미가 다르므로 별도 신규 상수
+  `NAMING_COMPLETE`로 기록 — `KOREAN_NAME_REGISTER`와 중복 기록하지 않는다.
+- `startProducing()`용 로그 상수도 기존에 없어 `PRODUCTION_START` 신규 추가.
+
+### 구현 체크리스트
+
+- [ ] `Application`에 `trackingNumber`(nullable, length 100) 필드 추가
+- [ ] `Application.markPhysicalDispatched(LocalDateTime, String trackingNumber)` — 상태 가드는 기존 그대로, trackingNumber만 함께 저장하도록 시그니처 확장(기존 단일 인자 호출부 테스트 갱신)
+- [ ] `AdminActivityLog`에 `PRODUCTION_START`, `NAMING_COMPLETE` 상수 추가
+- [ ] `ApplicationStatusResponse` DTO 신규(applicationId, status)
+- [ ] `RejectPhotoRequest`(reason, `@NotBlank @Size(max=500)`), `DispatchRequest`(trackingNumber, `@NotBlank @Size(max=100)`) DTO 신규
+- [ ] `ApplicationService`에 관리자 전이 메서드 5개 추가(`validateAdmin` → `findApplication` → 엔티티 메서드 호출 → `AdminActivityLog` 기록 → `ApplicationStatusResponse` 반환): rejectPhoto/startProducing/markCardReady/dispatchPhysical/completeNaming
+- [ ] `ApplicationService.applyNamingResult`에 멤버별 `KOREAN_NAME_REGISTER`/`KOREAN_NAME_UPDATE` 로그 추가(덮어쓰기 여부는 `assignKoreanName` 호출 전 `getName()!=null` 체크로 판단)
+- [ ] `AdminApplicationController`에 엔드포인트 5개 추가: `POST /{id}/reject-photo`, `/start-producing`, `/card-ready`, `/dispatch`, `/complete-naming`
+- [ ] 테스트 먼저 작성(TDD) — 엔티티(`trackingNumber` 저장), 서비스(전이별 성공/가드실패/AdminActivityLog 기록/naming-result 로그 신규·갱신 구분), 컨트롤러(HTTP·인가 배선)
+- [ ] `./gradlew.bat test` 전체 통과 확인, 기존 픽스처(`markPhysicalDispatched` 단일 인자 호출부) 회귀 없음 확인
+- [ ] 완료 후 `CHANGELOG.md`에 항목 추가, 본 섹션 상태 ✅로 변경
