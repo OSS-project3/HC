@@ -334,15 +334,22 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] `zoneOffsetMinutes` 자체는 무변경(요구사항대로 유지), geo resolve 응답의 기준값은 계속 IANA tz 문자열(`tz` 필드) — 향후 서버 계산 이전 시에도 그대로 재사용 가능한 형태
 - [x] saju 리포에 커밋 완료(`56bb140`, 2026-08-24) — **push는 안 함, 사용자 지시로 로컬 커밋에만 둠**
 
-### SAJU-GEO-3. 검증·문서·커밋 — 부분 완료
+### SAJU-GEO-3. 검증·문서·커밋 — ✅ 이번 작업 범위 기준 완료(Claude, 2026-08-24)
+
+> 사용자 확정(2026-08-24): 기능 구현 + `pytest`/`vitest`/`tsc` 전부 통과를 이번 작업의 완료 기준으로 삼는다. 아래 Docker 기동 실패는 별도 인프라 이슈로 기록만 하고 이번 범위에서 고치지 않는다(Dockerfile/compose/공용 배포 설정 전부 미변경).
 
 - [x] `pytest app/test_geo.py -q` 9개 통과, `npx vitest run` 7개 통과, `npx tsc --noEmit` 클린 확인
-- [ ] `docker compose up --build`로 전체 스택 기동 후 실제 배치 업로드 시나리오(동명도시·미인식국가 포함) 수동 확인 — **사용자가 중단시켜 미실행, 재개 안 함(필요해지면 먼저 확인받고 실행)**
 - [x] saju 리포 자체 커밋 컨벤션(접두사 없는 평서형 한국어 요약) 확인 후 커밋 완료(`56bb140`) — **사용자 지시로 push는 안 함, 로컬 커밋에만 둠**
+- [x] `package-lock.json` 변경 필요성 재검토: 1차(`npm install --save-dev vitest`, 커밋 `56bb140`에 포함, vitest가 esbuild를 전이 의존성으로 끌고 와 diff가 큰 건 정상)는 필요한 변경. Docker 문제를 고치려다 `rm -rf node_modules && rm -f package-lock.json && npm install`로 만든 2차 전체 재생성(791줄 추가 diff)은 **불필요했음을 확인해 되돌림**(`git checkout -- web/package-lock.json`) — 워킹트리가 커밋 상태와 정확히 일치하고 `tsc`/`vitest` 재확인해도 그대로 통과.
+- [x] ⚠️ **별도 인프라 이슈로 기록(고치지 않음)**: `docker compose up --build`(saju 리포 루트)의 `web` 이미지 빌드 단계 `npm ci`가 실패해 전체 스택 기동 검증은 이번 범위에서 미실행.
+  - **원인**: 로컬 npm(11.12.1, Node 24.15.0)과 Docker 이미지 `node:20-alpine`에 내장된 npm(10.8.2, Node 20.20.2) 간 버전 차이 — npm 11.x가 쓰는 lockfile의 esbuild OS/아키텍처별 optional 패키지 표현 방식을 npm 10.8.2의 `npm ci`가 온전히 처리하지 못함. 재현 경로에 따라 증상이 다르게 나타남(커밋된 lockfile 그대로 빌드 시 `Missing: @esbuild/linux-arm@0.28.2 from lock file` 항목 누락 에러, 전체 재생성한 lockfile로 빌드 시 `EBADPLATFORM: Unsupported platform for @esbuild/netbsd-arm64` 에러).
+  - **재현 명령**: `cd D:\HC-worktrees\saju && docker compose up -d --build` (web 이미지 빌드 단계에서 실패)
+  - **의도적으로 안 한 것**: `npm ci`→`npm install` 변경, npm 버전 고정/업그레이드, Dockerfile/compose 수정 — 전부 사용자 지시로 이번 범위에서 배제. 후속 작업자가 고칠 때 참고할 것.
 - [ ] HC `docs/collab/CHANGELOG.md`/`HANDOFF.md`에 이번 작업 요약 추가 — 미착수
 
 ### saju 관련 후속 항목(이번 범위 밖)
 
+- **saju `web` Docker 빌드가 `npm ci` EBADPLATFORM으로 실패**(npm 11.x/Node 24 로컬 vs npm 10.8.2/Node 20 `node:20-alpine` 버전 차이) — 원인·재현 명령은 위 SAJU-GEO-3 참고. Dockerfile/lockfile 전략(npm 버전 고정, `npm ci` 대안 등) 결정 필요.
 - **HC `Applicant`/`ApplicationMember`에 출생국가(birthCountry) 필드가 없다는 갭**: 현재 `nationality`(국적, ISO alpha-2)만 있고 출생국가는 별도로 안 받는다. saju 연동 시 `nationality`를 출생국가로 오용하면 안 된다는 게 이번에 확정됐으므로(SAJU-GEO-0 참고), HC 쪽 export 기능을 실제로 만들 때 이 필드 신설 여부부터 정책 결정 필요 — **아래 "정책 결정이 필요한 항목"에도 추가**
 - HC 관리자 페이지의 saju export 엑셀 다운로드 기능(Java/Spring, `AdminApplicationController` 확장) — 별도 논의만 되고 미확정, 착수 안 함
 - 이 체크리스트를 계속 HC `docs/collab`에 둘지, saju 리포 자체에 `docs/collab`을 새로 만들지는 미결정
