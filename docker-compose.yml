@@ -13,12 +13,47 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
 
+  # 로컬 개발용 S3 호환 스토리지. 운영은 실제 AWS S3를 쓰므로 이 서비스는 로컬에만 존재한다.
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000" # S3 API (백엔드 업로드 + 브라우저 presigned URL 접근)
+      - "9001:9001" # 웹 콘솔
+    volumes:
+      - minio-data:/data
+
+  # 최초 기동 시 버킷을 만들고 종료된다(멱등: 이미 있으면 무시). backend는 이 완료를 기다린다.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_KEY:-minioadmin}
+      BUCKET: ${AWS_S3_BUCKET:-honor-citizen-local}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}; do echo 'waiting for minio...'; sleep 1; done;
+      mc mb -p local/$${BUCKET} || true;
+      exit 0;
+      "
+
   backend:
     build: ./backend/honor-citizen
     restart: unless-stopped
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+      # 버킷이 생성된 뒤에 기동해야 시드의 S3 업로드가 NoSuchBucket으로 실패하지 않는다.
+      minio-init:
+        condition: service_completed_successfully
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-honor_citizen}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-honor_citizen}
@@ -44,11 +79,17 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-docker-local-google-secret}
       NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-docker-local-naver-client}
       NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-docker-local-naver-secret}
-      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-local-access-key}
-      AWS_SECRET_KEY: ${AWS_SECRET_KEY:-local-secret-key}
+      # 로컬은 MinIO를 쓴다. 자격증명은 minio 서비스의 root 계정과 반드시 일치해야 한다.
+      # region은 MinIO 기본(us-east-1)에 맞춰 presigned URL 서명 스코프가 어긋나지 않게 한다.
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-minioadmin}
+      AWS_SECRET_KEY: ${AWS_SECRET_KEY:-minioadmin}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-honor-citizen-local}
-      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_S3_BASE_URL: ${AWS_S3_BASE_URL:-http://localhost:9000/honor-citizen-local}
+      # 업로드는 도커 내부망(minio:9000), presigned URL은 브라우저용(localhost:9000)으로 분리한다.
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT:-http://minio:9000}
+      AWS_S3_PRESIGN_ENDPOINT: ${AWS_S3_PRESIGN_ENDPOINT:-http://localhost:9000}
+      AWS_S3_PATH_STYLE: ${AWS_S3_PATH_STYLE:-true}
     ports:
       - "8080:8080"
 
@@ -65,3 +106,4 @@ services:
 
 volumes:
   db-data:
+  minio-data:
