@@ -36,6 +36,7 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -226,6 +227,98 @@ class AdminApplicationControllerTest {
 
         mockMvc.perform(multipart("/api/admin/applications/" + otherUsersApplication.getId() + "/naming-result")
                         .file(file))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // 상태 전이 5종 — 비즈니스 로직·감사로그는 ApplicationServiceAdminTransitionTest에서 이미 커버,
+    // 여기서는 HTTP/JSON 배선만 검증한다.
+    @Test
+    void rejectPhotoEndpointTransitionsStatus() throws Exception {
+        otherUsersApplication.confirmPayment();
+        otherUsersApplication.startReview();
+        applicationRepository.saveAndFlush(otherUsersApplication);
+
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/reject-photo")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"reason\":\"사진이 흐립니다.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PHOTO_REJECTED"));
+    }
+
+    @Test
+    void startProducingEndpointTransitionsStatus() throws Exception {
+        otherUsersApplication.confirmPayment();
+        otherUsersApplication.startReview();
+        otherUsersApplication.approveToNaming();
+        otherUsersApplication.completeNaming();
+        applicationRepository.saveAndFlush(otherUsersApplication);
+
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/start-producing")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PRODUCING"));
+    }
+
+    @Test
+    void cardReadyEndpointCompletesMobileApplication() throws Exception {
+        otherUsersApplication.confirmPayment();
+        otherUsersApplication.startReview();
+        otherUsersApplication.approveToNaming();
+        otherUsersApplication.completeNaming();
+        otherUsersApplication.startProducing();
+        applicationRepository.saveAndFlush(otherUsersApplication);
+
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/card-ready")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+    }
+
+    @Test
+    void completeNamingEndpointTransitionsStatus() throws Exception {
+        otherUsersApplication.confirmPayment();
+        otherUsersApplication.startReview();
+        otherUsersApplication.approveToNaming();
+        applicationRepository.saveAndFlush(otherUsersApplication);
+
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/complete-naming")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PRODUCTION_READY"));
+    }
+
+    @Test
+    void dispatchEndpointStoresTrackingNumberAndCompletesPhysicalApplication() throws Exception {
+        Application physicalApplication = applicationRepository.save(Application.createIndividual(
+                otherUsersApplication.getUserId(), "APP-2026-910002", cardType.getId(),
+                IssueType.MOBILE_AND_PHYSICAL, false, null, null));
+        physicalApplication.confirmPayment();
+        physicalApplication.startReview();
+        physicalApplication.approveToNaming();
+        physicalApplication.completeNaming();
+        physicalApplication.startProducing();
+        physicalApplication.markCardReady(java.time.LocalDateTime.now());
+        applicationRepository.saveAndFlush(physicalApplication);
+
+        mockMvc.perform(post("/api/admin/applications/" + physicalApplication.getId() + "/dispatch")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"trackingNumber\":\"1234567890\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+    }
+
+    @Test
+    void startProducingForNonAdminReturnsForbidden() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/start-producing")
+                        .header(HttpHeaders.AUTHORIZATION, userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void startProducingWithoutTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/start-producing"))
                 .andExpect(status().isUnauthorized());
     }
 }

@@ -84,6 +84,11 @@ public class Application extends BaseTimeEntity {
 
     private LocalDateTime physicalDispatchedAt;
 
+    // 실물 배송 운송장번호 — physicalDispatchedAt과 함께 markPhysicalDispatched에서만 채워진다.
+    // 감사로그(AdminActivityLog)와 별도로 두는 이유: 조회 화면에서 계속 참조되는 업무 상태 데이터라서.
+    @Column(length = 100)
+    private String trackingNumber;
+
     @Version
     @Column(nullable = false)
     private Long version;
@@ -299,7 +304,7 @@ public class Application extends BaseTimeEntity {
         return true;
     }
 
-    public boolean markPhysicalDispatched(LocalDateTime dispatchedAt) {
+    public boolean markPhysicalDispatched(LocalDateTime dispatchedAt, String trackingNumber) {
         requireTimestamp(dispatchedAt);
         if (this.physicalDispatchedAt != null) {
             return false;
@@ -309,6 +314,7 @@ public class Application extends BaseTimeEntity {
                 || this.cardReadyAt == null) {
             throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
+        this.trackingNumber = trackingNumber;
         this.physicalDispatchedAt = dispatchedAt;
         transitionTo(ApplicationStatus.COMPLETED);
         return true;

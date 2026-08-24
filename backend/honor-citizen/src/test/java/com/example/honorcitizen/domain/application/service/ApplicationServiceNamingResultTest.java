@@ -14,6 +14,8 @@ import com.example.honorcitizen.domain.application.repository.ApplicationMemberR
 import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
+import com.example.honorcitizen.domain.log.entity.AdminActivityLog;
+import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
 import org.apache.poi.ss.usermodel.Row;
@@ -47,6 +49,8 @@ class ApplicationServiceNamingResultTest {
     private CardTypeRepository cardTypeRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private AdminActivityLogRepository adminActivityLogRepository;
 
     private Long adminId;
     private Long applicationId;
@@ -60,6 +64,7 @@ class ApplicationServiceNamingResultTest {
 
     @BeforeEach
     void setUp() {
+        adminActivityLogRepository.deleteAll();
         applicationMemberRepository.deleteAll();
         applicationRepository.deleteAll();
         cardTypeRepository.deleteAll();
@@ -133,6 +138,34 @@ class ApplicationServiceNamingResultTest {
         assertThat(reloadedA.getChineseName()).isEqualTo("智毫");
         ApplicationMember reloadedB = applicationMemberRepository.findById(memberB.getId()).orElseThrow();
         assertThat(reloadedB.getName()).isEqualTo("수민");
+    }
+
+    @Test
+    void logsKoreanNameRegisterForFirstAssignment() throws Exception {
+        byte[] excel = buildExcel(
+                "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||지호(智毫)");
+
+        applicationService.applyNamingResult(adminId, applicationId, toMultipart(excel));
+
+        assertThat(adminActivityLogRepository.findAll())
+                .hasSize(1)
+                .anySatisfy(log -> {
+                    assertThat(log.getActionType()).isEqualTo(AdminActivityLog.KOREAN_NAME_REGISTER);
+                    assertThat(log.getTargetId()).isEqualTo(applicationId);
+                });
+    }
+
+    @Test
+    void logsKoreanNameUpdateWhenOverwritingExistingName() throws Exception {
+        memberA.assignKoreanName("기존이름", "旧名");
+        applicationMemberRepository.saveAndFlush(memberA);
+
+        byte[] excel = buildExcel("1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||새이름");
+        applicationService.applyNamingResult(adminId, applicationId, toMultipart(excel));
+
+        assertThat(adminActivityLogRepository.findAll())
+                .hasSize(1)
+                .anySatisfy(log -> assertThat(log.getActionType()).isEqualTo(AdminActivityLog.KOREAN_NAME_UPDATE));
     }
 
     @Test

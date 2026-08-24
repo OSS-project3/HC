@@ -19,6 +19,7 @@ import com.example.honorcitizen.domain.application.dto.ApplicationCreateResponse
 import com.example.honorcitizen.domain.application.dto.ApplicationLookupRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationLookupResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationPhotoReuploadResponse;
+import com.example.honorcitizen.domain.application.dto.ApplicationStatusResponse;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationDetailResponse;
@@ -430,7 +431,9 @@ public class ApplicationService {
      *   여기서는 매칭 단계 오류만 같은 방식으로 모아 던진다).
      * - 이미 이름이 채워진 구성원도 덮어쓴다.
      * - Application.status는 건드리지 않는다 — NAME_EDITING→PRODUCTION_READY 전이는 관리자가
-     *   별도로 트리거할 때만 일어난다(이 API가 자동으로 상태를 바꾸지 않음).
+     *   별도로 {@link #completeNaming}을 트리거할 때만 일어난다(이 API가 자동으로 상태를 바꾸지 않음).
+     * - 멤버별로 신규 등록/덮어쓰기를 구분해 AdminActivityLog에 남긴다(KOREAN_NAME_REGISTER/UPDATE).
+     *   completeNaming()의 NAMING_COMPLETE 로그와는 의미가 달라 중복 기록하지 않는다.
      */
     @Transactional
     public NamingResultApplyResponse applyNamingResult(Long adminId, Long applicationId, MultipartFile file) {
@@ -463,9 +466,69 @@ public class ApplicationService {
 
         for (int i = 0; i < rows.size(); i++) {
             NamingResultExcelParser.NamingResultRow row = rows.get(i);
-            matchedTargets.get(i).assignKoreanName(row.name(), row.chineseName());
+            ApplicationMember member = matchedTargets.get(i);
+            boolean isUpdate = member.getName() != null;
+            member.assignKoreanName(row.name(), row.chineseName());
+            adminActivityLogRepository.save(AdminActivityLog.create(adminId,
+                    isUpdate ? AdminActivityLog.KOREAN_NAME_UPDATE : AdminActivityLog.KOREAN_NAME_REGISTER,
+                    applicationId, member.getEmail() + " → " + row.name()));
         }
         return NamingResultApplyResponse.of(matchedTargets.size());
+    }
+
+    /**
+     * 관리자 신청 상태 전이 5종 — 상태 규칙(전이 가능 여부·가드 조건)은 전부 {@link Application}
+     * 엔티티 메서드에 이미 있으므로 여기서는 재구현하지 않고 그대로 호출만 한다(권한확인 → 조회 →
+     * 엔티티 메서드 호출 → 감사로그 → 응답).
+     */
+    @Transactional
+    public ApplicationStatusResponse rejectPhoto(Long adminId, Long applicationId, String reason) {
+        validateAdmin(adminId);
+        Application application = findApplication(applicationId);
+        application.rejectPhoto(reason);
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.PHOTO_REJECT, applicationId, reason));
+        return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
+    @Transactional
+    public ApplicationStatusResponse startProducing(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        Application application = findApplication(applicationId);
+        application.startProducing();
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.PRODUCTION_START, applicationId, "제작 시작"));
+        return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
+    @Transactional
+    public ApplicationStatusResponse markCardReady(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        Application application = findApplication(applicationId);
+        application.markCardReady(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS));
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.CARD_ISSUE, applicationId, "카드 발급 완료"));
+        return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
+    @Transactional
+    public ApplicationStatusResponse dispatchPhysical(Long adminId, Long applicationId, String trackingNumber) {
+        validateAdmin(adminId);
+        Application application = findApplication(applicationId);
+        application.markPhysicalDispatched(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS), trackingNumber);
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.TRACKING_REGISTER, applicationId, trackingNumber));
+        return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
+    @Transactional
+    public ApplicationStatusResponse completeNaming(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        Application application = findApplication(applicationId);
+        application.completeNaming();
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.NAMING_COMPLETE, applicationId, "작명 완료 처리"));
+        return ApplicationStatusResponse.of(applicationId, application.getStatus());
     }
 
     /**

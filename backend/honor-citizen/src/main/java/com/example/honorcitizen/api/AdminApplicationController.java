@@ -4,16 +4,21 @@ import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.common.response.PageResponse;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
+import com.example.honorcitizen.domain.application.dto.ApplicationStatusResponse;
+import com.example.honorcitizen.domain.application.dto.DispatchRequest;
 import com.example.honorcitizen.domain.application.dto.MyApplicationDetailResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationListItemResponse;
 import com.example.honorcitizen.domain.application.dto.NamingResultApplyResponse;
+import com.example.honorcitizen.domain.application.dto.RejectPhotoRequest;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -67,5 +72,48 @@ public class AdminApplicationController {
             @RequestPart("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.applyNamingResult(adminId, applicationId, file)));
+    }
+
+    // 상태 전이 5종 — 전이 규칙 자체는 Application 엔티티에 있고, 여기·Service는 호출·인가·감사로그만 담당한다.
+    @PostMapping("/{applicationId}/reject-photo")
+    public ResponseEntity<ApiResponse<ApplicationStatusResponse>> rejectPhoto(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @Valid @RequestBody RejectPhotoRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.rejectPhoto(adminId, applicationId, request.getReason())));
+    }
+
+    @PostMapping("/{applicationId}/start-producing")
+    public ResponseEntity<ApiResponse<ApplicationStatusResponse>> startProducing(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.startProducing(adminId, applicationId)));
+    }
+
+    @PostMapping("/{applicationId}/card-ready")
+    public ResponseEntity<ApiResponse<ApplicationStatusResponse>> markCardReady(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.markCardReady(adminId, applicationId)));
+    }
+
+    @PostMapping("/{applicationId}/dispatch")
+    public ResponseEntity<ApiResponse<ApplicationStatusResponse>> dispatchPhysical(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @Valid @RequestBody DispatchRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.dispatchPhysical(adminId, applicationId, request.getTrackingNumber())));
+    }
+
+    @PostMapping("/{applicationId}/complete-naming")
+    public ResponseEntity<ApiResponse<ApplicationStatusResponse>> completeNaming(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.completeNaming(adminId, applicationId)));
     }
 }

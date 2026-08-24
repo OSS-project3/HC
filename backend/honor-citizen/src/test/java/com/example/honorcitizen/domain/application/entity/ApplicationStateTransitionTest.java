@@ -71,9 +71,10 @@ class ApplicationStateTransitionTest {
         application.markCardReady(NOW);
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.PRODUCING);
 
-        application.markPhysicalDispatched(NOW.plusHours(1));
+        application.markPhysicalDispatched(NOW.plusHours(1), "1234567890");
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.COMPLETED);
         assertThat(application.getPhysicalDispatchedAt()).isEqualTo(NOW.plusHours(1));
+        assertThat(application.getTrackingNumber()).isEqualTo("1234567890");
     }
 
     @Test
