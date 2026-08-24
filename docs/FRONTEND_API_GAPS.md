@@ -23,7 +23,7 @@
 | **계정 복구(아이디/비밀번호 찾기)** | ✅ 실 API(2026-08-24) | ✅ 구현 | **연동 완료** — `AccountRecoveryPage.tsx`가 요청→확인(마스킹 이메일/비밀번호 재설정)까지 4개 API 전부 호출 (§1.1) |
 | **내 신청 목록·상세(마이페이지)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료(`b5f6140`) | **🔴 연동 안 돼 있어 실사용 불가**("제작 신청 내역이 없습니다" 표시) — API 실 호출로 교체 필요, 상태 라벨·날짜 포맷도 같이 손봐야 함 (§1.2) |
 | **1:1 문의(Inquiry)** | ❌ 목(localStorage), 2026-08-24 관리자 화면 UI만 손봄(여전히 mock) | ✅ 구현·`main` 반영 완료(사용자 작성 API·관리자 답변 API 둘 다) | **연동 가능(단, `privacyConsent` 필드 프론트 추가 전송 필요)** — 관리자 답변 화면(`AdminPage.tsx`)도 `api.ts` import 자체가 없어 여전히 mock (§1.3, §1.4) |
-| **관리자 신청관리·통계** | ❌ 목(localStorage), 2026-08-24 상세행 UI만 추가(여전히 mock) | ⚠️ 조회(목록·상세)만 구현, 상태전이·통계 없음 | **부분 도메인 구현 필요** — 조회 API(`AdminApplicationController`, 2026-08-21)는 이미 있는데 프론트가 아직 하나도 안 씀 (§1.4) |
+| **관리자 신청관리·통계** | ❌ 목(localStorage), 2026-08-24 상세행 UI만 추가(여전히 mock) | ⚠️ 조회(목록·상세·구성원)와 작명 결과 반영 구현, 상태전이·통계 없음 | **부분 도메인 구현 필요** — 구현된 관리자 신청 API부터 연동 가능하며 상태전이·통계는 후속 백엔드 작업 필요 (§1.4) |
 | **신청 취소** | ⚠️ 진입점만 | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.5) |
 | 공지 서버 검색 | ⚠️ 클라 검색 | ❌ keyword 파라미터 없음 | 필요 시 검색 파라미터 추가 (§1.7) |
 | 회원정보 address 수정 | ⚠️ 화면엔 없음(정책상 제거된 상태) | ❌ 미지원(확정 정책) | **갭 아님** — 조회는 이름·전화번호·이메일만, 수정도 이름·전화번호만(§1.9-a) |
@@ -91,9 +91,9 @@
 - **⚠️ 연동 전 프론트가 반드시 반영해야 하는 것 — `privacyConsent` 필드(2026-08-19)**: 개인정보 수집·이용 동의를 서버에서도 강제하기로 정책 확정했다(`requirements.md` §⑤·§⑥·§⑦) — `POST /api/inquiries` 요청 바디에 `privacyConsent: true`가 **필수**다(Bean Validation `@AssertTrue`로 서버가 거절함). 현재 `InquiryPage.tsx`의 동의 체크박스 상태(`agreed`)는 제출 버튼 비활성화에만 쓰이고 `FormData`에는 포함되지 않는다. **이 필드를 프론트가 요청 바디에 추가로 실어 보내지 않으면 문의 등록이 매번 400(`INVALID_INPUT`)으로 거절된다.**
 - **연동 시 참고**: `category`는 프론트가 이미 보내는 한글 문자열(제작 신청/결제 및 배송/카드 발급/행사·단체 협업/기타) 그대로 받는다(백엔드가 `@JsonValue`/`@JsonCreator`로 매핑, 프론트 값 변경 불필요). `name`/`email`/`phone`은 계정 값이 아니라 폼에 입력한 값 그대로 저장된다. 목록·상세 API는 페이지네이션이 없다(프론트에 검색/페이지 UI 자체가 없어 전체 나열).
 
-### 1.4 관리자 신청관리·통계 — 목록·상세 조회는 구현됨, 상태전이·통계·프론트 연동은 없음 (PARTIAL, 2026-08-21 하향 조정)
+### 1.4 관리자 신청관리·통계 — 조회·작명 결과 반영은 구현됨, 상태전이·통계·프론트 연동은 없음 (PARTIAL)
 - **프론트 사용처**: `pages/AdminPage`(신청 목록·상태 변경, 통계 카드, 문의 답변). 저장소 `data/adminMock.ts`. **2026-08-24에도 여전히 mock** — 세부내역 펼침 UI만 추가됐고 `services/api.ts`를 아예 import하지 않는다(§1.3 참고).
-- **✅ 조회 API는 이미 구현됨(2026-08-21, 커밋 `6575d09`)**: `GET /api/admin/applications`(+`/{id}`) — `AdminApplicationController`, 소유자 무관 전체 조회. 프론트가 아직 하나도 안 씀.
+- **✅ 구현된 관리자 신청 API**: `GET /api/admin/applications`, `GET /api/admin/applications/{id}`, `GET /api/admin/applications/{id}/members`, `POST /api/admin/applications/{id}/naming-result` — 목록·상세·구성원 조회와 작명 결과 Excel 반영까지 구현됨. 프론트는 아직 이 API들을 사용하지 않음.
 - **❌ 아직 없음**: 상태 전이 명령(`payment-guide/payment-confirm/start-review/photo-reject/approve-review/production-start/complete/refund-complete`), `GET /api/admin/stats`.
 - **⚠️ status enum 불일치**: 프론트 `adminMock.ts`(옛 값 `SUBMITTED/CONSULTING/PAYMENT_PENDING/IN_PRODUCTION/COMPLETED/CANCELLED`)와 백엔드 실제 enum(`SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING/COMPLETED/CANCELLED`, 결제상태 별도 `WAITING/CONFIRMED`)이 다름 → 연동 전 매핑 확정 필요.
 - **인가**: 현재 프론트 `loginAsAdmin` 데모 버튼 의존 → 실제 `role=ADMIN` 서버 검증 필요.
@@ -179,6 +179,12 @@
 
 ## 2. 정책상 정적 유지 또는 별도 조회 API
 
+### 공통 원칙 — 고정 config·정적 UI 문구는 프론트 i18n
+
+- 메뉴, 버튼, placeholder, 안내문, 고정 config 문구와 `ApplicationStatus`·`EventType` 등의 화면 표시 label은 백엔드 API 갭으로 분류하지 않는다.
+- 백엔드는 안정적인 enum/code 값을 반환하고, 프론트가 `ko`/`en` 리소스 파일(`react-i18next` 등)에서 표시 문구를 선택한다.
+- 번역만을 목적으로 고정 config 조회 API나 Gemini 실시간 번역 API를 신설하지 않는다.
+
 ### 2.1 카드 종류·디자인 카탈로그 — STATIC 확정 (공개 API 신설 안 함)
 - **프론트**: `pages/ApplyPage`·`pages/DesignPage`·`components/gallery`·`components/brand`가 `data/cards.ts` 정적 사용.
 - **결정**: 공개 catalog API를 신설하지 않는다(`FRONTEND_API_INTEGRATION_SPEC.md` §1.2 `STATIC`). `CardType`은 백엔드 내부에만 존재하고, 프론트 문자열 enum ↔ `cardTypeId`(1~4) 매핑은 `cards.ts`의 공통 매퍼로 처리. 관리자가 카드종류/설명을 편집해야 하는 CMS 요구가 생기면 그때 재검토.
@@ -247,9 +253,9 @@
 | 3 | 1:1 문의(Inquiry) 전체 연동 | 백엔드 완료, `privacyConsent` 필드만 요청에 추가하면 됨 | §1.3 |
 | 4 | 신청 조회 응답 `applicationType`으로 재제출 UI 분기 | 백엔드 완료, 프론트가 개인 `photo`/단체 `submitFile` 파트 분기만 하면 됨 | §1.10 |
 | 4 | "내 정보" 표시 정리 — 회원 유형 제거, 전화번호 노출 추가 | 백엔드 변경 없음(확정 정책 §1.9-a 반영). 조회: 이름·전화번호·이메일만 표시(현재 `MyPage.tsx`엔 전화번호 미표시 + 회원유형 표시 중 — 둘 다 수정 필요). 수정: 이름·전화번호만(현행 유지) | §1.9-a |
-| 5 | 관리자 신청관리·통계 UI | **백엔드도 아직 없음**(공동 대기) — status enum 프론트/백 매핑도 먼저 확정 필요 | §1.4 |
-| 6 | 행사 회사/로고 필드, 공지 서버검색, 후기 다중이미지 | **정책 결정 대기** — 결정 후 백엔드·프론트 함께 진행 | §1.6~§1.8 |
-| 7 | 계정복구(아이디/비밀번호 찾기) | **백엔드 구현 진행 중**(정책·API 계약 확정 완료, `docs/api/auth.md` API 7·8) — 커밋·검증 후 프론트 3단계 화면(아이디 찾기)·2단계 화면(비번 재설정) 신규 필요 | §1.1-c |
+| 5 | 관리자 신청관리·통계 UI | **백엔드 부분 구현 완료** — 목록·상세·구성원 조회와 작명 결과 반영 API는 바로 연동 가능. 상태전이·통계 API는 미구현이며 status enum 매핑도 필요 | §1.4 |
+| 6 | 행사 회사/로고 필드, 공지 서버검색, 후기 다중이미지 | 행사·후기 백엔드와 프론트 연동 완료. 공지 서버검색만 필요 시 백엔드 후속 구현 | §1.6~§1.8 |
+| 7 | 계정복구(아이디/비밀번호 찾기) | **백엔드 구현 및 프론트 연동 완료** — 요청·확인 4개 API와 아이디 찾기/비밀번호 재설정 화면 동작 확인 | §1.1-c |
 | 8 | 한국이름 조회 API 전환, 정적 마케팅 CMS화, 하이브리드 목데이터(§5) 정리 | 우선순위 낮음, 필요 시에만 | §2.2, §3, §5 |
 
-**진행 원칙**: 0번은 기존 기능을 되살리는 회귀 수정이라 다른 무엇보다 먼저. 1~4번은 백엔드가 이미 준비돼 있어 프론트 작업만으로 끝나는 항목(가장 빠르게 갭을 줄일 수 있음). 5번 이후는 백엔드 작업이나 정책 결정이 먼저 필요해 프론트 혼자 진행할 수 없는 항목.
+**진행 원칙**: 0번은 기존 기능을 되살리는 회귀 수정이라 다른 무엇보다 먼저. 1~4번은 백엔드가 이미 준비돼 있어 프론트 작업만으로 끝나는 항목이다. 5번은 구현 완료된 조회·작명 결과 반영부터 연동할 수 있고 상태전이·통계만 백엔드 후속 작업이 필요하다. 6번의 공지 서버검색과 8번 항목은 필요성과 우선순위를 확인한 뒤 진행한다.
