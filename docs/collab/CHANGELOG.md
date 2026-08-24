@@ -56,8 +56,8 @@
 ### 사유
 사용자 요청 기능 구현 + 그 과정에서 드러난 실제 버그 및 이전 세션이 방치한 테스트 결함을 "제대로 된 방향"으로(테스트를 현재 API 계약에 맞춰) 수정하고 전체 테스트로 검증.
 
-### 확인 필요
-- 후기 API 계약 변경(다중 이미지, `keepImageIds`, `images[]`)에 맞춘 `docs/api`·`docs/specs/review` 문서 갱신은 후속 과제.
+### 문서
+- 후기 API 계약 변경(다중 이미지 0~5장, `keepImageIds`, `images[]`, 대표 썸네일 비정규화)에 맞춰 `docs/specs/review/api.md`·`data-model.md`를 갱신(2026-08-24 개정 배너 + `ReviewImage` 재도입 §1-1 + API 1·3·4·5 반영).
 
 ---
 

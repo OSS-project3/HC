@@ -1,6 +1,12 @@
 ## Review 도메인
 
-> ✅ 2026-08-09 전면 개정: 모노레포에 새로 동기화된 실제 프론트(`frontend/src/pages/Review*.tsx`, `data/reviews.ts`)를 기준으로 API 계약을 다시 작성했다. 이전 버전(2026-08-06)은 카드종류 다중선택·사진 다중첨부를 전제로 설계했으나, 실제 화면은 **카드종류 단일선택·사진 0~1장**이다. Entity/컬럼 정의는 [data-model.md](data-model.md) 참고(이번 개정에서 `ReviewCardType`/`ReviewImage` 제거).
+> ✅ 2026-08-24 개정(사진 다중첨부): 후기 사진을 **0~5장**으로 확장했다. `ReviewImage` 엔티티 재도입(data-model.md §1-1). 요약:
+> - **등록/수정**: `image` 멀티파트 파트를 **0~5개** 전송(part명 동일 `image`). 6개 이상이면 `INVALID_INPUT`.
+> - **수정**: `keepImageIds`(유지할 기존 이미지 id 배열, 원하는 순서) + 새 `image` 파트(뒤에 추가). `keepImageIds` 생략=기존 전체 유지, `[]`=전체 삭제. 레거시 `removeImage`는 `keepImageIds` 미전송 시에만 의미(전체 삭제) — `keepImageIds`가 오면 무시. "image+removeImage 동시" 모순 규칙은 폐지(= 기존 제거 후 새 파일로 교체를 의미).
+> - **단건조회**: 응답에 `images: [{ id, imageUrl }]`(순서대로) 추가. `imageUrl`(대표=첫 이미지)은 하위호환으로 유지. 목록조회는 `imageUrl`(대표 썸네일)만 그대로.
+> - 대표 이미지 = `review_images` 0번. `Review.image_path`는 그 경로를 비정규화 유지(목록/`hasPhoto`가 join 없이 동작).
+>
+> ✅ 2026-08-09 전면 개정: 모노레포에 새로 동기화된 실제 프론트(`frontend/src/pages/Review*.tsx`, `data/reviews.ts`)를 기준으로 API 계약을 다시 작성했다. 이전 버전(2026-08-06)은 카드종류 다중선택·사진 다중첨부를 전제로 설계했으나, 실제 화면은 **카드종류 단일선택·사진 0~1장**이었다(사진은 2026-08-24에 다시 0~5장으로 확장 — 위 참고). Entity/컬럼 정의는 [data-model.md](data-model.md) 참고.
 >
 > 등록/목록조회/단건조회/삭제/수정 5개 API를 다룬다.
 
@@ -12,9 +18,9 @@
 
 | 파일 | 구조 |
 |---|---|
-| `data/reviews.ts` | `ReviewPost { id, title, content, author, authorEmail, createdAt, applicantType: "personal"\|"organization", cardType: CardType(단일), imageUrl?: string(단일) }` |
-| `ReviewEditorPage.tsx` | 제목/신청유형(라디오)/카드종류(라디오, 단일)/작성자명(직접입력)/사진(선택, 1장, 2MB 이하 png·jpeg·webp)/내용. 수정 접근 조건: `isAdmin \|\| review.authorEmail === user.email` |
-| `ReviewDetailPage.tsx` | 제목/작성자/신청유형/카드종류/작성일/사진(있으면)/본문/"다음글"(다음 글만, 이전글 없음). 수정·삭제 버튼은 `isAdmin`일 때만 노출 |
+| `data/reviews.ts` | `ReviewPost { id, title, content, author, authorEmail, createdAt, applicantType: "personal"\|"organization", cardType: CardType(단일), imageUrl?: string(대표), imageUrls?: string[](전체), images?: {id,imageUrl}[](상세, 편집용) }` |
+| `ReviewEditorPage.tsx` | 제목/신청유형(라디오)/카드종류(라디오, 단일)/작성자명(직접입력)/사진(선택, **최대 5장**, 각 2MB 이하 png·jpeg·webp — 다중 선택·미리보기·개별 삭제, 수정 시 기존 이미지 유지/삭제)/내용. 수정 접근 조건: `isAdmin \|\| review.authorEmail === user.email` |
+| `ReviewDetailPage.tsx` | 제목/작성자/신청유형/카드종류/작성일/사진(**여러 장 갤러리**)/본문/"다음글"(다음 글만, 이전글 없음). 수정·삭제 버튼은 `isAdmin`일 때만 노출 |
 | `ReviewsPage.tsx` | 필터: 신청유형은 없고 **카드종류**(단일 선택)+**사진 유무**(전체/사진 모아보기)+검색(전체/제목/내용/작성자)+키워드. 페이지 크기 9, 클라이언트 페이징 |
 
 ### ③ 필요한 API 목록
@@ -57,7 +63,7 @@ Content-Type: multipart/form-data
 | part | 타입 | 설명 |
 |---|---|---|
 | `request` | JSON | 아래 |
-| `image` | file, 0~1개(선택) | 첨부 사진. 프론트 폼과 동일하게 **단일 파일** |
+| `image` | file, **0~5개**(선택) | 첨부 사진. 전송 순서대로 `display_order` 0..N. 첫 장이 대표(썸네일) |
 
 ```json
 {
@@ -94,7 +100,7 @@ Content-Type: multipart/form-data
 | `cardTypeId`에 해당하는 `CardType`이 없음 | `NOT_FOUND` | 404 |
 | `(applicationType, cardTypeId)` 조합이 로그인 사용자의 실제 카드 발급 이력에 없음 | `REVIEW_NOT_ELIGIBLE`(신규) | 403 |
 | 로그인 사용자가 **같은 (applicationType, cardTypeId) 조합**으로 이미 작성한 후기가 있음(2026-08-13 확정 — §정리 참고) | `REVIEW_ALREADY_EXISTS`(신규) | 409 |
-| `image` 파트가 2개 이상 전송됨 | `INVALID_INPUT` | 400 |
+| `image` 파트가 **5개 초과** 전송됨(2026-08-24, 구: 2개 이상) | `INVALID_INPUT` | 400 |
 | 사진 2 MiB 초과 | `FILE_TOO_LARGE` | 413 |
 | 사진 확장자/MIME 미허용(jpg/jpeg/png/webp 외) | `UNSUPPORTED_FILE_TYPE` | 415 |
 | 사진 signature 불일치/디코딩 실패 | `INVALID_IMAGE_FILE` | 400 |
@@ -111,7 +117,7 @@ Content-Type: multipart/form-data
 | applicationType | `Review.application_type` |
 | cardTypeId | `Review.card_type_id` |
 | content | `Review.content` |
-| image(file) | S3 업로드 후 경로만 `Review.image_path`에 저장(선택) — `UploadFile` 경유하지 않음(`ApplicationMember.photo_path`와 동일 패턴) |
+| image(file[]) | 각 파일 S3 업로드 후 `ReviewImage`(review_id, image_path, display_order 0..N) 행으로 저장(0~5개). 대표(첫) 이미지 경로를 `Review.image_path`에 비정규화 복사 — `UploadFile` 경유하지 않음(data-model.md §1-1) |
 
 ---
 
@@ -225,7 +231,11 @@ GET /api/reviews/{id}
     "authorName": "윤은재",
     "applicationType": "INDIVIDUAL",
     "cardType": { "id": 1, "name": "명예 한국인증" },
-    "imageUrl": "https://.../review-15.jpg",
+    "imageUrl": "https://.../review-15-0.jpg",
+    "images": [
+      { "id": 41, "imageUrl": "https://.../review-15-0.jpg" },
+      { "id": 42, "imageUrl": "https://.../review-15-1.jpg" }
+    ],
     "createdAt": "2026-08-01T13:20:00",
     "next": { "id": 16, "title": "행사 참가자에게 색다른 경험을 선물했습니다." },
     "canEdit": true,
@@ -234,7 +244,8 @@ GET /api/reviews/{id}
 }
 ```
 
-- `imageUrl`: 사진이 없으면 `null`.
+- `images`(✅ 2026-08-24 신규): 첨부 이미지 전체를 `display_order` 순으로. 각 항목은 `{ id, imageUrl(presigned) }`. `id`는 수정 화면의 `keepImageIds`에 그대로 쓴다. 사진 없으면 `[]`.
+- `imageUrl`(대표=첫 이미지, 하위호환 유지): `images[0].imageUrl`. 사진이 없으면 `null`.
 - `next`: ✅ 프론트가 "다음글"만 지원하므로(이전글 없음) `next`만 내려준다. `id`가 현재보다 작은 것 중 가장 큰 것(더 오래된 글) — `ReviewRepository.findFirstByIdLessThanOrderByIdDesc(id)`, PK 범위 조회 1건. 마지막 글이면 `null`.
 - `canEdit`/`canDelete`: ✅ 2026-08-09 확정 — **관리자이거나 작성자 본인**(`Review.user_id == 로그인 principal`)일 때 `true`. 비로그인이면 항상 `false`/`false`. 프론트 상세페이지의 버튼 노출 조건(현재는 `isAdmin`만)과 편집 폼의 실제 접근 허용 조건(관리자 또는 작성자 본인)이 서로 달랐는데, 더 완전한 쪽(관리자+본인)을 API 정책으로 확정한다 — 프론트 버튼 노출은 이 필드를 그대로 쓰면 자동으로 일치하게 된다.
 
@@ -254,7 +265,8 @@ GET /api/reviews/{id}
 | authorName | `Review.author_display_name` |
 | applicationType | `Review.application_type` |
 | cardType | `Review.card_type_id` → `CardTypeRepository.findById()` |
-| imageUrl | `Review.image_path` → presigned URL |
+| imageUrl | 대표(첫) 이미지 → presigned URL(`images[0]`) |
+| images | `ReviewImageRepository.findByReviewIdOrderByDisplayOrderAsc(id)` → 각 `{id, image_path→presigned}` (레거시 단일 `image_path`만 있으면 0번 행으로 지연 마이그레이션) |
 | createdAt | `Review.created_at` |
 | next | `ReviewRepository.findFirstByIdLessThanOrderByIdDesc(id)` |
 | canEdit/canDelete | `Review.user_id == 로그인 principal` (관리자 role이면 무조건 true) |
@@ -287,18 +299,19 @@ Cookie: accessToken={JWT}
 
 #### ⑥ 삭제 범위
 
-`ReviewCardType`/`ReviewImage` join 엔티티가 없어졌으므로 삭제가 단순하다:
+✅ 2026-08-24: `ReviewImage`가 다시 생겼으므로 자식 행과 그 S3 객체까지 함께 정리한다:
 
 ```
 DB Transaction
+ ├─ ReviewImage 전체 삭제(review_id)
  └─ Review 삭제
    ↓
 COMMIT
    ↓
-image_path가 있었다면 그 S3 객체 삭제 (commit 이후)
+review_images의 모든 image_path(+ Review.image_path) S3 객체 삭제 (commit 이후, 중복 제거)
 ```
 
-`UploadFile`을 거치지 않으므로(§API 1 DB 매핑 참고) 별도로 정리할 `UploadFile` row가 없다 — S3 객체 하나만 지우면 끝난다.
+`UploadFile`을 거치지 않으므로(§API 1 DB 매핑 참고) 별도로 정리할 `UploadFile` row는 없다 — `review_images` 행과 해당 S3 객체들만 지우면 된다. 커밋 이후에 지우는 순서는 롤백 시 DB·S3 불일치 방지를 위한 것(EventService와 동일).
 
 ---
 
@@ -317,7 +330,7 @@ Content-Type: multipart/form-data
 | part | 타입 | 설명 |
 |---|---|---|
 | `request` | JSON | 아래 |
-| `image` | file, 0~1개(선택) | 새 사진으로 교체할 때만 포함 |
+| `image` | file, **0~5개**(선택) | 새로 추가할 사진(유지분 뒤에 전송 순서대로 append) |
 
 ```json
 {
@@ -326,16 +339,18 @@ Content-Type: multipart/form-data
   "cardTypeId": 1,
   "authorName": "윤은재",
   "content": "수정된 내용...",
+  "keepImageIds": [42, 41],
   "removeImage": false
 }
 ```
 
 - 등록(API 1)과 동일한 5개 필드(`title`/`applicationType`/`cardTypeId`/`authorName`/`content`)를 **전부 다시 받는다** — 프론트가 매번 폼 전체를 보내므로 일부만 보내는 걸 허용하지 않는다(전부 필수).
-- `removeImage`(boolean, 신규): 프론트에는 없는 필드지만 API에는 필요하다 — 멀티파트 요청에서 "새 파일 파트가 없다"는 것만으로는 "기존 사진 유지"와 "기존 사진 삭제"를 구분할 수 없기 때문. `true`면 기존 사진을 지운다.
-- 사진 처리 3가지 경우:
-  1. `image` 파트 있음 → 새 파일 검증(API 1과 동일 규칙: 2MB, jpg/jpeg/png/webp) 후 S3 업로드 → 성공하면 기존 `image_path`가 가리키던 S3 객체 삭제(새 파일 업로드 성공을 먼저 확인한 뒤 지우는 순서 — 실패 시 사진이 아예 없어지는 걸 방지) → `Review.image_path` 갱신
-  2. `image` 파트 없음 + `removeImage=true` → 기존 S3 객체 삭제, `Review.image_path = NULL`
-  3. `image` 파트 없음 + `removeImage=false`(기본값) → `Review.image_path` 그대로 유지, S3 작업 없음
+- `keepImageIds`(Long[], ✅ 2026-08-24 신규): 유지할 **기존** 이미지 id를 원하는 순서대로. 최종 이미지 = `keepImageIds`(그 순서) + 새 `image` 파트(뒤에 추가). 타 Review 소유·존재하지 않는 id가 섞이면 `INVALID_INPUT`.
+  - `null`(필드 생략) = 기존 전체 유지(레거시 호환).
+  - `[]` = 기존 전체 삭제.
+- `removeImage`(boolean, 레거시): `keepImageIds`를 보내면 **무시**된다. `keepImageIds` 미전송(`null`) 시에만 의미 — `true`면 기존 전체 삭제. (단일 이미지 시절 클라이언트 호환용.)
+- 최종 개수(유지 + 신규)가 5장을 넘으면 `INVALID_INPUT`.
+- 사진 처리: 유지 대상은 재정렬(임시 오프셋+flush로 UNIQUE 충돌 회피), 미유지 기존 이미지는 삭제(커밋 후 S3 정리), 새 파일은 검증(2MB, jpg/jpeg/png/webp) 후 업로드해 뒤에 append. 삭제 직후 `flush()`로 INSERT-before-DELETE 순서 충돌 방지. `Review.image_path`(대표)는 최종 목록의 첫 이미지로 갱신(없으면 `NULL`).
 - **`applicationType`/`cardTypeId`는 수정 화면에서도 그대로 편집 가능한 필드**(readonly 아님 — `ReviewEditorPage.tsx`에서 기존 값이 `defaultChecked`로 미리 채워질 뿐 라디오 버튼 자체는 활성 상태). 따라서 등록 때와 동일하게 **수정 시에도 자격검증을 다시 수행한다** — 자격 판정 기준은 **후기 작성자(`Review.user_id`)의 실제 신청 이력**이다(관리자가 대신 수정하는 경우에도 관리자 본인이 아니라 원 작성자 기준으로 검증).
 
 **Response `200 OK`**
@@ -355,15 +370,15 @@ Content-Type: multipart/form-data
 | `cardTypeId`에 해당하는 `CardType`이 없음 | `NOT_FOUND` | 404 |
 | `(applicationType, cardTypeId)` 조합이 **작성자**의 실제 카드 발급 이력에 없음 | `REVIEW_NOT_ELIGIBLE` | 403 |
 | 바뀐 `(applicationType, cardTypeId)` 조합으로 **작성자 본인의 다른 후기**가 이미 존재함(자기 자신은 제외 — 2026-08-13 확정, §정리 참고) | `REVIEW_ALREADY_EXISTS` | 409 |
-| `image` 파트가 2개 이상 전송됨 | `INVALID_INPUT` | 400 |
-| `image`와 `removeImage=true`가 동시에 옴(모순된 요청) | `INVALID_INPUT` | 400 |
+| 최종 이미지 수(유지 + 신규)가 **5장 초과** | `INVALID_INPUT` | 400 |
+| `keepImageIds`에 타 Review 소유·존재하지 않는 id가 섞임 | `INVALID_INPUT` | 400 |
 | 사진 2 MiB 초과 | `FILE_TOO_LARGE` | 413 |
 | 사진 확장자/MIME 미허용(jpg/jpeg/png/webp 외) | `UNSUPPORTED_FILE_TYPE` | 415 |
 | 사진 signature 불일치/디코딩 실패 | `INVALID_IMAGE_FILE` | 400 |
 
 #### ⑥ DB 컬럼 매핑
 
-API 1(등록)과 동일 — `title`/`applicationType`/`cardTypeId`/`authorName`/`content`가 각각 대응 컬럼을 덮어쓴다. `image`/`removeImage`는 위 3가지 경우에 따라 `Review.image_path`만 갱신한다.
+API 1(등록)과 동일 — `title`/`applicationType`/`cardTypeId`/`authorName`/`content`가 각각 대응 컬럼을 덮어쓴다. 이미지는 `keepImageIds` + 새 `image` 파트에 따라 `review_images` 행을 재정렬·삭제·추가하고, 대표 이미지 경로를 `Review.image_path`에 갱신한다(위 "사진 처리" 참고).
 
 ---
 
@@ -393,7 +408,7 @@ GET /api/my/reviews?page=0&size=9
 | 5 | `PATCH /api/reviews/{id}` (수정, 본인 또는 관리자) | 설계 완료 |
 | 6 | `GET /api/my/reviews` (로그인 사용자 본인 목록) | 구현 완료 |
 
-CRUD 4종 전부(Create/Read/Update/Delete) 설계 완료 — 실제 코드 구현 진행 중(2026-08-13~).
+CRUD 4종 전부(Create/Read/Update/Delete) 구현 완료. ✅ 2026-08-24: 사진 다중첨부(0~5장, `ReviewImage`·`keepImageIds`·`images[]`)까지 구현·전체 테스트 통과.
 
 **신규 ErrorCode**: `REVIEW_NOT_FOUND(404)`, `REVIEW_NOT_ELIGIBLE(403, "선택한 신청유형·카드종류에 대한 신청 이력이 없습니다.")`, `REVIEW_ALREADY_EXISTS(409, "이미 해당 신청유형·카드종류로 작성한 후기가 있습니다.")`, `INVALID_IMAGE_FILE(400, "이미지 파일이 손상되었거나 형식이 올바르지 않습니다.")` — `common/exception/ErrorCode.java`.
 
