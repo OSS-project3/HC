@@ -311,7 +311,7 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] 제약 확정: 유료 API 미사용, 기존 만세력 계산 알고리즘(`saju.ts`) 무변경, timezone 해석 책임은 계속 saju가 담당(HC는 원본 출생정보만 전달)
 - [x] **추가 확정(사용자 3건 지시)**: ① timezone 해석 입력은 반드시 "출생국가/출생지역"이어야 하며 국적(nationality)을 쓰면 안 됨(국적≠출생지 — HC `Applicant`/`ApplicationMember`엔 현재 `nationality`만 있고 별도 출생국가 필드가 없다는 게 이번에 드러난 갭, 아래 후속 항목 참고). ② ambiguous/unresolved 상태에서 임의 확정 금지 + GeoNames가 못 찾으면 IANA timezone id를 관리자가 직접 입력할 수 있어야 함. ③ `Intl.DateTimeFormat` 기반 DST/offset 계산은 유지하되 역사적 DST·경계 날짜 테스트 추가, geo resolve 결과는 IANA timezone ID를 기준값으로 유지(서버 계산 이전 대비)
 
-### SAJU-GEO-1. 백엔드 timezone 해석 계층(`saju/backend`) — ✅ 완료(Claude, 2026-08-24), saju 리포에 커밋 안 함
+### SAJU-GEO-1. 백엔드 timezone 해석 계층(`saju/backend`) — ✅ 완료(Claude, 2026-08-24), 로컬 커밋(`56bb140`), push는 보류
 
 - [x] `geo.py` 신규: 국가→후보 timezone(`pytz.country_timezones`, IANA tzdata 그대로 약 250개국) + 도시→timezone(`geonamescache` 인구 1.5만 이상 약 3.4만 도시 + `timezonefinder` 좌표 보강) 2단 해석
 - [x] 동명 도시 disambiguation: 입력 텍스트에서 주/state를 파싱해 GeoNames `admin1code`와 매칭(현재 US만 이름 테이블 보유) → 실패 시 인구 최다 후보를 `ambiguous`로 제시(최대 5개 후보 반환, 조용히 확정하지 않음)
@@ -320,9 +320,9 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] `country`/`region` 파라미터는 출생국가/출생지역 전용임을 모듈 docstring·Pydantic 필드 설명에 명시(국적 오용 방지 — 위 SAJU-GEO-0 추가확정 ①)
 - [x] `requirements.txt`에 `geonamescache`/`timezonefinder`/`pytz`/`pytest` 추가
 - [x] `test_geo.py` 9개 — 단일/복수 timezone 국가, 동명도시 disambiguation, 동일 geonameid 중복 매칭 방지(실제 발견한 버그), unresolved/ambiguous가 서울 등으로 안 새는지 — 로컬 `pytest app/test_geo.py -q` 전부 통과
-- [ ] ⚠️ **saju 리포에 미커밋** — 로컬 워킹트리에만 존재(사용자 재검토 대기)
+- [x] saju 리포에 커밋 완료(`56bb140`, 2026-08-24) — **push는 안 함, 사용자 지시로 로컬 커밋에만 둠**
 
-### SAJU-GEO-2. 프론트 통합(`saju/web`) — ✅ 완료(Claude, 2026-08-24), saju 리포에 커밋 안 함
+### SAJU-GEO-2. 프론트 통합(`saju/web`) — ✅ 완료(Claude, 2026-08-24), 로컬 커밋(`56bb140`), push는 보류
 
 - [x] `geo.ts`: 로컬 하드코딩 테이블 제거, `/api/geo/resolve*` 호출로 교체(동기→비동기 전환)
 - [x] `batch.tsx`: `resolveRegion` 동기 호출 → 업로드/세션복원 시 배치 비동기 해석으로 전환, `resolving` 로딩 상태 노출
@@ -332,14 +332,14 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] `tsconfig.json`에 `ES2022.Intl` lib 추가(`Intl.supportedValuesOf` 타입 인식용)
 - [x] `zoneOffsetMinutes` DST/경계 날짜 테스트 신규(`geo.test.ts`, vitest 신규 도입 — 위 SAJU-GEO-0 추가확정 ③) — 봄/가을 경계 정확한 순간 전환(1분 단위), DST 없는 시간대(서울) 연중 고정, 남반구 반대계절 DST(시드니), 1970년 이전 역사적 날짜(정확한 값 단정 대신 그 시간대가 가질 수 있는 범위 내인지만 확인) — 7개 전부 통과
 - [x] `zoneOffsetMinutes` 자체는 무변경(요구사항대로 유지), geo resolve 응답의 기준값은 계속 IANA tz 문자열(`tz` 필드) — 향후 서버 계산 이전 시에도 그대로 재사용 가능한 형태
-- [ ] ⚠️ **saju 리포에 미커밋** — 로컬 워킹트리에만 존재(사용자 재검토 대기)
+- [x] saju 리포에 커밋 완료(`56bb140`, 2026-08-24) — **push는 안 함, 사용자 지시로 로컬 커밋에만 둠**
 
 ### SAJU-GEO-3. 검증·문서·커밋 — 부분 완료
 
 - [x] `pytest app/test_geo.py -q` 9개 통과, `npx vitest run` 7개 통과, `npx tsc --noEmit` 클린 확인
 - [ ] `docker compose up --build`로 전체 스택 기동 후 실제 배치 업로드 시나리오(동명도시·미인식국가 포함) 수동 확인 — **사용자가 중단시켜 미실행, 재개 안 함(필요해지면 먼저 확인받고 실행)**
-- [ ] saju 리포 자체 커밋 컨벤션 확인 후 커밋 — 미착수, 사용자 승인 후 진행
-- [ ] HC `docs/collab/CHANGELOG.md`/`HANDOFF.md`에 이번 작업 요약 추가 — 미착수(saju 코드가 아직 미커밋이라 보류)
+- [x] saju 리포 자체 커밋 컨벤션(접두사 없는 평서형 한국어 요약) 확인 후 커밋 완료(`56bb140`) — **사용자 지시로 push는 안 함, 로컬 커밋에만 둠**
+- [ ] HC `docs/collab/CHANGELOG.md`/`HANDOFF.md`에 이번 작업 요약 추가 — 미착수
 
 ### saju 관련 후속 항목(이번 범위 밖)
 
