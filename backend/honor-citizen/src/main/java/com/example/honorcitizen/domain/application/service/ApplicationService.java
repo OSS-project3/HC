@@ -6,8 +6,10 @@ import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.UploadFileType;
 import com.example.honorcitizen.common.enums.UserRole;
+import com.example.honorcitizen.common.exception.BulkValidationException;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
+import com.example.honorcitizen.common.exception.ValidationErrorDetail;
 import com.example.honorcitizen.common.enums.LookupMethod;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
@@ -21,6 +23,7 @@ import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequ
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationDetailResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationListItemResponse;
+import com.example.honorcitizen.domain.application.dto.NamingResultApplyResponse;
 import com.example.honorcitizen.domain.application.entity.Applicant;
 import com.example.honorcitizen.domain.application.entity.Application;
 import com.example.honorcitizen.domain.application.entity.ApplicationMember;
@@ -107,6 +110,7 @@ public class ApplicationService {
     private final CardTypeRepository cardTypeRepository;
     private final UploadFileRepository uploadFileRepository;
     private final AdminActivityLogRepository adminActivityLogRepository;
+    private final NamingResultExcelParser namingResultExcelParser;
     private final UserService userService;
     // 트랜잭션 경계를 위한 별도 Bean — 위 클래스 주석의 self-invocation 문제 참고
     private final ApplicationPersistenceService applicationPersistenceService;
@@ -414,6 +418,54 @@ public class ApplicationService {
         return applicationMemberRepository.findByApplicationId(applicationId).stream()
                 .map(AdminApplicationMemberResponse::from)
                 .toList();
+    }
+
+    /**
+     * saju 프로그램이 돌려준 "사주이름 포함" 엑셀을 반영해 해당 신청의 구성원 한글이름·한자이름을 채운다.
+     *
+     * 정책(전체 실패, 사용자 확정):
+     * - 이메일+전화번호가 이 신청의 구성원과 매칭 안 되거나, 같은 값으로 여러 명이 매칭되거나,
+     *   "사주이름" 형식이 이상한 행이 하나라도 있으면 아무것도 반영하지 않고 전체 거절한다
+     *   (NamingResultExcelParser가 형식 오류는 이미 걸러서 BulkValidationException으로 던짐 —
+     *   여기서는 매칭 단계 오류만 같은 방식으로 모아 던진다).
+     * - 이미 이름이 채워진 구성원도 덮어쓴다.
+     * - Application.status는 건드리지 않는다 — NAME_EDITING→PRODUCTION_READY 전이는 관리자가
+     *   별도로 트리거할 때만 일어난다(이 API가 자동으로 상태를 바꾸지 않음).
+     */
+    @Transactional
+    public NamingResultApplyResponse applyNamingResult(Long adminId, Long applicationId, MultipartFile file) {
+        validateAdmin(adminId);
+        applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+
+        List<NamingResultExcelParser.NamingResultRow> rows = namingResultExcelParser.parse(file);
+        List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(applicationId);
+
+        List<ValidationErrorDetail> matchErrors = new ArrayList<>();
+        List<ApplicationMember> matchedTargets = new ArrayList<>();
+        for (NamingResultExcelParser.NamingResultRow row : rows) {
+            List<ApplicationMember> candidates = members.stream()
+                    .filter(m -> row.email().equals(m.getEmail()) && row.phone().equals(m.getPhone()))
+                    .toList();
+            if (candidates.isEmpty()) {
+                matchErrors.add(new ValidationErrorDetail(row.rowNumber(), "email_phone", "NOT_FOUND",
+                        "이 신청의 구성원 중 이메일·전화번호가 일치하는 사람이 없습니다."));
+            } else if (candidates.size() > 1) {
+                matchErrors.add(new ValidationErrorDetail(row.rowNumber(), "email_phone", "AMBIGUOUS",
+                        "이메일·전화번호가 같은 구성원이 여러 명이라 특정할 수 없습니다."));
+            } else {
+                matchedTargets.add(candidates.get(0));
+            }
+        }
+        if (!matchErrors.isEmpty()) {
+            throw new BulkValidationException(matchErrors);
+        }
+
+        for (int i = 0; i < rows.size(); i++) {
+            NamingResultExcelParser.NamingResultRow row = rows.get(i);
+            matchedTargets.get(i).assignKoreanName(row.name(), row.chineseName());
+        }
+        return NamingResultApplyResponse.of(matchedTargets.size());
     }
 
     /**

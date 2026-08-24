@@ -140,6 +140,12 @@ public class ApplicationMember extends BaseTimeEntity {
         return member;
     }
 
+    // 작명 단계(saju 프로그램에서 확정된 결과를 관리자가 반영) — 이미 값이 있어도 덮어쓴다.
+    public void assignKoreanName(String name, String chineseName) {
+        this.name = name;
+        this.chineseName = chineseName;
+    }
+
     public void updatePhoto(String photoPath) {
         this.photoPath = photoPath;
     }

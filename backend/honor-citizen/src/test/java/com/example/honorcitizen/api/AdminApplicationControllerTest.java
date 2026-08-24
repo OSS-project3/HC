@@ -16,19 +16,26 @@ import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
 import com.example.honorcitizen.infra.security.JwtTokenProvider;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -141,5 +148,84 @@ class AdminApplicationControllerTest {
         mockMvc.perform(get("/api/admin/applications/999999")
                         .header(HttpHeaders.AUTHORIZATION, adminToken))
                 .andExpect(status().isNotFound());
+    }
+
+    // saju "사주이름 포함" 엑셀 반영 — HTTP/multipart/인가 배선만 검증(비즈니스 로직은
+    // ApplicationServiceNamingResultTest에서 이미 커버).
+    private static final String[] NAMING_HEADERS = {
+            "사진 번호", "영문명", "생년월일", "출생국가", "출생시간", "출생지역", "성별",
+            "개별입국날짜", "이메일", "전화번호", "주소", "사주이름",
+    };
+
+    private byte[] buildNamingResultExcel(String... rows) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("신청자명단");
+            sheet.createRow(0).createCell(0).setCellValue("공통 입국날짜");
+            sheet.createRow(1).createCell(0).setCellValue("1.1");
+            Row header = sheet.createRow(2);
+            for (int i = 0; i < NAMING_HEADERS.length; i++) {
+                header.createCell(i).setCellValue(NAMING_HEADERS[i]);
+            }
+            int rowIndex = 3;
+            for (String rowCsv : rows) {
+                String[] cols = rowCsv.split("\\|", -1);
+                Row row = sheet.createRow(rowIndex++);
+                for (int i = 0; i < cols.length; i++) {
+                    if (!cols[i].isEmpty()) {
+                        row.createCell(i).setCellValue(cols[i]);
+                    }
+                }
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    @Test
+    void applyNamingResultUpdatesMatchingGroupMember() throws Exception {
+        User groupOwner = userRepository.save(
+                User.createOAuthUser("naming-group-owner@example.com", "oauth-naming-group-owner", "google", "Owner"));
+        Application groupApplication = applicationRepository.save(Application.createGroup(
+                groupOwner.getId(), "APP-2026-930001", cardType.getId(), IssueType.MOBILE, true, 1, null, null, null));
+        ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                groupApplication.getId(), "Jane Park", LocalDate.of(1995, 5, 5), "US", null, "Chicago",
+                Gender.FEMALE, null, "jane@example.com", "010-5555-6666", "Seoul", null, null, null));
+
+        MockMultipartFile file = new MockMultipartFile("file", "result.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                buildNamingResultExcel("1|Jane Park|1995-05-05|US||Chicago|FEMALE||jane@example.com|010-5555-6666||지은"));
+
+        mockMvc.perform(multipart("/api/admin/applications/" + groupApplication.getId() + "/naming-result")
+                        .file(file)
+                        .header(HttpHeaders.AUTHORIZATION, adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updatedCount").value(1));
+
+        ApplicationMember reloaded = applicationMemberRepository.findById(member.getId()).orElseThrow();
+        assertThat(reloaded.getName()).isEqualTo("지은");
+    }
+
+    @Test
+    void applyNamingResultForNonAdminReturnsForbidden() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "result.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                buildNamingResultExcel("1|Jane Park|1995-05-05|US||Chicago|FEMALE||jane@example.com|010-5555-6666||지은"));
+
+        mockMvc.perform(multipart("/api/admin/applications/" + otherUsersApplication.getId() + "/naming-result")
+                        .file(file)
+                        .header(HttpHeaders.AUTHORIZATION, userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void applyNamingResultWithoutTokenReturnsUnauthorized() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "result.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                buildNamingResultExcel("1|Jane Park|1995-05-05|US||Chicago|FEMALE||jane@example.com|010-5555-6666||지은"));
+
+        mockMvc.perform(multipart("/api/admin/applications/" + otherUsersApplication.getId() + "/naming-result")
+                        .file(file))
+                .andExpect(status().isUnauthorized());
     }
 }

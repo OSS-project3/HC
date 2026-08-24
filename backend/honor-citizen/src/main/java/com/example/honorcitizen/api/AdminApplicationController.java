@@ -6,15 +6,19 @@ import com.example.honorcitizen.common.response.PageResponse;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationDetailResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationListItemResponse;
+import com.example.honorcitizen.domain.application.dto.NamingResultApplyResponse;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -53,5 +57,15 @@ public class AdminApplicationController {
             @PathVariable Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.getApplicationMembersForAdmin(adminId, applicationId)));
+    }
+
+    // saju 프로그램이 돌려준 "사주이름 포함" 엑셀을 업로드해 구성원 한글이름을 반영한다.
+    @PostMapping("/{applicationId}/naming-result")
+    public ResponseEntity<ApiResponse<NamingResultApplyResponse>> applyNamingResult(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @RequestPart("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.applyNamingResult(adminId, applicationId, file)));
     }
 }
