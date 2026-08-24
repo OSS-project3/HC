@@ -135,6 +135,7 @@ class UserApplicationFlowTest {
                     "englishName": "Hong Gildong",
                     "birthDate": "1990-05-15",
                     "nationality": "US",
+                    "birthRegion": "Chicago",
                     "gender": "MALE"
                   }
                 }

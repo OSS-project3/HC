@@ -78,7 +78,7 @@ class GlobalExceptionHandlerTest {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
                   "applicant": { "name": "홍길동", "phone": "" },
-                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "USA", "gender": "MALE" }
+                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "USA", "birthRegion": "Chicago", "gender": "MALE" }
                 }
                 """.formatted(cardType.getId());
 
@@ -104,7 +104,7 @@ class GlobalExceptionHandlerTest {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
                   "applicant": { "name": "홍길동", "phone": "" },
-                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE" }
+                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "birthRegion": "Chicago", "gender": "MALE" }
                 }
                 """.formatted(cardType.getId());
 

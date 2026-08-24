@@ -72,6 +72,7 @@ class ApplicationControllerTest {
                 "englishName": "Hong Gildong",
                 "birthDate": "1990-05-15",
                 "nationality": "US",
+                "birthRegion": "Chicago",
                 "gender": "MALE"
               }
             }
@@ -231,7 +232,7 @@ class ApplicationControllerTest {
                   "issueType": "MOBILE_AND_PHYSICAL",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "receiver": { "sameAsApplicant": false, "name": "김수령", "phone": "010-9999-8888", "address": "서울특별시 강남구" },
-                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE" }
+                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "birthRegion": "Chicago", "gender": "MALE" }
                 }
                 """.formatted(cardType.getId());
         MockMultipartFile requestPart = new MockMultipartFile("request", "", "application/json", json.getBytes());

@@ -98,7 +98,7 @@ class ApplicationBulkControllerTest {
             headerRow.createCell(0).setCellValue("ID");
 
             Row dataRow = sheet.createRow(3);
-            String[] values = {"1", "John Doe", "1988-01-01", "US", "", "", "MALE", "", "john@example.com", "010-1111-2222", "Seoul"};
+            String[] values = {"1", "John Doe", "1988-01-01", "US", "", "Chicago", "MALE", "", "john@example.com", "010-1111-2222", "Seoul"};
             for (int i = 0; i < values.length; i++) {
                 if (!values[i].isEmpty()) {
                     dataRow.createCell(i).setCellValue(values[i]);
