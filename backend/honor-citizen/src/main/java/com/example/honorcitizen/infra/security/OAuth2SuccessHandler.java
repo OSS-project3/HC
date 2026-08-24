@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -29,9 +28,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final UserRepository userRepository;
     private final UserService userService;
     private final AuthCookieManager authCookieManager;
-
-    @Value("${app.frontend-url}")
-    private String frontendUrl;
+    private final FrontendOriginResolver frontendOriginResolver;
 
     @Override
     @Transactional
@@ -39,6 +36,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException {
         OAuth2AuthenticationToken oauthToken = (OAuth2AuthenticationToken) authentication;
+        String frontendOrigin = frontendOriginResolver.resolve(request);
         String provider = oauthToken.getAuthorizedClientRegistrationId();
         OAuth2User oAuth2User = oauthToken.getPrincipal();
 
@@ -73,7 +71,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 created = userService.createOAuthUserIfAbsent(email, oauthId, provider, name);
             } catch (CustomException e) {
                 log.warn("보안 이벤트: OAuth 로그인 거절(이메일 중복) provider={} errorCode={}", provider, e.getErrorCode());
-                response.sendRedirect(frontendUrl + "/login?error=oauth");
+                response.sendRedirect(frontendOrigin + "/login?error=oauth");
                 return;
             }
             // createOAuthUserIfAbsent는 REQUIRES_NEW로 별도 트랜잭션에서 실행돼 이미 커밋·종료됐으므로
@@ -88,6 +86,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         authCookieManager.addRefreshTokenCookie(response, tokens.refreshToken());
 
         String redirectPath = isNewUser ? "/terms" : "/";
-        response.sendRedirect(frontendUrl + redirectPath);
+        response.sendRedirect(frontendOrigin + redirectPath);
     }
 }
