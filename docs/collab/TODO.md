@@ -298,6 +298,55 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] 완료 보고에 구현 API, 변경 클래스, 바로잡은 기존 충돌, 집중/전체 테스트 결과, 남은 차단 사항, 커밋 해시 포함
 - [x] 이번 작업과 무관한 Java·문서·산출물을 커밋하지 않았는지 최종 확인
 
+## HC↔saju 연동: timezone 해석 계층 교체 체크리스트
+
+> 배경: HC 관리자 페이지에서 신청자 사주 정보(출생국가·출생지역·생년월일·출생시간)를 별도 saju 프로그램(`D:\HC-worktrees\saju`, 별도 git 리포·별도 배포, HC와 운영 분리 유지 확정)이 읽는 Excel로 내보내고, saju 쪽이 시차 보정→만세력 계산→이름 선택→최종 출력을 전담한다(HC에 만세력 계산·이름 추천 로직을 넣지 않음). 이 체크리스트는 saju 기존 코드의 7개국 하드코딩 timezone 테이블(미인식 시 서울로 조용히 대체)을 IANA tzdata+GeoNames 기반으로 교체하는 작업만 다룬다. **saju는 자체 `docs/collab`이 없어 이 체크리스트가 유일한 추적 지점이다.** HC 쪽 관리자 export 기능(엑셀 다운로드 버튼, Java/Spring)은 별도 미착수 후속 항목이다.
+>
+> ⚠️ **절차 위반 기록 2건**: (1) 2026-08-24, 정책 설계를 주고받던 도중 사용자의 "이 방향으로 진행해 주세요" 메시지를 구현 승인으로 판단해 체크리스트 없이 바로 saju 리포 코드를 수정하기 시작했다(RULES.md §4 위반). 사용자가 지적해 중단하고 이 체크리스트를 사후 작성했다. (2) 그 체크리스트를 커밋하지 않고 saju 쪽 구현을 계속하는 사이, **같은 `main-preview` 작업 디렉터리를 동시에 쓰는 다른 세션(Codex로 추정) 때문에 미커밋 상태였던 TODO.md 변경분이 한때 사라짐**(사용자가 "Claude/기존 문서 변경 5개를 Git stash에 임시 보관"해 다행히 복구됨) — RULES.md §7 "협업 문서 변경은 코드/기능 변경과 별도 커밋으로 분리" 원칙을 안 지켜서 생긴 일이다. 이번엔 이 섹션을 갱신하는 즉시 커밋+푸시한다.
+
+### SAJU-GEO-0. 문제 정의·대안 검토 — ✅ 완료(Claude, 2026-08-24)
+
+- [x] 문제 재현: saju `geo.ts`의 `COUNTRY_TABLE`이 7개국뿐이고 미인식 국가/도시는 서울로 조용히 대체 — HC의 다양한 국적 신청자를 지원하지 못함(예: `GB`(영국) ISO 코드가 인식 안 돼 서울 기준으로 잘못 계산됨)
+- [x] 대안 비교: (a) HC가 ISO 코드를 영문 국가명으로 변환해 내보냄 (b) saju `COUNTRY_TABLE`에 ISO 별칭만 추가 (c) IANA tzdata(국가→후보 timezone) + GeoNames(도시→timezone) 기반으로 전면 교체 — 사용자가 (c)로 확정(단순 별칭 추가로는 "다양한 국가 출생자 지원" 요구사항을 못 만족한다고 판단)
+- [x] 제약 확정: 유료 API 미사용, 기존 만세력 계산 알고리즘(`saju.ts`) 무변경, timezone 해석 책임은 계속 saju가 담당(HC는 원본 출생정보만 전달)
+- [x] **추가 확정(사용자 3건 지시)**: ① timezone 해석 입력은 반드시 "출생국가/출생지역"이어야 하며 국적(nationality)을 쓰면 안 됨(국적≠출생지 — HC `Applicant`/`ApplicationMember`엔 현재 `nationality`만 있고 별도 출생국가 필드가 없다는 게 이번에 드러난 갭, 아래 후속 항목 참고). ② ambiguous/unresolved 상태에서 임의 확정 금지 + GeoNames가 못 찾으면 IANA timezone id를 관리자가 직접 입력할 수 있어야 함. ③ `Intl.DateTimeFormat` 기반 DST/offset 계산은 유지하되 역사적 DST·경계 날짜 테스트 추가, geo resolve 결과는 IANA timezone ID를 기준값으로 유지(서버 계산 이전 대비)
+
+### SAJU-GEO-1. 백엔드 timezone 해석 계층(`saju/backend`) — ✅ 완료(Claude, 2026-08-24), saju 리포에 커밋 안 함
+
+- [x] `geo.py` 신규: 국가→후보 timezone(`pytz.country_timezones`, IANA tzdata 그대로 약 250개국) + 도시→timezone(`geonamescache` 인구 1.5만 이상 약 3.4만 도시 + `timezonefinder` 좌표 보강) 2단 해석
+- [x] 동명 도시 disambiguation: 입력 텍스트에서 주/state를 파싱해 GeoNames `admin1code`와 매칭(현재 US만 이름 테이블 보유) → 실패 시 인구 최다 후보를 `ambiguous`로 제시(최대 5개 후보 반환, 조용히 확정하지 않음)
+- [x] 미해석/모호 시 서울 등으로 조용히 대체하는 동작 완전 제거 → `method: 'unresolved'|'ambiguous'` 반환(호출부가 사람 확인을 요구하게)
+- [x] `POST /api/geo/resolve`(단건), `POST /api/geo/resolve-batch`(단체 배치 — 인원수만큼 HTTP 왕복 안 나가게) 엔드포인트
+- [x] `country`/`region` 파라미터는 출생국가/출생지역 전용임을 모듈 docstring·Pydantic 필드 설명에 명시(국적 오용 방지 — 위 SAJU-GEO-0 추가확정 ①)
+- [x] `requirements.txt`에 `geonamescache`/`timezonefinder`/`pytz`/`pytest` 추가
+- [x] `test_geo.py` 9개 — 단일/복수 timezone 국가, 동명도시 disambiguation, 동일 geonameid 중복 매칭 방지(실제 발견한 버그), unresolved/ambiguous가 서울 등으로 안 새는지 — 로컬 `pytest app/test_geo.py -q` 전부 통과
+- [ ] ⚠️ **saju 리포에 미커밋** — 로컬 워킹트리에만 존재(사용자 재검토 대기)
+
+### SAJU-GEO-2. 프론트 통합(`saju/web`) — ✅ 완료(Claude, 2026-08-24), saju 리포에 커밋 안 함
+
+- [x] `geo.ts`: 로컬 하드코딩 테이블 제거, `/api/geo/resolve*` 호출로 교체(동기→비동기 전환)
+- [x] `batch.tsx`: `resolveRegion` 동기 호출 → 업로드/세션복원 시 배치 비동기 해석으로 전환, `resolving` 로딩 상태 노출
+- [x] `BatchReviewPage.tsx`: `unresolved`/`ambiguous` 상태면 사주 계산 자체를 막고, 후보 목록 선택/`KNOWN_ZONES` 수동선택/**IANA timezone id 직접 입력**(datalist, `Intl.supportedValuesOf('timeZone')` 기반 전체 목록 — 위 SAJU-GEO-0 추가확정 ②)으로 확정해야 다음 사람·최종 결과 페이지로 진행 가능(이름 미지정 시 막는 기존 게이트와 동일 패턴)
+  - 직접 입력한 zone은 좌표 데이터가 없어 진태양시 보정용 경도를 현재 UTC 오프셋에서 근사(`approximateLongitudeFromOffset`, 15°/시간) — UI에 근사치임을 표시
+- [x] `KNOWN_ZONES`(수동 보정 드롭다운) 7개 → 대륙별 약 30개로 확장(전체 IANA 목록의 "자주 쓰는" 단축 선택지 역할, 직접입력이 나머지 전부 커버)
+- [x] `tsconfig.json`에 `ES2022.Intl` lib 추가(`Intl.supportedValuesOf` 타입 인식용)
+- [x] `zoneOffsetMinutes` DST/경계 날짜 테스트 신규(`geo.test.ts`, vitest 신규 도입 — 위 SAJU-GEO-0 추가확정 ③) — 봄/가을 경계 정확한 순간 전환(1분 단위), DST 없는 시간대(서울) 연중 고정, 남반구 반대계절 DST(시드니), 1970년 이전 역사적 날짜(정확한 값 단정 대신 그 시간대가 가질 수 있는 범위 내인지만 확인) — 7개 전부 통과
+- [x] `zoneOffsetMinutes` 자체는 무변경(요구사항대로 유지), geo resolve 응답의 기준값은 계속 IANA tz 문자열(`tz` 필드) — 향후 서버 계산 이전 시에도 그대로 재사용 가능한 형태
+- [ ] ⚠️ **saju 리포에 미커밋** — 로컬 워킹트리에만 존재(사용자 재검토 대기)
+
+### SAJU-GEO-3. 검증·문서·커밋 — 부분 완료
+
+- [x] `pytest app/test_geo.py -q` 9개 통과, `npx vitest run` 7개 통과, `npx tsc --noEmit` 클린 확인
+- [ ] `docker compose up --build`로 전체 스택 기동 후 실제 배치 업로드 시나리오(동명도시·미인식국가 포함) 수동 확인 — **사용자가 중단시켜 미실행, 재개 안 함(필요해지면 먼저 확인받고 실행)**
+- [ ] saju 리포 자체 커밋 컨벤션 확인 후 커밋 — 미착수, 사용자 승인 후 진행
+- [ ] HC `docs/collab/CHANGELOG.md`/`HANDOFF.md`에 이번 작업 요약 추가 — 미착수(saju 코드가 아직 미커밋이라 보류)
+
+### saju 관련 후속 항목(이번 범위 밖)
+
+- **HC `Applicant`/`ApplicationMember`에 출생국가(birthCountry) 필드가 없다는 갭**: 현재 `nationality`(국적, ISO alpha-2)만 있고 출생국가는 별도로 안 받는다. saju 연동 시 `nationality`를 출생국가로 오용하면 안 된다는 게 이번에 확정됐으므로(SAJU-GEO-0 참고), HC 쪽 export 기능을 실제로 만들 때 이 필드 신설 여부부터 정책 결정 필요 — **아래 "정책 결정이 필요한 항목"에도 추가**
+- HC 관리자 페이지의 saju export 엑셀 다운로드 기능(Java/Spring, `AdminApplicationController` 확장) — 별도 논의만 되고 미확정, 착수 안 함
+- 이 체크리스트를 계속 HC `docs/collab`에 둘지, saju 리포 자체에 `docs/collab`을 새로 만들지는 미결정
+
 ### 정책 결정이 필요한 항목
 
 - ~~이메일 인증 여부·비밀번호 해시 알고리즘·로그인 시도 제한 구체값~~ — ✅ 2026-08-19 확정(위 "정책 확정(2차)" 참고, PW-1/MAIL-1/SIGNUP-1/SIGNUP-2/RATE-1로 반영 완료).
@@ -310,6 +359,7 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - **후기 다중 이미지**: 현재 API·DB 둘 다 1장으로 확정 동작 중 — 다중 유지 여부 결정 필요.
 - **게시판 서버 검색(keyword/searchType)**: 현재 데이터량에서 클라이언트 검색으로 충분한지, Review 검색 패턴을 재사용해 지금 만들지 결정 필요.
 - **한국이름 조회 API**: 서버 API로 옮길지, 외부 링크아웃으로 대체할지 결정 필요.
+- **출생국가(birthCountry) 필드 신설 여부**: saju 연동(위 SAJU-GEO 체크리스트)에서 timezone 해석에 `nationality`(국적)를 쓰면 안 된다는 게 확정됐는데, HC `Applicant`/`ApplicationMember`엔 국적만 있고 출생국가가 없음 — HC 쪽 saju export 기능을 실제로 만들 때 이 필드부터 신설할지 결정 필요.
 
 ### 프론트엔드 담당 작업
 
