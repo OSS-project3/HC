@@ -4,6 +4,16 @@ import com.example.honorcitizen.common.enums.ApplicationType;
 import com.example.honorcitizen.common.enums.BoardType;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.EventType;
+import com.example.honorcitizen.common.enums.Gender;
+import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.domain.application.entity.Applicant;
+import com.example.honorcitizen.domain.application.entity.Application;
+import com.example.honorcitizen.domain.application.entity.ApplicationMember;
+import com.example.honorcitizen.domain.application.entity.Receiver;
+import com.example.honorcitizen.domain.application.repository.ApplicantRepository;
+import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
+import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
+import com.example.honorcitizen.domain.application.repository.ReceiverRepository;
 import com.example.honorcitizen.domain.board.entity.Board;
 import com.example.honorcitizen.domain.board.repository.BoardRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
@@ -26,6 +36,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +74,10 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final EventPostRepository eventPostRepository;
     private final StorageService storageService;
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationRepository applicationRepository;
+    private final ApplicantRepository applicantRepository;
+    private final ApplicationMemberRepository applicationMemberRepository;
+    private final ReceiverRepository receiverRepository;
 
     @Override
     @Transactional
@@ -71,6 +87,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         seedBoards(demoUserId);
         seedReviews(demoUserId);
         seedEvents();
+        seedApplications(demoUserId);
     }
 
     // ⚠️ 임시 데모 관리자 — admin@test.com / admin1234! 로 실제 로그인(ADMIN 권한) 가능하게 시드한다.
@@ -158,6 +175,98 @@ public class DemoDataSeeder implements CommandLineRunner {
             return;
         }
         reviewRepository.save(Review.create(userId, author, title, type, cardTypeId, content, null));
+    }
+
+    // 제작신청 데모 데이터 — 관리자 대시보드에서 개인/단체 신청과 작명 플로우를 실데이터로 시연하기 위한 시드.
+    // 실제 신청 흐름(S3 업로드/결제)을 거치지 않고 엔티티만 직접 생성한다. applicationNumber는 실제 채번
+    // 시퀀스(application_seq, 낮은 번호부터)와 충돌하지 않도록 900001~의 높은 번호대를 쓴다.
+    private void seedApplications(Long userId) {
+        if (applicationRepository.count() > 0) {
+            return;
+        }
+        Map<CardTypeCode, Long> idByCode = new EnumMap<>(CardTypeCode.class);
+        for (CardType cardType : cardTypeRepository.findAll()) {
+            idByCode.put(cardType.getCode(), cardType.getId());
+        }
+        if (idByCode.isEmpty()) {
+            return; // 카드종류가 아직 시드되지 않았으면 신청 시드는 건너뛴다.
+        }
+        Long honorKorean = idByCode.get(CardTypeCode.HONOR_KOREAN);
+        Long honorCitizen = idByCode.getOrDefault(CardTypeCode.HONOR_CITIZEN, honorKorean);
+        Long visitor = idByCode.getOrDefault(CardTypeCode.VISITOR, honorKorean);
+
+        int seq = 900001;
+        // 개인 신청 4건(그 중 2건은 '작명중' 상태까지 진행해 작명 플로우 대상으로 노출).
+        seedIndividual(userId, appNo(seq++), honorKorean, IssueType.MOBILE,
+                "James Miller", "james@example.com", "010-1234-0001", "JAMES MILLER", "미국", "뉴욕", true);
+        seedIndividual(userId, appNo(seq++), visitor, IssueType.MOBILE_AND_PHYSICAL,
+                "Yuki Tanaka", "yuki@example.com", "010-1234-0002", "YUKI TANAKA", "일본", "도쿄", false);
+        seedIndividual(userId, appNo(seq++), honorKorean, IssueType.MOBILE,
+                "Chen Wei", "chen@example.com", "010-1234-0003", "CHEN WEI", "중국", "베이징", false);
+        seedIndividual(userId, appNo(seq++), honorCitizen, IssueType.MOBILE,
+                "Emma Wilson", "emma@example.com", "010-1234-0004", "EMMA WILSON", "영국", "런던", true);
+
+        // 단체 신청 2건(엑셀 행 = 멤버 N명).
+        seedGroup(userId, appNo(seq++), honorKorean, IssueType.MOBILE,
+                "hr@samsung.example.com", "02-1234-0001", "삼성전자", "글로벌인사팀", 3);
+        seedGroup(userId, appNo(seq++), visitor, IssueType.MOBILE_AND_PHYSICAL,
+                "hr@naver.example.com", "02-1234-0002", "네이버", "글로벌협력팀", 4);
+    }
+
+    private String appNo(int n) {
+        return "APP-2026-" + String.format("%06d", n);
+    }
+
+    private void seedIndividual(Long userId, String appNo, Long cardTypeId, IssueType issueType,
+            String applicantName, String email, String phone, String englishName, String nationality,
+            String birthRegion, boolean advanceToNaming) {
+        if (cardTypeId == null) {
+            return;
+        }
+        Application app = applicationRepository.save(
+                Application.createIndividual(userId, appNo, cardTypeId, issueType, false, null, null));
+        applicantRepository.save(Applicant.createIndividual(app.getId(), applicantName, email, phone));
+        applicationMemberRepository.save(ApplicationMember.createIndividual(app.getId(), englishName,
+                LocalDate.of(1996, 5, 20), nationality, LocalTime.of(9, 30), birthRegion, Gender.MALE,
+                LocalDate.of(2026, 3, 1), null, null, null));
+        if (issueType == IssueType.MOBILE_AND_PHYSICAL) {
+            receiverRepository.save(Receiver.create(app.getId(), applicantName, phone, "04524",
+                    "서울특별시 중구 세종대로 110", "1201호", "부재 시 경비실에 맡겨주세요", null, null));
+        }
+        if (advanceToNaming) {
+            advanceToNaming(app);
+        }
+    }
+
+    private void seedGroup(Long userId, String appNo, Long cardTypeId, IssueType issueType,
+            String email, String phone, String orgName, String department, int quantity) {
+        if (cardTypeId == null) {
+            return;
+        }
+        Application app = applicationRepository.save(
+                Application.createGroup(userId, appNo, cardTypeId, issueType, false, quantity, null, null, null));
+        applicantRepository.save(Applicant.createGroup(app.getId(), orgName + " 담당자", email, phone, orgName, department));
+        for (int i = 1; i <= quantity; i++) {
+            applicationMemberRepository.save(ApplicationMember.createGroupRow(app.getId(),
+                    orgName + " Member " + i, LocalDate.of(1995, 1, 1).plusDays(i * 37L), "미국",
+                    LocalTime.of(10, 0), "뉴욕", i % 2 == 0 ? Gender.FEMALE : Gender.MALE,
+                    LocalDate.of(2026, 2, 1), null, null, null, null, null, null));
+        }
+        if (issueType == IssueType.MOBILE_AND_PHYSICAL) {
+            receiverRepository.save(Receiver.create(app.getId(), orgName + " 배송담당", phone, "13529",
+                    "경기도 성남시 분당구 불정로 6", "네이버 1784", "행사팀 앞으로 배송", orgName, department));
+        }
+    }
+
+    // SUBMITTED → (결제확인) → REVIEWING → NAME_EDITING(작명중)까지 전이. 전이 규칙 위반 시 조용히 건너뛴다.
+    private void advanceToNaming(Application app) {
+        try {
+            app.confirmPayment();
+            app.startReview();
+            app.approveToNaming();
+        } catch (RuntimeException e) {
+            log.warn("데모 신청 상태 전이 실패(무시). applicationNumber={}", app.getApplicationNumber(), e);
+        }
     }
 
     // 행사사업(부스 운영/법인·단체 협업) — frontend eventFeedPosts.ts의 boothPosts/collabPosts 목데이터를 이관.
