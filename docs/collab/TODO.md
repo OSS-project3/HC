@@ -929,7 +929,7 @@ body `{applicationIds, type}` → xlsx), lotus05f님 프론트가 이미 이 엔
 
 ## 이름 사전 700개 DB 이관 — DATA-1 (2026-08-25)
 
-상태: 🔵 진행중 (담당: Claude)
+상태: ✅ 완료 (담당: Claude)
 
 배경: `BACKEND_TODO.md` DATA-1. 지금은 `frontend/src/data/sajuNames.json`(700개)이 프론트 번들에만 있어
 누구나 다운로드 가능한 상태(§ DESIGN.md의 라이선스 블로커와도 연결 — 05solar 원본 corpus를 "민감 데이터"로
@@ -956,9 +956,9 @@ body `{applicationIds, type}` → xlsx), lotus05f님 프론트가 이미 이 엔
 ### 구현 체크리스트
 
 - [x] `frontend/src/data/sajuNames.json` → `backend/honor-citizen/src/main/resources/seed/saju-names.json` 복사(바이트 동일 확인)
-- [ ] `SajuName` 엔티티 신규(`domain/sajuname/entity`) — name/hanja/roman/reading/meaning/jawon/eum, `UNIQUE(name,hanja)`
-- [ ] `SajuNameRepository` 신규
-- [ ] `SajuNameSeeder` 신규 — JSON 파싱은 순수 함수로 분리(테스트 가능하게), `run()`은 count 체크 + 저장만
-- [ ] 테스트 먼저 작성(TDD) — 파싱 로직 단위 테스트(길이 1/2 jawon·eum 처리 확인), `@SpringBootTest`로 실제 번들 리소스 로드 후 `count()==700` 확인
-- [ ] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인
-- [ ] 완료 후 `CHANGELOG.md` 항목 추가, 본 섹션 상태 ✅로 변경
+- [x] `SajuName` 엔티티 신규(`domain/sajuname/entity`) — name/hanja/roman/reading/meaning/jawon/eum, `UNIQUE(name,hanja)`
+- [x] `SajuNameRepository` 신규
+- [x] `SajuNameSeeder` 신규 — JSON 파싱은 순수 정적 메서드로 분리(테스트 가능하게), `run()`은 count 체크 + 저장만
+- [x] 테스트 먼저 작성(TDD) — `SajuNameSeederTest`(파싱 단위 테스트, 길이 1/2 jawon·eum), `SajuNameSeederIntegrationTest`(실제 번들 리소스로 `count()==700` + 필수 필드 공란 없음 확인)
+- [x] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인(612개, 실패 0)
+- [x] 완료 후 `CHANGELOG.md` 항목 추가, 본 섹션 상태 ✅로 변경

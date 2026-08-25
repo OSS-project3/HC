@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-25 — Claude — `main` (이름 사전 700개 DB 이관 — DATA-1)
+
+- 변경: 사주 작명용 이름 사전(700개)을 프론트 번들(`sajuNames.json`)에서 백엔드 DB(`saju_names` 테이블)로 이관. `CardTypeSeeder`와 동일 패턴(무조건 실행, `count()>0`이면 skip)의 `SajuNameSeeder`가 기동 시 클래스패스 리소스(`resources/seed/saju-names.json`, 프론트 파일 그대로 복사)를 읽어 채운다. 이름 글자 수가 항상 2글자가 아니라서(외자 1글자~4글자 혼재) `jawon`/`eum`은 콤마로 이은 문자열 컬럼으로 저장(DESIGN.md가 제안한 고정 2컬럼 스키마로는 표현 불가능함을 확인).
+- 파일: `SajuName.java`(신규 엔티티), `SajuNameRepository.java`, `SajuNameSeeder.java`, `resources/seed/saju-names.json`(신규 리소스), 테스트 2개(`SajuNameSeederTest`, `SajuNameSeederIntegrationTest`)
+- 사유: `BACKEND_TODO.md` DATA-1 — 추천 API(API-1) 백엔드화 여부와 무관하게 독립적으로 먼저 진행 가능. 부수 효과로 DESIGN.md가 지적한 라이선스 우려(05solar 원본 corpus가 프론트 번들로 누구나 다운로드 가능한 상태)도 완화된다(단, 프론트 번들은 API-1 붙일 때까지 그대로 유지 — 지금 지우면 인앱 추천 기능이 깨짐).
+- 검증: `./gradlew.bat test`(REDIS_PORT=6400) 전체 612개 통과(실패 0).
+- 관련: TODO "이름 사전 700개 DB 이관 — DATA-1"
+
 ## 2026-08-25 — Claude — `main` (관리자 신청 엑셀 내보내기 API)
 
 - 변경: `POST /api/admin/applications/export`(DESIGN.md §2.4, 프론트가 이미 버튼까지 만들어둔 계약) 구현. INDIVIDUAL은 DB 값으로 새 워크북(단체신청 템플릿과 동일 컬럼)을 만들어 여러 건을 한 시트에, GROUP은 신청 시 업로드된 원본 ZIP의 xlsx를 그대로 열어 이름·한자 컬럼만 append(원본 서식·병합셀 보존). GROUP은 신청마다 원본 서식이 달라 여러 건을 하나의 워크북으로 안전하게 합칠 수 없어 정확히 1건만 허용(2건 이상은 `INVALID_INPUT`) — 프론트가 GROUP 탭에서 전체 행을 한 번에 보내는 지금 동작과 안 맞아 lotus05f님께 별도 전달 필요.
