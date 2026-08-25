@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-25 — Claude — `main` (카드 이미지 합성 엔진 — CardFieldDefinition)
+
+- 변경: `docs/api/card.md`가 "미구현"이라 적어뒀던 좌표 기반 카드 이미지 합성(CardFieldDefinition)을 구현. `CardImageCompositor`가 신청 정보(이름/영문명/사진/카드번호/주소/발급일자)를 디자이너 제공 템플릿(`resources/card-templates/`)에 좌표 합성한다. 좌표계는 "기준 캔버스(카드종류별 235×156 또는 156×235) 중심 기준 오프셋"으로 역산 후 명예한국인증 실제 렌더링→`시안_최종.jpg` 육안 대조로 검증. 팔레트(PLTE) PNG를 `ImageIO.read()`가 이 환경에서 색을 깨뜨려 읽는 버그를 발견해 `Toolkit` 경로로 우회. 3개 카드종류(명예시민증/명예한국인증/방문증) 전부 동일 엔진으로 확인. **직인·발행처 필드는 시안이 실제 지자체장 공식 직인(논산시장 등)을 무단 사용하고 있어 이번 범위에서 제외**(정책 결정 후 별도 추가). 방문증/1은 앞뒤 구분이 안 되는 파일 하나뿐이라 명시적으로 차단.
+- 파일: `CardFieldOffset`/`CardLayout`/`CardLayouts`/`CardMemberData`/`CardImageCompositor`(신규), `resources/card-templates/`(신규, saju 레포 시안 폴더에서 이관 — HONOR_CITIZEN/HONOR_KOREAN/VISITOR 각 6개 디자인 + 폰트 3종), 테스트 2개(`CardImageCompositorTest` 9개, `CardImageCompositorVisualDumpTest` 육안검증용 @Disabled)
+- 사유: 관리자가 입금 확인 후 카드 제작 화면에서 신청자 데이터가 카드 디자인에 자동 매핑된 미리보기가 떠야 하는데, 이 핵심 로직(좌표 기반 합성) 자체가 코드·DB 어디에도 없었음.
+- 검증: `./gradlew.bat test`(REDIS_PORT=6400) 전체 621개 통과(1 skipped, 실패 0). 4개 디자인(명예한국인증-1·명예시민증-1·방문증-2·명예한국인증-6) 실제 렌더링 후 육안 확인.
+- 미완료(범위 밖): 카드번호 생성 정책, `ApplicationMember` 카드 정보 저장 mutator, 관리자 API 엔드포인트 배선 — 이번 범위는 합성 엔진까지.
+- 관련: TODO "카드 이미지 합성(CardFieldDefinition)"
+
 ## 2026-08-25 — Claude — `main` (이름 사전 700개 DB 이관 — DATA-1)
 
 - 변경: 사주 작명용 이름 사전(700개)을 프론트 번들(`sajuNames.json`)에서 백엔드 DB(`saju_names` 테이블)로 이관. `CardTypeSeeder`와 동일 패턴(무조건 실행, `count()>0`이면 skip)의 `SajuNameSeeder`가 기동 시 클래스패스 리소스(`resources/seed/saju-names.json`, 프론트 파일 그대로 복사)를 읽어 채운다. 이름 글자 수가 항상 2글자가 아니라서(외자 1글자~4글자 혼재) `jawon`/`eum`은 콤마로 이은 문자열 컬럼으로 저장(DESIGN.md가 제안한 고정 2컬럼 스키마로는 표현 불가능함을 확인).

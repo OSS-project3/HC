@@ -14,7 +14,8 @@
 | P1 | 신청 건별 동의 이력 저장 | 저장 안 됨(약관은 user 레벨만) | 하 | §2 |
 | P2 | 공지(Board) 서버 검색·페이지네이션 | 프론트가 `size=100` 받아 클라이언트 검색 | 하 | §3 |
 | P2 | 이벤트 "프로그램" 콘텐츠 저장 | 프론트 localStorage(`managed-content:events`) | 하 | §4 |
-| P3 | 한국이름 조회 API | 프론트 정적 번들(`nameResults.json` 215KB) | 중 | §5 |
+| P2 | 카드 이미지 합성 API | 합성 엔진(`CardImageCompositor`)만, HTTP 없음 | 중 | §4.5 |
+| P3 | 한국이름 조회·추천 API | 프론트 정적 번들(`nameResults.json` 215KB)/자체 mock | 중 | §5 |
 | P3 | CardType 관리 API | 코드/시드로만 관리(편집 불가) | 중 | §6 |
 | P3 | CardDesign 관리·배정 API | `Application.cardDesignId` 항상 null | 중 | §6 |
 | 🔒 배포전 | 임시 관리자 시드·mock 폴백 제거 | 데모용으로 남아있음(보안) | 하 | §7 |
@@ -45,7 +46,13 @@
 - **선택지**: (a) 이 프로그램 콘텐츠를 boards(공지형) 또는 events로 흡수하는 백엔드 저장, 또는 (b) 레거시 프론트 경로(`ContentAdminPanel`/`managed-content`)를 제거. **백엔드 필수는 아니며** 프론트 정리로도 해소 가능.
 - **참고**: `docs/LOCALSTORAGE_TO_BACKEND.md` §3.1.
 
-## 5. 한국이름 조회 API (P3)
+## 4.5 카드 이미지 합성 API (P2)
+- **현황**: 좌표 기반 합성 엔진(`CardImageCompositor`)만 구현 — 신청 정보를 카드 템플릿(명예한국인증/명예시민증/방문증 3종·디자인 6개씩)에 합성해 PNG를 만드는 로직은 있으나 **이걸 부르는 HTTP 엔드포인트가 없다.** 카드번호 생성 정책·`ApplicationMember`에 결과 저장하는 로직도 미구현.
+- **필요**: 관리자 심사 단계에서 카드 이미지를 생성·미리보기·확정하는 API. `Application.cardDesignId` 배정(§6)과 함께 묶임.
+- **제안**: `POST /api/admin/applications/{id}/card-image`(생성/미리보기) + 결과 저장. 프론트는 이 API가 나온 뒤 디자인 선택·미리보기 화면 신규 구현(현재 프론트에 할 일 없음).
+- **참고**: `docs/FRONTEND_API_GAPS.md` §1.16.
+
+## 5. 한국이름 조회·추천 API (P3)
 - **현황**: 이름 추천 데이터가 프론트 정적 번들(`frontend/src/data/nameResults.json`, ~215KB). 백엔드 조회 API 없음.
 - **필요 시**: 데이터가 커지거나 서버 관리가 필요하면 조회 API로 전환(오행/성별 등 필터). 현 규모에선 정적 유지도 무방.
 
