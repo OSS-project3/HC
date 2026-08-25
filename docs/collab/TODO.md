@@ -892,3 +892,37 @@ Factory, Validator, Context 등 새로운 클래스를 추가하기 전에 반�
 - [x] 테스트 먼저 작성(TDD) — `ApplicationServiceAdminTransitionTest`(신규, 8개), `ApplicationServiceNamingResultTest`(+2), `AdminApplicationControllerTest`(+7), `ApplicationStateTransitionTest`(trackingNumber 검증 추가)
 - [x] `./gradlew.bat test` 전체 통과 확인(596개, 실패 0) — 기존 픽스처(`markPhysicalDispatched` 단일 인자 호출부) 회귀 없음. 참고: 로컬 `honor-citizen-redis-test` 컨테이너가 host 6400↔container 6379로 매핑돼 있어 `REDIS_PORT=6400` 없이 돌리면 기존 테스트까지 전부 503으로 실패함 — 이번 세션 중 Docker Desktop이 재기동되며 재발견(코드 문제 아님, 로컬 환경 설정 이슈)
 - [x] 완료 후 `CHANGELOG.md`에 항목 추가, 본 섹션 상태 ✅로 변경
+
+## 관리자 신청 엑셀 내보내기 API (2026-08-25)
+
+상태: 🔵 진행중 (담당: Claude)
+
+배경: `docs/specs/admin-dashboard/DESIGN.md` §2.4에 이미 계약이 적혀있고(`POST /api/admin/applications/export`,
+body `{applicationIds, type}` → xlsx), lotus05f님 프론트가 이미 이 엔드포인트를 호출하도록 버튼까지
+만들어둔 상태(`ApplicationsSection.tsx:65-70`, 지금은 미구현 안내 토스트만 노출). 어느 작명 경로(엑셀 왕복/인앱)를
+쓰든 공통으로 필요해서 다른 정책 결정과 무관하게 지금 착수한다.
+
+설계 결정(코드 조사 후 확정, Claude):
+- **INDIVIDUAL**: N건 선택 → 새 워크북 1개·시트 1개. 컬럼 순서는 `BulkExcelParser`의 기존 단체신청 템플릿과
+  동일(영문명/생년월일/출생국가/출생시간/출생지역/성별/개별입국날짜/이메일/전화번호/주소/학번/학과, 0-index
+  1~12번 컬럼 그대로 재사용) — saju에 그대로 재업로드 가능하게 하기 위함. 끝에 이름/한자 컬럼 append(미확정이면 공란).
+  행 순서는 요청받은 `applicationIds` 순서.
+- **GROUP**: 원본 제출 ZIP(`Application.submitFileId` → `UploadFile.filePath` → `StorageService.download`)에서
+  `.xlsx`를 그대로 읽어(원본 서식·병합셀·데이터검증 보존) 이름/한자 컬럼만 append. **신청마다 원본 서식이
+  다를 수 있어 여러 건을 하나의 xlsx로 병합하는 건 POI로 안전하게 할 수 없음(워크북 간 시트 복사가
+  서식·데이터검증을 온전히 보존 못함)** → GROUP은 `applicationIds.size()==1`만 허용, 2건 이상이면
+  `INVALID_INPUT`으로 거절. **프론트(`ApplicationsSection.tsx:66`)는 지금 GROUP 탭에서 전체 행을 한 번에
+  보내게 되어 있어 이 제약과 안 맞음 — lotus05f님께 "단체는 건별 내보내기 버튼 필요"로 전달 필요(별도 트랙).**
+- 원본 엑셀의 이메일·전화번호 컬럼을 헤더 텍스트로 찾아(`NamingResultExcelParser`와 동일 패턴) 행별로
+  `ApplicationMember`와 매칭 — 위치 기반이 아니라 값 기반 매칭이라 안전.
+- 미확정(이름 없음) 멤버는 오류 없이 공란으로 둔다(엑셀 내보내기는 스냅샷일 뿐 검증 게이트가 아님).
+
+### 구현 체크리스트
+
+- [ ] `ApplicationExportRequest` DTO 신규(`applicationIds: List<Long>`, `type: ApplicationType`)
+- [ ] `ApplicationExportExcelBuilder` 신규(POI 쓰기 유틸) — `buildIndividualWorkbook(...)`, `appendNamesToGroupWorkbook(byte[] original, List<ApplicationMember> members)`
+- [ ] `ApplicationService.exportExcel(adminId, applicationIds, type) -> byte[]` — validateAdmin, 빈 목록/타입 불일치/GROUP 2건 이상 검증, INDIVIDUAL/GROUP 분기
+- [ ] `AdminApplicationController`에 `POST /api/admin/applications/export` 추가 — `ResponseEntity<byte[]>` + `Content-Disposition`/xlsx `Content-Type`
+- [ ] 테스트 먼저 작성(TDD) — 빌더 단위 테스트(개인 시트 레이아웃, 단체 append 후 원본 셀 보존), 서비스 테스트(검증 가드·매칭), 컨트롤러 테스트(HTTP 배선)
+- [ ] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인
+- [ ] 완료 후 `CHANGELOG.md` 항목 추가, 본 섹션 상태 ✅로 변경
