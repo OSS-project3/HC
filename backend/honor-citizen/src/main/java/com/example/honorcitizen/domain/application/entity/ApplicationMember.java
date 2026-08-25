@@ -2,6 +2,8 @@ package com.example.honorcitizen.domain.application.entity;
 
 import com.example.honorcitizen.common.entity.BaseTimeEntity;
 import com.example.honorcitizen.common.enums.Gender;
+import com.example.honorcitizen.common.exception.CustomException;
+import com.example.honorcitizen.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -176,17 +178,45 @@ public class ApplicationMember extends BaseTimeEntity {
     }
 
     // 작명 단계(saju 프로그램에서 확정된 결과를 관리자가 반영) — 이미 값이 있어도 덮어쓴다.
+    // 성씨는 이 경로로 저장하지 않는다 — 엑셀 왕복의 "사주이름"은 외부 saju 프로그램이 돌려주는
+    // 값이라 성씨·의미 구분이 없다(admin-saju.md 성씨 분리 정책은 관리자 인앱 확정 전용).
     public void assignKoreanName(String name, String chineseName) {
+        validateNameFormat(name, chineseName);
         this.name = name;
         this.chineseName = chineseName;
     }
 
-    // 관리자 대시보드 인앱 작명 확정 — 뜻/훈음까지 함께 저장한다(모두 덮어쓴다).
-    public void assignKoreanName(String name, String chineseName, String nameMeaning, String nameInterpretation) {
+    // 관리자 대시보드 인앱 작명 확정 — 성씨·뜻·훈음까지 함께 저장한다(모두 덮어쓴다).
+    // surname은 NAME_EDITING 중에는 null을 허용한다(completeNaming() 집계 검증은 Service에서 수행).
+    public void assignKoreanName(String surname, String name, String chineseName,
+            String nameMeaning, String nameInterpretation) {
+        validateNameFormat(name, chineseName);
+        if (surname != null) {
+            validateSurnameFormat(surname);
+        }
+        this.surname = surname;
         this.name = name;
         this.chineseName = chineseName;
         this.nameMeaning = nameMeaning;
         this.nameInterpretation = nameInterpretation;
+    }
+
+    // 이름은 성씨를 제외한 한글 2~3글자만 허용한다. 한자가 있으면 한글 이름과 Unicode 글자 수가 같아야 한다.
+    private static void validateNameFormat(String name, String chineseName) {
+        if (name == null || !name.matches("[가-힣]{2,3}")) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (chineseName != null && !chineseName.isBlank()
+                && chineseName.codePointCount(0, chineseName.length()) != name.codePointCount(0, name.length())) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+    }
+
+    // 성씨는 한글 1~2글자만 허용한다.
+    private static void validateSurnameFormat(String surname) {
+        if (!surname.matches("[가-힣]{1,2}")) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
     }
 
     public void updatePhoto(String photoPath) {

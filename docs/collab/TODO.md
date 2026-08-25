@@ -1112,25 +1112,25 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] 카드 합성·미리보기 코드는 변경하지 않음(`CardImageCompositor`/`CardLayouts` 등 무변경).
 - [x] `ApplicationPersistenceService` 관련 targeted tests와 `compileJava` 통과 — 신규 테스트 약 12개, 전체 스위트 631개(628+3 신규 클래스 무관 기존분 포함, 정확히는 아래 참고) 전부 통과(REDIS_PORT=6400, 기존 "pre-existing" 실패로 알려졌던 `UserApplicationFlowTest.fullUserApplicationFlow`도 이번에 `member.address` 필드를 추가하며 함께 그린으로 전환됨 — 별도 버그였던 게 아니라 이 테스트도 개인 신청 API를 그대로 호출하고 있었을 뿐이었음).
 
-### 1-B. 성씨 분리와 작명 완료 불변조건
+### 1-B. 성씨 분리와 작명 완료 불변조건 — ✅ 완료 (Claude, 2026-08-25)
 
-- [ ] 이름 추천 결과와 이름 사전은 성씨 없는 `name`만 유지.
-- [ ] 관리자 작명 저장 요청에 `surname` 추가.
-- [ ] `surname`은 `NAME_EDITING` 중 nullable, `completeNaming()` 실행 시 필수.
-- [ ] 한글 성씨 1~2글자, 이름 2~3글자, 결합 이름 최대 5글자 검증.
-- [ ] `chineseName`은 이름에 대응하는 한자만 저장하며 `surnameHanja`는 이번 범위에 추가하지 않음.
-- [ ] 한자가 있으면 이름과 Unicode 글자 수 동일 검증, 없으면 허용.
-- [ ] 의미는 필수. 추천 이름은 사전 의미, 수동 이름은 관리자 입력 의미 사용.
-- [ ] Application 소속 Member 전원을 Service에서 집계 검증한 뒤에만 `NAME_EDITING → PRODUCTION_READY` 허용.
-- [ ] Member 한 명이라도 미완료이면 상태를 변경하지 않고 누락 Member 목록을 관리자 오류 응답으로 반환.
-- [ ] 기존 인앱 작명과 Excel import가 같은 Entity 메서드와 검증 규칙을 사용하도록 중복 검증 위치 정리.
-- [ ] 이름 저장·덮어쓰기·작명 완료 성공·누락·형식 오류 테스트.
+- [x] 이름 추천 결과와 이름 사전은 성씨 없는 `name`만 유지 — `SajuName` 엔티티(DATA-1)에 애초에 surname 필드가 없어 별도 조치 불필요, 확인만 완료.
+- [x] 관리자 작명 저장 요청에 `surname` 추가 — `NameAssignRequest.surname`(선택), `meaning`은 `@NotBlank`로 승격.
+- [x] `surname`은 `NAME_EDITING` 중 nullable, `completeNaming()` 실행 시 필수 — Service 집계 검증(`ApplicationService.validateNamingComplete`)에서 강제.
+- [x] 한글 성씨 1~2글자, 이름 2~3글자 검증 — `ApplicationMember.validateSurnameFormat`/`validateNameFormat`. **결합 이름 최대 5글자**는 별도 코드 없이 자동 충족(성씨 최대 2 + 이름 최대 3 = 5, 범위 검증만으로 상한이 이미 보장됨).
+- [x] `chineseName`은 이름에 대응하는 한자만 저장, `surnameHanja`는 이번 범위에 추가하지 않음 — 엔티티에 성씨 한자 컬럼 없음.
+- [x] 한자가 있으면 이름과 Unicode 글자 수 동일 검증(`codePointCount` 기준), 없으면 허용.
+- [x] 의미는 필수 — `NameAssignRequest.meaning` `@NotBlank`, `completeNaming()` 집계 검증에도 포함.
+- [x] Application 소속 Member 전원을 Service에서 집계 검증한 뒤에만 `NAME_EDITING → PRODUCTION_READY` 허용 — `ApplicationService.completeNaming()`.
+- [x] Member 한 명이라도 미완료이면 상태를 변경하지 않고 누락 Member 목록을 관리자 오류 응답으로 반환 — `BulkValidationException(NAMING_INCOMPLETE, errors)`, 신규 `ErrorCode.NAMING_INCOMPLETE`, `BulkValidationException`에 ErrorCode 지정 오버로드 추가(기존 클래스 재사용, 새 예외 타입 안 만듦).
+- [x] 기존 인앱 작명과 Excel import가 같은 Entity 메서드와 검증 규칙을 사용하도록 중복 검증 위치 정리 — 이름·한자 형식 검증을 `ApplicationMember.assignKoreanName`(2-arg/5-arg 둘 다) 안으로 이동해 두 호출 경로(인앱 `assignMemberName`, 엑셀 `applyNamingResult`)가 동일 로직을 공유하게 함. 단, 엑셀 경로는 성씨·의미 자체를 받지 않는 외부 saju 프로그램 출력이라 그 두 필드는 여전히 인앱 경로 전용.
+- [x] 이름 저장·덮어쓰기·작명 완료 성공·누락·형식 오류 테스트 — 신규 `ApplicationServiceNameAssignTest`(7개), `ApplicationMemberTest`에 형식 검증 6개 추가, `ApplicationServiceAdminTransitionTest`에 `completeNaming` 집계 검증 3개 추가, `ApplicationServiceNamingResultTest`에 엑셀 경로 형식 거부 1개 추가. 기존 `ApplicationServiceNamingResultTest`/`AdminApplicationControllerTest` 픽스처("기존이름" 4글자, 이름 없는 멤버로 complete-naming 호출) 2건은 새 검증에 맞게 보정.
 
 완료 조건:
 
-- [ ] 사주 추천은 성씨 없이 유지되고 관리자가 성씨를 붙여 최종 확정할 수 있음.
-- [ ] `completeNaming()` 이후 모든 Member가 카드 제작 가능한 작명 데이터를 보유함.
-- [ ] 작명 Service/Controller targeted tests와 `compileJava` 통과.
+- [x] 사주 추천은 성씨 없이 유지되고 관리자가 성씨를 붙여 최종 확정할 수 있음.
+- [x] `completeNaming()` 이후 모든 Member가 카드 제작 가능한 작명 데이터를 보유함(성씨·이름·의미 전원 확정 검증됨).
+- [x] 작명 Service/Controller targeted tests와 `compileJava` 통과 — 전체 스위트(REDIS_PORT=6400) 그린, 실패 0.
 
 ### 1-C. 관리자 카드번호 개별·일괄 저장
 

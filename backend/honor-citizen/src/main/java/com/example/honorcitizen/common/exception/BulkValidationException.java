@@ -13,4 +13,9 @@ public class BulkValidationException extends CustomException {
         super(ErrorCode.BULK_APPLICATION_VALIDATION_FAILED);
         this.errors = errors;
     }
+
+    public BulkValidationException(ErrorCode errorCode, List<ValidationErrorDetail> errors) {
+        super(errorCode);
+        this.errors = errors;
+    }
 }

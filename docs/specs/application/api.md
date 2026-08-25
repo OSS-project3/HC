@@ -750,6 +750,34 @@ Cookie: accessToken={JWT}
 - `LookupPage.tsx`의 카드번호 placeholder(`HN-KR-2609-1188`)가 틀린 형식 — `ROK-XXXXX-XXXX`로 교체 필요
 
 ---
+
+### 관리자 인앱 작명 확정 — `POST /api/admin/applications/{applicationId}/members/{memberId}/name`
+
+✅ 2026-08-25 갱신(`admin-saju.md`/1-B 기준): 요청 바디에 `surname` 필드를 신규 추가했다.
+
+```json
+{
+  "surname": "홍",
+  "name": "길동",
+  "hanja": "吉童",
+  "reading": "길할 길, 아이 동",
+  "meaning": "복을 비는 이름"
+}
+```
+
+- `surname`은 선택 입력이다. `NAME_EDITING` 중에는 비워둘 수 있으나(값을 안 보내면 기존 성씨를 그대로 두지 않고 `NULL`로 저장), `completeNaming()` 집계 검증 시점에는 모든 Member에 값이 있어야 한다.
+- `name`/`meaning`은 `@NotBlank` — 없으면 `INVALID_INPUT`.
+- 저장 시점 형식 검증(`ApplicationMember.assignKoreanName`, 엑셀 왕복 경로와 공유): `name`은 성씨를 제외한 한글 2~3글자, `surname`은 한글 1~2글자, `hanja`가 있으면 `name`과 Unicode 글자 수가 같아야 한다. 하나라도 위반하면 `INVALID_INPUT`.
+
+### 관리자 작명 완료 — `POST /api/admin/applications/{applicationId}/complete-naming`
+
+✅ 2026-08-25 갱신(1-B): 상태 전이 전에 Application 소속 모든 `ApplicationMember`의 성씨·이름·의미가 채워져 있는지 집계 검증한다.
+
+- 하나라도 누락되면 `errorCode=NAMING_INCOMPLETE`(400)로 거절하고 `Application.status`는 변경하지 않는다. 응답 `errors[]`에 누락 Member별 상세(`row`=memberId, `field`=`surname`/`name`/`nameMeaning`, `code`=`REQUIRED`)를 담는다(`BulkValidationException` 재사용).
+- 전원 완료 상태면 기존과 동일하게 `NAME_EDITING → PRODUCTION_READY` 전이 후 `AdminActivityLog.NAMING_COMPLETE`를 기록한다.
+- Member가 0명인 Application(정상 플로우에서는 발생하지 않음)은 검증 대상이 없어 전이가 허용된다.
+
+---
 Application 도메인 완료.
 
 ---

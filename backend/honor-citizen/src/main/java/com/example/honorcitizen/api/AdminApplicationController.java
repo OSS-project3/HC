@@ -76,7 +76,7 @@ public class AdminApplicationController {
             @PathVariable Long memberId,
             @Valid @RequestBody NameAssignRequest request) {
         applicationService.assignMemberName(adminId, applicationId, memberId,
-                request.getName(), request.getHanja(), request.getReading(), request.getMeaning());
+                request.getSurname(), request.getName(), request.getHanja(), request.getReading(), request.getMeaning());
         return ResponseEntity.ok(ApiResponse.success());
     }
 

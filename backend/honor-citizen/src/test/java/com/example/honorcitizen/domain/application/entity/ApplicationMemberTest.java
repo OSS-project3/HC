@@ -1,11 +1,14 @@
 package com.example.honorcitizen.domain.application.entity;
 
 import com.example.honorcitizen.common.enums.Gender;
+import com.example.honorcitizen.common.exception.CustomException;
+import com.example.honorcitizen.common.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ApplicationMemberTest {
 
@@ -85,6 +88,87 @@ class ApplicationMemberTest {
 
         assertThat(member.getStudentId()).isEqualTo("20261234");
         assertThat(member.getDepartment()).isEqualTo("컴퓨터공학과");
+    }
+
+    @Test
+    void assignKoreanNameWithSurnameStoresAllNamingFields() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        member.assignKoreanName("홍", "길동", "吉童", "길할 길, 아이 동", "복을 비는 이름");
+
+        assertThat(member.getSurname()).isEqualTo("홍");
+        assertThat(member.getName()).isEqualTo("길동");
+        assertThat(member.getChineseName()).isEqualTo("吉童");
+        assertThat(member.getNameMeaning()).isEqualTo("길할 길, 아이 동");
+        assertThat(member.getNameInterpretation()).isEqualTo("복을 비는 이름");
+    }
+
+    @Test
+    void assignKoreanNameWithSurnameAllowsNullSurnameDuringNameEditing() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        member.assignKoreanName(null, "길동", null, "뜻", null);
+
+        assertThat(member.getSurname()).isNull();
+        assertThat(member.getName()).isEqualTo("길동");
+    }
+
+    @Test
+    void assignKoreanNameRejectsNameOutsideTwoToThreeKoreanCharacters() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        assertThatThrownBy(() -> member.assignKoreanName(null, "가", null, "뜻", null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+        assertThatThrownBy(() -> member.assignKoreanName(null, "가나다라", null, "뜻", null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+        assertThatThrownBy(() -> member.assignKoreanName(null, "abc", null, "뜻", null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void assignKoreanNameRejectsSurnameOutsideOneToTwoKoreanCharacters() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        assertThatThrownBy(() -> member.assignKoreanName("황보김", "길동", null, "뜻", null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void assignKoreanNameRejectsHanjaLengthMismatch() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        assertThatThrownBy(() -> member.assignKoreanName(null, "길동", "吉", "뜻", null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void twoArgAssignKoreanNameAlsoValidatesFormat() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        assertThatThrownBy(() -> member.assignKoreanName("가", "吉"))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+
+        member.assignKoreanName("길동", "吉童");
+        assertThat(member.getName()).isEqualTo("길동");
+        assertThat(member.getChineseName()).isEqualTo("吉童");
     }
 
     @Test

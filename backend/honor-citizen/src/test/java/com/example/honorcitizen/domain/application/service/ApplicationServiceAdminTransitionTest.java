@@ -2,12 +2,16 @@ package com.example.honorcitizen.domain.application.service;
 
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.UserRole;
+import com.example.honorcitizen.common.exception.BulkValidationException;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.application.dto.ApplicationStatusResponse;
 import com.example.honorcitizen.domain.application.entity.Application;
+import com.example.honorcitizen.domain.application.entity.ApplicationMember;
+import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
@@ -22,6 +26,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,12 +47,15 @@ class ApplicationServiceAdminTransitionTest {
     private UserRepository userRepository;
     @Autowired
     private AdminActivityLogRepository adminActivityLogRepository;
+    @Autowired
+    private ApplicationMemberRepository applicationMemberRepository;
 
     private Long adminId;
 
     @BeforeEach
     void setUp() {
         adminActivityLogRepository.deleteAll();
+        applicationMemberRepository.deleteAll();
         applicationRepository.deleteAll();
         cardTypeRepository.deleteAll();
         userRepository.deleteAll();
@@ -171,6 +179,65 @@ class ApplicationServiceAdminTransitionTest {
         assertThat(adminActivityLogRepository.findAll())
                 .hasSize(1)
                 .anySatisfy(log -> assertThat(log.getActionType()).isEqualTo(AdminActivityLog.NAMING_COMPLETE));
+    }
+
+    @Test
+    void completeNamingRejectsWhenMemberMissingSurnameNameOrMeaning() {
+        Application application = newApplication("APP-2026-940008", IssueType.MOBILE);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        applicationRepository.saveAndFlush(application);
+        applicationMemberRepository.save(ApplicationMember.createIndividual(
+                application.getId(), "Hong Gildong", LocalDate.of(1990, 1, 1), "KR",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg"));
+
+        assertThatThrownBy(() -> applicationService.completeNaming(adminId, application.getId()))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NAMING_INCOMPLETE);
+
+        Application reloaded = applicationRepository.findById(application.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(ApplicationStatus.NAME_EDITING);
+        assertThat(adminActivityLogRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void completeNamingSucceedsWhenAllMembersHaveCompleteNaming() {
+        Application application = newApplication("APP-2026-940009", IssueType.MOBILE);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        applicationRepository.saveAndFlush(application);
+        ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createIndividual(
+                application.getId(), "Hong Gildong", LocalDate.of(1990, 1, 1), "KR",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg"));
+        member.assignKoreanName("홍", "길동", "吉童", "길할 길, 아이 동", null);
+        applicationMemberRepository.saveAndFlush(member);
+
+        ApplicationStatusResponse response = applicationService.completeNaming(adminId, application.getId());
+
+        assertThat(response.getStatus()).isEqualTo(ApplicationStatus.PRODUCTION_READY);
+    }
+
+    @Test
+    void completeNamingRejectsWhenOnlyOneOfMultipleMembersIsIncomplete() {
+        Application application = newApplication("APP-2026-940010", IssueType.MOBILE);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        applicationRepository.saveAndFlush(application);
+        ApplicationMember complete = applicationMemberRepository.save(ApplicationMember.createIndividual(
+                application.getId(), "Hong Gildong", LocalDate.of(1990, 1, 1), "KR",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg"));
+        complete.assignKoreanName("홍", "길동", null, "뜻", null);
+        applicationMemberRepository.saveAndFlush(complete);
+        applicationMemberRepository.save(ApplicationMember.createIndividual(
+                application.getId(), "Kim Cheolsu", LocalDate.of(1991, 2, 2), "KR",
+                null, null, Gender.MALE, null, null, null, "photos/b.jpg"));
+
+        assertThatThrownBy(() -> applicationService.completeNaming(adminId, application.getId()))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NAMING_INCOMPLETE);
     }
 
     @Test

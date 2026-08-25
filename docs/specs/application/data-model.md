@@ -128,7 +128,7 @@
 | name_interpretation | TEXT | NULL | ✅ 2026-07-25 신규 확정: 이름의 **상세 풀이(긴 설명)**. `name_meaning`을 재사용하지 않고 별도 컬럼으로 분리 (명칭은 가안, 최종 컬럼명은 추후 조정 가능) |
 | photo_path | VARCHAR(500) | NULL | ✅ 2026-07-25 확인: 카드에 들어가는 사진. **`UploadFile` FK가 아니라 경로 텍스트 컬럼으로 확정** — 신청(Application)이 삭제되면 사진도 함께 삭제되는 생명주기와 자연스럽게 맞음 |
 | address | VARCHAR(255) | NULL | 카드에 인쇄되는 주소. ✅ 2026-08-25 확정(`admin-saju.md` 기준): **학생증을 제외한 카드종류는 개인 신청도 이 컬럼에 저장한다.** 단체는 기존처럼 엑셀 행에서, 개인은 신규 신청 입력값(`MemberRequest.address`)에서 채워진다 — 학생증은 카드에 주소를 표시하지 않으므로 값이 있으면 거절한다. 배송용 `Receiver.address`와는 별도 값 |
-| surname | VARCHAR(10) | NULL | ✅ 2026-08-25 신규 확정(`admin-saju.md` "성씨 분리 정책"): 관리자가 작명 단계에서 확정하는 한글 성씨(1~2글자). `NAME_EDITING` 중에는 NULL 허용, `completeNaming()` 실행 시 필수(검증은 1-B에서 추가). 카드의 한글 이름은 `surname + name`으로 조합. 이름 추천·이름 사전에는 성씨를 저장하지 않는다 |
+| surname | VARCHAR(10) | NULL | ✅ 2026-08-25 신규 확정(`admin-saju.md` "성씨 분리 정책"): 관리자가 작명 단계에서 확정하는 한글 성씨(1~2글자). `NAME_EDITING` 중에는 NULL 허용, `completeNaming()` 실행 시 필수 — Application 소속 전 Member를 Service(`ApplicationService.completeNaming`)에서 집계 검증하며, 하나라도 성씨·이름·의미가 없으면 `NAMING_INCOMPLETE`로 거절하고 상태를 바꾸지 않는다(1-B 구현 완료). 형식(한글 1~2글자) 검증은 `ApplicationMember.assignKoreanName`에서 강제한다. 카드의 한글 이름은 `surname + name`으로 조합. 이름 추천·이름 사전에는 성씨를 저장하지 않는다 |
 | photo_number | VARCHAR(10) | NULL | ✅ 2026-08-25 신규 확정: 단체 신청 Excel의 고정 사진 번호(`BulkMemberRow.photoNumber`, 예: "001"). 단체는 필수, 개인은 항상 NULL. `(application_id, photo_number)` 조합이 유일해야 관리자 카드번호 일괄 입력(사진 번호+카드번호 붙여넣기)에서 행을 정확히 매칭할 수 있다 |
 | birth_date | DATE | NOT NULL | 십이간지(캐릭터) 계산용. ✅ 2026-07-25 확인: 개인 신청도 필수 — 개인 신청 폼(`StepInfo.tsx`)에 생년월일 입력란 추가 필요 (프론트 미구현, 별도 작업 필요) |
 | nationality | VARCHAR(10) | NOT NULL | ✅ 2026-07-31 신규 확정: 국적(ISO 3166-1 alpha-2). 사주(만세력) 작명 도구 입력값 — 개인 신청 폼에 입력란 추가 필요(프론트 미구현) |

@@ -282,6 +282,10 @@ class AdminApplicationControllerTest {
         otherUsersApplication.startReview();
         otherUsersApplication.approveToNaming();
         applicationRepository.saveAndFlush(otherUsersApplication);
+        ApplicationMember member = applicationMemberRepository
+                .findByApplicationId(otherUsersApplication.getId()).get(0);
+        member.assignKoreanName("홍", "길동", null, "길할 길, 아이 동", "길이 복되기를 바라는 뜻");
+        applicationMemberRepository.saveAndFlush(member);
 
         mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/complete-naming")
                         .header(HttpHeaders.AUTHORIZATION, adminToken))

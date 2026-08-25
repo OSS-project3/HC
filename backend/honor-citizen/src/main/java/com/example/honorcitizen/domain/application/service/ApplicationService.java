@@ -448,7 +448,7 @@ public class ApplicationService {
      */
     @Transactional
     public void assignMemberName(Long adminId, Long applicationId, Long memberId,
-            String name, String hanja, String reading, String meaning) {
+            String surname, String name, String hanja, String reading, String meaning) {
         validateAdmin(adminId);
         ApplicationMember member = applicationMemberRepository.findById(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
@@ -456,7 +456,7 @@ public class ApplicationService {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         String safeHanja = hanja == null ? "" : hanja;
-        member.assignKoreanName(name, safeHanja.isEmpty() ? null : safeHanja, meaning, reading);
+        member.assignKoreanName(surname, name, safeHanja.isEmpty() ? null : safeHanja, meaning, reading);
 
         // 이름(한글+한자)별 선택 이력 +1 — 없으면 생성.
         NameSelectionStat stat = nameSelectionStatRepository.findByNameAndHanja(name, safeHanja)
@@ -608,10 +608,37 @@ public class ApplicationService {
     public ApplicationStatusResponse completeNaming(Long adminId, Long applicationId) {
         validateAdmin(adminId);
         Application application = findApplication(applicationId);
+        List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(applicationId);
+        List<ValidationErrorDetail> errors = validateNamingComplete(members);
+        if (!errors.isEmpty()) {
+            throw new BulkValidationException(ErrorCode.NAMING_INCOMPLETE, errors);
+        }
         application.completeNaming();
         adminActivityLogRepository.save(AdminActivityLog.create(
                 adminId, AdminActivityLog.NAMING_COMPLETE, applicationId, "작명 완료 처리"));
         return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
+    // Application 소속 모든 Member의 성씨·이름·필수 의미를 집계 검증한다. 형식(글자 수·한글 여부·한자
+    // 글자 수 일치)은 이미 ApplicationMember.assignKoreanName 저장 시점에 강제되므로 여기서는
+    // "필수값이 채워졌는가"만 다시 확인한다(admin-saju.md "확정 불변조건" 기준).
+    private List<ValidationErrorDetail> validateNamingComplete(List<ApplicationMember> members) {
+        List<ValidationErrorDetail> errors = new ArrayList<>();
+        for (ApplicationMember member : members) {
+            if (!hasText(member.getSurname())) {
+                errors.add(new ValidationErrorDetail(member.getId().intValue(), "surname", "REQUIRED",
+                        "성씨가 확정되지 않았습니다."));
+            }
+            if (!hasText(member.getName())) {
+                errors.add(new ValidationErrorDetail(member.getId().intValue(), "name", "REQUIRED",
+                        "이름이 확정되지 않았습니다."));
+            }
+            if (!hasText(member.getNameMeaning())) {
+                errors.add(new ValidationErrorDetail(member.getId().intValue(), "nameMeaning", "REQUIRED",
+                        "이름의 뜻이 입력되지 않았습니다."));
+            }
+        }
+        return errors;
     }
 
     /**

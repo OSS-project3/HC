@@ -41,6 +41,7 @@ public enum ErrorCode {
     APPLICATION_NOT_FOUND(404, "존재하지 않는 신청입니다."),
     INVALID_STATUS_TRANSITION(400, "허용되지 않는 상태 전이입니다."),
     APPLICATION_LIMIT_EXCEEDED(429, "일일 신청 가능 횟수(3회)를 초과했습니다."),
+    NAMING_INCOMPLETE(400, "모든 구성원의 작명이 완료되지 않았습니다."),
 
     // Upload
     FILE_TOO_LARGE(413, "파일 크기는 10MB를 초과할 수 없습니다."),

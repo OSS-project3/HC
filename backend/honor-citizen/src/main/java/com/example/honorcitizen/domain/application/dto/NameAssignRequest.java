@@ -7,10 +7,15 @@ import lombok.Getter;
 @Getter
 public class NameAssignRequest {
 
+    // 성씨 — NAME_EDITING 중에는 선택 입력(값을 안 보내면 기존/미정 상태 유지), completeNaming() 집계 검증 시 필수.
+    private String surname;
+
     @NotBlank
-    private String name;   // 한글 이름
+    private String name;   // 한글 이름(성씨 제외)
 
     private String hanja;  // 한자(없을 수 있음)
     private String reading; // 훈음
-    private String meaning; // 뜻풀이
+
+    @NotBlank
+    private String meaning; // 뜻풀이 — 추천 이름은 사전 의미, 수동 입력은 관리자가 반드시 입력
 }

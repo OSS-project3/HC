@@ -157,7 +157,7 @@ class ApplicationServiceNamingResultTest {
 
     @Test
     void logsKoreanNameUpdateWhenOverwritingExistingName() throws Exception {
-        memberA.assignKoreanName("기존이름", "旧名");
+        memberA.assignKoreanName("구명", "旧名");
         applicationMemberRepository.saveAndFlush(memberA);
 
         byte[] excel = buildExcel("1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||새이름");
@@ -170,7 +170,7 @@ class ApplicationServiceNamingResultTest {
 
     @Test
     void overwritesAlreadyAssignedName() throws Exception {
-        memberA.assignKoreanName("기존이름", "旧名");
+        memberA.assignKoreanName("구명", "旧名");
         applicationMemberRepository.saveAndFlush(memberA);
 
         byte[] excel = buildExcel("1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||새이름");
@@ -225,6 +225,16 @@ class ApplicationServiceNamingResultTest {
         assertThatThrownBy(() -> applicationService.applyNamingResult(adminId, 999999L, toMultipart(excel)))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.APPLICATION_NOT_FOUND);
+    }
+
+    @Test
+    void rejectsSajuNameOutsideAllowedFormat() throws Exception {
+        byte[] excel = buildExcel(
+                "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||가");
+
+        assertThatThrownBy(() -> applicationService.applyNamingResult(adminId, applicationId, toMultipart(excel)))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }
 
     @Test

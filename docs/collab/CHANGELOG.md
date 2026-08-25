@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-25 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 1-B — 성씨 분리와 작명 완료 불변조건)
+
+- 변경: `ApplicationMember`에 성씨(`surname`) 개념을 실제로 사용하게 만들었다. 관리자 인앱 작명 확정(`assignMemberName`/`NameAssignRequest`)이 `surname`을 받아 저장하고, `meaning`을 필수 입력으로 승격했다. 이름 형식 검증(성씨 제외 한글 2~3자, 성씨 한글 1~2자, 한자 있으면 이름과 Unicode 글자 수 일치)을 `ApplicationMember.assignKoreanName`으로 이동해 인앱 작명과 엑셀 왕복(`applyNamingResult`) 두 경로가 같은 규칙을 공유하도록 정리했다. `ApplicationService.completeNaming()`에 집계 검증을 추가해 Application 소속 Member 전원이 성씨·이름·의미를 갖추지 않으면 `NAMING_INCOMPLETE`(신규 ErrorCode)로 거절하고 상태를 바꾸지 않는다 — `BulkValidationException`에 ErrorCode 지정 오버로드를 추가해 재사용(신규 예외 클래스 없음).
+- 파일: `ApplicationMember.java`(entity), `NameAssignRequest.java`, `ApplicationService.java`(`assignMemberName`/`completeNaming`/`validateNamingComplete` 신규), `AdminApplicationController.java`, `ErrorCode.java`(`NAMING_INCOMPLETE`), `BulkValidationException.java`(오버로드), 테스트(`ApplicationMemberTest` +6, 신규 `ApplicationServiceNameAssignTest` 7개, `ApplicationServiceAdminTransitionTest` +3, `ApplicationServiceNamingResultTest` +1·기존 2건 픽스처 보정, `AdminApplicationControllerTest` 기존 1건 픽스처 보정), 문서(`api.md`에 `/name`·`/complete-naming` 계약 신규 섹션, `data-model.md` surname 행 갱신, `TODO.md`)
+- 사유: `admin-saju.md`의 "성씨 분리 정책"·"작명 완료 이후 카드 제작 연결 정책"이 요구하는 선행 조건 — 카드에는 `surname + name`을 조합해 인쇄해야 하는데 지금까지 `surname` 컬럼 자체가 없었고, `completeNaming()`도 아무 검증 없이 무조건 통과시키고 있었다.
+- 검증: `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과, 실패 0.
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 1-B, `docs/specs/application/admin-saju.md`
+
 ## 2026-08-25 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 1-A — 정책·스키마 기준선 동기화)
 
 - 변경: `admin-saju.md`에서 확정한 카드 제작 정책 중 1-A 범위(스키마·저장 경로)를 구현. `ApplicationMember`에 `surname`(성씨, nullable — 검증은 1-B)과 `photoNumber`(단체 사진 번호, `(application_id, photo_number)` UNIQUE) 컬럼을 추가하고, 단체 신청은 기존에 파싱만 하고 버리던 `BulkMemberRow.photoNumber`를 실제로 저장하도록 배선했다. 개인 신청에는 카드 표기용 `member.address` 요청 필드를 신규로 추가해 `ApplicationMember.address`에 저장한다(학생증이 아니면 필수, 학생증이면 거절 — 배송용 `receiver.address`와는 별개). `Application.issuerName`은 추가하지 않기로 결론(발행처는 텍스트가 아니라 기존 `logo_file_id` 이미지 그 자체라는 사용자 확인). 기존 엔티티 팩토리 메서드(`ApplicationMember.createIndividual`/`createGroupRow`)는 신규 필드를 받는 오버로드를 추가하는 방식으로 하위 호환을 유지해 기존 호출부(19개 파일)는 무변경.
