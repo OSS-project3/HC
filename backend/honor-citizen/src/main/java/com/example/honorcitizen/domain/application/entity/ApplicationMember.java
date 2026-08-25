@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.regex.Pattern;
 
 // 실제 카드 발급 대상자 1명 = 1 row. 개인 신청은 Application 1개당 이 row가 1개, 단체 신청은
 // 제출 ZIP 엑셀의 데이터 행 수만큼(N개) 생성된다. email/phone은 단체(createGroupRow)에서만
@@ -225,5 +226,30 @@ public class ApplicationMember extends BaseTimeEntity {
 
     public void clearPhoto() {
         this.photoPath = null;
+    }
+
+    // 관리자가 직접 입력·확정하는 카드번호(admin-saju.md "관리자 카드번호 입력 정책") — 서버가 채번하지 않는다.
+    // 형식은 ROK-XXXXX-XXXX(5자리-4자리 숫자). 최초 카드 생성(cardFrontPath 확정) 이후에는 값이 바뀌는
+    // 변경만 거절한다 — 같은 번호 재저장(멱등)은 항상 허용. DB UNIQUE 제약은 최종 방어선으로 Service가
+    // DataIntegrityViolationException을 CARD_NUMBER_ALREADY_USED로 변환한다.
+    private static final Pattern CARD_NUMBER_PATTERN = Pattern.compile("ROK-\\d{5}-\\d{4}");
+
+    public static boolean isValidCardNumberFormat(String cardNumber) {
+        return cardNumber != null && CARD_NUMBER_PATTERN.matcher(cardNumber).matches();
+    }
+
+    // 카드가 이미 생성됐는지(=최초 카드 생성 성공 여부)의 판단 기준 — cardFrontPath 확정 여부.
+    public boolean isCardGenerated() {
+        return this.cardFrontPath != null;
+    }
+
+    public void assignCardNumber(String cardNumber) {
+        if (!isValidCardNumberFormat(cardNumber)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (isCardGenerated() && !cardNumber.equals(this.cardNumber)) {
+            throw new CustomException(ErrorCode.CARD_NUMBER_LOCKED);
+        }
+        this.cardNumber = cardNumber;
     }
 }

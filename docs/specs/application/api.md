@@ -777,7 +777,407 @@ Cookie: accessToken={JWT}
 - 전원 완료 상태면 기존과 동일하게 `NAME_EDITING → PRODUCTION_READY` 전이 후 `AdminActivityLog.NAMING_COMPLETE`를 기록한다.
 - Member가 0명인 Application(정상 플로우에서는 발생하지 않음)은 검증 대상이 없어 전이가 허용된다.
 
+### 관리자 카드번호 확정(개인/단일) — `PUT /api/admin/applications/{applicationId}/members/{memberId}/card-number`
+
+✅ 2026-08-26 신규(1-C, `admin-saju.md` "관리자 카드번호 입력 정책"): 서버가 채번하지 않고 관리자가 직접 입력한다.
+
+```json
+{ "cardNumber": "ROK-12345-6789" }
+```
+
+- 형식은 `ROK-XXXXX-XXXX`(5자리-4자리 숫자) — 위반 시 `INVALID_INPUT`.
+- 카드가 이미 생성된 Member(`cardFrontPath` 확정)의 번호를 **다른 값으로** 바꾸려 하면 `CARD_NUMBER_LOCKED`(400). 같은 값 재저장은 멱등 성공.
+- 다른 Member(다른 신청 포함)가 이미 쓰는 번호면 DB UNIQUE 제약에 걸려 `CARD_NUMBER_ALREADY_USED`(409).
+- `memberId`가 `applicationId` 소속이 아니면 `INVALID_INPUT`.
+
+### 관리자 카드번호 일괄 확정(단체) — `PUT /api/admin/applications/{applicationId}/card-numbers`
+
+✅ 2026-08-26 신규(1-C): 관리자 화면에서 Excel의 "사진 번호"·"카드번호" 두 열을 탭 구분으로 붙여넣으면, 프론트가 아래 JSON으로 변환해 보낸다.
+
+```json
+{
+  "applicationVersion": 12,
+  "items": [
+    { "photoNumber": "001", "cardNumber": "ROK-12345-0001" },
+    { "photoNumber": "002", "cardNumber": "ROK-12345-0002" }
+  ]
+}
+```
+
+- **매칭 키는 `(applicationId, photoNumber)`다.** 화면 순서나 `memberId`로 매칭하지 않는다 — `photoNumber`는 `ApplicationMember.photoNumber`(1-A)를 그대로 쓴다.
+- `applicationVersion`이 현재 `Application.version`과 다르면 저장 없이 `APPLICATION_VERSION_CONFLICT`(409) — Application row는 `PESSIMISTIC_WRITE`로 잠근 채 비교한다.
+- 요청 내부에서 검증하는 항목(하나라도 걸리면 **전체 거절, 부분 저장 없음** — `errorCode=CARD_NUMBER_VALIDATION_FAILED`(400), `errors[]`에 행별 상세):
+  - `photoNumber` 요청 내부 중복
+  - `cardNumber` 요청 내부 중복
+  - `cardNumber` 형식 오류
+  - 이 신청에 존재하지 않는 `photoNumber`
+  - 이미 카드가 생성된 Member의 번호를 다른 값으로 바꾸려는 시도
+- `items`는 전체 Member를 다 채우지 않아도 된다(일부만 먼저 저장 가능) — 단, 이번 범위(1-C)는 저장 계약까지이며 "최종 카드 생성 전 전원 필수" 강제는 카드 생성 단계(2~3단계)에서 적용한다.
+- DB UNIQUE 위반(요청 통과 후에도 동시성으로 충돌 발생)은 `CARD_NUMBER_ALREADY_USED`(409)로 응답하고 전체 rollback.
+- 같은 `items`로 재호출하면 멱등 성공(카드번호가 이미 같은 값이면 변경 없이 `updatedCount`만 반환).
+
 ---
 Application 도메인 완료.
 
 ---
+
+
+## 관리자 카드 제작 워크플로우 구현 조사 (2026-08-24)
+
+> 현재 main 코드 기준의 구현 현황과 예상 작업 범위다. 아직 신규 관리자 API, DB 필드, 렌더러를 구현한 것은 아니다.
+
+### 목표 흐름
+
+    단체 신청 Excel+사진 ZIP 업로드
+    → 구성원별 관리자 검토
+    → 수정 요청과 사용자 재제출
+    → 재검토
+    → 구성원별 한국 이름 확정
+    → 디자인 6개 중 선택
+    → 신청 정보를 고정 좌표에 합성
+    → 앞·뒷면 PNG/인쇄용 파일 생성
+    → 다운로드·브라우저 인쇄 또는 카드 프린터 출력
+
+### 현재 구현과 재사용 범위
+
+| 기능 | 현재 코드 상태 | 재사용 판단 |
+|---|---|---|
+| 단체 Excel+사진 ZIP 신청 | 파싱, 검증, 사진 번호 매칭, S3 업로드, ApplicationMember 생성 구현 | 높음 |
+| 신청 상태 | SUBMITTED, REVIEWING, PHOTO_REJECTED, NAME_EDITING, PRODUCTION_READY, PRODUCING, COMPLETED 구현 | 높음 |
+| 관리자 인가 | /api/admin/**에 ADMIN 권한 적용 | 그대로 재사용 |
+| 관리자 신청 조회 | 목록·상세 API 구현 | 부분 재사용 |
+| 상세의 구성원 데이터 | memberCount만 제공하며 구성원 목록·사진은 없음 | 신규 API 필요 |
+| 결제 안내·입금 확인 | Service 구현, HTTP Controller 미연결 | Service 재사용 |
+| 사진 반려 | Application 상태 메서드만 존재 | 관리자 Service/API 필요 |
+| 사용자 재제출 | 개인 사진 또는 단체 ZIP 전체 교체와 PHOTO_REJECTED → REVIEWING 구현 | 사진 반려에는 재사용 |
+| 구성원별 검토·일반 정보 수정 요청 | 구성원별 상태·수정 사유·이력 없음 | 신규 |
+| 한국 이름 편집 | name, chineseName, nameMeaning, nameInterpretation 컬럼만 존재 | 필드 재사용, API/UI 신규 |
+| 디자인 배정 | Application.cardDesignId 존재 | 필드 재사용, 배정 API 신규 |
+| CardDesign | Entity/Repository와 앞·뒷면 템플릿 ID 존재, CRUD/시드 없음 | 부분 재사용 |
+| 디자인 6개 | 프론트 정적 샘플 이미지이며 백엔드 템플릿과 연결되지 않음 | 인쇄 원본 별도 검증 |
+| 좌표 기반 합성 | 코드 없음 | 신규 |
+| 카드 결과 | issueDate, cardNumber, cardFrontPath, cardBackPath 존재 | 재사용 |
+| 사용자 다운로드 | 개인 presigned URL과 단체 ZIP 다운로드 구현 | 결과 소비 경로 재사용 |
+| 관리자 UI | adminMock/localStorage 기반 | 실제 API 기반으로 교체 |
+
+### 현재 구조와 충돌하는 부분
+
+1. 현재 단체 정책은 Application 전체 단위 검토이며 ApplicationMember별 상태가 없다. 한 명씩 검토하고 진행률과 수정 대상을 저장하려면 멤버별 검토 모델이 필요하다.
+2. ✅ 2026-08-25 해소: Excel parser의 photoNumber(001~100)를 `ApplicationMember.photo_number`에 저장하도록 구현했다(`docs/specs/application/admin-saju.md` "관리자 작명 확정·카드 제작 구현 계획" 1-A). `(application_id, photo_number)` 조합이 유일하다.
+3. PHOTO_REJECTED는 영문명·생년월일·국적 같은 일반 정보 수정 요청을 표현하기 어렵다. CORRECTION_REQUESTED 같은 별도 상태 추가를 권장한다.
+4. 단체 재제출은 기존 멤버 전체를 삭제하고 새 ZIP으로 다시 만든다. 최소 구현에서는 재사용 가능하지만 구성원 한 명만 웹에서 수정하려면 별도 사용자 API가 필요하다.
+5. MOBILE_AND_PHYSICAL은 파일 생성 후에도 발송 전까지 PRODUCING인데 다운로드 API는 COMPLETED만 허용한다. 파일 생성 완료 시 다운로드 정책을 적용하려면 cardReadyAt != null 기준으로 정리해야 한다.
+6. Application.cardDesignId는 신청 전체 디자인 하나를 뜻한다. 구성원마다 다른 디자인이면 ApplicationMember.cardDesignId가 필요하다.
+
+### 신규 DB 구조
+
+최소 필드:
+
+    ApplicationMember.photoNumber
+    ApplicationMember.reviewStatus       # PENDING / APPROVED / CORRECTION_REQUESTED
+    ApplicationMember.reviewedAt
+    ApplicationMember.reviewedBy
+    ApplicationMember.version
+    UNIQUE(application_id, photo_number)
+
+여러 필드의 수정 사유와 해결 여부를 전달하려면 다음 이력 테이블을 권장한다.
+
+    ApplicationMemberReviewIssue
+    - id
+    - applicationId
+    - photoNumber
+    - fieldName
+    - reason
+    - status: OPEN / RESOLVED
+    - requestedBy
+    - requestedAt
+    - resolvedAt
+
+단체 재제출 시 ApplicationMember row가 교체되므로 이력은 memberId만 쓰지 않고 applicationId + photoNumber를 함께 보존한다.
+
+Application.cardDesignId, 기존 작명 필드, issueDate/cardNumber/cardFrontPath/cardBackPath, Application.version, CardDesign의 템플릿·방향 필드는 재사용한다.
+
+PDF를 저장한다면 Application.printFileId와 printGeneratedAt을 선택적으로 추가한다. 최대 100명의 앞·뒷면을 비동기로 만들고 부분 실패를 재시도하려면 CardProductionJob 엔티티를 권장한다.
+
+### 신규 또는 연결이 필요한 API
+
+    POST /api/admin/applications/{applicationId}/payment-guide
+    POST /api/admin/applications/{applicationId}/payment-confirm
+    POST /api/admin/applications/{applicationId}/start-review
+
+    GET  /api/admin/applications/{applicationId}/members
+    GET  /api/admin/applications/{applicationId}/members/{memberId}
+    POST /api/admin/applications/{applicationId}/members/{memberId}/approve
+    POST /api/admin/applications/{applicationId}/members/{memberId}/correction-request
+    POST /api/admin/applications/{applicationId}/complete-review
+
+    PATCH /api/admin/application-members/{memberId}/name
+    POST  /api/admin/applications/{applicationId}/complete-naming
+    GET   /api/admin/card-designs?cardTypeId={cardTypeId}
+    POST  /api/admin/card-designs
+    PATCH /api/admin/card-designs/{cardDesignId}
+    PUT   /api/admin/applications/{applicationId}/card-design
+
+    POST /api/admin/applications/{applicationId}/members/{memberId}/card-preview
+    POST /api/admin/applications/{applicationId}/issue-cards
+    GET  /api/admin/card-production-jobs/{jobId}
+    GET  /api/admin/applications/{applicationId}/production-files
+
+complete-review는 모든 구성원이 승인된 경우에만 NAME_EDITING으로 전이한다.
+
+### 관리자 UI
+
+/admin/applications/{applicationId} 상세 라우트를 권장한다. 신청·결제·상태 요약, 구성원 검토 큐, 사진 확대, 이전/다음 이동, 필드별 수정 요청, 상태 필터, 작명 저장, 미완료 인원, 디자인 선택, 앞·뒷면 미리보기, 생성 진행률·재시도, 다운로드·출력 버튼이 필요하다. 현재 mock 상태 드롭다운은 허용된 상태 전이 명령 버튼으로 교체한다.
+
+### 카드 렌더링
+
+제작 원본은 서버 측 Java2D 렌더링을 권장한다.
+
+    빈 앞·뒷면 템플릿
+    + 얼굴사진·로고·직인
+    + 이름·영문명·한자·뜻·풀이
+    + 카드번호·주소·발급일
+    + 디자인별 좌표·폰트 설정
+    → PNG 생성 → S3 저장
+    → ApplicationMember.cardFrontPath/cardBackPath 기록
+
+인쇄 가능한 빈 템플릿, 픽셀 크기와 DPI, 한글·한자 폰트와 사용 권한, 텍스트 초과 규칙, 사진 crop, bleed/crop mark를 확정해야 한다. Alpine Docker에도 동일 폰트를 설치한다. 프론트 Canvas 유틸은 생성 결과 다운로드에는 재사용할 수 있지만 제작 원본 렌더러로 사용하지 않는다.
+
+### 예상 소요일
+
+개발자 1명, 테스트 포함, 빈 템플릿 6개와 좌표가 준비된 경우다.
+
+| 기능 | 예상 |
+|---|---:|
+| 정책·상태·DB 모델 | 1~2일 |
+| 관리자 상세·구성원 조회 | 3~4일 |
+| 구성원 검토·수정 요청·재검토 | 5~7일 |
+| 작명 저장·완료 검증·UI | 3~4일 |
+| CardDesign 등록·조회·배정 | 3~5일 |
+| 6개 디자인 렌더러 | 6~9일 |
+| 카드번호·이미지 일괄 생성·S3 | 3~5일 |
+| 미리보기·진행률·다운로드 UI | 3~5일 |
+| 회귀·동시성·부분 실패 테스트 | 3~5일 |
+| **PNG/ZIP 전체** | **30~46일** |
+
+| 출력 방식 | 추가 | 전체 |
+|---|---:|---:|
+| 앞·뒷면 PNG + 단체 ZIP | 기본 | 30~46일 |
+| 정확한 카드 크기 PDF | +3~5일 | 33~51일 |
+| 브라우저 인쇄 | +1~3일 | 31~49일 |
+| Linux 호환 네트워크 프린터 SDK | +8~15일 | 38~61일 |
+| 관리자 PC USB 프린터 + Windows 출력 에이전트 | +15~30일 | 45~76일 |
+
+EC2의 Linux/Alpine 백엔드는 관리자 PC의 USB 프린터에 직접 접근할 수 없다. 직접 연동은 프린터 모델, 연결 방식, 운영체제, 제조사 SDK를 확인한 뒤 재산정한다.
+
+위 추정은 전체 디자인 6개 기준이다. 카드 종류마다 6개여서 총 24개를 보정·테스트한다면 8~15일이 추가될 수 있다.
+
+---
+결론
+현재 코드는 “신청 접수와 상태 모델”까지는 상당 부분 재사용할 수 있지만, 관리자 제작 워크플로우의 핵심인 구성원별 검토·작명 API·디자인 배정·카드 렌더링·출력은 대부분 새로 구현해야 합니다.
+요청한 전체 흐름을 운영 가능한 수준으로 구현하면, 개발자 1명 기준:
+- PNG/ZIP 다운로드: 약 30~46인일
+- 인쇄용 PDF 포함: 약 33~51인일
+- 브라우저 인쇄 포함: 약 31~49인일
+- 특정 카드 프린터 직접 연동: 약 38~76인일
+코드는 수정하지 않았습니다.
+현재 구현과 재사용 범위
+기능	현재 구현	재사용 판단
+단체 Excel+사진 ZIP 신청	파싱·검증·사진 매핑·ApplicationMember 생성까지 구현	높음
+신청 상태 머신	SUBMITTED → REVIEWING → PHOTO_REJECTED → NAME_EDITING → PRODUCTION_READY → PRODUCING → COMPLETED 구현	높음
+관리자 인증	/api/admin/**에 ADMIN 권한 적용	그대로 재사용
+관리자 신청 목록·상세	API 2개 구현	부분 재사용
+결제 안내·입금 확인	Service 구현, HTTP API 없음	Service 재사용
+사진 반려	엔티티 상태 메서드만 존재	API/Service 신규 필요
+사용자 사진 재제출	개인 사진 또는 단체 ZIP 전체 교체 구현	사진 반려에는 재사용 가능
+구성원별 정보 검토	없음	신규
+일반 정보 수정 요청	없음. 현재는 PHOTO_REJECTED만 존재	신규 정책·상태 필요
+한국 이름 저장	DB 필드는 존재	Entity/API/UI 신규
+디자인 선택	Application.cardDesignId 필드 존재	필드 재사용
+디자인 관리	CardDesign Entity/Repository만 존재	CRUD·시드·UI 신규
+카드 템플릿 6개	프론트 정적 샘플 이미지로 존재	인쇄 템플릿으로 바로 사용 불가
+좌표 기반 합성	문서 설계만 있고 코드 없음	신규
+카드 결과 저장	앞·뒷면 경로, 카드번호, 발급일 필드 존재	재사용
+카드 다운로드	사용자 PNG/단체 ZIP 다운로드 구현	결과 소비 부분 재사용
+관리자 화면	localStorage/mock 기반 목록·상태 변경	대부분 교체
+
+
+근거가 되는 주요 코드:
+- 관리자 API는 조회 2개뿐입니다: [AdminApplicationController.java (line 18)](/D:/HC-worktrees/main-preview/backend/honor-citizen/src/main/java/com/example/honorcitizen/api/AdminApplicationController.java:18)
+- 상태와 cardDesignId는 이미 있습니다: [Application.java (line 107)](/D:/HC-worktrees/main-preview/backend/honor-citizen/src/main/java/com/example/honorcitizen/domain/application/entity/Application.java:107)
+- 작명·결과 이미지 필드는 이미 있습니다: [ApplicationMember.java (line 38)](/D:/HC-worktrees/main-preview/backend/honor-citizen/src/main/java/com/example/honorcitizen/domain/application/entity/ApplicationMember.java:38)
+- 결제 Service는 구현됐습니다: [ApplicationService.java (line 436)](/D:/HC-worktrees/main-preview/backend/honor-citizen/src/main/java/com/example/honorcitizen/domain/application/service/ApplicationService.java:436)
+- 카드 다운로드는 생성된 파일을 소비할 뿐, 이미지를 생성하지는 않습니다: [ApplicationService.java (line 648)](/D:/HC-worktrees/main-preview/backend/honor-citizen/src/main/java/com/example/honorcitizen/domain/application/service/ApplicationService.java:648)
+- 관리자 프론트는 현재 mock입니다: [AdminPage.tsx (line 20)](/D:/HC-worktrees/main-preview/frontend/src/pages/AdminPage/AdminPage.tsx:20)
+현재 워크플로우와 충돌하는 부분
+1. 구성원별 검토 상태가 없음
+현재 정책은 단체 신청 전체를 한 번에 검토하는 구조입니다. ApplicationMember에는 검토 상태나 수정 요청 사유가 없습니다.
+“100명 중 37명까지 검토했다”, “002번은 승인, 003번은 수정 요청” 같은 진행 상황을 저장할 수 없습니다.
+2. 사진 번호가 DB에 저장되지 않음
+Excel parser는 001, 002 같은 photoNumber를 가지고 있지만, ApplicationMember 저장 시 버립니다. 구성원별 수정 요청을 사용자에게 전달하려면 안정적인 식별자로 반드시 저장해야 합니다.
+3. PHOTO_REJECTED는 일반 정보 오류를 표현하기 어려움
+영문명·생년월일·국적 오류까지 PHOTO_REJECTED로 표현하는 것은 의미가 맞지 않습니다.
+전체 요구를 구현하려면 다음 중 하나를 정해야 합니다.
+- 권장: CORRECTION_REQUESTED 상태 추가
+- 최소 변경: PHOTO_REJECTED를 모든 수정 요청에 재사용하지만 명칭이 부자연스러움
+4. 관리자 상세 응답에 구성원 목록이 없음
+현재 관리자 상세는 memberCount만 반환합니다. 구성원 데이터·사진 URL·검토 상태를 가져오는 API가 추가로 필요합니다.
+5. 실물 포함 신청의 모바일 다운로드 조건
+MOBILE_AND_PHYSICAL은 카드 파일이 생성돼도 배송 전까지 PRODUCING입니다. 그러나 기존 다운로드 API는 COMPLETED만 허용하므로 배송 전 모바일 카드 다운로드가 불가능합니다.
+정책대로라면 status == COMPLETED가 아니라 cardReadyAt != null을 다운로드 기준으로 보는 것이 자연스럽습니다.
+새로 필요한 DB 구조
+필수에 가까운 필드
+ApplicationMember:
+photoNumber          # 001~100, Excel/사진/수정 요청 연결
+reviewStatus         # PENDING, APPROVED, CORRECTION_REQUESTED
+reviewedAt
+reviewedBy
+version              # 구성원별 관리자 동시 수정 방지
+권장 제약:
+UNIQUE(application_id, photo_number)
+수정 요청 상세
+필드별 수정 사유를 제공하려면 별도 테이블이 더 적절합니다.
+ApplicationMemberReviewIssue
+- id
+- applicationId
+- photoNumber
+- fieldName
+- reason
+- status: OPEN / RESOLVED
+- requestedBy
+- requestedAt
+- resolvedAt
+재업로드 시 기존 ApplicationMember가 삭제·재생성되므로, 이력 테이블은 memberId만 참조하기보다 applicationId + photoNumber를 함께 보존해야 합니다.
+이미 있어 추가하지 않아도 되는 필드
+- Application.cardDesignId
+- ApplicationMember.name
+- chineseName
+- nameMeaning
+- nameInterpretation
+- issueDate
+- cardNumber
+- cardFrontPath
+- cardBackPath
+- Application.version
+출력 방식에 따라 선택
+PDF를 저장할 경우:
+Application.printFileId
+Application.printGeneratedAt
+대량 생성을 비동기로 처리한다면 별도 CardProductionJob 엔티티가 권장됩니다. 최대 100명의 앞·뒷면 200장을 S3에 저장하는 작업을 단일 HTTP 요청으로 처리하면 타임아웃과 부분 실패 관리가 어려워집니다.
+필요한 API
+기존 API 확장/연결
+GET  /api/admin/applications
+GET  /api/admin/applications/{id}
+POST /api/admin/applications/{id}/payment-guide
+POST /api/admin/applications/{id}/payment-confirm
+POST /api/admin/applications/{id}/start-review
+결제 안내·확인은 기존 Service를 Controller에 연결하면 됩니다.
+구성원 검토
+GET  /api/admin/applications/{id}/members
+GET  /api/admin/applications/{id}/members/{memberId}
+POST /api/admin/applications/{id}/members/{memberId}/approve
+POST /api/admin/applications/{id}/members/{memberId}/correction-request
+POST /api/admin/applications/{id}/complete-review
+complete-review는 모든 구성원이 승인된 경우에만 NAME_EDITING으로 전이합니다.
+사용자 수정은 MVP에서 기존 단체 ZIP 전체 재업로드를 재사용할 수 있습니다. 웹에서 구성원 한 명만 수정하게 만들면 별도 사용자 수정 API와 UI가 필요해 3~5인일 정도 증가합니다.
+작명
+PATCH /api/admin/application-members/{memberId}/name
+POST  /api/admin/applications/{id}/complete-naming
+complete-naming은 모든 구성원의 필수 작명 필드가 입력됐는지 확인한 후 PRODUCTION_READY로 전이합니다.
+디자인
+GET  /api/admin/card-designs?cardTypeId={id}
+POST /api/admin/card-designs
+PATCH /api/admin/card-designs/{designId}
+PUT  /api/admin/applications/{id}/card-design
+현재 모델은 신청 전체에 디자인 하나를 배정합니다. 구성원마다 다른 디자인을 고르게 하려면 ApplicationMember.cardDesignId가 추가로 필요하고 1~2인일이 증가합니다.
+렌더링·제작
+POST /api/admin/applications/{id}/members/{memberId}/card-preview
+POST /api/admin/applications/{id}/issue-cards
+GET  /api/admin/card-production-jobs/{jobId}
+GET  /api/admin/applications/{id}/production-files
+프린터 SDK 직접 연동 시에는 별도의 출력 명령 API 또는 로컬 출력 에이전트 통신 API가 필요합니다.
+관리자 UI
+기존 확장 행 형태보다 별도 상세 라우트가 적합합니다.
+/admin/applications
+/admin/applications/{applicationId}
+상세 화면에 필요한 영역:
+- 신청·결제·상태 요약
+- 구성원 검토 큐
+- 사진 확대
+- 이전/다음 구성원 이동
+- 필드별 수정 요청
+- 승인/반려 상태 필터
+- 작명 입력 및 자동 저장
+- 미완료 인원 표시
+- 6개 디자인 썸네일 선택
+- 앞·뒷면 카드 미리보기
+- 전체 생성 진행률
+- 실패 구성원 재시도
+- PNG ZIP/PDF 다운로드
+- 브라우저 인쇄 또는 프린터 출력
+현재 AdminPage의 localStorage 상태 메뉴는 백엔드 상태 전이 규칙을 우회하므로 제거하고, 허용된 명령 버튼 방식으로 교체해야 합니다.
+권장 카드 렌더링 방식
+서버 측 Java2D 렌더링을 권장합니다.
+빈 카드 템플릿
++ 증명사진
++ 이름·영문명·한자
++ 카드번호·주소·발급일
++ 로고·직인
++ 디자인별 좌표·폰트 설정
+→ PNG 생성
+→ S3 저장
+→ cardFrontPath/cardBackPath 기록
+장점:
+- 관리자·사용자·PDF·프린터에서 같은 결과 사용
+- 브라우저/OS 차이 없음
+- 기존 S3와 cardFrontPath/cardBackPath 재사용 가능
+- golden-image 테스트 가능
+추가로 필요한 것:
+- 인쇄 가능한 빈 앞·뒷면 템플릿
+- 정확한 픽셀 크기와 DPI
+- 한글·한자 폰트 파일 및 사용 권한
+- 각 디자인의 필드 좌표
+- 텍스트 길이 초과 시 축소/줄바꿈 규칙
+- 사진 crop 규칙
+- bleed/crop mark 여부
+- Docker Alpine 이미지에 폰트 설치
+현재 프론트의 Canvas 유틸은 이미 생성된 앞·뒷면을 한 장으로 묶는 용도라 다운로드 UX에는 재사용할 수 있지만, 제작 원본 렌더러로 쓰기에는 적합하지 않습니다: [cardDownload.ts (line 51)](/D:/HC-worktrees/main-preview/frontend/src/lib/cardDownload.ts:51)
+출력 방식별 난이도
+출력 방식	추가 작업	추가 소요일	난이도
+PNG 앞·뒤 + 단체 ZIP	기본 범위	포함	중
+정확한 카드 크기 PDF	PDFBox 도입, DPI·물리 크기·여백·양면 배치	+3~5일	중
+브라우저 window.print()	인쇄 전용 화면·CSS·프린터 설정 안내	+1~3일	중
+네트워크 프린터 + Linux 호환 SDK	SDK 어댑터·큐·재시도·상태 조회	+8~15일	상
+관리자 PC USB 프린터 + Windows SDK	로컬 출력 에이전트 설치·보안·업데이트·브라우저 통신	+15~30일	매우 상
+
+
+현재 백엔드는 EC2의 Linux/Alpine Docker에서 실행되므로 관리자 PC에 USB로 연결된 카드 프린터에는 직접 접근할 수 없습니다. 이 경우 브라우저 인쇄를 사용하거나, 관리자 PC에 별도 Windows 출력 에이전트를 설치해야 합니다.
+기능별 예상 소요일
+개발자 1명, 템플릿 6개 전체, 테스트 포함 기준입니다.
+기능	예상
+정책·상태·DB 모델 확정	1~2일
+관리자 상세 및 구성원 페이지 조회	3~4일
+구성원별 검토·수정 요청·재검토	5~7일
+작명 저장·완료 검증·UI	3~4일
+CardDesign 등록·조회·배정	3~5일
+6개 디자인 좌표 렌더러	6~9일
+카드번호·앞뒤 이미지 일괄 생성·S3 저장	3~5일
+관리자 미리보기·진행률·다운로드 UI	3~5일
+회귀·동시성·부분 실패·이미지 기준 테스트	3~5일
+합계—PNG/ZIP	약 30~46일
+
+
+간소화한 MVP로 구성원별 DB 검토 상태를 두지 않고, “전체 반려 → ZIP 전체 재업로드”, 디자인 6개를 코드에 고정하면 약 20~28인일까지 줄일 수 있습니다. 다만 요청하신 “한 명씩 검토하고 잘못된 사람만 추적” 기능은 약해집니다.
+이 산정은 “총 6개 디자인” 기준입니다. 문서에 적힌 것처럼 카드 종류마다 6개라서 실제로 24개 디자인을 보정해야 한다면 좌표 조정·이미지 기준 테스트에 약 8~15일이 추가될 수 있습니다.
+
+
+오후 4:47
+
+
+
+
+
+
+
+
+너가 확인한 정보는 docs/api/ applciaton.md에 같이 적어줘.

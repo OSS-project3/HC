@@ -14,6 +14,8 @@ import com.example.honorcitizen.common.exception.ValidationErrorDetail;
 import com.example.honorcitizen.common.enums.LookupMethod;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
+import com.example.honorcitizen.domain.application.dto.CardNumberBatchAssignRequest;
+import com.example.honorcitizen.domain.application.dto.CardNumberBatchAssignResponse;
 import com.example.honorcitizen.domain.application.dto.NameSelectionStatResponse;
 import com.example.honorcitizen.domain.application.entity.NameSelectionStat;
 import com.example.honorcitizen.domain.application.repository.NameSelectionStatRepository;
@@ -67,8 +69,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -639,6 +643,94 @@ public class ApplicationService {
             }
         }
         return errors;
+    }
+
+    /**
+     * 관리자가 개인/단일 Member 카드번호를 직접 입력·확정한다(admin-saju.md "관리자 카드번호 입력 정책" —
+     * 서버는 채번하지 않는다). 카드가 이미 생성된 뒤 다른 값으로 바꾸려 하면 CARD_NUMBER_LOCKED, 같은 값을
+     * 재저장하면 멱등 성공이다. DB UNIQUE 제약(다른 Member가 이미 쓰는 번호)은 최종 방어선으로
+     * DataIntegrityViolationException을 CARD_NUMBER_ALREADY_USED로 변환한다.
+     */
+    @Transactional
+    public void assignCardNumber(Long adminId, Long applicationId, Long memberId, String cardNumber) {
+        validateAdmin(adminId);
+        ApplicationMember member = applicationMemberRepository.findById(memberId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        if (!member.getApplicationId().equals(applicationId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        member.assignCardNumber(cardNumber);
+        try {
+            applicationMemberRepository.saveAndFlush(member);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(ErrorCode.CARD_NUMBER_ALREADY_USED);
+        }
+    }
+
+    /**
+     * 단체 신청 카드번호 일괄 저장. Application row를 잠그고(PESSIMISTIC_WRITE) 요청 version과
+     * 대조해 동시 수정을 막은 뒤, 사진 번호(photoNumber) 기준으로 Member를 매칭한다 — 화면 순서나
+     * Member ID로 매칭하지 않는다. 요청 내부 중복·존재하지 않는 사진 번호·형식 오류·이미 생성된 카드의
+     * 번호 변경 시도를 전부 모아 하나라도 있으면 전체 거절한다(all-or-nothing, 부분 성공 없음).
+     */
+    @Transactional
+    public CardNumberBatchAssignResponse assignCardNumbersBatch(Long adminId, Long applicationId,
+            CardNumberBatchAssignRequest request) {
+        validateAdmin(adminId);
+        Application application = applicationRepository.findByIdForUpdate(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        if (!application.getVersion().equals(request.getApplicationVersion())) {
+            throw new CustomException(ErrorCode.APPLICATION_VERSION_CONFLICT);
+        }
+
+        Map<String, ApplicationMember> byPhotoNumber = applicationMemberRepository.findByApplicationId(applicationId)
+                .stream()
+                .filter(m -> m.getPhotoNumber() != null)
+                .collect(Collectors.toMap(ApplicationMember::getPhotoNumber, m -> m));
+
+        List<CardNumberBatchAssignRequest.CardNumberItem> items = request.getItems();
+        List<ValidationErrorDetail> errors = new ArrayList<>();
+        Set<String> seenPhotoNumbers = new HashSet<>();
+        Set<String> seenCardNumbers = new HashSet<>();
+        for (int i = 0; i < items.size(); i++) {
+            CardNumberBatchAssignRequest.CardNumberItem item = items.get(i);
+            int rowNumber = i + 1;
+            if (!seenPhotoNumbers.add(item.getPhotoNumber())) {
+                errors.add(new ValidationErrorDetail(rowNumber, "photoNumber", "DUPLICATE",
+                        "요청 내부에 사진 번호가 중복되었습니다."));
+            }
+            if (!seenCardNumbers.add(item.getCardNumber())) {
+                errors.add(new ValidationErrorDetail(rowNumber, "cardNumber", "DUPLICATE",
+                        "요청 내부에 카드번호가 중복되었습니다."));
+            }
+            if (!ApplicationMember.isValidCardNumberFormat(item.getCardNumber())) {
+                errors.add(new ValidationErrorDetail(rowNumber, "cardNumber", "INVALID_FORMAT",
+                        "카드번호 형식이 올바르지 않습니다(ROK-XXXXX-XXXX)."));
+            }
+            ApplicationMember member = byPhotoNumber.get(item.getPhotoNumber());
+            if (member == null) {
+                errors.add(new ValidationErrorDetail(rowNumber, "photoNumber", "NOT_FOUND",
+                        "이 신청에 해당 사진 번호를 가진 구성원이 없습니다."));
+            } else if (member.isCardGenerated() && !item.getCardNumber().equals(member.getCardNumber())) {
+                errors.add(new ValidationErrorDetail(rowNumber, "cardNumber", "CARD_NUMBER_LOCKED",
+                        "이미 카드가 생성된 구성원의 카드번호는 변경할 수 없습니다."));
+            }
+        }
+        if (!errors.isEmpty()) {
+            throw new BulkValidationException(ErrorCode.CARD_NUMBER_VALIDATION_FAILED, errors);
+        }
+
+        for (CardNumberBatchAssignRequest.CardNumberItem item : items) {
+            ApplicationMember member = byPhotoNumber.get(item.getPhotoNumber());
+            member.assignCardNumber(item.getCardNumber());
+            applicationMemberRepository.save(member);
+        }
+        try {
+            applicationMemberRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(ErrorCode.CARD_NUMBER_ALREADY_USED);
+        }
+        return CardNumberBatchAssignResponse.of(items.size());
     }
 
     /**

@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-26 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 1-C — 관리자 카드번호 개별·일괄 저장)
+
+- 변경: 관리자가 카드번호(`ROK-XXXXX-XXXX`)를 직접 입력·확정하는 API 2종을 신규 구현했다(서버 채번 없음). `PUT /api/admin/applications/{id}/members/{memberId}/card-number`(개인/단일)와 `PUT /api/admin/applications/{id}/card-numbers`(단체 일괄, `(applicationId, photoNumber)` 기준 매칭 — 화면 순서·memberId 매칭 아님). 일괄 API는 `Application`을 `PESSIMISTIC_WRITE`로 잠그고 요청 `applicationVersion`을 대조해 동시 수정을 막으며, 요청 내부 중복·존재하지 않는 사진 번호·형식 오류·이미 카드가 생성된 Member의 번호 변경 시도를 전부 모아 하나라도 있으면 전체 거절한다(all-or-nothing, `BulkValidationException`). `ApplicationMember.isCardGenerated()`(`cardFrontPath != null` 기준)로 "최초 카드 생성 이후"를 판정해 값이 다른 번호로의 변경만 막고 같은 값 재저장은 멱등 허용한다. DB `UNIQUE` 위반은 `DataIntegrityViolationException` → `CARD_NUMBER_ALREADY_USED`(409)로 최종 방어.
+- 파일: `ApplicationMember.java`(`assignCardNumber`/`isValidCardNumberFormat`/`isCardGenerated` 신규), `ErrorCode.java`(`CARD_NUMBER_LOCKED`/`CARD_NUMBER_VALIDATION_FAILED`/`CARD_NUMBER_ALREADY_USED`/`APPLICATION_VERSION_CONFLICT` 신규), `ApplicationRepository.java`(`findByIdForUpdate` 신규), `CardNumberAssignRequest.java`/`CardNumberBatchAssignRequest.java`/`CardNumberBatchAssignResponse.java`(신규 DTO), `ApplicationService.java`(`assignCardNumber`/`assignCardNumbersBatch` 신규), `AdminApplicationController.java`, 테스트(신규 `ApplicationServiceCardNumberTest` 14개, `ApplicationMemberTest` +3), 문서(`api.md`에 두 API 계약 신규 섹션, `data-model.md` `card_number` 행 갱신, `TODO.md`).
+- 사유: `admin-saju.md`의 "관리자 카드번호 입력 정책" 구현 — 카드 미리보기·최종 생성(2~3단계)이 실제 저장된 카드번호를 참조하려면 이 저장 계약이 선행돼야 한다.
+- 검증: `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과, 실패 0.
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 1-C, `docs/specs/application/admin-saju.md`
+
 ## 2026-08-25 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 1-B — 성씨 분리와 작명 완료 불변조건)
 
 - 변경: `ApplicationMember`에 성씨(`surname`) 개념을 실제로 사용하게 만들었다. 관리자 인앱 작명 확정(`assignMemberName`/`NameAssignRequest`)이 `surname`을 받아 저장하고, `meaning`을 필수 입력으로 승격했다. 이름 형식 검증(성씨 제외 한글 2~3자, 성씨 한글 1~2자, 한자 있으면 이름과 Unicode 글자 수 일치)을 `ApplicationMember.assignKoreanName`으로 이동해 인앱 작명과 엑셀 왕복(`applyNamingResult`) 두 경로가 같은 규칙을 공유하도록 정리했다. `ApplicationService.completeNaming()`에 집계 검증을 추가해 Application 소속 Member 전원이 성씨·이름·의미를 갖추지 않으면 `NAMING_INCOMPLETE`(신규 ErrorCode)로 거절하고 상태를 바꾸지 않는다 — `BulkValidationException`에 ErrorCode 지정 오버로드를 추가해 재사용(신규 예외 클래스 없음).

@@ -1132,27 +1132,27 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] `completeNaming()` 이후 모든 Member가 카드 제작 가능한 작명 데이터를 보유함(성씨·이름·의미 전원 확정 검증됨).
 - [x] 작명 Service/Controller targeted tests와 `compileJava` 통과 — 전체 스위트(REDIS_PORT=6400) 그린, 실패 0.
 
-### 1-C. 관리자 카드번호 개별·일괄 저장
+### 1-C. 관리자 카드번호 개별·일괄 저장 — ✅ 완료 (Claude, 2026-08-26)
 
-- [ ] 카드번호는 서버 자동 생성하지 않고 관리자가 `ROK-XXXXX-XXXX` 형식으로 입력.
-- [ ] 개인/단일 Member API 구현: `PUT /api/admin/applications/{applicationId}/members/{memberId}/card-number`.
-- [ ] 단체 일괄 API 구현: `PUT /api/admin/applications/{applicationId}/card-numbers`.
-- [ ] 프론트의 탭 구분 붙여넣기는 `사진 번호 + 카드번호` 두 열이며, 프론트가 JSON items로 변환해 전송하는 계약 문서화.
-- [ ] 화면 순서나 Member ID가 아니라 `(applicationId, photoNumber)`로 단체 Member 매칭.
-- [ ] 사진 번호·카드번호의 요청 내부 중복, 존재하지 않는 사진 번호, 형식 오류, DB 전체 중복 검증.
-- [ ] 오류 하나라도 있으면 전체 rollback. 부분 성공 금지.
-- [ ] 일부 Member만 입력하는 요청은 허용하되 최종 카드 생성 전에는 전원 카드번호 필수.
-- [ ] 같은 Member에 같은 번호 재저장은 멱등 성공.
-- [ ] 최초 카드 생성 성공 전에는 번호 변경 허용, 성공 후에는 변경 금지.
-- [ ] Application row 잠금과 요청 `applicationVersion`으로 동시 수정 방지.
-- [ ] `ApplicationMember.cardNumber` DB UNIQUE 위반을 최종 방어선으로 처리하고 충돌을 `409`로 변환.
-- [ ] 단일·일괄 API 통합 테스트: 성공, 부분 목록, 전체 실패, 형식, 중복, 다른 Application 번호, version 충돌, 소속권한.
+- [x] 카드번호는 서버 자동 생성하지 않고 관리자가 `ROK-XXXXX-XXXX` 형식으로 입력 — `ApplicationMember.assignCardNumber`/`isValidCardNumberFormat`.
+- [x] 개인/단일 Member API 구현: `PUT /api/admin/applications/{applicationId}/members/{memberId}/card-number`.
+- [x] 단체 일괄 API 구현: `PUT /api/admin/applications/{applicationId}/card-numbers`.
+- [x] 프론트의 탭 구분 붙여넣기는 `사진 번호 + 카드번호` 두 열이며, 프론트가 JSON items로 변환해 전송하는 계약 문서화 — `docs/specs/application/api.md` 신규 섹션, 요청 바디는 `{applicationVersion, items:[{photoNumber, cardNumber}]}`.
+- [x] 화면 순서나 Member ID가 아니라 `(applicationId, photoNumber)`로 단체 Member 매칭.
+- [x] 사진 번호·카드번호의 요청 내부 중복, 존재하지 않는 사진 번호, 형식 오류, DB 전체 중복 검증.
+- [x] 오류 하나라도 있으면 전체 rollback. 부분 성공 금지 — 검증을 먼저 전부 모아(`BulkValidationException`) 저장 전에 거절, DB에는 아무것도 안 씀.
+- [x] 일부 Member만 입력하는 요청은 허용(카드 생성 단계는 2~3단계 범위라 "최종 카드 생성 전 전원 필수" 강제는 아직 없음 — 이번 범위는 저장 계약까지).
+- [x] 같은 Member에 같은 번호 재저장은 멱등 성공.
+- [x] 최초 카드 생성 성공 전에는 번호 변경 허용, 성공 후에는 변경 금지 — `ApplicationMember.isCardGenerated()`(`cardFrontPath != null` 기준)로 판정, 값이 다를 때만 거절(같은 값 재저장은 여전히 멱등 허용).
+- [x] Application row 잠금과 요청 `applicationVersion`으로 동시 수정 방지 — `ApplicationRepository.findByIdForUpdate`(`PESSIMISTIC_WRITE`) + `Application.version` 대조, 불일치 시 `APPLICATION_VERSION_CONFLICT`(409).
+- [x] `ApplicationMember.cardNumber` DB UNIQUE 위반을 최종 방어선으로 처리하고 충돌을 `409`로 변환 — `DataIntegrityViolationException` → `CARD_NUMBER_ALREADY_USED`.
+- [x] 단일·일괄 API 통합 테스트: 성공, 부분 목록, 전체 실패, 형식, 중복, 다른 Application 번호, version 충돌, 소속권한 — 신규 `ApplicationServiceCardNumberTest`(14개) + `ApplicationMemberTest` 형식검증 3개.
 
 완료 조건:
 
-- [ ] 단체 최대 100명의 번호를 관리자 UI에서 일괄 붙여넣을 수 있는 백엔드 계약 완성.
-- [ ] 카드번호 저장 외 카드 생성·S3 변경 없음.
-- [ ] 카드번호 Service/Controller targeted tests와 `compileJava` 통과.
+- [x] 단체 최대 100명의 번호를 관리자 UI에서 일괄 붙여넣을 수 있는 백엔드 계약 완성.
+- [x] 카드번호 저장 외 카드 생성·S3 변경 없음.
+- [x] 카드번호 Service/Controller targeted tests와 `compileJava` 통과 — 전체 스위트(REDIS_PORT=6400) 그린, 실패 0.
 
 ### 1-D. 만세력 확정 결과 저장 계약
 

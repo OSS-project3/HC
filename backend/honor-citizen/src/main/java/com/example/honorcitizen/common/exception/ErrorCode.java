@@ -42,6 +42,10 @@ public enum ErrorCode {
     INVALID_STATUS_TRANSITION(400, "허용되지 않는 상태 전이입니다."),
     APPLICATION_LIMIT_EXCEEDED(429, "일일 신청 가능 횟수(3회)를 초과했습니다."),
     NAMING_INCOMPLETE(400, "모든 구성원의 작명이 완료되지 않았습니다."),
+    CARD_NUMBER_LOCKED(400, "카드가 이미 생성되어 카드번호를 변경할 수 없습니다."),
+    CARD_NUMBER_VALIDATION_FAILED(400, "카드번호 입력 검증에 실패했습니다."),
+    CARD_NUMBER_ALREADY_USED(409, "이미 다른 카드에서 사용 중인 카드번호입니다."),
+    APPLICATION_VERSION_CONFLICT(409, "다른 관리자가 먼저 수정했습니다. 새로고침 후 다시 시도해주세요."),
 
     // Upload
     FILE_TOO_LARGE(413, "파일 크기는 10MB를 초과할 수 없습니다."),

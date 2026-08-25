@@ -6,6 +6,9 @@ import com.example.honorcitizen.common.response.PageResponse;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationExportRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationStatusResponse;
+import com.example.honorcitizen.domain.application.dto.CardNumberAssignRequest;
+import com.example.honorcitizen.domain.application.dto.CardNumberBatchAssignRequest;
+import com.example.honorcitizen.domain.application.dto.CardNumberBatchAssignResponse;
 import com.example.honorcitizen.domain.application.dto.DispatchRequest;
 import com.example.honorcitizen.domain.application.dto.MyApplicationDetailResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationListItemResponse;
@@ -22,6 +25,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -88,6 +92,27 @@ public class AdminApplicationController {
             @RequestPart("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.applyNamingResult(adminId, applicationId, file)));
+    }
+
+    // 개인/단일 Member 카드번호 확정 — 관리자가 직접 입력한다(서버 채번 없음).
+    @PutMapping("/{applicationId}/members/{memberId}/card-number")
+    public ResponseEntity<ApiResponse<Void>> assignCardNumber(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody CardNumberAssignRequest request) {
+        applicationService.assignCardNumber(adminId, applicationId, memberId, request.getCardNumber());
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    // 단체 신청 카드번호 일괄 확정 — 사진 번호 기준 매칭, all-or-nothing.
+    @PutMapping("/{applicationId}/card-numbers")
+    public ResponseEntity<ApiResponse<CardNumberBatchAssignResponse>> assignCardNumbersBatch(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @Valid @RequestBody CardNumberBatchAssignRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.assignCardNumbersBatch(adminId, applicationId, request)));
     }
 
     // 상태 전이 — 전이 규칙 자체는 Application 엔티티에 있고, 여기·Service는 호출·인가·감사로그만 담당한다.

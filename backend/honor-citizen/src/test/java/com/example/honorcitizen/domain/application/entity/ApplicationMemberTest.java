@@ -172,6 +172,39 @@ class ApplicationMemberTest {
     }
 
     @Test
+    void assignCardNumberStoresValidFormat() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        member.assignCardNumber("ROK-12345-6789");
+
+        assertThat(member.getCardNumber()).isEqualTo("ROK-12345-6789");
+        assertThat(member.isCardGenerated()).isFalse();
+    }
+
+    @Test
+    void assignCardNumberRejectsInvalidFormat() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        assertThatThrownBy(() -> member.assignCardNumber("12345-6789"))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+        assertThatThrownBy(() -> member.assignCardNumber("ROK-1234-6789"))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void isValidCardNumberFormatMatchesRokPattern() {
+        assertThat(ApplicationMember.isValidCardNumberFormat("ROK-12345-6789")).isTrue();
+        assertThat(ApplicationMember.isValidCardNumberFormat("rok-12345-6789")).isFalse();
+        assertThat(ApplicationMember.isValidCardNumberFormat(null)).isFalse();
+    }
+
+    @Test
     void updatePhotoReplacesPhotoPath() {
         ApplicationMember member = ApplicationMember.createIndividual(
                 1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",

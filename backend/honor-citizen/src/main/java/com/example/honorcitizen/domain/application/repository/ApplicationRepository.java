@@ -3,9 +3,11 @@ package com.example.honorcitizen.domain.application.repository;
 import com.example.honorcitizen.domain.application.entity.Application;
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.PaymentStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,6 +18,11 @@ import java.util.Optional;
 public interface ApplicationRepository extends JpaRepository<Application, Long> {
 
     Optional<Application> findByApplicationNumber(String applicationNumber);
+
+    // 단체 카드번호 일괄 저장(1-C) — Application row를 잠그고 요청 version과 대조해 동시 수정을 막는다.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Application a WHERE a.id = :id")
+    Optional<Application> findByIdForUpdate(@Param("id") Long id);
 
     // 마이페이지 신청 목록(api.md API 6) — 로그인 사용자 본인 신청만.
     Page<Application> findByUserId(Long userId, Pageable pageable);
