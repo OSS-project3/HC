@@ -1,5 +1,7 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
+> **갱신: 2026-08-25(9차, 실 API 검증).** 관리자 작명 확정·카드 제작 계획 1-A/1-B(백엔드 병합 완료) 이후 로컬 docker-compose로 백엔드를 실제 기동해 curl로 신규 API를 검증하는 과정에서 **blocking 회귀 2건 신규 발견**: ① `surname`(성씨) 입력 UI가 프론트에 전혀 없어 관리자가 어떤 신청도 "작명 완료 처리"를 할 수 없음(§1.19). ② 개인 신청(학생증 제외)에 카드 표기 주소 입력란이 없어 제출이 전부 400으로 실패(§1.20). 둘 다 백엔드 신규 필수 필드가 추가됐는데 프론트가 아직 못 따라간 경우 — §0 표·§1.4도 함께 정정.
+>
 > **갱신: 2026-08-25(8차, 원격 병합).** 이후 관리자 상태전이 3종(`confirm-payment`·`start-review`·`approve-naming`)과 입금자명(`PATCH /api/applications/{id}/depositor`)이 추가되어 **백엔드 엔드포인트 총 65개**가 되었고 전부 프론트 `api.ts`에서 실호출됨(65/65). 관리자 상태전이는 총 8종(결제확인·검토시작·작명승인·사진반려·작명완료·제작시작·카드발급·배송발송). 후기 수정 removeImage 버그도 수정 완료. **아래 원격 7차 노트가 미구현/미연동이라 한 것 중: §1.4a(입금확인→심사→작명 진입)·§1.15(엑셀 export 프론트)·§1.18(saju 재업로드)은 이후 구현·연동 완료됨. 여전히 미구현은 §1.16(카드 이미지 합성 API)·§1.17(이름 추천/조회 API)·관리자 통계뿐** — `docs/BACKEND_TODO.md` 참고.
 >
 > **갱신: 2026-08-25(7차, 원격).** 관리자 대시보드 코드 재대조로 4건 추가 확인(당시 기준). §1.4a — 신규 신청을 입금확인→심사시작→작명으로 못 넘김(`confirmPayment`/`startReview`/`approveToNaming` Controller 부재). §1.15 엑셀 내보내기 백엔드 완료·프론트 미연동. §1.16 카드 이미지 합성(좌표 기반)은 백엔드 엔진만·API/프론트 없음. §1.17 이름 추천 데이터는 DB 이관됐으나 조회 API 없음. §1.18 엑셀 왕복(saju 재업로드) 백엔드 완료·업로드 UI 없음. → **§1.4a·§1.15·§1.18은 8차에서 해소, §1.16·§1.17은 잔존**(위 8차 참고).
@@ -22,7 +24,7 @@
 |---|---|---|---|
 | OAuth·이메일 로그인·약관·세션·회원정보 | ✅ 완료 | `LoginPage`(`loginWithPassword`, `ADMIN→admin` 매핑), `AuthContext.refreshProfile`(role 보존), `TermsPage`(`agreeTerms`) | 관리자 로그인 `isAdmin=true` 정상(실 admin API 호출 E2E 확인). 데모 로컬 로그인만 운영빌드 제거 대상(`TEMP_ADMIN_LOGIN.md`) |
 | 회원정보 조회·수정·비밀번호 변경·탈퇴 | ✅ 완료 | `MyPage`(`getMe`/`updateMe`/`changePassword`/`withdraw`) | 조회=이름·전화·이메일, 수정=이름·전화, 비밀번호 변경 폼(`PATCH /me/password`) (§1.9-a·§1.1-b) |
-| 신청 생성(개인/단체) | ✅ 완료 | `ApplyPage`(`createApplication`, 단체=`/bulk`) | ①학생증 `schoolName` 전송 ②국적 ISO 변환(`nationalityToIso`) ③드래프트 파일 유령첨부 제거 — **세 회귀 전부 수정**(§1.9-b·§1.12·§1.13) |
+| 신청 생성(개인/단체) | 🔴 **회귀** | `ApplyPage`(`createApplication`, 단체=`/bulk`) | 개인(학생증 제외) 제출 시 `member.address` 누락으로 **항상 400 실패**(§1.20, 2026-08-25 신규). 기존 세 회귀(schoolName/국적ISO/유령첨부)는 수정됨(§1.9-b·§1.12·§1.13) |
 | 신청 조회·카드다운로드·재제출 | ✅ 완료 | `LookupPage`(`lookupApplication`), `MobileCardPage`(`getCardDownload`, `reuploadPhoto` — 개인 `photo`/단체 `submitFile` 분기) | 재제출 분기까지 연결(§1.10) |
 | 신청 취소 | ✅ 완료 | `MyPage`(`cancelApplication`, 취소가능 상태 한정) | (§1.5) |
 | 내 신청 목록·상세 | ✅ 완료 | `MyPage`(`listMyApplications` 목록 + `getMyApplication` 행 펼침 상세) | 2026-08-25 상세 연결(§1.2) |
@@ -32,7 +34,7 @@
 | 일반 이메일 회원가입(인증 인라인) | ✅ 완료 | `SignupPage`(`checkEmail`/`requestSignupEmailCode`/`confirmSignupEmailCode`/`signup`) | 2026-08-24 구현(§1.1-a). ※ 로컬 dev는 SMTP 미설정으로 코드발송만 503 |
 | 계정 복구(아이디/비밀번호 찾기) | ✅ 완료 | `AccountRecoveryPage`(`request/confirm Id/Password Recovery` 4종) | (§1.1-c) |
 | 1:1 문의(Inquiry) | ✅ 완료 | `InquiryPage`(`createInquiry`, `privacyConsent:true`), `MyPage`/`InquiryDetailPage`(`listMyInquiries`/`getMyInquiry`), 관리자 `InquiriesSection`(`listAdminInquiries`/`getAdminInquiry`/`answerInquiry`/`updateInquiryStatus`) | 관리자 답변까지 실 API(§1.3) |
-| 관리자 신청관리 | ✅ 완료 | `ApplicationsSection`: 조회 3종·작명확정·선택이력·상태전이 8종·**엑셀 export**·**작명결과 업로드** 전부 실호출 | 2026-08-25 export/naming-result·상태전이 3종 연결(§1.4) |
+| 관리자 신청관리 | ⚠️ 부분 회귀 | `ApplicationsSection`: 조회 3종·작명확정·선택이력·상태전이 8종·**엑셀 export**·**작명결과 업로드** 전부 실호출 | 호출 자체는 되나 작명확정 바디에 `surname` 누락 — **작명 완료 처리가 항상 실패**(§1.19, 2026-08-25 신규) |
 | 관리자 통계(`GET /api/admin/stats`) | — | (백엔드 엔드포인트 없음) | 🔴 **백엔드 미구현** — 대시보드 통계는 목록 프론트 집계로 대체(§1.4) |
 | 공지 서버 검색 | — | (백엔드 keyword 파라미터 없음) | ⚠️ 클라 검색만. 필요 시 백엔드 추가(§1.7) |
 | 한국이름 조회·추천(`nameResults.json`) | 정적 번들/자체 mock | (백엔드 조회·추천 API 없음) | ⚠️ 조회/추천 API 미정(§2.2·§1.17) |
@@ -92,7 +94,7 @@
 - **localStorage 제거**: 옛 `data/inquiries.ts`(`customer-inquiries`) 삭제됨.
 - **백엔드**: 6개 API(`POST /api/inquiries`, `GET /api/my/inquiries`(+`/{id}`), `GET /api/admin/inquiries`(+`/{id}`), `PATCH .../answer`, `PATCH .../status`) — source of truth `docs/specs/inquiry/requirements.md`. `category`는 한글 문자열 그대로(백엔드 `@JsonValue`/`@JsonCreator` 매핑). 테스트 `InquiryControllerTest`(4)·`InquiryServiceTest`(15) 통과.
 
-### 1.4 관리자 신청관리 — ✅ 조회·작명·상태전이·엑셀 전부 프론트 연동 완료(2026-08-25). 통계 API만 백엔드 미구현
+### 1.4 관리자 신청관리 — ✅ 조회·작명·상태전이·엑셀 전부 프론트 연동 완료(2026-08-25). 통계 API만 백엔드 미구현. ⚠️ 단, 작명 확정 요청에 `surname` 누락(§1.19, 2026-08-25 실 API 검증으로 발견) — "완료"는 연동 자체 얘기고, 계약 필드 하나가 새로 추가돼 다시 깨졌다는 뜻
 - **프론트 사용처**: `components/admin/sections/ApplicationsSection.tsx`(제작신청 관리). **실제 API 연동 완료** — `data/adminMock.ts` 미사용, `services/api.ts` 실호출.
 - **✅ 프론트 연동 완료된 관리자 신청 API(전부 실호출)**:
   - 조회: `GET /api/admin/applications`(`listAdminApplications`), `.../{id}`(`getAdminApplication`), `.../{id}/members`(`getAdminApplicationMembers`).
@@ -184,6 +186,21 @@
 - **백엔드 현황(2026-08-25)**: 이름 사전 700개를 `saju_names` 테이블로 이관 완료(`SajuNameSeeder`, 기동 시 자동 적재). 단, 이 데이터를 오행 결핍 기반으로 점수화해 추천하는 API(추천 엔드포인트)는 아직 없음.
 - **프론트 현황**: `ApplicationsSection.tsx`의 `mockRecommendations`(`data/adminNamingMock.ts`)가 여전히 프론트 자체 번들 데이터로 추천을 계산한다. 백엔드 DB와는 무관하게 동작 중.
 - **조치**: 필요성이 확인되면(추천 로직을 서버로 이전할지) 백엔드가 추천 API를 먼저 만들어야 프론트 연동이 의미가 있음 — 지금은 백엔드 후속 작업 대기.
+
+### 1.19 관리자 작명 확정 — `surname`(성씨) 입력 UI가 프론트에 아예 없음 (🔴 blocking, 2026-08-25 실 API 검증으로 발견)
+
+- **배경**: 관리자 작명 확정·카드 제작 계획 1-B(`docs/collab/TODO.md`)에서 `ApplicationMember.surname`을 신설하고, `completeNaming()`이 Application 소속 전 Member의 성씨·이름·의미를 집계 검증하도록 바꿨다(`NAMING_COMPLETE` → 하나라도 누락되면 `NAMING_INCOMPLETE` 400). 실제 서버 기동 후 curl로 확인 완료(정상/실패 케이스 전부 계약대로 동작).
+- **프론트 현황**: `services/api.ts:206-207`의 `saveMemberName` 요청 바디 타입이 `{ name, hanja?, reading?, meaning? }`로 **`surname` 필드 자체가 없다.** `ApplicationsSection.tsx`의 `NamingCard`(`choose()`, `:373`)도 `mockRecommendations()`가 만든 이름 객체(성씨 없음)를 그대로 보낸다. 프론트 전체에 성씨 입력 UI가 한 군데도 없다(`grep surname` 0건).
+- **영향**: 지금 프론트로 저장한 이름은 `surname`이 영원히 `NULL`이라, "작명 완료 처리" 버튼을 눌러도 **모든 신청에서 항상 `NAMING_INCOMPLETE`로 거절된다** — 관리자가 실제로 작명을 끝낼 방법이 없음.
+- **부가**: `GET /api/admin/applications/{id}/members` 응답(`AdminApplicationMemberResponse`)에도 `surname`/`nameMeaning`/`nameInterpretation`이 노출되지 않아, UI를 만들어도 저장된 값을 다시 읽어올 수 없다.
+- **조치**: (백엔드) `AdminApplicationMemberResponse`에 `surname`/`nameMeaning`/`nameInterpretation` 추가. (프론트) `NamingCard`에 성씨 입력란 신설 → `saveMemberName` 바디에 `surname` 포함, `services/api.ts`의 타입도 갱신.
+
+### 1.20 개인 신청(학생증 제외) — 카드 표기 주소 입력란 자체가 없음 (🔴 blocking 회귀, 2026-08-25 실 API 검증으로 발견)
+
+- **배경**: 1-A에서 `member.address`(카드에 인쇄되는 주소)를 신설 — 학생증이 아니면 **필수**, 학생증이면 있으면 거절(`docs/specs/application/api.md` "API 1" §⑤). 배송지 `receiver.address`와는 별개 값.
+- **프론트 현황**: `ApplyPage.tsx:88`의 `member` 요청 객체 빌더에 `address` 필드가 없다. `useApplicationDraft.ts`에도 `applicant.address` 상태 자체가 없고, `StepInfo.tsx`엔 수령인(배송지) 주소 입력란만 있다 — 카드 표기용 주소 입력란이 화면에 아예 없다.
+- **영향**: 명예한국인증·명예시민증·방문증(학생증 제외) 개인 신청을 실제 웹사이트로 제출하면 **전부 400 INVALID_INPUT으로 실패한다.** curl로 재현 확인(주소 없이 보내면 400, 넣으면 201).
+- **조치**: `useApplicationDraft.ts`에 `applicant.address` 상태 추가, `StepInfo.tsx`에 입력란 신설(학생증이면 숨김), `ApplyPage.tsx` `submit()`의 `member` 객체에 `address` 포함.
 
 ### 1.11 신청 폼이 수집하나 백엔드가 저장하지 않는 입력 (프론트 유지 · 백엔드 보강)
 프론트 화면에는 입력/표시가 있으나 백엔드 request DTO·도메인에 대응이 없어 값이 서버에 남지 않는 항목. **프론트 UI는 그대로 유지**하고 백엔드 보강 시 연결한다. 상세·조치는 `BACKEND_API_GAPS.md P1-4`.
