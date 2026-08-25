@@ -926,3 +926,39 @@ body `{applicationIds, type}` → xlsx), lotus05f님 프론트가 이미 이 엔
 - [x] 테스트 먼저 작성(TDD) — `ApplicationExportExcelBuilderTest`(신규 5개), `ApplicationServiceExportTest`(신규 5개), `AdminApplicationControllerTest`(+3)
 - [x] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인(608개, 실패 0). 참고: 이 작업 도중 Docker Desktop이 재차 죽었다 살아남(세션 중 2번째, 원인 불명 — redis-test 컨테이너를 `docker start`로 재기동해 해소, 코드 문제 아님)
 - [x] 완료 후 `CHANGELOG.md` 항목 추가, 본 섹션 상태 ✅로 변경
+
+## 이름 사전 700개 DB 이관 — DATA-1 (2026-08-25)
+
+상태: 🔵 진행중 (담당: Claude)
+
+배경: `BACKEND_TODO.md` DATA-1. 지금은 `frontend/src/data/sajuNames.json`(700개)이 프론트 번들에만 있어
+누구나 다운로드 가능한 상태(§ DESIGN.md의 라이선스 블로커와도 연결 — 05solar 원본 corpus를 "민감 데이터"로
+다루라는 README 취지와 맞지 않음). API-1(추천 백엔드화)을 하든 안 하든 DB에 옮겨두는 건 손해가 없어
+독립적으로 먼저 진행. **이번 범위는 DB 이관만 — 추천 API(API-1)는 별도 작업.**
+
+데이터 확인(Claude, node로 직접 검증):
+- 700개, `(name, hanja)` 중복 0건.
+- `jawon`/`eum` 배열 길이가 항상 2가 아님 — 외자(1글자) 이름은 길이 1, 33건은 길이 1(그 외 3~4도 존재).
+  DESIGN.md가 제안한 `jawon_1/jawon_2` 고정 2컬럼 스키마로는 표현 불가 → 컬럼당 콤마 결합 문자열
+  (`jawon="화,화"`)로 저장, 필요시 파싱해서 쓴다.
+
+설계:
+- `SajuName` 엔티티 — `domain/sajuname/entity`, `CardTypeSeeder`와 동일하게 자기 도메인 폴더에 시더도 같이 둠
+  (`DemoDataSeeder`처럼 여러 도메인을 한 번에 시드하는 게 아니라 이 데이터 하나만 다루므로).
+  `UNIQUE(name, hanja)` 제약.
+- `SajuNameSeeder implements CommandLineRunner` — `CardTypeSeeder`와 동일 패턴(무조건 실행,
+  `count()>0`이면 skip, `app.seed-demo-data` 플래그와 무관 — 이건 데모 데이터가 아니라 실제 참조 데이터).
+  `backend/honor-citizen/src/main/resources/seed/saju-names.json`(프론트 파일 그대로 복사, 243KB)을
+  클래스패스에서 읽어 파싱.
+- 프론트의 `sajuNames.json`은 이번엔 그대로 둔다(API-1 붙여서 백엔드로 완전히 옮길 때 제거 대상 — 지금
+  지우면 인앱 추천 기능이 깨짐).
+
+### 구현 체크리스트
+
+- [x] `frontend/src/data/sajuNames.json` → `backend/honor-citizen/src/main/resources/seed/saju-names.json` 복사(바이트 동일 확인)
+- [ ] `SajuName` 엔티티 신규(`domain/sajuname/entity`) — name/hanja/roman/reading/meaning/jawon/eum, `UNIQUE(name,hanja)`
+- [ ] `SajuNameRepository` 신규
+- [ ] `SajuNameSeeder` 신규 — JSON 파싱은 순수 함수로 분리(테스트 가능하게), `run()`은 count 체크 + 저장만
+- [ ] 테스트 먼저 작성(TDD) — 파싱 로직 단위 테스트(길이 1/2 jawon·eum 처리 확인), `@SpringBootTest`로 실제 번들 리소스 로드 후 `count()==700` 확인
+- [ ] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인
+- [ ] 완료 후 `CHANGELOG.md` 항목 추가, 본 섹션 상태 ✅로 변경
