@@ -83,7 +83,7 @@ export function ApplyPage() {
       recipientAddress: isPhysical ? [draft.recipient.address, draft.recipient.addressDetail].filter(Boolean).join(" ") || undefined : undefined,
       deliveryRequest: isPhysical ? draft.recipient.deliveryRequest || undefined : undefined,
     };
-    saveApplications([{ applicationNumber: num, applicantType: isOrg ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name || draft.applicant.englishName || "", applicantEmail: draft.applicant.email, phone: draft.applicant.phone, quantity: serverQuantity ?? draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10), detail }, ...applications]);
+    saveApplications([{ applicationNumber: num, applicantType: isOrg ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name || draft.applicant.englishName || "", applicantEmail: draft.applicant.email, ownerEmail: user?.email, phone: draft.applicant.phone, quantity: serverQuantity ?? draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10), detail }, ...applications]);
     setApplicationNumber(num);
     goTo(4);
   };

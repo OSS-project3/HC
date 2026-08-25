@@ -36,7 +36,8 @@ export function MyPage() {
 
   // 내 문의/신청 목록은 백엔드에 my-* 조회 API가 아직 없어(또는 미커밋) 목데이터로 남아 있다.
   const myInquiries = loadInquiries().filter((inquiry) => inquiry.email === user.email);
-  const myApplications = loadApplications().filter((application) => application.applicantEmail === user.email);
+  // 로그인 계정으로 제출한 신청(ownerEmail) 우선, 과거 기록 호환을 위해 신청서 입력 이메일(applicantEmail)도 매칭.
+  const myApplications = loadApplications().filter((application) => (application.ownerEmail ?? application.applicantEmail) === user.email);
 
   return (
     <div className="mypage">
