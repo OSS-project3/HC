@@ -169,7 +169,7 @@
 - **조치**: `api.ts`에 `exportApplications({applicationIds, type})`(응답은 blob) 추가, `exportExcel()`을 실 호출로 교체, GROUP UI를 건별 버튼으로 변경.
 
 ### 1.16 카드 이미지 합성(신청자 정보 → 카드 디자인 자동 매핑) — 🟡 백엔드 엔진만 존재, API·프론트 전부 없음
-- **배경**: 관리자가 입금 확인 후 카드를 제작하는 화면에서, 신청자 데이터(이름/영문명/사진/카드번호/주소/발급일자)가 선택한 카드 디자인에 자동 매핑된 미리보기가 떠야 한다.
+- **배경(확정 요구사항)**: 관리자가 **카드 디자인을 직접 골라, 실제 카드 이미지 위에 이름·한자·영문명·주소·카드번호 등이 어떻게 인쇄되는지 눈으로 보면서 그 자리에서 값을 확인·수정**할 수 있어야 한다 — 입금 확인 후 카드를 제작하는 화면에서, 신청자 데이터가 선택한 카드 디자인에 자동 매핑된 미리보기가 뜨고 관리자가 편집 가능해야 한다는 뜻. §1.19(성씨)·§1.20(주소)가 최근 신설된 것도 전부 이 화면이 최종적으로 카드에 찍어야 하는 필드를 채우기 위한 선행 작업이다(두 절 사이의 "왜 신설됐는가" 참고).
 - **백엔드 현황(2026-08-25)**: 좌표 기반 합성 엔진(`CardImageCompositor`)만 구현 완료 — 신청 정보를 실제 카드 템플릿(명예한국인증/명예시민증/방문증 3종, 디자인 6개씩)에 합성해 PNG를 만드는 로직은 검증됐지만, **이걸 부르는 HTTP 엔드포인트가 없다.** 카드번호 생성 정책, `ApplicationMember`에 결과 저장하는 로직도 미구현.
 - **프론트 현황**: 관련 UI 전혀 없음(디자인 선택 화면, 미리보기, 필드 수동 수정 등 전부 신규 구현 필요).
 - **⚠️ 정책 확정 필요(선행)**: 직인(관인)·발행처 필드는 시안이 실제 지자체장 공식 직인을 무단 사용하고 있어 **이번 범위에서 제외**하기로 확정(대체안 미정 — 회사 자체 로고? 공란?). 학생증은 가로/세로+고등학교/대학교 조합이 필요해 별도 작업으로 분리.
@@ -187,20 +187,31 @@
 - **프론트 현황**: `ApplicationsSection.tsx`의 `mockRecommendations`(`data/adminNamingMock.ts`)가 여전히 프론트 자체 번들 데이터로 추천을 계산한다. 백엔드 DB와는 무관하게 동작 중.
 - **조치**: 필요성이 확인되면(추천 로직을 서버로 이전할지) 백엔드가 추천 API를 먼저 만들어야 프론트 연동이 의미가 있음 — 지금은 백엔드 후속 작업 대기.
 
+### 왜 `surname`·`member.address`가 신설됐는가 — §1.16(카드 제작 화면)과 같은 문제
+
+아래 §1.19·§1.20은 별개의 두 버그가 아니라 **같은 배경에서 나온 한 쌍**이다. 확정 요구사항: **관리자가 카드 디자인을 직접 골라, 실제 카드 이미지 위에 이름·한자·영문명·주소·카드번호 등이 어떻게 인쇄되는지 눈으로 보면서 값을 확인·수정할 수 있는 화면**이 필요하다 — 즉 §1.16(카드 이미지 합성) 화면 자체가 요구사항의 핵심이고, `surname`/`address`는 그 화면이 카드에 실제로 찍어야 하는 필드 중 이번에 새로 채워 넣은 두 개일 뿐이다. `ApplicationMember.surname`(성씨, 1-B)과 `member.address`(카드 표기 주소, 1-A)는 전부 이 최종 목표(카드 미리보기·수정 화면)를 만들기 위한 선행 데이터 정비 단계다. 그래서 지금 당장은:
+- 관리자 작명 화면(`NamingCard`)에 성씨 입력이 없고,
+- 개인 신청서에 카드 표기 주소 입력이 없어서
+
+작명·신청 단계에서부터 이미 데이터가 비어 있고, §1.16 화면이 생기더라도 애초에 채울 값이 DB에 없다. **§1.19·§1.20을 먼저 메워야 §1.16(디자인 선택 → 실제 값이 반영된 카드 미리보기 → 그 자리에서 필드 수정)이 의미가 있다.**
+
 ### 1.19 관리자 작명 확정 — `surname`(성씨) 입력 UI가 프론트에 아예 없음 (🔴 blocking, 2026-08-25 실 API 검증으로 발견)
 
 - **배경**: 관리자 작명 확정·카드 제작 계획 1-B(`docs/collab/TODO.md`)에서 `ApplicationMember.surname`을 신설하고, `completeNaming()`이 Application 소속 전 Member의 성씨·이름·의미를 집계 검증하도록 바꿨다(`NAMING_COMPLETE` → 하나라도 누락되면 `NAMING_INCOMPLETE` 400). 실제 서버 기동 후 curl로 확인 완료(정상/실패 케이스 전부 계약대로 동작).
 - **프론트 현황**: `services/api.ts:206-207`의 `saveMemberName` 요청 바디 타입이 `{ name, hanja?, reading?, meaning? }`로 **`surname` 필드 자체가 없다.** `ApplicationsSection.tsx`의 `NamingCard`(`choose()`, `:373`)도 `mockRecommendations()`가 만든 이름 객체(성씨 없음)를 그대로 보낸다. 프론트 전체에 성씨 입력 UI가 한 군데도 없다(`grep surname` 0건).
 - **영향**: 지금 프론트로 저장한 이름은 `surname`이 영원히 `NULL`이라, "작명 완료 처리" 버튼을 눌러도 **모든 신청에서 항상 `NAMING_INCOMPLETE`로 거절된다** — 관리자가 실제로 작명을 끝낼 방법이 없음.
-- **부가**: `GET /api/admin/applications/{id}/members` 응답(`AdminApplicationMemberResponse`)에도 `surname`/`nameMeaning`/`nameInterpretation`이 노출되지 않아, UI를 만들어도 저장된 값을 다시 읽어올 수 없다.
-- **조치**: (백엔드) `AdminApplicationMemberResponse`에 `surname`/`nameMeaning`/`nameInterpretation` 추가. (프론트) `NamingCard`에 성씨 입력란 신설 → `saveMemberName` 바디에 `surname` 포함, `services/api.ts`의 타입도 갱신.
+- **부가①**: `GET /api/admin/applications/{id}/members` 응답(`AdminApplicationMemberResponse`)에도 `surname`/`nameMeaning`/`nameInterpretation`이 노출되지 않아, UI를 만들어도 저장된 값을 다시 읽어올 수 없다.
+- **부가②(미확인)**: `completeNaming` 실패 시 응답 `errors[]`엔 Member별 상세(누락 필드)가 담겨 오는데, 프론트 `runStatus`는 `ApiError.message`(요약 문구 "모든 구성원의 작명이 완료되지 않았습니다.")만 토스트로 띄우는 구조라 이 상세를 화면에 보여주는지는 코드 정적 분석으로만 확인했고 실제 브라우저 렌더링으로는 확인하지 못했다(브라우저 자동화 도구 미보유). 관리자가 "어느 멤버가 왜 막혔는지" 알려면 상세 표시가 필요해 보인다.
+- **조치**: (백엔드) `AdminApplicationMemberResponse`에 `surname`/`nameMeaning`/`nameInterpretation` 추가. (프론트) `NamingCard`에 성씨 입력란 신설 → `saveMemberName` 바디에 `surname` 포함, `services/api.ts`의 타입도 갱신. 위 "왜 신설됐는가" 참고 — 이 입력란은 결국 §1.16 카드 미리보기 화면의 일부가 되어야 한다.
 
 ### 1.20 개인 신청(학생증 제외) — 카드 표기 주소 입력란 자체가 없음 (🔴 blocking 회귀, 2026-08-25 실 API 검증으로 발견)
 
 - **배경**: 1-A에서 `member.address`(카드에 인쇄되는 주소)를 신설 — 학생증이 아니면 **필수**, 학생증이면 있으면 거절(`docs/specs/application/api.md` "API 1" §⑤). 배송지 `receiver.address`와는 별개 값.
 - **프론트 현황**: `ApplyPage.tsx:88`의 `member` 요청 객체 빌더에 `address` 필드가 없다. `useApplicationDraft.ts`에도 `applicant.address` 상태 자체가 없고, `StepInfo.tsx`엔 수령인(배송지) 주소 입력란만 있다 — 카드 표기용 주소 입력란이 화면에 아예 없다.
 - **영향**: 명예한국인증·명예시민증·방문증(학생증 제외) 개인 신청을 실제 웹사이트로 제출하면 **전부 400 INVALID_INPUT으로 실패한다.** curl로 재현 확인(주소 없이 보내면 400, 넣으면 201).
-- **조치**: `useApplicationDraft.ts`에 `applicant.address` 상태 추가, `StepInfo.tsx`에 입력란 신설(학생증이면 숨김), `ApplyPage.tsx` `submit()`의 `member` 객체에 `address` 포함.
+- **조치**: `useApplicationDraft.ts`에 `applicant.address` 상태 추가, `StepInfo.tsx`에 입력란 신설(학생증이면 숨김), `ApplyPage.tsx` `submit()`의 `member` 객체에 `address` 포함. 위 "왜 신설됐는가" 참고 — 이 값도 결국 §1.16 카드에 인쇄되는 필드다.
+
+> **검증 방법 메모**: §1.19·§1.20 둘 다 로컬 docker-compose 백엔드를 최신 코드로 재기동해 실제 curl 호출(정상+실패 케이스)로 백엔드 계약은 확인했다. 프론트 쪽은 **정적 코드 대조**(요청 바디 타입·컴포넌트 구현에 해당 필드가 존재하는지)로 확인한 것이며, 브라우저 자동화 도구가 없어 실제 화면 클릭까지는 하지 못했다 — 다만 필드 자체가 프론트 코드에 없는 것은 브라우저 확인 없이도 100% 확정적인 결함이다.
 
 ### 1.11 신청 폼이 수집하나 백엔드가 저장하지 않는 입력 (프론트 유지 · 백엔드 보강)
 프론트 화면에는 입력/표시가 있으나 백엔드 request DTO·도메인에 대응이 없어 값이 서버에 남지 않는 항목. **프론트 UI는 그대로 유지**하고 백엔드 보강 시 연결한다. 상세·조치는 `BACKEND_API_GAPS.md P1-4`.
