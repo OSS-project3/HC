@@ -1,5 +1,7 @@
 # 관리자 대시보드 · 작명 플로우 — 작업 현황 (2026-08-24)
 
+> ⚠️ **정정(2026-08-25):** 이 문서가 "🟡 버튼만 / export 엔드포인트 미구현"으로 적은 **엑셀 내보내기(`POST /api/admin/applications/export`)는 구현·프론트 연동 완료**. 상태전이 8종·작명확정·선택이력·naming-result도 전부 실 API 연동됨. 미구현은 통계(`GET /api/admin/stats`) 뿐. 현재 상태는 `docs/FRONTEND_API_GAPS.md` §1.4 / `docs/API_TEST_REPORT.md`.
+
 이 문서는 "어디까지 했는지"를 한눈에 정리한 진행 현황이다.
 설계/미구현 API 계약은 [`DESIGN.md`](./DESIGN.md), 임시 로그인 제거 가이드는 [`../../TEMP_ADMIN_LOGIN.md`](../../TEMP_ADMIN_LOGIN.md) 참고.
 

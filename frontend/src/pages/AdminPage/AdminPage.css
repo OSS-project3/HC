@@ -291,3 +291,8 @@
   .admin-dash__nav { grid-auto-flow: column; overflow-x: auto; }
   .admin-dash__stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* 단체 신청 도구 — 엑셀 내보내기 + 작명 결과 업로드 */
+.admin-naming__group-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.admin-naming__upload { cursor: pointer; }
+.admin-naming__upload.is-disabled { opacity: 0.5; pointer-events: none; }

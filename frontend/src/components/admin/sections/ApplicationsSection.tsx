@@ -15,6 +15,19 @@ const statusLabels: Record<ApplicationStatus, string> = {
 const EL_KEY: Record<string, string> = { 목: "mok", 화: "hwa", 토: "to", 금: "geum", 수: "su" };
 const EL_HANJA: Record<string, string> = { 목: "木", 화: "火", 토: "土", 금: "金", 수: "水" };
 
+// 신청 명단 엑셀(xlsx)을 실제 API로 받아 브라우저 다운로드를 트리거한다. POST /api/admin/applications/export.
+async function downloadApplicationsExcel(ids: number[], type: ApplicationType) {
+  const { blob, filename } = await api.exportApplications(ids, type);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename.endsWith(".xlsx") ? filename : "applications-export.xlsx";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function ApplicationsSection() {
   const [tab, setTab] = useState<ApplicationType>("INDIVIDUAL");
   const [all, setAll] = useState<AdminApplicationListItem[]>([]);
@@ -22,6 +35,7 @@ export function ApplicationsSection() {
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,11 +76,19 @@ export function ApplicationsSection() {
     });
   };
 
-  const exportExcel = () => {
-    const ids = tab === "INDIVIDUAL" ? [...selected] : rows.map((r) => r.applicationId);
+  // 개인 신청: 선택한 여러 건을 한 엑셀로 내보낸다(단체는 원본 서식 보존을 위해 상세에서 1건씩 — ApplicationNaming).
+  const exportSelected = async () => {
+    const ids = [...selected];
     if (ids.length === 0) { showToast("내보낼 신청을 선택해 주세요."); return; }
-    // 🟡 API 미구현: POST /api/admin/applications/export (설계문서 §2.4). 지금은 안내만 노출.
-    showToast(`엑셀 내보내기(${ids.length}건)는 백엔드 미구현입니다. 설계문서(DESIGN.md §2.4)를 참고하세요.`);
+    setExporting(true);
+    try {
+      await downloadApplicationsExcel(ids, "INDIVIDUAL");
+      showToast(`엑셀 ${ids.length}건을 내보냈습니다.`);
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "엑셀 내보내기에 실패했습니다.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -86,11 +108,13 @@ export function ApplicationsSection() {
 
       <div className="admin-panel__toolbar">
         <p className="admin__muted">
-          {tab === "INDIVIDUAL" ? "행을 펼쳐 만세력·추천 이름을 확인하고 이름을 확정합니다. 여러 건을 선택해 한 엑셀로 내보낼 수 있습니다." : "단체 엑셀 값을 읽어 행마다 이름을 추천합니다."}
+          {tab === "INDIVIDUAL" ? "행을 펼쳐 만세력·추천 이름을 확인하고 이름을 확정합니다. 여러 건을 선택해 한 엑셀로 내보낼 수 있습니다." : "행을 펼쳐 엑셀 내보내기·작명 결과 업로드를 신청 단위로 진행합니다(단체는 원본 서식 보존을 위해 1건씩)."}
         </p>
-        <button type="button" className="admin__btn admin__btn--primary" onClick={exportExcel}>
-          {tab === "INDIVIDUAL" ? `선택 ${selected.size}건 엑셀 내보내기` : "전체 엑셀 내보내기"}
-        </button>
+        {tab === "INDIVIDUAL" && (
+          <button type="button" className="admin__btn admin__btn--primary" onClick={exportSelected} disabled={exporting || selected.size === 0}>
+            {exporting ? "내보내는 중…" : `선택 ${selected.size}건 엑셀 내보내기`}
+          </button>
+        )}
       </div>
 
       {loading && <p className="admin-panel__note">불러오는 중…</p>}
@@ -182,6 +206,7 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
   const [members, setMembers] = useState<AdminApplicationMember[] | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [statusBusy, setStatusBusy] = useState(false);
+  const [groupBusy, setGroupBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const reloadMembers = useCallback(async () => {
@@ -211,6 +236,34 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
   const first = members[0];
   const onSaved = async () => { await Promise.all([reloadMembers(), reloadStats()]); };
 
+  // 단체 신청: 원본 서식 엑셀 내보내기 + 사주 프로그램 결과 엑셀 업로드(구성원 이름 일괄 반영).
+  const exportThisGroup = async () => {
+    setGroupBusy(true);
+    try {
+      await downloadApplicationsExcel([app.applicationId], "GROUP");
+      showToast("엑셀을 내보냈습니다.");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "엑셀 내보내기에 실패했습니다.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+  const applyNamingResult = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setGroupBusy(true);
+    try {
+      const res = await api.applyNamingResult(app.applicationId, file);
+      showToast(`작명 결과 반영 완료 — ${res.updatedCount}명 이름 저장`);
+      await Promise.all([reloadMembers(), reloadStats()]);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "작명 결과 업로드에 실패했습니다.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
   // 백엔드에 존재하는 상태 전이 API를 현재 상태에 맞춰 노출한다. call()이 null이면(입력 취소) 건너뛴다.
   const runStatus = async (label: string, call: () => Promise<{ status: ApplicationStatus }> | null) => {
     const p = call();
@@ -230,6 +283,10 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
 
   const s = detail.status;
   const statusActions: { label: string; danger?: boolean; call: () => Promise<{ status: ApplicationStatus }> | null }[] = [];
+  // 접수 직후 앞단 흐름: 결제 확인 → 검토 시작 → 작명 승인.
+  if (s === "SUBMITTED" && detail.paymentStatus !== "CONFIRMED") statusActions.push({ label: "결제 확인", call: () => api.confirmApplicationPayment(app.applicationId) });
+  if (s === "SUBMITTED" && detail.paymentStatus === "CONFIRMED") statusActions.push({ label: "검토 시작", call: () => api.startApplicationReview(app.applicationId) });
+  if (s === "REVIEWING") statusActions.push({ label: "작명 승인(작명중으로)", call: () => api.approveApplicationNaming(app.applicationId) });
   if (s === "REVIEWING") statusActions.push({ label: "사진 반려", danger: true, call: () => { const r = window.prompt("사진 반려 사유를 입력하세요."); return r && r.trim() ? api.rejectApplicationPhoto(app.applicationId, r.trim()) : null; } });
   if (s === "NAME_EDITING") statusActions.push({ label: "작명 완료 처리", call: () => api.completeNaming(app.applicationId) });
   if (s === "PRODUCTION_READY") statusActions.push({ label: "제작 시작", call: () => api.startProducing(app.applicationId) });
@@ -269,6 +326,19 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
           {statusActions.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}
         </select>
       </div>
+
+      {isGroup && (
+        <div className="admin-naming__group-tools">
+          <button type="button" className="admin__btn" disabled={groupBusy} onClick={exportThisGroup}>
+            <span aria-hidden="true">⭳</span> 이 신청 엑셀 내보내기
+          </button>
+          <label className={`admin__btn admin-naming__upload${groupBusy ? " is-disabled" : ""}`}>
+            <span aria-hidden="true">⭱</span> 작명 결과 엑셀 업로드
+            <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden disabled={groupBusy} onChange={applyNamingResult} />
+          </label>
+          <span className="admin__muted">사주 프로그램이 채운 이름 엑셀을 업로드하면 구성원 한글이름이 일괄 반영됩니다.</span>
+        </div>
+      )}
 
       {members.map((m, i) => (
         <NamingCard key={m.memberId} appId={app.applicationId} index={i} member={m} isGroup={isGroup} counts={counts} onSaved={onSaved} />

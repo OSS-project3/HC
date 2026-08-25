@@ -68,6 +68,11 @@ public class Application extends BaseTimeEntity {
 
     private LocalDateTime paymentDueAt;
 
+    // 무통장 입금 대조용 입금자명 — 신청 완료 화면(제출 직후, SUBMITTED·결제대기)에서 신청자가 입력한다.
+    // 생성 시점엔 없고 별도 등록(registerDepositorName)으로 채워지므로 팩토리 인자가 아니다. 결제 확인 전까지만 수정 가능.
+    @Column(length = 60)
+    private String depositorName;
+
     private LocalDateTime cancelledAt;
 
     @Enumerated(EnumType.STRING)
@@ -252,6 +257,14 @@ public class Application extends BaseTimeEntity {
         }
         this.paymentStatus = PaymentStatus.CONFIRMED;
         return true;
+    }
+
+    // 입금자명 등록/수정 — 결제 확인 전(SUBMITTED·WAITING)에만 허용. 신청자 본인 검증은 서비스에서 한다.
+    public void registerDepositorName(String depositorName) {
+        if (this.status != ApplicationStatus.SUBMITTED || this.paymentStatus != PaymentStatus.WAITING) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.depositorName = depositorName;
     }
 
     public void startReview() {

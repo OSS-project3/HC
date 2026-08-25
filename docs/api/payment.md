@@ -1,5 +1,12 @@
 ## Payment 도메인
 
+> ⚠️ **정정(2026-08-25) — 이 문서의 옛 설계는 실제 구현과 다르다.** 별도 Payment 컨트롤러/도메인은 **없다**. 입금자명 저장은 Application 도메인의 실제 엔드포인트로 구현됐다:
+> - 실제 경로: **`PATCH /api/applications/{applicationId}/depositor`** (문서의 `.../payment` 아님)
+> - 요청: `DepositorNameUpdateRequest { depositorName }` (`@NotBlank`, `@Size(max=60)`) / 응답: **`ApiResponse<Void>`**(body 없음)
+> - 권한: 신청자 **본인만**, **결제 확인 전(SUBMITTED·WAITING)** 에만 허용
+> - 결제 "확인"은 관리자 수동 전이 `POST /api/admin/applications/{id}/confirm-payment`로 처리(결제 게이트웨이 없음).
+> 상세는 `docs/FRONTEND_API_GAPS.md` §1.11 / `docs/LOCALSTORAGE_TO_BACKEND.md` §2.1. 아래는 낡은 설계 기록.
+
 ### ① 도메인의 책임
 
 입금 확인을 관리한다. PG/가상계좌 자동화가 아니라 **고정 회사 계좌 무통장입금 + 관리자 수동 확인** 방식 — 사용자가 입금자명을 등록하면, 관리자가 그 이름을 기준으로 통장 내역과 대조해서 확인 처리한다. (`.md` 2.5절 기준)

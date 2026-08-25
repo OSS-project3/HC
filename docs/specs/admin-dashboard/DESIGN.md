@@ -1,5 +1,7 @@
 # 관리자 대시보드 — 설계 및 API 갭 문서
 
+> ⚠️ **정정(2026-08-25) — 이 설계문서의 "❌ 없음/미구현" 표기가 실제 구현과 어긋난다(문서 §1 vs §3 내부 모순 포함).** 실제로는 전부 구현·연동됨: 이름 선택이력(+1, `name_selection_stats` + `GET /api/admin/name-selection-stats`), 상태전이 8종(`confirm-payment`·`start-review`·`approve-naming`·`reject-photo`·`complete-naming`·`start-producing`·`card-ready`·`dispatch`), 엑셀 내보내기(`POST /api/admin/applications/export`), 작명결과 엑셀(`naming-result`). 미구현은 통계 집계(`GET /api/admin/stats`)·카드디자인 배정 뿐. 현재 상태는 `docs/FRONTEND_API_GAPS.md` §1.4.
+
 작성 배경: 관리자 페이지를 대시보드 형식으로 신규 구축하면서, **이미 존재하는 API는 연결**하고
 **존재하지 않는 기능은 프론트엔드 UI만 먼저** 구현했다. 이 문서는 (1) 데이터 소스 현황,
 (2) 아직 없는 백엔드 기능의 제안 설계, (3) 만세력/이름추천(saju) 통합 아키텍처와 **라이선스 블로커**를 정리한다.

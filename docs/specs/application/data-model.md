@@ -1,5 +1,7 @@
 # Application Data Model
 
+> ⚠️ **정정(2026-08-25):** Application 테이블에 **`depositor_name VARCHAR(60)`(nullable)** 컬럼이 추가됐다(입금자명, 완료 화면에서 등록, 아래 §2.1 표에 미반영). 등록은 `registerDepositorName()`(결제 확인 전 SUBMITTED·WAITING만) + `PATCH /api/applications/{id}/depositor`. 그 외 필드·상태전이는 코드와 일치.
+
 > Application 도메인의 엔티티, 컬럼, 관계 및 제약조건은 [APPLICATION.md](APPLICATION.md)의 최종 정책을 반영합니다.
 > 업무 규칙은 [requirements.md](requirements.md), 외부 계약은 [api.md](api.md)를 기준으로 합니다.
 > ⚠️ 2026-08-07: 단, 학생증 `ApplicationMember.department`(학과) 필드는 예외 — `APPLICATION.md`가 "제외"로 적었으나 근거가 없어 사람이 미결정으로 확인, 기존대로 유지(`PENDING_DECISIONS.md` 참고).

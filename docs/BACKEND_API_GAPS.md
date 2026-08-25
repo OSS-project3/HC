@@ -1,5 +1,14 @@
 # 백엔드 미구현 API 목록 (프론트 실동작에 필요)
 
+> ⚠️ **정정(2026-08-25) — 이 문서(2026-08-18 작성)가 "미구현"으로 나열한 대부분이 이후 구현·연동 완료됐다.** 코드 대조 결과:
+> - ✅ **1:1 문의(Inquiry) 도메인** — `Inquiry` 엔티티 + `InquiryController`/`MyInquiryController`/`InquiryAdminController` 전부 구현·연동(2026-08-19).
+> - ✅ **관리자 신청 상태전이** — `confirm-payment/start-review/approve-naming/reject-photo/complete-naming/start-producing/card-ready/dispatch` 8종 + 작명저장/선택이력/엑셀 export/naming-result 전부 구현·연동. `AdminPage`도 실 API 호출(mock 아님).
+> - ✅ **입금자명(depositorName)** — `PATCH /api/applications/{id}/depositor` 구현.
+> - ✅ **후기 다중 이미지(0~5장)** — `ReviewImage`·`keepImageIds`로 구현.
+> - ✅ `ApplicationLookupResponse.applicationType` 존재.
+> - ❌ **여전히 미구현**: `GET /api/admin/stats`(통계 집계), 공지 서버검색(keyword), 한국이름 조회 API — 이 3건만 실제 미구현.
+> 현재 상태는 `docs/FRONTEND_API_GAPS.md`·`docs/API_TEST_REPORT.md`가 단일 소스다. 아래는 낡은 기록.
+
 작성일: 2026-08-18 (최종 갱신: 2026-08-18 — 프론트 연동 진행분 반영)
 작성 근거: 프론트 API 연동 작업 완료 후, **프론트가 여전히 mock 데이터 / localStorage / 콘솔에 의존하는 화면**을 전수 조사했다. 아래 항목은 "실제 운영 시스템으로 구동되려면 백엔드 API 구현이 필요한데 아직 없는 것들"이다.
 

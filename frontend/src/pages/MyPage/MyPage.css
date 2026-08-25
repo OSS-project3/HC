@@ -72,3 +72,16 @@
     right: calc(84px - ((100vw - 1440px) / 2));
   }
 }
+
+/* 제작 내역 취소 버튼 */
+.mypage-status-cell { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mypage-cancel { font-size: 12px; color: #b3402f; background: none; border: 1px solid #e2b5ac; border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+.mypage-cancel:hover { background: #fbeeeb; }
+
+/* 내 신청 상세(펼침) */
+.mypage-appnum { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.mypage-appdetail { padding: 12px 16px; background: #f7f7f9; border-radius: 8px; margin: 4px 0 10px; font-size: 0.9rem; }
+.mypage-appdetail dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 20px; margin: 0; }
+.mypage-appdetail dl > div { display: flex; gap: 10px; }
+.mypage-appdetail dt { color: #777; min-width: 84px; }
+.mypage-appdetail dd { margin: 0; font-weight: 600; }

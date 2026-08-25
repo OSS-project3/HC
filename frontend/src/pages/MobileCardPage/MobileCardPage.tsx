@@ -43,7 +43,21 @@ export function MobileCardPage() {
         현재 {flipped ? "뒷면" : "앞면"}을 보고 있습니다 · 카드를 눌러 뒤집기
       </p>
       {card?.downloadUrl && <a className="mobile-card-page__back" href={card.downloadUrl}>카드 ZIP 다운로드</a>}
-      {lookup?.status === "PHOTO_REJECTED" && <label className="field"><span className="field__label">사진 재업로드</span><input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={async (event) => { const file = event.target.files?.[0]; if (!file || !lookup) return; setUploading(true); const form = new FormData(); form.append("photo", file); try { await api.reuploadPhoto(lookup.applicationId, form); alert("사진이 재업로드되었습니다."); } finally { setUploading(false); } }} /></label>}
+      {lookup?.status === "PHOTO_REJECTED" && (() => {
+        // 스펙 §3.7: 개인은 photo, 단체는 submitFile(ZIP) 파트로 분기한다.
+        const isGroup = lookup.applicationType === "GROUP";
+        return <label className="field">
+          <span className="field__label">{isGroup ? "제출 파일(ZIP) 재업로드" : "사진 재업로드"}</span>
+          {lookup.photoRejectReason && <small className="mobile-card-page__reject">반려 사유: {lookup.photoRejectReason}</small>}
+          <input type="file" accept={isGroup ? ".zip,application/zip,application/x-zip-compressed" : "image/png,image/jpeg,image/webp"} disabled={uploading} onChange={async (event) => {
+            const file = event.target.files?.[0]; if (!file || !lookup) return;
+            setUploading(true);
+            const form = new FormData();
+            form.append(isGroup ? "submitFile" : "photo", file);
+            try { await api.reuploadPhoto(lookup.applicationId, form); alert(isGroup ? "제출 파일이 재업로드되었습니다." : "사진이 재업로드되었습니다."); } finally { setUploading(false); }
+          }} />
+        </label>;
+      })()}
       <Link className="mobile-card-page__back" to="/lookup">신청 조회로 돌아가기</Link>
     </section>
   );

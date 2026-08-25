@@ -5,7 +5,7 @@ import { showToast } from "../../components/ui/toast";
 import { toReviewPost, type ReviewImageRef, type ReviewPost } from "../../data/reviews";
 import { useAuth } from "../../features/auth/AuthContext";
 import { cardTypeIds, cardTypeLabels, type CardType } from "../../data/cards";
-import { api } from "../../services/api";
+import { api, ApiError } from "../../services/api";
 import "./ReviewEditorPage.css";
 
 const MAX_IMAGES = 5;
@@ -90,6 +90,12 @@ export function ReviewEditorPage() {
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
+    // 후기 등록/수정은 서버 인증 세션이 필요하다(POST/PATCH /api/reviews → hasAnyRole). 데모/mock 로그인(source local)은
+    // 서버 쿠키가 없어 제출 시 401이 나므로, 미리 막고 실제 로그인을 안내한다.
+    if (user?.source !== "api") {
+      showToast("후기 작성은 실제 로그인(서버 세션) 후 이용할 수 있습니다. 다시 로그인해 주세요.");
+      return;
+    }
     const data = new FormData(event.currentTarget);
     const applicantType = String(data.get("applicantType")) as "personal" | "organization";
     const cardType = String(data.get("cardType")) as CardType;
@@ -113,7 +119,11 @@ export function ReviewEditorPage() {
         navigate(`/reviews/${created.id}`);
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "후기 저장에 실패했습니다.");
+      if (error instanceof ApiError && error.status === 401) {
+        showToast("로그인이 만료되었습니다. 다시 로그인한 뒤 작성해 주세요.");
+      } else {
+        showToast(error instanceof Error ? error.message : "후기 저장에 실패했습니다.");
+      }
       setSubmitting(false);
     }
   };

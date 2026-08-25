@@ -4,6 +4,7 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";
 import { findCardDesign, honoraryKoreanCards, honoraryCitizenCards, studentCards, visitorCards, cardTypeLabels, cardTypeIds } from "../../data/cards";
 import { toGender, toIssueType, toOrientation, toSchoolType } from "../../features/apply/mappers";
+import { nationalityToIso } from "../../data/countries";
 import { Stepper } from "../../components/apply/Stepper";
 import { CardPreviewPanel } from "../../components/apply/CardPreviewPanel";
 import { StepType } from "../../components/apply/steps/StepType";
@@ -34,10 +35,12 @@ export function ApplyPage() {
 
   const [step, setStep] = useState(0);
   const [applicationNumber, setApplicationNumber] = useState("");
+  const [applicationId, setApplicationId] = useState<number | null>(null);
 
   useEffect(() => {
     setStep(0);
     setApplicationNumber("");
+    setApplicationId(null);
   }, [pathname]);
 
   // The selected design is carried through the URL so it survives refresh.
@@ -74,15 +77,15 @@ export function ApplyPage() {
           ? { sameAsApplicant: draft.recipient.sameAsApplicant, ...(isOrg ? { organizationName: draft.recipient.organizationName, department: draft.recipient.department } : {}), name: draft.recipient.name, phone: draft.recipient.phone, zipCode: draft.recipient.postalCode, address: draft.recipient.address, detailAddress: draft.recipient.addressDetail, deliveryRequest: draft.recipient.deliveryRequest }
           : undefined;
         const request = isOrg ? {
-          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType,
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined,
           applicant: { organizationName: draft.applicant.organizationName, department: draft.applicant.department, name: draft.applicant.name, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
         } : {
-          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType,
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined,
           applicant: { name: draft.applicant.name || draft.applicant.englishName, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
           // 학번·학과는 대학교(UNIVERSITY)에서만 전송한다(고등학교·비학생증은 미전송).
-          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: draft.applicant.nationality, birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: toGender(draft.applicant.gender), entryDate: draft.applicant.koreaEntryDate || undefined, studentId: isStudent && isUniversity ? draft.applicant.studentNumber : undefined, department: isStudent && isUniversity ? draft.applicant.department : undefined },
+          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: nationalityToIso(draft.applicant.nationality), birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: toGender(draft.applicant.gender), entryDate: draft.applicant.koreaEntryDate || undefined, studentId: isStudent && isUniversity ? draft.applicant.studentNumber : undefined, department: isStudent && isUniversity ? draft.applicant.department : undefined },
         };
         const form = new FormData();
         form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
@@ -101,6 +104,7 @@ export function ApplyPage() {
         }
         const result = await api.createApplication(form, isOrg);
         setApplicationNumber(result.applicationNumber);
+        setApplicationId(result.applicationId);
         goTo(4);
     } catch (error) {
       if (error instanceof ApiError && error.errors?.length) {
@@ -165,8 +169,11 @@ export function ApplyPage() {
               <StepComplete
                 draft={draft}
                 applicationNumber={applicationNumber}
-                onDone={() => {
-                  // 입금자명 서버 저장은 별도 엔드포인트 필요(현재 미구현) — 임시 개인정보만 정리한다.
+                onDone={async (depositorName) => {
+                  // 입금자명을 서버에 저장(PATCH /api/applications/{id}/depositor) 후 임시 개인정보 정리.
+                  if (applicationId && depositorName && user?.source === "api") {
+                    try { await api.updateDepositor(applicationId, depositorName); } catch (e) { showToast(e instanceof ApiError ? e.message : "입금자명 저장에 실패했습니다."); }
+                  }
                   clear();
                 }}
               />

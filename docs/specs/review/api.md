@@ -348,7 +348,7 @@ Content-Type: multipart/form-data
 - `keepImageIds`(Long[], ✅ 2026-08-24 신규): 유지할 **기존** 이미지 id를 원하는 순서대로. 최종 이미지 = `keepImageIds`(그 순서) + 새 `image` 파트(뒤에 추가). 타 Review 소유·존재하지 않는 id가 섞이면 `INVALID_INPUT`.
   - `null`(필드 생략) = 기존 전체 유지(레거시 호환).
   - `[]` = 기존 전체 삭제.
-- `removeImage`(boolean, 레거시): `keepImageIds`를 보내면 **무시**된다. `keepImageIds` 미전송(`null`) 시에만 의미 — `true`면 기존 전체 삭제. (단일 이미지 시절 클라이언트 호환용.)
+- `removeImage`(**`Boolean`(래퍼), 선택**, 레거시): `keepImageIds`를 보내면 **무시**된다. `keepImageIds` 미전송(`null`) 시에만 의미 — `true`면 기존 전체 삭제. **생략 가능**(원시 boolean이 아니라 Boolean이라 생략=null=미삭제 — 2026-08-25 프론트가 이 필드를 생략해 400 나던 버그 수정 때 확정). 단일 이미지 시절 클라이언트 호환용.
 - 최종 개수(유지 + 신규)가 5장을 넘으면 `INVALID_INPUT`.
 - 사진 처리: 유지 대상은 재정렬(임시 오프셋+flush로 UNIQUE 충돌 회피), 미유지 기존 이미지는 삭제(커밋 후 S3 정리), 새 파일은 검증(2MB, jpg/jpeg/png/webp) 후 업로드해 뒤에 append. 삭제 직후 `flush()`로 INSERT-before-DELETE 순서 충돌 방지. `Review.image_path`(대표)는 최종 목록의 첫 이미지로 갱신(없으면 `NULL`).
 - **`applicationType`/`cardTypeId`는 수정 화면에서도 그대로 편집 가능한 필드**(readonly 아님 — `ReviewEditorPage.tsx`에서 기존 값이 `defaultChecked`로 미리 채워질 뿐 라디오 버튼 자체는 활성 상태). 따라서 등록 때와 동일하게 **수정 시에도 자격검증을 다시 수행한다** — 자격 판정 기준은 **후기 작성자(`Review.user_id`)의 실제 신청 이력**이다(관리자가 대신 수정하는 경우에도 관리자 본인이 아니라 원 작성자 기준으로 검증).

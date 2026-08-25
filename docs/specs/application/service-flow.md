@@ -1,5 +1,7 @@
 # Application Service Flow
 
+> ⚠️ **정정(2026-08-25):** 학생증 검증이 이 문서보다 최신이다 — 학번(`studentId`)·학과(`department`)는 **`schoolType=UNIVERSITY`일 때만 필수**이고 `HIGH_SCHOOL`이면 값이 있으면 거절(`validateStudentFields`). "학생증이면 무조건 학번·학과 필수"가 아니다. 또한 학생증은 `orientation`/`schoolType`/`schoolName`(2026-08-19 추가, 5~20자) 검증이 있다. 입금자명은 완료 후 `PATCH .../depositor`로 저장.
+
 > 이 문서는 Application 생성 유스케이스의 Service 처리 순서와 책임 경계를 정의한다.
 > 업무 정책은 [requirements.md](requirements.md), 데이터 구조는 [data-model.md](data-model.md), 외부 계약은 [api.md](api.md)를 우선한다.
 

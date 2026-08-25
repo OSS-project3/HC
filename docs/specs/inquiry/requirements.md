@@ -1,5 +1,7 @@
 # Inquiry(1:1 문의) 요구사항 · 정책
 
+> ⚠️ **정정(2026-08-25):** 서두의 "백엔드에 도메인 자체가 아직 없다"는 **더 이상 사실이 아니다.** `Inquiry` 엔티티 + `InquiryController`/`MyInquiryController`/`InquiryAdminController` + `InquiryService` 전부 구현(2026-08-19)·프론트 연동 완료(API 테스트 7/7 통과 — `docs/API_TEST_REPORT.md` §2.5). 아래 API 목록(④)은 실제 구현과 일치한다.
+
 > 백엔드에 도메인 자체가 아직 없다(`Inquiry` 엔티티/Controller 전무, `docs/collab/TODO.md` 진행 보드 참고). 이 문서는 착수 전 정책을 계속 확정해나가는 running 문서다 — 실제 API 요청/응답 JSON, DB 컬럼 상세는 구현 착수 시 `api.md`/`data-model.md`로 분리한다(Board/Review 도메인과 동일 패턴).
 
 ## ① 도메인의 책임

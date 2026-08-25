@@ -109,3 +109,5 @@
     transition-timing-function: cubic-bezier(.18, .72, .22, 1) !important;
   }
 }
+
+.mobile-card-page__reject { display: block; color: #c0392b; font-size: 0.8rem; margin: 4px 0 8px; }

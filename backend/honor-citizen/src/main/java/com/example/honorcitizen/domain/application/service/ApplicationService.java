@@ -544,6 +544,36 @@ public class ApplicationService {
         return ApplicationStatusResponse.of(applicationId, application.getStatus());
     }
 
+    // SUBMITTED(결제 확인됨) → REVIEWING. 결제 확인 전이면 엔티티가 INVALID_STATUS_TRANSITION으로 막는다.
+    @Transactional
+    public ApplicationStatusResponse startReview(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        Application application = findApplication(applicationId);
+        application.startReview();
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.REVIEW_START, applicationId, "검토 시작"));
+        return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
+    // REVIEWING → NAME_EDITING(작명 승인).
+    @Transactional
+    public ApplicationStatusResponse approveToNaming(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        Application application = findApplication(applicationId);
+        application.approveToNaming();
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.NAMING_APPROVE, applicationId, "작명 승인"));
+        return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
+    // SUBMITTED + 결제대기 → 결제확인(paymentStatus만 CONFIRMED로, status는 SUBMITTED 유지).
+    @Transactional
+    public ApplicationStatusResponse confirmPaymentByAdmin(Long adminId, Long applicationId) {
+        confirmPayment(adminId, applicationId);
+        Application application = findApplication(applicationId);
+        return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
     @Transactional
     public ApplicationStatusResponse startProducing(Long adminId, Long applicationId) {
         validateAdmin(adminId);
@@ -658,6 +688,17 @@ public class ApplicationService {
         }
 
         return ApplicationCancelResponse.from(application);
+    }
+
+    // 입금자명 등록/수정 — 신청자 본인만(소유권), 결제 확인 전(엔티티 가드)까지만. 완료 화면에서 호출된다.
+    @Transactional
+    public void updateDepositorName(Long userId, Long applicationId, String depositorName) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        if (!application.isOwnedBy(userId)) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+        application.registerDepositorName(depositorName.trim());
     }
 
     @Transactional

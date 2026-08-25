@@ -12,7 +12,7 @@
 - 신청번호의 날짜별 번호 정책
 - 운영 전 Idempotency-Key 도입 여부
 - 학생증 공백 문자열 정책
-- 학교명 필드 추가 여부
+- ~~학교명 필드 추가 여부~~ → **결정·구현 완료(2026-08-19)**: `Application.schoolName` 추가, 학생증이면 필수(5~20자)
 - quantity 정책
 - 학생증 `department`(학과) 필드를 계속 유지할지, 제외할지 (2026-08-07 추가 — `APPLICATION.md`는 "현재 제외"로 명시했지만 근거가 없고, 사람이 아직 미결정으로 확인. 결정 전까지는 기존대로 필수 필드 유지)
 - ~~일일 KST 3회 제한 DB 원자 처리 미구현~~ (2026-08-07 추가, 2026-08-16 정책 확정+구현 완료 — `checklist.md` §4·§5 항목 중 유일하게 남았던 미구현. `ApplicationDailyLimit`(사용자별·일자별 카운터) + `ApplicationDailyLimitService.reserveSlot/releaseSlot`(비관적 락 + 유니크 제약 충돌 재시도)로 구현. 상세는 `docs/collab/CHANGELOG.md` 2026-08-16 항목 참고)

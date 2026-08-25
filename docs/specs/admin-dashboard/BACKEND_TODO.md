@@ -1,5 +1,7 @@
 # 관리자 페이지 — 필요한 API · 백엔드 이전 데이터 정리 (2026-08-25)
 
+> ⚠️ **정정(2026-08-25):** "⬜ 필요/미구현"으로 적은 **엑셀 내보내기(`POST /api/admin/applications/export`)는 구현·연동 완료**. 상태전이·작명·선택이력·naming-result도 전부 실 API. 남은 백엔드 미구현은 통계(`GET /api/admin/stats`)뿐. 현재 상태는 `docs/FRONTEND_API_GAPS.md` §1.4.
+
 관리 대시보드에서 **아직 백엔드가 없어 프론트/localStorage/mock로 동작하는 부분**을 실제 백엔드로
 옮기기 위한 정리 문서. 현황은 [`STATUS.md`](./STATUS.md), 상세 계약/아키텍처는 [`DESIGN.md`](./DESIGN.md),
 임시 로그인 제거는 [`../../TEMP_ADMIN_LOGIN.md`](../../TEMP_ADMIN_LOGIN.md) 참고.
