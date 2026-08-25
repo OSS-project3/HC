@@ -125,7 +125,9 @@ POST /api/admin/applications/export        // 여러 건을 하나의 엑셀로
   (해외 출생 진태양시 보정은 아직 미적용 — 필요 시 birthCities의 시차로 확장.)
 - ✅ **구성원 조회 API 신설**: `GET /api/admin/applications/{id}/members` — 이름·출신국가·성별·생년월일 등.
   개인=1명/단체=엑셀 행 N명. 작명 화면이 이 데이터로 만세력을 계산하고 멤버별 정보를 표시한다.
-- 🟡 남은 것: **이름 확정 저장(+선택이력 서버 반영)·엑셀 내보내기**는 여전히 미구현(프론트 localStorage로 시연).
+- ✅ **이름 확정 저장·선택이력 = 백엔드 완료**: 대시보드에서 이름 선택 → `POST /api/admin/applications/{id}/members/{mid}/name`로
+  `application_members`에 저장 + `name_selection_stats` +1. **프론트 localStorage 미사용**(데이터 유출 방지). 상세는 [`BACKEND_TODO.md`](./BACKEND_TODO.md).
+- 🟡 남은 것: **엑셀 내보내기(export)** 만 미구현.
 - `manseryeok` npm 패키지도 **별도 라이선스 확인** 후 사용한다.
 - 추가 한계: 데이터가 성(姓) 없는 2글자 이름 700개뿐 → 성명학(획수) 기반 감명이나 성-이름 궁합은 추가 데이터 필요.
 

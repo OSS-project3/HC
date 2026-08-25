@@ -124,6 +124,7 @@ export interface AdminApplicationMember {
   birthDate?: string; birthTime?: string; birthRegion?: string;
   assignedName?: string; assignedHanja?: string;
 }
+export interface NameSelectionStat { name: string; hanja: string; count: number; }
 
 // ── Inquiries (1:1 문의, 고객지원) ───────────────────────────────
 export type InquiryCategory = "PRODUCTION" | "PAYMENT_AND_SHIPPING" | "CARD_ISSUANCE" | "EVENT_COLLABORATION" | "OTHER";
@@ -170,6 +171,10 @@ export const api = {
   listAdminApplications: (params: { status?: ApplicationStatus; page?: number; size?: number } = {}) => request<PageResponse<AdminApplicationListItem>>(`/api/admin/applications${qs({ ...params })}`),
   getAdminApplication: (id: number) => request<AdminApplicationDetail>(`/api/admin/applications/${id}`),
   getAdminApplicationMembers: (id: number) => request<AdminApplicationMember[]>(`/api/admin/applications/${id}/members`),
+  // 인앱 작명 확정 — 서버에 저장(멤버 이름 반영 + 선택이력 +1). 프론트 localStorage 미사용.
+  saveMemberName: (applicationId: number, memberId: number, body: { name: string; hanja?: string; reading?: string; meaning?: string }) =>
+    request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/name`, { method: "POST", body: JSON.stringify(body) }),
+  getNameSelectionStats: () => request<NameSelectionStat[]>("/api/admin/name-selection-stats"),
 
   // Inquiries (1:1 문의) — 관리자 목록/상세/답변/상태
   listAdminInquiries: () => request<InquiryListItem[]>("/api/admin/inquiries"),

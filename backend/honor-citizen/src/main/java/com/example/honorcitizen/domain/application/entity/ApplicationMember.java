@@ -146,6 +146,14 @@ public class ApplicationMember extends BaseTimeEntity {
         this.chineseName = chineseName;
     }
 
+    // 관리자 대시보드 인앱 작명 확정 — 뜻/훈음까지 함께 저장한다(모두 덮어쓴다).
+    public void assignKoreanName(String name, String chineseName, String nameMeaning, String nameInterpretation) {
+        this.name = name;
+        this.chineseName = chineseName;
+        this.nameMeaning = nameMeaning;
+        this.nameInterpretation = nameInterpretation;
+    }
+
     public void updatePhoto(String photoPath) {
         this.photoPath = photoPath;
     }

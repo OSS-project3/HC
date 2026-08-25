@@ -1,9 +1,9 @@
-// 제작신청 관리 — 목록/상세는 실제 API(/api/admin/applications) 연결.
-// 만세력·이름추천·이름확정(+1)·엑셀출력은 백엔드 미구현이라 UI만(mock). 설계: docs/specs/admin-dashboard/DESIGN.md
+// 제작신청 관리 — 목록/상세/구성원은 실제 API. 만세력은 실제 계산(manseryeok).
+// 이름 확정·선택이력은 **백엔드 저장**(프론트 localStorage 미사용). 추천 이름 데이터만 프론트 번들.
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError, type AdminApplicationDetail, type AdminApplicationListItem, type AdminApplicationMember, type ApplicationStatus, type ApplicationType } from "../../../services/api";
 import { showToast } from "../../ui/toast";
-import { clearChosen, getChosen, getSelectionCounts, incrementSelection, mockRecommendations, mockSaju, setChosen, type ChosenName, type MockSaju, type RecommendedName } from "../../../data/adminNamingMock";
+import { mockRecommendations, mockSaju, type MockSaju, type RecommendedName } from "../../../data/adminNamingMock";
 import { computeMemberSaju } from "../../../lib/saju";
 
 const statusLabels: Record<ApplicationStatus, string> = {
@@ -151,9 +151,11 @@ export function ApplicationsSection() {
           {(tab === "INDIVIDUAL" ? [0] : [0, 1, 2]).map((i) => (
             <NamingCard
               key={i}
-              appNumber={`PREVIEW-${tab}`}
+              appId={0}
               index={i}
               isGroup={tab === "GROUP"}
+              counts={{}}
+              onSaved={async () => {}}
               member={{
                 memberId: -1 - i,
                 englishName: tab === "INDIVIDUAL" ? "예시 신청인" : `예시 멤버 ${i + 1}`,
@@ -174,28 +176,39 @@ function genderLabel(g?: "MALE" | "FEMALE"): string | undefined {
   return g === "MALE" ? "남성" : g === "FEMALE" ? "여성" : undefined;
 }
 
-// 신청 상세 + 구성원 작명 플로우. 상세·구성원은 실제 API, 만세력은 실제 계산(manseryeok), 추천 이름은 실제 데이터.
+// 신청 상세 + 구성원 작명 플로우. 상세·구성원·확정저장은 실제 API, 만세력은 실제 계산.
 function ApplicationNaming({ app }: { app: AdminApplicationListItem }) {
   const [detail, setDetail] = useState<AdminApplicationDetail | null>(null);
   const [members, setMembers] = useState<AdminApplicationMember[] | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
+
+  const reloadMembers = useCallback(async () => {
+    setMembers(await api.getAdminApplicationMembers(app.applicationId));
+  }, [app.applicationId]);
+
+  const reloadStats = useCallback(async () => {
+    try {
+      const stats = await api.getNameSelectionStats();
+      setCounts(Object.fromEntries(stats.map((s) => [`${s.name}|${s.hanja}`, s.count])));
+    } catch { /* 통계 실패는 카운트 0으로 표시 */ }
+  }, []);
 
   useEffect(() => {
     let alive = true;
-    Promise.all([
-      api.getAdminApplication(app.applicationId),
-      api.getAdminApplicationMembers(app.applicationId),
-    ])
+    Promise.all([api.getAdminApplication(app.applicationId), api.getAdminApplicationMembers(app.applicationId)])
       .then(([d, m]) => { if (alive) { setDetail(d); setMembers(m); } })
       .catch((e) => { if (alive) setError(e instanceof ApiError ? e.message : "상세를 불러오지 못했습니다."); });
+    void reloadStats();
     return () => { alive = false; };
-  }, [app.applicationId]);
+  }, [app.applicationId, reloadStats]);
 
   if (error) return <p className="admin-panel__note admin-panel__note--error">{error}</p>;
   if (!detail || !members) return <p className="admin-panel__note">상세 불러오는 중…</p>;
 
   const isGroup = detail.applicationType === "GROUP";
   const first = members[0];
+  const onSaved = async () => { await Promise.all([reloadMembers(), reloadStats()]); };
 
   return (
     <div className="admin-naming">
@@ -216,53 +229,59 @@ function ApplicationNaming({ app }: { app: AdminApplicationListItem }) {
       </div>
 
       {members.map((m, i) => (
-        <NamingCard key={m.memberId} appNumber={detail.applicationNumber} index={i} member={m} isGroup={isGroup} />
+        <NamingCard key={m.memberId} appId={app.applicationId} index={i} member={m} isGroup={isGroup} counts={counts} onSaved={onSaved} />
       ))}
       {members.length === 0 && <p className="admin-panel__note">구성원 정보가 없습니다.</p>}
     </div>
   );
 }
 
-function NamingCard({ appNumber, index, member, isGroup }: { appNumber: string; index: number; member: AdminApplicationMember; isGroup: boolean }) {
-  const memberKey = `${appNumber}#${member.memberId}`;
+function NamingCard({ appId, index, member, isGroup, counts, onSaved }: {
+  appId: number; index: number; member: AdminApplicationMember; isGroup: boolean;
+  counts: Record<string, number>; onSaved: () => Promise<void>;
+}) {
+  const memberKey = `${appId}#${member.memberId}`;
   const label = member.englishName || (isGroup ? `멤버 ${index + 1}` : "신청인");
   // 실제 만세력(생년월일/시간). 계산 불가 시 mock로 폴백.
   const realSaju = useMemo(() => computeMemberSaju(member.birthDate, member.birthTime), [member.birthDate, member.birthTime]);
   const saju: MockSaju = useMemo(() => realSaju ?? mockSaju(memberKey), [realSaju, memberKey]);
   const [tick, setTick] = useState(0); // 새로고침 버튼: 증가 시 추천을 다시 뽑는다.
   const recs = useMemo(() => mockRecommendations(memberKey, saju), [memberKey, saju, tick]);
-  const [counts, setCounts] = useState<Record<string, number>>(() => getSelectionCounts());
-  const [chosen, setChosenState] = useState<ChosenName | null>(
-    () => getChosen(memberKey)
-      ?? (member.assignedName
-        ? { id: `${member.assignedName}|${member.assignedHanja ?? ""}`, name: member.assignedName, hanja: member.assignedHanja ?? "" }
-        : null),
-  );
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const choose = (name: RecommendedName) => {
-    const next = incrementSelection(name.id);
-    setCounts((prev) => ({ ...prev, [name.id]: next }));
-    const c: ChosenName = { id: name.id, name: name.name, hanja: name.hanja };
-    setChosen(memberKey, c);
-    setChosenState(c);
-    showToast(`"${name.name}(${name.hanja})" 이름을 확정했습니다. 상태가 '작명 완료'로 변경됩니다.`);
+  // 확정 이름은 서버(member.assignedName)가 소스. 예시(preview) 멤버(음수 id)는 저장하지 않는다.
+  const chosen = member.assignedName ? { name: member.assignedName, hanja: member.assignedHanja ?? "" } : null;
+  const isPreview = member.memberId < 0;
+
+  const choose = async (name: RecommendedName) => {
+    if (isPreview) { showToast("예시 카드입니다. 실제 신청에서 서버에 저장됩니다."); return; }
+    setSaving(true);
+    try {
+      await api.saveMemberName(appId, member.memberId, { name: name.name, hanja: name.hanja, reading: name.reading, meaning: name.meaning });
+      showToast(`"${name.name}(${name.hanja})" 이름을 확정했습니다. (서버 저장 · 선택이력 +1)`);
+      setEditing(false);
+      await onSaved();
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
   };
-
-  const reopen = () => { clearChosen(memberKey); setChosenState(null); };
 
   const metaLine = [member.nationality, genderLabel(member.gender), member.birthDate].filter(Boolean).join(" · ");
 
   // 이름 확정 후: 상태 '작명 완료' + 창을 접어(compact) 노출한다.
-  if (chosen) {
+  if (chosen && !editing) {
     return (
       <div className="admin-naming__card is-done">
         <div className="admin-naming__card-head">
           <div className="admin-naming__head-left"><b>{label}</b><span className="admin__status-pill is-completed">작명 완료</span></div>
-          <button type="button" className="admin__btn" onClick={reopen}>다시 선택</button>
+          <button type="button" className="admin__btn" onClick={() => setEditing(true)}>다시 선택</button>
         </div>
         <div className="admin-naming__done">
           <span className="admin-naming__done-name">{chosen.name}{chosen.hanja && <em>{chosen.hanja}</em>}</span>
-          <span className="admin__muted">확정된 이름</span>
+          <span className="admin__muted">확정된 이름 (서버 저장)</span>
         </div>
       </div>
     );
@@ -273,7 +292,7 @@ function NamingCard({ appNumber, index, member, isGroup }: { appNumber: string; 
       <div className="admin-naming__card-head">
         <div className="admin-naming__head-left">
           <b>{label}</b>
-          <span className="admin__status-pill is-waiting">접수</span>
+          <span className={`admin__status-pill ${chosen ? "is-completed" : "is-waiting"}`}>{chosen ? "작명 완료" : "접수"}</span>
         </div>
         <span className="admin__muted">{metaLine}{realSaju ? "" : (metaLine ? " · " : "") + "만세력 mock"}</span>
       </div>
@@ -316,8 +335,8 @@ function NamingCard({ appNumber, index, member, isGroup }: { appNumber: string; 
             </div>
             <div className="admin-naming__rec-sub">{n.reading} — {n.meaning}</div>
             <div className="admin-naming__rec-foot">
-              <span className="admin__muted">선택 이력 {counts[n.id] ?? 0}회</span>
-              <button type="button" className="admin__btn admin__btn--primary" onClick={() => choose(n)}>이 이름 선택</button>
+              <span className="admin__muted">선택 이력 {counts[`${n.name}|${n.hanja}`] ?? 0}회</span>
+              <button type="button" className="admin__btn admin__btn--primary" disabled={saving} onClick={() => choose(n)}>이 이름 선택</button>
             </div>
           </li>
         ))}

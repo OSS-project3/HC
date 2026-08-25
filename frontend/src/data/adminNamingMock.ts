@@ -107,45 +107,7 @@ export function mockRecommendations(_seed: string, saju: MockSaju, limit = 8): R
   }));
 }
 
-// ── 이름 선택 이력(+1) — 실제 API가 없어 localStorage로 시연 ──────────────
-const SELECTION_KEY = "admin:name-selection-counts";
-
-export function getSelectionCounts(): Record<string, number> {
-  try {
-    return JSON.parse(localStorage.getItem(SELECTION_KEY) || "{}") as Record<string, number>;
-  } catch {
-    return {};
-  }
-}
-
-export function incrementSelection(nameId: string): number {
-  const counts = getSelectionCounts();
-  counts[nameId] = (counts[nameId] ?? 0) + 1;
-  localStorage.setItem(SELECTION_KEY, JSON.stringify(counts));
-  return counts[nameId];
-}
-
-// ── 멤버별 확정 이름(작명 완료 상태) — 실제 API가 없어 localStorage로 시연/영속 ─────────
-const CHOSEN_KEY = "admin:member-chosen-names";
-export interface ChosenName { id: string; name: string; hanja: string; }
-
-function readChosen(): Record<string, ChosenName> {
-  try {
-    return JSON.parse(localStorage.getItem(CHOSEN_KEY) || "{}") as Record<string, ChosenName>;
-  } catch {
-    return {};
-  }
-}
-export function getChosen(memberKey: string): ChosenName | null {
-  return readChosen()[memberKey] ?? null;
-}
-export function setChosen(memberKey: string, chosen: ChosenName): void {
-  const all = readChosen();
-  all[memberKey] = chosen;
-  localStorage.setItem(CHOSEN_KEY, JSON.stringify(all));
-}
-export function clearChosen(memberKey: string): void {
-  const all = readChosen();
-  delete all[memberKey];
-  localStorage.setItem(CHOSEN_KEY, JSON.stringify(all));
-}
+// 확정 이름과 선택 이력은 이제 **백엔드에 저장**한다(프론트 localStorage 미사용, 데이터 유출 방지):
+//  - 확정: POST /api/admin/applications/{id}/members/{mid}/name → application_members.name/chinese_name
+//  - 선택이력: 위 호출이 name_selection_stats +1, GET /api/admin/name-selection-stats로 조회
+// (기존 localStorage helper getSelectionCounts/incrementSelection/getChosen/setChosen/clearChosen 제거)

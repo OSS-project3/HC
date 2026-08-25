@@ -8,6 +8,7 @@ import com.example.honorcitizen.domain.application.dto.ApplicationStatusResponse
 import com.example.honorcitizen.domain.application.dto.DispatchRequest;
 import com.example.honorcitizen.domain.application.dto.MyApplicationDetailResponse;
 import com.example.honorcitizen.domain.application.dto.MyApplicationListItemResponse;
+import com.example.honorcitizen.domain.application.dto.NameAssignRequest;
 import com.example.honorcitizen.domain.application.dto.NamingResultApplyResponse;
 import com.example.honorcitizen.domain.application.dto.RejectPhotoRequest;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
@@ -62,6 +63,18 @@ public class AdminApplicationController {
             @PathVariable Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.getApplicationMembersForAdmin(adminId, applicationId)));
+    }
+
+    // 인앱 작명 확정 — 선택한 추천 이름을 구성원에 저장하고 선택 이력(+1)을 DB에 남긴다(프론트 localStorage 미사용).
+    @PostMapping("/{applicationId}/members/{memberId}/name")
+    public ResponseEntity<ApiResponse<Void>> assignName(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody NameAssignRequest request) {
+        applicationService.assignMemberName(adminId, applicationId, memberId,
+                request.getName(), request.getHanja(), request.getReading(), request.getMeaning());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     // saju 프로그램이 돌려준 "사주이름 포함" 엑셀을 업로드해 구성원 한글이름을 반영한다.

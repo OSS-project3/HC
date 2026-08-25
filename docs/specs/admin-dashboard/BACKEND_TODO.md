@@ -33,21 +33,19 @@
 
 ---
 
-## ⚠️ 결정 필요 — 작명 방식이 2가지로 갈림
+## 작명 방식 — 두 경로 공존 (둘 다 DB 저장)
 
-현재 저장소에 **작명 흐름이 두 갈래**로 존재한다. 하나로 통일해야 한다.
+작명 결과를 DB에 넣는 경로가 두 가지이며, **둘 다 `application_members`에 저장**되어 공존 가능하다.
 
-| | (A) 엑셀 왕복 — 협업자 백엔드 | (B) 인앱 추천 — 관리자 대시보드(현) |
+| | (A) 엑셀 왕복 | (B) 인앱 추천·선택 (현 대시보드) |
 |---|---|---|
 | 추천/작명 주체 | **외부 saju 프로그램**(05solar/saju web) | **브라우저**(manseryeok + 번들 700개) |
-| DB 저장 | ✅ `naming-result` 업로드로 반영 | ❌ localStorage만 |
-| 필요한 것 | **엑셀 export 엔드포인트**(현재 없음) + 프론트 업로드 UI | 이름사전 DB + 추천 API + 확정 저장 API |
-| 장점 | 이미 DB 반영됨, 작명 로직 외부 위임 | 관리자가 화면에서 즉시 확인·선택 |
+| DB 저장 | ✅ `naming-result` 엑셀 업로드 | ✅ `POST .../members/{mid}/name`(API-2) |
+| localStorage | 미사용 | **미사용**(제거 완료) |
+| 남은 것 | 엑셀 **export** 엔드포인트 + 프론트 업로드 UI | (핵심 완료) 추천/만세력까지 백엔드로 옮길지는 선택 |
 
-- (A)로 갈 경우: 대시보드의 인앱 추천/만세력/700개 번들은 **미리보기 보조**로 강등되고,
-  "엑셀 내보내기(export)"와 "결과 업로드" UI를 붙이면 된다. → 남은 백엔드 = **export 엔드포인트만**.
-- (B)로 갈 경우: 아래 §1 API-1~2 + §2 DATA-1·3·4를 구현해 인앱에서 DB까지 저장.
-- 절충: 대시보드에서 추천·선택(B) 후, 그 결과를 `naming-result`와 동일 포맷으로 서버에 반영하는 확정 API를 추가.
+- 두 경로 모두 최종적으로 구성원 한글/한자 이름을 DB에 반영하므로, 운영에서 병행하거나 하나를 선택해도 된다.
+- 공통으로 필요한 것은 **엑셀 내보내기(export)** 하나 — (A)는 saju 입력·결과 왕복에, (B)는 완료 명단 export에 쓴다.
 
 ---
 
@@ -56,16 +54,18 @@
 | # | 엔드포인트 | 용도 | 난이도 | 상태/선행 |
 |---|---|---|---|---|
 | API-0 | `POST .../{id}/naming-result` (엑셀 업로드) | saju 결과 엑셀로 이름 DB 반영 | — | ✅ **완료**(원격) |
-| API-3 | `POST /api/admin/applications/export` | 신청/구성원 명단 엑셀 내보내기(saju 입력용/결과용) | 🟡 | ⬜ **필요**(A·B 공통) |
-| API-1 | `GET .../{id}/members/{mid}/name-recommendations?limit=8` | 인앱 오행 결핍 기반 추천 | 🟡 | ⬜ (B) 선택 시 · DATA-1,4 |
-| API-2 | `POST .../{id}/members/{mid}/name` | 인앱 이름 확정 저장 + 선택이력 +1 | 🟢 | ⬜ (B) 선택 시 · DATA-3 |
-| API-4 | 만세력 계산 경로 — 사이드카 or 프론트 유지 | 4주·오행 분포 | 🔴/⬜ | ⬜ (B) 선택 시 |
+| API-2 | `POST .../{id}/members/{mid}/name` | 인앱 이름 확정 저장 → `application_members.name/chinese_name` + `name_selection_stats` +1 | 🟢 | ✅ **완료** |
+| API-2b | `GET /api/admin/name-selection-stats` | 이름별 선택 이력 카운트 조회 | 🟢 | ✅ **완료** |
+| API-3 | `POST /api/admin/applications/export` | 신청/구성원 명단 엑셀 내보내기 | 🟡 | ⬜ **필요**(공통) |
+| API-1 | `GET .../{id}/members/{mid}/name-recommendations?limit=8` | 추천을 백엔드로(현재 프론트 계산) | 🟡 | ⬜ 선택 · DATA-1,4 |
+| API-4 | 만세력 계산 경로 — 사이드카 or 프론트 유지 | 4주·오행 분포 | 🔴/⬜ | ⬜ 선택 |
 | API-5 | 상태 전이(반려/제작/발급/배송/작명완료) | 신청 상태 관리 | — | ✅ **완료**(원격, §0.1) |
 | API-6 | `GET /api/admin/reviews` | 후기 모더레이션 목록(숨김 포함) | 🟢 | ⬜ 선택 |
 | API-7 | 관리자 승격 경로(정식) | 임시 로그인/시드 대체 | 🟡 | ⬜ 운영 전 필수 |
 
-> **가장 시급/공통: API-3(엑셀 내보내기)** — (A)엔 saju 프로그램 입력·결과 왕복에 필요하고, (B)에도 명단 export에 필요.
-> 프론트 대시보드의 "엑셀 내보내기" 버튼은 현재 이 엔드포인트가 없어 안내만 뜬다.
+> **✅ 확정 저장/선택이력은 백엔드로 완료** — 대시보드에서 이름을 선택하면 서버(DB)에 저장되고
+> 프론트 localStorage를 전혀 쓰지 않는다(데이터 유출 방지). 확정 여부는 서버 `member.assignedName`로 판정.
+> **남은 공통 과제: API-3(엑셀 내보내기)** — 프론트 "엑셀 내보내기" 버튼이 이것만 붙이면 동작한다.
 
 ### API-1 이름 추천
 ```
@@ -109,21 +109,25 @@ POST /api/admin/applications/export
 
 | # | 데이터 | 현재 위치 | 이전 대상 | 난이도 |
 |---|---|---|---|---|
-| DATA-1 | 미리 지어진 이름 700개(한자·자원/발음오행·뜻) | 프론트 번들 `frontend/src/data/sajuNames.json` | DB 테이블 `saju_names` + 시드 | 🟢 |
-| DATA-2 | 확정(선택)된 이름 | 브라우저 localStorage `admin:member-chosen-names` | `application_members.name/chinese_name` — **엑셀 업로드(API-0)로는 이미 반영 가능**. 대시보드 인앱 선택은 아직 미연동 | 🟢 |
-| DATA-3 | 이름 선택 이력(+1 카운트) | 브라우저 localStorage `admin:name-selection-counts` | DB 테이블 `name_selection_*` | 🟢 |
-| DATA-4 | 추천 점수화 로직 | 프론트 `adminNamingMock.ts` | 백엔드 `@Service`(recommend.py 이식) | 🟡 |
-| DATA-5 | 만세력 계산 로직 | 프론트 `lib/saju.ts`(manseryeok) | (API-4 참조) | 🔴/유지 |
+| DATA-2 | 확정(선택)된 이름 | ~~localStorage~~ → **DB** | ✅ **완료** — `application_members.name/chinese_name`(API-2). localStorage 제거됨 |
+| DATA-3 | 이름 선택 이력(+1 카운트) | ~~localStorage~~ → **DB** | ✅ **완료** — 신규 테이블 `name_selection_stats`(API-2/2b) |
+| DATA-1 | 미리 지어진 이름 700개(한자·오행·뜻) | 프론트 번들 `sajuNames.json` | ⬜ 선택 — DB 테이블 `saju_names`로 옮겨 추천을 백엔드화할 때 |
+| DATA-4 | 추천 점수화 로직 | 프론트 `adminNamingMock.ts` | ⬜ 선택 — 백엔드 `@Service`(recommend.py 이식) |
+| DATA-5 | 만세력 계산 로직 | 프론트 `lib/saju.ts`(manseryeok) | ⬜ 선택 — (API-4 참조) |
 
-> 현재 DB 확인 결과: 이름 사전 테이블 **없음**, `application_members`의 확정 이름 컬럼 **전부 NULL**
-> (선택해도 DB에 안 써지고 localStorage에만 저장됨).
+> ✅ 확정 이름·선택이력은 **DB 저장으로 이전 완료**(프론트 localStorage 미사용).
+> DATA-1/4/5(추천 후보·점수화·만세력)는 여전히 프론트에서 처리한다. 이것까지 백엔드로 옮길지는 선택 사항.
 
 ---
 
-## 3. 제안 데이터 모델(신규 테이블)
+## 3. 데이터 모델
+
+> ✅ **구현됨**: `name_selection_stats(id, name, hanja, selected_count, ...)` — 이름별 선택 카운트(ddl-auto로 자동 생성).
+> 확정 이름은 기존 `application_members.name/chinese_name/name_meaning/name_interpretation`에 저장(엔티티 `assignKoreanName`).
+> 아래 `saju_names`는 추천을 백엔드로 옮길 때만 필요(현재는 프론트 번들).
 
 ```sql
--- DATA-1: 이름 사전 (sajuNames.json 이관)
+-- (선택) DATA-1: 이름 사전 (sajuNames.json 이관) — 추천을 백엔드화할 때
 CREATE TABLE saju_names (
   id           BIGSERIAL PRIMARY KEY,
   name         VARCHAR(10)  NOT NULL,   -- 한글 이름
@@ -154,16 +158,13 @@ CREATE TABLE name_selection_log (
 
 ## 4. 권장 진행 순서
 
-0. **먼저 결정**: 작명 방식 (A) 엑셀 왕복 vs (B) 인앱 추천 — 위 "⚠️ 결정 필요" 참고.
-1. **API-3 엑셀 내보내기** — 어느 방식이든 필요. (A)는 saju 프로그램 입력/결과 왕복, (B)는 명단 export.
-   현재 프론트 "엑셀 내보내기" 버튼이 이 엔드포인트만 붙이면 동작한다.
-2. (A) 선택 시: 프론트에 **결과 엑셀 업로드 UI** 추가 → 기존 `API-0(naming-result)` 연결. 인앱 추천/만세력은 미리보기로.
-3. (B) 선택 시: **DATA-1**(이름사전 DB) → **API-1**(추천) → **API-2 + DATA-3**(확정 저장 + 선택이력).
-   만세력은 우선 **API-4 (c) 프론트 유지**.
-4. 운영 직전 **API-7**(관리자 승격) + 임시 로그인·시드 제거.
+1. **API-3 엑셀 내보내기** — 남은 공통 최우선. 프론트 "엑셀 내보내기" 버튼이 이것만 붙이면 동작.
+2. **프론트 연동**: 상태 전이 버튼(백엔드 ✅ 완료) 대시보드에 붙이기. (엑셀 왕복도 쓰려면 결과 업로드 UI 추가.)
+3. 운영 직전 **API-7**(관리자 승격) + 임시 로그인·시드 제거.
+4. (선택) 추천 후보·점수화·만세력까지 백엔드로 — DATA-1/4/5 + API-1/4.
 
-> 상태 전이(API-5)와 이름 DB 반영(API-0)은 이미 완료 — 프론트에서 **상태 전이 버튼**과
-> **결과 업로드**만 연결하면 큰 그림이 돌아간다.
+> ✅ 이미 완료: 상태 전이(API-5), 이름 DB 반영(API-0 엑셀 / API-2 인앱), 선택이력(API-2/2b).
+> 확정 이름·선택이력은 **프론트 localStorage를 쓰지 않고 전부 DB에 저장**된다.
 
 ---
 

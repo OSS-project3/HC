@@ -13,6 +13,9 @@ import com.example.honorcitizen.common.exception.ValidationErrorDetail;
 import com.example.honorcitizen.common.enums.LookupMethod;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
+import com.example.honorcitizen.domain.application.dto.NameSelectionStatResponse;
+import com.example.honorcitizen.domain.application.entity.NameSelectionStat;
+import com.example.honorcitizen.domain.application.repository.NameSelectionStatRepository;
 import com.example.honorcitizen.domain.application.dto.ApplicationCancelResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateResponse;
@@ -112,6 +115,7 @@ public class ApplicationService {
     private final UploadFileRepository uploadFileRepository;
     private final AdminActivityLogRepository adminActivityLogRepository;
     private final NamingResultExcelParser namingResultExcelParser;
+    private final NameSelectionStatRepository nameSelectionStatRepository;
     private final UserService userService;
     // 트랜잭션 경계를 위한 별도 Bean — 위 클래스 주석의 self-invocation 문제 참고
     private final ApplicationPersistenceService applicationPersistenceService;
@@ -418,6 +422,38 @@ public class ApplicationService {
                 .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
         return applicationMemberRepository.findByApplicationId(applicationId).stream()
                 .map(AdminApplicationMemberResponse::from)
+                .toList();
+    }
+
+    /**
+     * 관리자 대시보드 인앱 작명 확정 — 선택한 추천 이름을 구성원에 저장하고 선택 이력(+1)을 DB에 남긴다.
+     * 프론트 localStorage가 아니라 서버에 저장해 데이터 유출을 막는다.
+     */
+    @Transactional
+    public void assignMemberName(Long adminId, Long applicationId, Long memberId,
+            String name, String hanja, String reading, String meaning) {
+        validateAdmin(adminId);
+        ApplicationMember member = applicationMemberRepository.findById(memberId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        if (!member.getApplicationId().equals(applicationId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        String safeHanja = hanja == null ? "" : hanja;
+        member.assignKoreanName(name, safeHanja.isEmpty() ? null : safeHanja, meaning, reading);
+
+        // 이름(한글+한자)별 선택 이력 +1 — 없으면 생성.
+        NameSelectionStat stat = nameSelectionStatRepository.findByNameAndHanja(name, safeHanja)
+                .orElseGet(() -> NameSelectionStat.create(name, safeHanja));
+        stat.increment();
+        nameSelectionStatRepository.save(stat);
+    }
+
+    /** 이름별 선택 이력 카운트 전체 — 작명 화면의 "선택 이력 N회" 표시용. */
+    @Transactional(readOnly = true)
+    public List<NameSelectionStatResponse> getNameSelectionStats(Long adminId) {
+        validateAdmin(adminId);
+        return nameSelectionStatRepository.findAll().stream()
+                .map(NameSelectionStatResponse::from)
                 .toList();
     }
 
