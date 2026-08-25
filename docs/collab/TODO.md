@@ -1037,12 +1037,13 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 - [x] 에셋을 `backend/honor-citizen/src/main/resources/card-templates/`로 복사(HONOR_CITIZEN/HONOR_KOREAN/VISITOR + fonts)
 - [x] 좌표 변환식 역산·검증(위 "좌표계 검증 완료" 참고), 팔레트 PNG 색상 버그 해결법 확정
-- [ ] `CardFieldDefinition`(record) + 카드종류별 필드 좌표 상수(이름/영문명/사진/카드번호/주소/발급일자/타이틀만 — 직인·발행처 제외)
-- [ ] `CardImageCompositor` 서비스 — 배경+타이틀+사진 합성, 텍스트 렌더링(폰트 적용), Toolkit 기반 이미지 로딩
-- [ ] 명예한국인증 검증됐으니 명예시민증/방문증도 동일 패턴 적용(방문증은 PORTRAIT 치수 주의, 카드종류별로 위치값 다름)
-- [ ] 명예한국인증 앞면 타이틀(`타이틀.png`) 누락 — 사용자가 saju 폴더에 추가하기로 함, 확인 후 반영(그 전까지는 텍스트 폴백 유지)
-- [ ] 방문증/1(앞뒤 구분 불가)은 스킵, 나머지 17개 디자인으로 진행
-- [ ] 카드번호·발급일자는 `ApplicationMember.cardNumber`/`issueDate`에 이미 필드 있음(세터만 필요) — 카드번호는 무작위 생성+유일성 재시도
-- [ ] 테스트 — 합성 결과 이미지 크기·비어있지 않음 등 구조적 검증(픽셀 완전일치는 텍스트 렌더링 특성상 어려움) + 육안 확인 스크린샷 별도 첨부
-- [ ] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인
-- [ ] 완료 후 `CHANGELOG.md` 항목 추가, 본 섹션 상태 ✅로 변경
+- [x] `CardFieldOffset`/`CardLayout`(record) + `CardLayouts`(카드종류별 필드 좌표 상수 — 이름/영문명/사진/카드번호/주소/발급일자/타이틀만, 직인·발행처 제외)
+- [x] `CardImageCompositor` 서비스 — 배경+타이틀(이미지 또는 텍스트 폴백)+사진(cover-fit)+텍스트 필드 합성, Toolkit 기반 이미지 로딩, 파일명 별칭 해석(앞면/사진 후보 목록)
+- [x] 명예시민증/방문증도 동일 엔진으로 렌더링 확인(방문증 PORTRAIT 치수 정상 동작) — 육안 확인 스크린샷으로 검증(명예한국인증-1·명예시민증-1·방문증-2·명예한국인증-6)
+- [x] 명예한국인증 앞면 타이틀(`타이틀.png`) 누락 — 파일 없으면 텍스트로 폴백하도록 구현(파일 추가되면 자동으로 이미지 우선 사용)
+- [x] 테스트 — `CardImageCompositorTest`(8개, 구조적 검증: PNG 유효성·크기·예외·별칭해석·cover-fit) + `CardImageCompositorVisualDumpTest`(@Disabled, 수동 육안검증용)
+- [x] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인(621개, 1 skipped[visual dump], 실패 0)
+- [x] 방문증/1 위험 처리 — "대지 1.png"가 앞면 후보 목록에 있어 앞뒤 미확인 상태로도 "성공"해버리는 문제를 발견해 `isUnverifiedDesign()` 가드로 명시적 차단(`INVALID_INPUT`), 테스트로 고정
+- [ ] 카드번호·발급일자 확정 저장: `ApplicationMember.cardNumber`/`issueDate`/`cardFrontPath`에 이미 필드는 있으나 세터(mutator)가 없음 — 카드번호 무작위 생성+유일성 정책도 미구현
+- [ ] 관리자 API 엔드포인트(신청/멤버 → 카드 합성 → 저장 → 프론트 미리보기) 미구현 — 이번 범위는 합성 엔진까지, API 배선은 별도 작업
+- [ ] 완료 후 `CHANGELOG.md` 항목 추가(엔진 부분만), 본 섹션은 API 배선까지 끝나야 ✅
