@@ -187,7 +187,8 @@
 .admin-naming__subtitle { font-size: 13px; color: var(--color-text-secondary); }
 /* 상태 관리 액션 바 */
 .admin-naming__status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 8px; background: var(--color-surface-soft); border: 1px solid var(--color-border-soft); border-radius: 8px; }
-.admin-naming__status-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.admin-naming__status-select { margin-left: auto; width: auto; max-width: 260px; padding: 8px 12px; cursor: pointer; }
+.admin-naming__status-select:disabled { cursor: default; opacity: 0.7; }
 .admin-naming__mock-banner { font-size: 13px; color: #9a6a1c; background: #fbf3e2; border-radius: 6px; padding: 10px 12px; line-height: 1.55; }
 .admin-naming__card { border: 1px solid var(--color-border-soft); border-radius: 8px; padding: 16px; background: var(--color-surface); }
 .admin-naming__card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }

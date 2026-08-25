@@ -258,12 +258,16 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
         <span className="admin-naming__subtitle">상태 관리</span>
         <span className="admin__badge">{statusLabels[s]}</span>
         {detail.physicalDispatchedAt && <span className="admin__muted">발송됨</span>}
-        <span className="admin-naming__status-actions">
-          {statusActions.map((a) => (
-            <button key={a.label} type="button" className={`admin__btn ${a.danger ? "admin__btn--danger" : "admin__btn--primary"}`} disabled={statusBusy} onClick={() => runStatus(a.label, a.call)}>{a.label}</button>
-          ))}
-          {statusActions.length === 0 && <span className="admin__muted">이 상태에서 진행할 전이가 없습니다.</span>}
-        </span>
+        <select
+          className="field__select admin-naming__status-select"
+          aria-label="상태 변경"
+          value=""
+          disabled={statusBusy || statusActions.length === 0}
+          onChange={(e) => { const a = statusActions.find((x) => x.label === e.target.value); if (a) void runStatus(a.label, a.call); }}
+        >
+          <option value="" disabled>{statusActions.length ? "상태 변경 선택…" : "가능한 전이 없음"}</option>
+          {statusActions.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}
+        </select>
       </div>
 
       {members.map((m, i) => (
