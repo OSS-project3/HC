@@ -895,7 +895,7 @@ Factory, Validator, Context 등 새로운 클래스를 추가하기 전에 반�
 
 ## 관리자 신청 엑셀 내보내기 API (2026-08-25)
 
-상태: 🔵 진행중 (담당: Claude)
+상태: ✅ 완료 (담당: Claude)
 
 배경: `docs/specs/admin-dashboard/DESIGN.md` §2.4에 이미 계약이 적혀있고(`POST /api/admin/applications/export`,
 body `{applicationIds, type}` → xlsx), lotus05f님 프론트가 이미 이 엔드포인트를 호출하도록 버튼까지
@@ -919,10 +919,10 @@ body `{applicationIds, type}` → xlsx), lotus05f님 프론트가 이미 이 엔
 
 ### 구현 체크리스트
 
-- [ ] `ApplicationExportRequest` DTO 신규(`applicationIds: List<Long>`, `type: ApplicationType`)
-- [ ] `ApplicationExportExcelBuilder` 신규(POI 쓰기 유틸) — `buildIndividualWorkbook(...)`, `appendNamesToGroupWorkbook(byte[] original, List<ApplicationMember> members)`
-- [ ] `ApplicationService.exportExcel(adminId, applicationIds, type) -> byte[]` — validateAdmin, 빈 목록/타입 불일치/GROUP 2건 이상 검증, INDIVIDUAL/GROUP 분기
-- [ ] `AdminApplicationController`에 `POST /api/admin/applications/export` 추가 — `ResponseEntity<byte[]>` + `Content-Disposition`/xlsx `Content-Type`
-- [ ] 테스트 먼저 작성(TDD) — 빌더 단위 테스트(개인 시트 레이아웃, 단체 append 후 원본 셀 보존), 서비스 테스트(검증 가드·매칭), 컨트롤러 테스트(HTTP 배선)
-- [ ] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인
-- [ ] 완료 후 `CHANGELOG.md` 항목 추가, 본 섹션 상태 ✅로 변경
+- [x] `ApplicationExportRequest` DTO 신규(`applicationIds: List<Long>`, `type: ApplicationType`)
+- [x] `ApplicationExportExcelBuilder` 신규(POI 쓰기 유틸) — `buildIndividualWorkbook(...)`, `appendNamesToGroupWorkbook(byte[] original, List<ApplicationMember> members)`
+- [x] `ApplicationService.exportExcel(adminId, applicationIds, type) -> byte[]` — validateAdmin, 빈 목록/타입 불일치/GROUP 2건 이상 검증, INDIVIDUAL/GROUP 분기
+- [x] `AdminApplicationController`에 `POST /api/admin/applications/export` 추가 — `ResponseEntity<byte[]>` + `Content-Disposition`/xlsx `Content-Type`
+- [x] 테스트 먼저 작성(TDD) — `ApplicationExportExcelBuilderTest`(신규 5개), `ApplicationServiceExportTest`(신규 5개), `AdminApplicationControllerTest`(+3)
+- [x] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인(608개, 실패 0). 참고: 이 작업 도중 Docker Desktop이 재차 죽었다 살아남(세션 중 2번째, 원인 불명 — redis-test 컨테이너를 `docker start`로 재기동해 해소, 코드 문제 아님)
+- [x] 완료 후 `CHANGELOG.md` 항목 추가, 본 섹션 상태 ✅로 변경

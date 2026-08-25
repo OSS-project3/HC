@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-25 — Claude — `main` (관리자 신청 엑셀 내보내기 API)
+
+- 변경: `POST /api/admin/applications/export`(DESIGN.md §2.4, 프론트가 이미 버튼까지 만들어둔 계약) 구현. INDIVIDUAL은 DB 값으로 새 워크북(단체신청 템플릿과 동일 컬럼)을 만들어 여러 건을 한 시트에, GROUP은 신청 시 업로드된 원본 ZIP의 xlsx를 그대로 열어 이름·한자 컬럼만 append(원본 서식·병합셀 보존). GROUP은 신청마다 원본 서식이 달라 여러 건을 하나의 워크북으로 안전하게 합칠 수 없어 정확히 1건만 허용(2건 이상은 `INVALID_INPUT`) — 프론트가 GROUP 탭에서 전체 행을 한 번에 보내는 지금 동작과 안 맞아 lotus05f님께 별도 전달 필요.
+- 파일: `ApplicationExportRequest.java`(신규 DTO), `ApplicationExportExcelBuilder.java`(신규, POI 쓰기 유틸), `ApplicationService.java`(`exportExcel`), `AdminApplicationController.java`(`POST /export`), 테스트 3개 파일(신규 `ApplicationExportExcelBuilderTest`/`ApplicationServiceExportTest` 포함)
+- 사유: 어느 작명 경로(엑셀 왕복/인앱)를 택하든 공통으로 필요한 마지막 조각이라 다른 정책 결정과 무관하게 우선 진행(BACKEND_TODO.md 자체 우선순위 1번).
+- 검증: `./gradlew.bat test`(REDIS_PORT=6400) 전체 608개 통과(실패 0).
+- 관련: TODO "관리자 신청 엑셀 내보내기 API"
+
 ## 2026-08-25 — Claude — `main` (관리자 신청 상태 전이 API)
 
 - 변경: 사진반려/제작시작/카드발급/실물배송/작명완료 5개 상태 전이를 관리자 API로 노출했다. 전이 규칙 자체는 이미 있던 `Application` 엔티티 메서드를 그대로 호출만 하고 재구현하지 않았다. 실물배송 처리 시 운송장번호를 `AdminActivityLog`가 아니라 `Application.trackingNumber`(신규 nullable 컬럼)에 별도 저장하도록 정책 확정. 어제 만든 `applyNamingResult`(naming-result API)가 로그를 전혀 안 남기고 있던 걸 발견해, 멤버별 `KOREAN_NAME_REGISTER`/`KOREAN_NAME_UPDATE`(신규/덮어쓰기 구분)를 추가했다. `completeNaming()`(상태 전이 자체)은 이름 저장과 의미가 달라 별도 신규 상수 `NAMING_COMPLETE`로 기록해 중복 로그를 피했다. `startProducing()`용 `PRODUCTION_START` 상수도 신규 추가.
