@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -18,10 +19,12 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 // 실제 카드 발급 대상자 1명 = 1 row. 개인 신청은 Application 1개당 이 row가 1개, 단체 신청은
-// 제출 ZIP 엑셀의 데이터 행 수만큼(N개) 생성된다. email/phone/address는 단체(createGroupRow)에서만
+// 제출 ZIP 엑셀의 데이터 행 수만큼(N개) 생성된다. email/phone은 단체(createGroupRow)에서만
 // 채워짐 — 개인 신청은 이 정보를 Applicant가 대신 갖고 있어서 여기선 null.
+// address는 카드 표기용 주소 — 단체는 엑셀 행에서, 개인은 신청 입력값에서 채워진다(admin-saju.md 참고).
 @Entity
-@Table(name = "application_members")
+@Table(name = "application_members",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"application_id", "photo_number"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ApplicationMember extends BaseTimeEntity {
@@ -58,9 +61,19 @@ public class ApplicationMember extends BaseTimeEntity {
     @Column(length = 500)
     private String photoPath;
 
-    // 단체 신청(createGroupRow)에서만 채워짐 — 엑셀의 "주소" 컬럼. 개인은 항상 null
+    // 카드에 인쇄되는 주소. 단체는 엑셀의 "주소" 컬럼, 개인은 신청 입력값(학생증 제외)에서 채워진다.
     @Column(length = 255)
     private String address;
+
+    // 관리자가 작명 단계에서 확정하는 한글 성씨(1~2글자) — NAME_EDITING 중 nullable, completeNaming()
+    // 실행 시 필수가 된다(검증은 1-B에서 추가). 카드의 한글 이름은 surname + name으로 조합한다.
+    @Column(length = 10)
+    private String surname;
+
+    // 단체 신청 Excel의 고정 사진 번호(예: "001") — 단체는 필수, 개인은 항상 null.
+    // (application_id, photo_number) 조합이 유일해야 관리자 카드번호 일괄 입력에서 행을 정확히 매칭할 수 있다.
+    @Column(length = 10)
+    private String photoNumber;
 
     @Column(nullable = false)
     private LocalDate birthDate;
@@ -110,9 +123,19 @@ public class ApplicationMember extends BaseTimeEntity {
     @Column(length = 500)
     private String cardBackPath;
 
+    // 기존 호출부(카드 표기 주소 없이 생성하던 개인 신청 흐름 이전 코드)와의 하위 호환용.
     public static ApplicationMember createIndividual(Long applicationId, String englishName,
             LocalDate birthDate, String nationality, LocalTime birthTime, String birthRegion,
             Gender gender, LocalDate entryDate, String studentId, String department, String photoPath) {
+        return createIndividual(applicationId, englishName, birthDate, nationality, birthTime, birthRegion,
+                gender, entryDate, studentId, department, photoPath, null);
+    }
+
+    // address: 카드에 인쇄되는 주소 — 학생증을 제외한 카드종류는 개인 신청도 신청 입력값으로 받아 저장한다.
+    public static ApplicationMember createIndividual(Long applicationId, String englishName,
+            LocalDate birthDate, String nationality, LocalTime birthTime, String birthRegion,
+            Gender gender, LocalDate entryDate, String studentId, String department, String photoPath,
+            String address) {
         ApplicationMember member = new ApplicationMember();
         member.applicationId = applicationId;
         member.englishName = englishName;
@@ -125,18 +148,30 @@ public class ApplicationMember extends BaseTimeEntity {
         member.studentId = studentId;
         member.department = department;
         member.photoPath = photoPath;
+        member.address = address;
         return member;
     }
 
+    // 기존 호출부(사진 번호 없이 생성하던 코드)와의 하위 호환용.
     public static ApplicationMember createGroupRow(Long applicationId, String englishName,
             LocalDate birthDate, String nationality, LocalTime birthTime, String birthRegion,
             Gender gender, LocalDate entryDate, String email, String phone, String address,
             String studentId, String department, String photoPath) {
+        return createGroupRow(applicationId, englishName, birthDate, nationality, birthTime, birthRegion,
+                gender, entryDate, email, phone, address, studentId, department, photoPath, null);
+    }
+
+    // photoNumber: 단체 신청 Excel의 고정 사진 번호(BulkMemberRow.photoNumber) — 단체는 필수.
+    public static ApplicationMember createGroupRow(Long applicationId, String englishName,
+            LocalDate birthDate, String nationality, LocalTime birthTime, String birthRegion,
+            Gender gender, LocalDate entryDate, String email, String phone, String address,
+            String studentId, String department, String photoPath, String photoNumber) {
         ApplicationMember member = createIndividual(applicationId, englishName, birthDate, nationality,
                 birthTime, birthRegion, gender, entryDate, studentId, department, photoPath);
         member.email = email;
         member.phone = phone;
         member.address = address;
+        member.photoNumber = photoNumber;
         return member;
     }
 

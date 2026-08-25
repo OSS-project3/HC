@@ -70,7 +70,8 @@ Content-Type: multipart/form-data
     "gender": "MALE",
     "entryDate": "2026-08-15",
     "studentId": "20261234",
-    "department": "컴퓨터공학과"
+    "department": "컴퓨터공학과",
+    "address": "서울특별시 종로구 세종대로 1"
   }
 }
 ```
@@ -84,6 +85,7 @@ Content-Type: multipart/form-data
 - ✅ 2026-08-14 확정(값은 대문자 문자열, `gender`와 동일 관례 — 프론트가 내부적으로 소문자를 쓰더라도 전송 직전 `.toUpperCase()` 필요): `orientation`(`LANDSCAPE`/`PORTRAIT`, 가로형/세로형)과 `schoolType`(`UNIVERSITY`/`HIGH_SCHOOL`, 대학교/고등학교)을 최상위 필드로 신규 추가. 둘 다 `cardTypeId`가 학생증일 때만 필수이고 그 외 카드종류는 반드시 생략해야 한다.
 - ✅ 2026-08-14 조건 변경: `member.studentId`/`department`는 더 이상 "학생증이면 무조건 필수"가 아니라 **`schoolType=UNIVERSITY`일 때만** 필수다(최대 10자·숫자만 허용은 기존과 동일). `schoolType=HIGH_SCHOOL`이면 오히려 `studentId`/`department`를 보내면 안 된다(보내면 `INVALID_INPUT`). 이전 문서의 "학생증이면 무조건 필수" 서술(2026-08-07 정정분)은 이 조건으로 대체됨.
 - ✅ 2026-08-19 신규: `schoolName`(학교명)을 최상위 필드로 추가. `cardTypeId`가 학생증이면 `schoolType`(`UNIVERSITY`/`HIGH_SCHOOL`) 무관하게 **항상 필수**이고(학번/학과와 달리 대학교 전용 조건 없음), 그 외 카드종류는 반드시 생략해야 한다. 트림 후 5~20자, 한글·영문·숫자·공백만 허용(그 외 문자는 `INVALID_INPUT`).
+- ✅ 2026-08-25 신규(`admin-saju.md` 기준): `member.address`(카드에 인쇄되는 주소) 추가. `cardTypeId`가 학생증이 아니면 **필수**이고, 학생증이면 카드에 주소를 표시하지 않으므로 **보내면 안 된다**(보내면 `INVALID_INPUT`). 배송지 `receiver.address`와는 별개 값.
 
 **Response `201 Created`**
 ```json
@@ -120,6 +122,8 @@ Content-Type: multipart/form-data
 | `cardTypeId`가 학생증 + `schoolType=UNIVERSITY`인데 `studentId`/`department` 중 하나라도 누락, 또는 학번이 10자 초과·숫자 외 문자 포함 | `INVALID_INPUT` | 400 |
 | ✅ 2026-08-14 신규: `cardTypeId`가 학생증 + `schoolType=HIGH_SCHOOL`인데 `studentId`/`department` 중 하나라도 있음 | `INVALID_INPUT` | 400 |
 | `cardTypeId`가 학생증이 아닌데 `orientation`/`schoolType`/`schoolName`/`studentId`/`department`/`schoolLogo`/`schoolSeal`을 보냄 | `INVALID_INPUT` | 400 |
+| ✅ 2026-08-25 신규: `cardTypeId`가 학생증이 아닌데 `member.address`가 없음(공백 포함) | `INVALID_INPUT` | 400 |
+| ✅ 2026-08-25 신규: `cardTypeId`가 학생증인데 `member.address`를 보냄 | `INVALID_INPUT` | 400 |
 | ✅ 2026-08-16 신규: 같은 사용자가 오늘(KST) 이미 3건 신청(개인·단체 합산, 취소분 제외) | `APPLICATION_LIMIT_EXCEEDED` | 429 |
 | 비로그인 | `UNAUTHORIZED` | 401 |
 
@@ -149,6 +153,7 @@ Content-Type: multipart/form-data
 | member.entryDate | ApplicationMember.entry_date (✅ 2026-07-31 신규) |
 | member.studentId | ApplicationMember.student_id (✅ 2026-08-07 정정, 최대 10자·숫자만. ⚠️ 2026-08-14 조건 변경: 학생증+`schoolType=UNIVERSITY`일 때만 필수) |
 | member.department | ApplicationMember.department (✅ 2026-07-31 신규. ⚠️ 2026-08-14 조건 변경: 학생증+`schoolType=UNIVERSITY`일 때만 필수) |
+| member.address | ApplicationMember.address (✅ 2026-08-25 신규 — 학생증이 아니면 필수, 학생증이면 반드시 생략) |
 | photo(file) | ApplicationMember.photo_path |
 | schoolLogo(file) | UploadFile 생성 → Application.logo_file_id (✅ 2026-07-31 신규, 학생증 전용) |
 | schoolSeal(file) | 선택. 전달된 경우 UploadFile 생성 → Application.seal_file_id |

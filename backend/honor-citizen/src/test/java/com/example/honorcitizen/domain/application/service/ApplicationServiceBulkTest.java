@@ -231,6 +231,7 @@ class ApplicationServiceBulkTest {
         assertThat(john.getEntryDate()).isEqualTo(java.time.LocalDate.of(2026, 8, 15));
         assertThat(john.getEmail()).isEqualTo("john@example.com");
         assertThat(john.getPhone()).isEqualTo("010-1111-2222");
+        assertThat(john.getPhotoNumber()).isEqualTo("1");
 
         ApplicationMember mike = members.stream().filter(m -> "Mike Kim".equals(m.getEnglishName())).findFirst().orElseThrow();
         assertThat(mike.getEntryDate()).isEqualTo(java.time.LocalDate.of(2026, 8, 18));

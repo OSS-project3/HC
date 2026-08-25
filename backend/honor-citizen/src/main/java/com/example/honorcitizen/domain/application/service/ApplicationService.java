@@ -217,6 +217,21 @@ public class ApplicationService {
         applicationPhotoValidator.validateFacePhoto(photo);
         validateStudentFields(isStudent, request.getOrientation(), request.getSchoolType(), request.getSchoolName(),
                 request.getMember().getStudentId(), request.getMember().getDepartment(), schoolLogo, schoolSeal);
+        validateCardAddress(isStudent, request.getMember().getAddress());
+    }
+
+    // 카드에 인쇄되는 주소 — 학생증은 카드에 주소를 표시하지 않으므로 값이 있으면 거절하고,
+    // 그 외 카드종류는 개인 신청도 신청 입력값으로 받아야 하므로 비어있으면 거절한다(admin-saju.md 참고).
+    private void validateCardAddress(boolean isStudent, String address) {
+        if (isStudent) {
+            if (hasText(address)) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            return;
+        }
+        if (!hasText(address)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
     }
 
     // 신청 자격 검증을 UserService에 위임한다.

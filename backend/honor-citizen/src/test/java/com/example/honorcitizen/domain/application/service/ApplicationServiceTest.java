@@ -112,6 +112,10 @@ class ApplicationServiceTest {
     private ApplicationCreateRequest fromJson(Long cardTypeId, String issueType,
             Boolean sameAsApplicant, String studentId, String department,
             Orientation orientation, SchoolType schoolType, String schoolName) {
+        // 학생증은 카드에 주소를 표시하지 않아 address를 보내면 거절되므로 학생증 카드타입일 때만 비운다.
+        // (studentCardType이 아직 설정 전인 호출 경로는 없음 — setUp()에서 항상 먼저 초기화된다.)
+        boolean isStudentCard = studentCardType != null && cardTypeId != null
+                && cardTypeId.equals(studentCardType.getId());
         String json = """
                 {
                   "cardTypeId": %d,
@@ -124,6 +128,7 @@ class ApplicationServiceTest {
                     "birthDate": "1990-05-15",
                     "nationality": "US",
                     "gender": "MALE"
+                    %s
                     %s
                   }
                 }
@@ -142,7 +147,8 @@ class ApplicationServiceTest {
                           "detailAddress": "101동"
                         },
                         """.formatted(sameAsApplicant),
-                studentId == null ? "" : ", \"studentId\": \"%s\", \"department\": \"%s\"".formatted(studentId, department));
+                studentId == null ? "" : ", \"studentId\": \"%s\", \"department\": \"%s\"".formatted(studentId, department),
+                isStudentCard ? "" : ", \"address\": \"서울특별시 종로구 세종대로 1\"");
         return parse(json);
     }
 
@@ -217,7 +223,7 @@ class ApplicationServiceTest {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678", "email": "changed@example.com" },
-                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE" }
+                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE", "address": "서울특별시 종로구 세종대로 1" }
                 }
                 """.formatted(honorKoreanCardType.getId());
         ApplicationCreateRequest request = parse(json);
@@ -268,7 +274,7 @@ class ApplicationServiceTest {
                   "issueType": "MOBILE_AND_PHYSICAL",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "receiver": { "sameAsApplicant": true, "zipCode": "06236", "address": "서울특별시 강남구", "detailAddress": "101동" },
-                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE" }
+                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE", "address": "서울특별시 종로구 세종대로 1" }
                 }
                 """.formatted(honorKoreanCardType.getId());
         ApplicationCreateRequest request = parse(json);
@@ -611,5 +617,65 @@ class ApplicationServiceTest {
         assertThat(applicantRepository.count()).isZero();
         assertThat(receiverRepository.count()).isZero();
         assertThat(applicationMemberRepository.count()).isZero();
+    }
+
+    @Test
+    void createIndividualRejectsMissingCardAddressForNonStudentCard() {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE",
+                  "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
+                  "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE" }
+                }
+                """.formatted(honorKoreanCardType.getId());
+        ApplicationCreateRequest request = parse(json);
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), null, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+
+        assertThat(applicationRepository.count()).isZero();
+    }
+
+    @Test
+    void createIndividualRejectsCardAddressForStudentCard() {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE",
+                  "orientation": "LANDSCAPE",
+                  "schoolType": "UNIVERSITY",
+                  "schoolName": "전북대학교",
+                  "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
+                  "member": {
+                    "englishName": "Hong Gildong",
+                    "birthDate": "1990-05-15",
+                    "nationality": "US",
+                    "gender": "MALE",
+                    "studentId": "20261234",
+                    "department": "컴퓨터공학과",
+                    "address": "서울특별시 종로구 세종대로 1"
+                  }
+                }
+                """.formatted(studentCardType.getId());
+        ApplicationCreateRequest request = parse(json);
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+
+        assertThat(applicationRepository.count()).isZero();
+    }
+
+    @Test
+    void createIndividualPersistsCardAddressForNonStudentCard() {
+        ApplicationCreateRequest request = mobileRequest(honorKoreanCardType.getId());
+
+        var response = applicationService.createIndividual(user.getId(), request, photo(), null, null);
+
+        ApplicationMember member = applicationMemberRepository.findByApplicationId(response.getApplicationId()).get(0);
+        assertThat(member.getAddress()).isEqualTo("서울특별시 종로구 세종대로 1");
     }
 }

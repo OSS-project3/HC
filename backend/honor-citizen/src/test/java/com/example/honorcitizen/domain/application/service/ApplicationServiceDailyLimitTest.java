@@ -115,7 +115,8 @@ class ApplicationServiceDailyLimitTest {
                     "englishName": "Hong Gildong",
                     "birthDate": "1990-05-15",
                     "nationality": "US",
-                    "gender": "MALE"
+                    "gender": "MALE",
+                    "address": "서울특별시 종로구 세종대로 1"
                   }
                 }
                 """.formatted(honorKoreanCardType.getId());

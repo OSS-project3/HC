@@ -112,8 +112,21 @@ class ApplicationPersistenceServiceTest {
 
         List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(application.getId());
         assertThat(members).hasSize(2);
+        assertThat(members).extracting(ApplicationMember::getPhotoNumber).containsExactlyInAnyOrder("1", "2");
         assertThat(application.getSubmitFileId()).isNotNull();
         assertThat(uploadFileRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void saveIndividualPersistsMemberCardAddress() throws Exception {
+        ApplicationCreateRequest request = individualRequestWithAddress("서울특별시 종로구 세종대로 1");
+
+        Application application = persistenceService.saveIndividual(
+                1L, "APP-2026-900006", cardType.getId(), IssueType.MOBILE, true,
+                null, null, request, "member@example.com", "photos/member.jpg");
+
+        ApplicationMember member = applicationMemberRepository.findByApplicationId(application.getId()).get(0);
+        assertThat(member.getAddress()).isEqualTo("서울특별시 종로구 세종대로 1");
     }
 
     @Test
@@ -196,6 +209,24 @@ class ApplicationPersistenceServiceTest {
                           "detailAddress": "101동"
                         },
                         """.formatted(sameAsApplicant));
+        return objectMapper.readValue(json, ApplicationCreateRequest.class);
+    }
+
+    private ApplicationCreateRequest individualRequestWithAddress(String address) throws Exception {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE",
+                  "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
+                  "member": {
+                    "englishName": "Hong Gildong",
+                    "birthDate": "1990-05-15",
+                    "nationality": "US",
+                    "gender": "MALE",
+                    "address": "%s"
+                  }
+                }
+                """.formatted(cardType.getId(), address);
         return objectMapper.readValue(json, ApplicationCreateRequest.class);
     }
 

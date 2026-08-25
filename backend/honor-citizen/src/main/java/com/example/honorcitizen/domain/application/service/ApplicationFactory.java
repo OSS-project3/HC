@@ -94,11 +94,13 @@ class ApplicationFactory {
      *
      * studentId, department는 학생증 카드가 아니면 null로 전달된다.
      * 카드 발급 완료 후 cardFrontPath, cardBackPath가 채워지며 초기에는 null이다.
+     *
+     * address는 카드에 인쇄되는 주소 — 학생증을 제외한 카드종류는 신청 입력값으로 받는다(null이면 검증 단계에서 거절).
      */
     ApplicationMember createIndividualMember(Long applicationId, String englishName, LocalDate birthDate,
             String nationality, LocalTime birthTime, String birthRegion, Gender gender, LocalDate entryDate,
-            String studentId, String department, String photoPath) {
+            String studentId, String department, String photoPath, String address) {
         return ApplicationMember.createIndividual(applicationId, englishName, birthDate, nationality,
-                birthTime, birthRegion, gender, entryDate, studentId, department, photoPath);
+                birthTime, birthRegion, gender, entryDate, studentId, department, photoPath, address);
     }
 }

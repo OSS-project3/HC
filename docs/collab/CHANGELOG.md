@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-08-25 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 1-A — 정책·스키마 기준선 동기화)
+
+- 변경: `admin-saju.md`에서 확정한 카드 제작 정책 중 1-A 범위(스키마·저장 경로)를 구현. `ApplicationMember`에 `surname`(성씨, nullable — 검증은 1-B)과 `photoNumber`(단체 사진 번호, `(application_id, photo_number)` UNIQUE) 컬럼을 추가하고, 단체 신청은 기존에 파싱만 하고 버리던 `BulkMemberRow.photoNumber`를 실제로 저장하도록 배선했다. 개인 신청에는 카드 표기용 `member.address` 요청 필드를 신규로 추가해 `ApplicationMember.address`에 저장한다(학생증이 아니면 필수, 학생증이면 거절 — 배송용 `receiver.address`와는 별개). `Application.issuerName`은 추가하지 않기로 결론(발행처는 텍스트가 아니라 기존 `logo_file_id` 이미지 그 자체라는 사용자 확인). 기존 엔티티 팩토리 메서드(`ApplicationMember.createIndividual`/`createGroupRow`)는 신규 필드를 받는 오버로드를 추가하는 방식으로 하위 호환을 유지해 기존 호출부(19개 파일)는 무변경.
+- 파일: `ApplicationMember.java`(entity), `ApplicationCreateRequest.java`(DTO), `ApplicationFactory.java`, `ApplicationPersistenceService.java`, `ApplicationService.java`(`validateCardAddress` 신규), 테스트(`ApplicationMemberTest`/`ApplicationPersistenceServiceTest`/`ApplicationServiceTest`/`ApplicationServiceBulkTest`/`ApplicationServiceDailyLimitTest`/`ApplicationControllerTest`/`UserApplicationFlowTest`에 신규·수정 케이스), 문서(`requirements.md`/`data-model.md`/`api.md`/`TODO.md`의 관련 섹션 갱신 및 legacy 표시)
+- 사유: 관리자 작명 확정·카드 제작 흐름(1~3단계)의 선행 조건. 카드 렌더링·카드번호 입력·성씨 검증 등 후속 단위(1-B~3-C)가 이 스키마 위에서 동작한다.
+- 검증: `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과, 실패 0(스킵 1개는 기존 visual-dump 수동검증용). 기존 "pre-existing"으로 알려졌던 `UserApplicationFlowTest.fullUserApplicationFlow` 실패도 이번에 `member.address`를 채워주며 함께 해소됨(별도 결함이 아니라 이 테스트도 동일한 개인 신청 API를 호출하고 있었을 뿐).
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 1-A, `docs/specs/application/admin-saju.md`
+
 ## 2026-08-25 — Claude — `main` (카드 이미지 합성 엔진 — CardFieldDefinition)
 
 - 변경: `docs/api/card.md`가 "미구현"이라 적어뒀던 좌표 기반 카드 이미지 합성(CardFieldDefinition)을 구현. `CardImageCompositor`가 신청 정보(이름/영문명/사진/카드번호/주소/발급일자)를 디자이너 제공 템플릿(`resources/card-templates/`)에 좌표 합성한다. 좌표계는 "기준 캔버스(카드종류별 235×156 또는 156×235) 중심 기준 오프셋"으로 역산 후 명예한국인증 실제 렌더링→`시안_최종.jpg` 육안 대조로 검증. 팔레트(PLTE) PNG를 `ImageIO.read()`가 이 환경에서 색을 깨뜨려 읽는 버그를 발견해 `Toolkit` 경로로 우회. 3개 카드종류(명예시민증/명예한국인증/방문증) 전부 동일 엔진으로 확인. **직인·발행처 필드는 시안이 실제 지자체장 공식 직인(논산시장 등)을 무단 사용하고 있어 이번 범위에서 제외**(정책 결정 후 별도 추가). 방문증/1은 앞뒤 구분이 안 되는 파일 하나뿐이라 명시적으로 차단.

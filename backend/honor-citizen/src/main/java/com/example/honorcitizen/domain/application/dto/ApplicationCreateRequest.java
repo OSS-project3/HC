@@ -131,5 +131,10 @@ public class ApplicationCreateRequest {
 
         @Size(max = 100)
         private String department;
+
+        // 카드에 인쇄되는 주소 — 학생증을 제외한 카드종류에서 필수(서비스 레벨 조건부 검증).
+        // 학생증은 카드에 주소를 표시하지 않으므로 값이 있으면 거절한다.
+        @Size(max = 255)
+        private String address;
     }
 }

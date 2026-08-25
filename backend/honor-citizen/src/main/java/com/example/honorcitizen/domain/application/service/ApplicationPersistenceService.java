@@ -100,7 +100,8 @@ class ApplicationPersistenceService {
                 application.getId(), memberRequest.getEnglishName(), memberRequest.getBirthDate(),
                 memberRequest.getNationality(), memberRequest.getBirthTime(), memberRequest.getBirthRegion(),
                 memberRequest.getGender(), memberRequest.getEntryDate(),
-                memberRequest.getStudentId(), memberRequest.getDepartment(), photoPath);
+                memberRequest.getStudentId(), memberRequest.getDepartment(), photoPath,
+                memberRequest.getAddress());
         applicationMemberRepository.save(member);
 
         return application;
@@ -160,7 +161,8 @@ class ApplicationPersistenceService {
             ApplicationMember member = ApplicationMember.createGroupRow(
                     application.getId(), row.englishName(), row.birthDate(), row.nationality(),
                     row.birthTime(), row.birthRegion(), row.gender(), row.entryDate(),
-                    row.email(), row.phone(), row.address(), row.studentId(), row.department(), upload.photoPath());
+                    row.email(), row.phone(), row.address(), row.studentId(), row.department(), upload.photoPath(),
+                    row.photoNumber());
             applicationMemberRepository.save(member);
         }
 

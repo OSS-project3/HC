@@ -3,6 +3,7 @@
 > Application 도메인의 엔티티, 컬럼, 관계 및 제약조건은 [APPLICATION.md](APPLICATION.md)의 최종 정책을 반영합니다.
 > 업무 규칙은 [requirements.md](requirements.md), 외부 계약은 [api.md](api.md)를 기준으로 합니다.
 > ⚠️ 2026-08-07: 단, 학생증 `ApplicationMember.department`(학과) 필드는 예외 — `APPLICATION.md`가 "제외"로 적었으나 근거가 없어 사람이 미결정으로 확인, 기존대로 유지(`PENDING_DECISIONS.md` 참고).
+> ✅ 2026-08-25: 관리자 작명 확정·카드 제작 관련 정책(성씨 분리, 사진 번호, 카드번호 입력·유일성, 카드 표기 주소, 발행처/로고·직인, 띠 이미지 등)은 [admin-saju.md](admin-saju.md)를 기준으로 하며, `docs/collab/TODO.md`의 "관리자 작명 확정·카드 제작 구현 계획"에 따라 1-A~3-C 순서로 반영한다. 이 문서의 관련 항목은 admin-saju.md 확정 정책에 맞춰 갱신했다.
 
 ## 2. Application 도메인
 
@@ -30,7 +31,7 @@
 | total_quantity | INT | NOT NULL | 신청 인원 수 |
 | issue_type | ENUM | NOT NULL | MOBILE, MOBILE_AND_PHYSICAL — ✅ 2026-07-25 확인: Application 테이블에 반드시 있어야 함 (누락이었음) |
 | card_design_id | BIGINT | FK → CardDesign, NULL | ⚠️ 2026-07-31 재정정: **"신청 1건당 디자인 1개 선택"은 취소 — 사용자가 고르지 않음.** 신청 생성 시점엔 항상 `NULL`, **관리자가 신청 검토 과정에서 배정**(정확한 배정 시점은 Admin API 설계 시 확정, [TBD]). `시안.zip` 확인 결과 디자인이 발행 지자체별로 나뉘는 행정적 값이라 사용자가 미학적으로 고를 성격이 아님(`docs/specs/application/requirements.md` 6절) |
-| logo_file_id | BIGINT | FK → UploadFile, NULL | 업로드한 로고. 학생증은 개인/단체 모두 학교 로고로 사용하고, 그 외 카드종류는 GROUP에서 사용 |
+| logo_file_id | BIGINT | FK → UploadFile, NULL | 업로드한 로고. 학생증은 개인/단체 모두 학교 로고로 사용하고, 그 외 카드종류는 GROUP에서 사용. ✅ 2026-08-25 확인(`admin-saju.md` 기준): **"발행처"는 텍스트 문구가 아니라 이 이미지 그 자체다.** 카드에는 이 로고 이미지만 매핑하고 별도 발행처 텍스트 필드는 추가하지 않는다(학생증의 학교 로고도 동일 — `schoolName`은 이미 별도 목적으로 존재하는 텍스트 필드이며 카드 렌더링에 발행처 문구로 쓰이지 않는다) |
 | seal_file_id | BIGINT | FK → UploadFile, NULL | 업로드한 직인. 일반 단체 신청에서는 필수이고 학생증 개인·단체 신청에서는 선택 |
 | submit_file_id | BIGINT | FK → UploadFile, NULL | ✅ 2026-07-25 확인: 제출한 ZIP(엑셀+사진) |
 | photo_reject_reason | VARCHAR(500) | NULL | ✅ 2026-07-31 신규 확정: 관리자가 사진 반려 시 입력하는 사유. `status=PHOTO_REJECTED`일 때 사용자에게 노출(`/lookup` 조회 결과) |
@@ -112,6 +113,7 @@
 > - 개인 신청: `Application` 1건 + `ApplicationMember` **1건**
 > - 단체(ZIP) 신청: `Application` 1건 + `ApplicationMember` **N건** (엑셀+사진 인원 수만큼)
 > - 개인/단체의 차이는 `ApplicationMember` 구조가 아니라 `CardDesign`·`Application` 데이터에서 처리 (예: 법인 로고·직인은 `Application.logo_file_id`/`seal_file_id`를 쓰고, 개인 카드는 해당 요소를 렌더링하지 않음)
+> ✅ 2026-08-25 확정: `application_id`+`photo_number` 조합에 `UNIQUE` 제약을 둔다. 개인은 `photo_number`가 항상 NULL이라 여러 건이 저장돼도 충돌하지 않는다(NULL은 서로 다른 값으로 취급).
 
 | 필드 | 타입 | 제약 | 설명 |
 |---|---|---|---|
@@ -123,7 +125,9 @@
 | name_meaning | TEXT | NULL | ✅ 2026-07-25 확인: 이름의 **뜻(짧은 의미)**. "풀이"와는 별개 필드로 확정 |
 | name_interpretation | TEXT | NULL | ✅ 2026-07-25 신규 확정: 이름의 **상세 풀이(긴 설명)**. `name_meaning`을 재사용하지 않고 별도 컬럼으로 분리 (명칭은 가안, 최종 컬럼명은 추후 조정 가능) |
 | photo_path | VARCHAR(500) | NULL | ✅ 2026-07-25 확인: 카드에 들어가는 사진. **`UploadFile` FK가 아니라 경로 텍스트 컬럼으로 확정** — 신청(Application)이 삭제되면 사진도 함께 삭제되는 생명주기와 자연스럽게 맞음 |
-| address | VARCHAR(255) | NULL | 카드에 인쇄되는 주소 |
+| address | VARCHAR(255) | NULL | 카드에 인쇄되는 주소. ✅ 2026-08-25 확정(`admin-saju.md` 기준): **학생증을 제외한 카드종류는 개인 신청도 이 컬럼에 저장한다.** 단체는 기존처럼 엑셀 행에서, 개인은 신규 신청 입력값(`MemberRequest.address`)에서 채워진다 — 학생증은 카드에 주소를 표시하지 않으므로 값이 있으면 거절한다. 배송용 `Receiver.address`와는 별도 값 |
+| surname | VARCHAR(10) | NULL | ✅ 2026-08-25 신규 확정(`admin-saju.md` "성씨 분리 정책"): 관리자가 작명 단계에서 확정하는 한글 성씨(1~2글자). `NAME_EDITING` 중에는 NULL 허용, `completeNaming()` 실행 시 필수(검증은 1-B에서 추가). 카드의 한글 이름은 `surname + name`으로 조합. 이름 추천·이름 사전에는 성씨를 저장하지 않는다 |
+| photo_number | VARCHAR(10) | NULL | ✅ 2026-08-25 신규 확정: 단체 신청 Excel의 고정 사진 번호(`BulkMemberRow.photoNumber`, 예: "001"). 단체는 필수, 개인은 항상 NULL. `(application_id, photo_number)` 조합이 유일해야 관리자 카드번호 일괄 입력(사진 번호+카드번호 붙여넣기)에서 행을 정확히 매칭할 수 있다 |
 | birth_date | DATE | NOT NULL | 십이간지(캐릭터) 계산용. ✅ 2026-07-25 확인: 개인 신청도 필수 — 개인 신청 폼(`StepInfo.tsx`)에 생년월일 입력란 추가 필요 (프론트 미구현, 별도 작업 필요) |
 | nationality | VARCHAR(10) | NOT NULL | ✅ 2026-07-31 신규 확정: 국적(ISO 3166-1 alpha-2). 사주(만세력) 작명 도구 입력값 — 개인 신청 폼에 입력란 추가 필요(프론트 미구현) |
 | birth_time | TIME | NULL | ⚠️ 2026-07-31 재정정: NOT NULL이었던 걸 **NULL로 변경.** "출생시간을 모릅니다" 체크 시 미입력 가능(사용자 명세 확정) |
@@ -135,7 +139,7 @@
 | student_id | VARCHAR(10) | NULL | ✅ 2026-08-07 정정(`APPLICATION.md` 기준): 학번. **카드종류=학생증일 때만 사용**(그 외 카드종류는 NULL), 최대 10자이며 숫자만 허용. ⚠️ 2026-08-14 조건 변경: 개인 신청은 "학생증이면 무조건 필수"가 아니라 `Application.school_type=UNIVERSITY`일 때만 필수 — `HIGH_SCHOOL`이면 오히려 NULL이어야 함(있으면 거절). 단체 신청은 이 조건과 무관하게 기존처럼 엑셀에서만 채워짐(`BulkExcelParser`, 변경 없음) |
 | department | VARCHAR(100) | NULL | ✅ 2026-07-31 신규 확정: 학과. 카드종류=학생증 전용. ⚠️ `Applicant`/`Receiver`의 `department`(부서명, 법인용)와는 다른 테이블의 다른 개념 — 이름만 같음, 혼동 주의. ⚠️ 2026-08-14: student_id와 동일하게 개인 신청은 `school_type=UNIVERSITY`일 때만 필수 |
 | issue_date | DATE | NULL | 카드 발급일자 — 발급 시점에 채워짐 |
-| card_number | VARCHAR(30) | NULL, UNIQUE | 카드 발급 후 채워짐 (Application이 아니라 여기로 확정). ✅ 2026-07-31 확인: 형식 `ROK-XXXXX-XXXX`(5자리-4자리) — `시안.zip` 실물 카드번호 확인. 채번 로직(순차/무작위)은 미확정 |
+| card_number | VARCHAR(30) | NULL, UNIQUE | 카드 발급 후 채워짐 (Application이 아니라 여기로 확정). ✅ 2026-07-31 확인: 형식 `ROK-XXXXX-XXXX`(5자리-4자리) — `시안.zip` 실물 카드번호 확인. ⚠️ 2026-08-25 재정정(`admin-saju.md` 기준, 이전 "채번 로직 미확정"·"서버 무작위 생성" 계획을 대체): **서버가 채번하지 않는다.** 관리자가 Member별로 `ROK-XXXXX-XXXX` 형식 값을 직접 입력·확정하고(개인은 단건 API, 단체는 사진 번호 기준 일괄 붙여넣기), DB `UNIQUE` 제약이 최종 유일성 방어선이다. 최초 카드 생성 성공 전에는 변경 가능하나 성공 후에는 재생성에서도 기존 번호를 유지한다 |
 | card_front_path | VARCHAR(500) | NULL | ✅ 2026-07-31 신규 확정: 카드 발급(`PRODUCING`) 시 생성되는 **앞면 합성 결과 이미지** 경로. 사용자 다운로드용 |
 | card_back_path | VARCHAR(500) | NULL | ✅ 2026-07-31 신규 확정: 카드 발급 시 생성되는 **"이름풀이" 뒷면 합성 결과 이미지** 경로 |
 | created_at | DATETIME | NOT NULL | |

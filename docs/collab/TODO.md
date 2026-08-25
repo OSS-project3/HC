@@ -1006,6 +1006,8 @@ body `{applicationIds, type}` → xlsx), lotus05f님 프론트가 이미 이 엔
 - 결과물은 기존에 있던(세터·API 없이 방치돼있던) `ApplicationMember.cardFrontPath`/`cardBackPath`에 저장.
 - 카드번호 형식은 시안 샘플이 "ROK-07888-3022"(5자리-4자리 숫자) — 규칙성 없어 보여 **무작위 생성 +
   유일성 재시도**로 구현(정책 재검토 필요하면 나중에 교체 가능하게 격리).
+  ⚠️ **superseded (2026-08-25) — 아래 "관리자 작명 확정·카드 제작 구현 계획" 참고.** 서버 무작위 생성이
+  아니라 관리자가 Member별로 직접 입력·확정하는 방식으로 정책이 바뀌었다(`admin-saju.md`).
 
 ### 좌표계 검증 완료 (Claude, 2026-08-25)
 
@@ -1020,6 +1022,12 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
   폰트 크기도 함께 배율 적용(칸 간격 대비 너무 크면 겹침 — 시행착오로 보정).
 
 ### 정책 확정(사용자, 2026-08-25) — 직인·발행처 필드 제외
+
+⚠️ **superseded (2026-08-25, 같은 날 후속 확인) — 아래 "관리자 작명 확정·카드 제작 구현 계획" 참고.**
+직인·발행처를 카드에서 완전히 빼는 게 아니라, **실존 지자체장 관인이 박힌 시안의 고정 이미지를 안 쓰고
+`Application.logo_file_id`/`seal_file_id`(신청 시 신청자 본인이 업로드한 로고·직인 이미지)를 대신
+매핑**하는 것으로 정책이 구체화됐다. 아래 원 기록은 그 결정에 이르기까지의 문제 인식(법적 우려)만
+남기고, 실제 제외 여부·범위는 `admin-saju.md`의 "확정된 카드 표기 정책"을 따른다.
 
 **직인(관인)·발행처 필드는 이번 범위에서 제외한다.** 시안 데이터를 열어보니 논산시장/안성시장/나주시장/
 제천시장/남원시장/통영시장/안동시장 등 **실존 지자체장의 공식 직인·명칭을 그대로 사용**하고 있었음 —
@@ -1037,13 +1045,264 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 - [x] 에셋을 `backend/honor-citizen/src/main/resources/card-templates/`로 복사(HONOR_CITIZEN/HONOR_KOREAN/VISITOR + fonts)
 - [x] 좌표 변환식 역산·검증(위 "좌표계 검증 완료" 참고), 팔레트 PNG 색상 버그 해결법 확정
-- [x] `CardFieldOffset`/`CardLayout`(record) + `CardLayouts`(카드종류별 필드 좌표 상수 — 이름/영문명/사진/카드번호/주소/발급일자/타이틀만, 직인·발행처 제외)
+- [x] `CardFieldOffset`/`CardLayout`(record) + `CardLayouts`(카드종류별 필드 좌표 상수 — 이름/영문명/사진/카드번호/주소/발급일자/타이틀만, 직인·발행처 제외) — ⚠️ superseded: 직인·발행처(로고 이미지)는 2번째 단계("관리자 작명 확정·카드 제작 구현 계획" 2-B)에서 다시 포함한다
 - [x] `CardImageCompositor` 서비스 — 배경+타이틀(이미지 또는 텍스트 폴백)+사진(cover-fit)+텍스트 필드 합성, Toolkit 기반 이미지 로딩, 파일명 별칭 해석(앞면/사진 후보 목록)
 - [x] 명예시민증/방문증도 동일 엔진으로 렌더링 확인(방문증 PORTRAIT 치수 정상 동작) — 육안 확인 스크린샷으로 검증(명예한국인증-1·명예시민증-1·방문증-2·명예한국인증-6)
 - [x] 명예한국인증 앞면 타이틀(`타이틀.png`) 누락 — 파일 없으면 텍스트로 폴백하도록 구현(파일 추가되면 자동으로 이미지 우선 사용)
 - [x] 테스트 — `CardImageCompositorTest`(8개, 구조적 검증: PNG 유효성·크기·예외·별칭해석·cover-fit) + `CardImageCompositorVisualDumpTest`(@Disabled, 수동 육안검증용)
 - [x] `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과 확인(621개, 1 skipped[visual dump], 실패 0)
 - [x] 방문증/1 위험 처리 — "대지 1.png"가 앞면 후보 목록에 있어 앞뒤 미확인 상태로도 "성공"해버리는 문제를 발견해 `isUnverifiedDesign()` 가드로 명시적 차단(`INVALID_INPUT`), 테스트로 고정
-- [ ] 카드번호·발급일자 확정 저장: `ApplicationMember.cardNumber`/`issueDate`/`cardFrontPath`에 이미 필드는 있으나 세터(mutator)가 없음 — 카드번호 무작위 생성+유일성 정책도 미구현
-- [ ] 관리자 API 엔드포인트(신청/멤버 → 카드 합성 → 저장 → 프론트 미리보기) 미구현 — 이번 범위는 합성 엔진까지, API 배선은 별도 작업
-- [ ] 완료 후 `CHANGELOG.md` 항목 추가(엔진 부분만), 본 섹션은 API 배선까지 끝나야 ✅
+- [ ] ⚠️ superseded — 아래 "관리자 작명 확정·카드 제작 구현 계획"의 1-C로 대체: ~~카드번호·발급일자 확정 저장... 카드번호 무작위 생성+유일성 정책도 미구현~~ (서버 무작위 생성이 아니라 관리자 직접 입력으로 정책 확정)
+- [ ] 관리자 API 엔드포인트(신청/멤버 → 카드 합성 → 저장 → 프론트 미리보기) 미구현 — 아래 "관리자 작명 확정·카드 제작 구현 계획" 2~3단계로 이어서 진행
+- [ ] 완료 후 `CHANGELOG.md` 항목 추가(엔진 부분만), 본 섹션은 아래 계획의 API 배선까지 끝나야 ✅
+
+---
+
+## 관리자 작명 확정·카드 제작 구현 계획 (2026-08-25)
+
+> 기준 문서: `docs/specs/application/admin-saju.md`의 `한국 이름 추천 및 확정 정책`과 `작명 완료 이후 카드 제작 연결 정책`.
+>
+> ⚠️ 이 계획은 위의 과거 카드 합성 체크리스트에 남은 `카드번호 무작위 생성`과 `직인·발행처 제외` 기록을 대체한다. 카드번호는 관리자가 입력하며, 로고·직인과 발행처는 최신 신청 정책에 따라 렌더링한다. 과거 미완료 항목을 그대로 구현하지 않는다.
+>
+> ⚠️ 앞의 `HC↔saju 연동` 체크리스트에는 HC가 만세력을 계산하지 않는다는 과거 방향이 남아 있다. 최신 기준은 `admin-saju.md`이며, Spring은 timezone/DST/utcInstant를 확정하고 관리자 프론트는 그 확정값으로 진태양시·만세력을 계산한다. 카드 렌더러는 프론트 메모리나 mock 값을 직접 사용하지 않고 백엔드에 저장된 확정 계산 결과만 사용한다.
+>
+> 작업은 아래 1 → 2 → 3 순서로 진행한다. `1-A` 같은 하위 단위 하나를 한 세션·한 논리 커밋으로 취급한다. 다음 하위 단위의 코드를 미리 섞지 않는다.
+
+### 모든 구현 단위의 공통 순서
+
+- [ ] 착수 전 최신 `main`, `HANDOFF.md`, 관련 변경 파일의 미커밋 상태 확인.
+- [ ] 해당 단위에서 적용할 정책을 `requirements.md → data-model.md → api.md` 순서로 먼저 동기화.
+- [ ] 직접 관련 테스트를 먼저 작성하고 기존 구현에서 의도한 실패 확인.
+- [ ] 테스트를 통과시키는 최소 구현만 추가.
+- [ ] targeted test와 `compileJava` 실행. 대량 출력은 RULES.md §9에 따라 로그 파일로 저장.
+- [ ] 해당 단위 범위 밖의 버그를 발견하면 현재 커밋에 섞지 않고 별도 TODO 또는 독립 `fix:` 커밋으로 분리.
+- [ ] `git diff`로 다른 작업자의 변경과 다음 구현 단위가 섞이지 않았는지 확인.
+- [ ] 단위 완료 시 TODO와 CHANGELOG 갱신. 기능 묶음 1·2·3이 각각 끝날 때 Application 관련 회귀 테스트 실행.
+- [ ] 전체 테스트는 3단계 전체 완료 또는 push 직전 한 번 실행.
+
+### 범위 제외
+
+- 학생증 카드 렌더링.
+- PDF 인쇄 파일과 카드 프린터 SDK 직접 연동.
+- 프론트엔드 코드 수정. 필요한 관리자 UI 계약은 `docs/FRONTEND_API_GAPS.md`에만 전달.
+- 외부 메시지 브로커(RabbitMQ/Kafka) 도입.
+- 카드 제작 단계에서 성씨·이름·한자·의미 수정.
+
+## 1. 작명·카드번호·카드 표기 데이터 기반
+
+목표: 카드 렌더링 전에 필요한 데이터가 DB와 관리자 API에 정확히 저장되도록 한다. 이 단계에서는 이미지 미리보기와 최종 카드 생성은 구현하지 않는다.
+
+### 1-A. 정책·스키마 기준선 동기화 — ✅ 완료 (Claude, 2026-08-25)
+
+- [x] `admin-saju.md`의 확정 정책을 `requirements.md`, `data-model.md`, `api.md`에 전파.
+- [x] 과거 `카드번호 무작위 생성`, `직인·발행처 제외` 문구를 Legacy 또는 superseded로 표시(위 "카드 이미지 합성" 절 참고).
+- [x] `ApplicationMember.surname` 추가: nullable, 한글 1~2글자(길이 제약만 — 형식 검증은 1-B에서 추가).
+- [x] `ApplicationMember.photoNumber` 추가: 단체는 `BulkMemberRow.photoNumber`에서 채워짐, 개인은 항상 nullable.
+- [x] DB에 `(application_id, photo_number)` 유일 제약 추가. 개인은 photoNumber가 항상 NULL이라 여러 건이 저장돼도 충돌하지 않음(NULL은 서로 다른 값으로 취급 — H2 테스트 DB로 확인, MySQL도 동일 동작).
+- [x] **`Application.issuerName`은 추가하지 않기로 결론.** 사용자 확인(2026-08-25): "발행처"는 텍스트 문구가 아니라 신청 시 이미 받는 `Application.logo_file_id`(이미지) 그 자체이며, 학생증의 학교 로고도 동일하게 이미지로만 받는다. 별도 텍스트 필드가 필요 없어 admin-saju.md 9번 항목("확인하고, 없으면 추가")을 "불필요"로 확정.
+- [x] 학생증 제외 개인 신청에도 카드 표기용 주소가 `ApplicationMember.address`에 저장되도록 입력·매핑 경로 정의 — `ApplicationCreateRequest.MemberRequest.address` 신규 필드 추가, `validateCardAddress()`로 학생증이면 거절·비학생증이면 필수 검증.
+- [x] 배송지 `Receiver.address`와 카드 표기 주소 혼용 없음 확인 — 서로 다른 요청 필드(`receiver.address` vs `member.address`)로 완전히 분리돼 있어 혼동 소지 없음.
+- [x] 단체 생성 시 `BulkMemberRow.photoNumber`가 `ApplicationMember.photoNumber`까지 저장되도록 factory/persistence 인자 관통(`ApplicationPersistenceService.saveGroup`).
+- [x] 기존 데이터 호환을 위해 신규 컬럼(`surname`/`photoNumber`/개인 `address`)은 DB nullable 유지, 기존 호출부는 신규 trailing 파라미터를 받는 오버로드로 하위 호환 유지(`ApplicationMember.createIndividual`/`createGroupRow`).
+- [x] Entity 생성·저장 통합 테스트: 개인/단체, 학생증/일반카드, 사진 번호·주소 매핑(`ApplicationMemberTest`, `ApplicationPersistenceServiceTest`, `ApplicationServiceTest`, `ApplicationServiceBulkTest`).
+
+완료 조건:
+
+- [x] 기존 신청 생성 API의 데이터가 유실되지 않고 신규 필드가 정책대로 저장됨.
+- [x] 카드 합성·미리보기 코드는 변경하지 않음(`CardImageCompositor`/`CardLayouts` 등 무변경).
+- [x] `ApplicationPersistenceService` 관련 targeted tests와 `compileJava` 통과 — 신규 테스트 약 12개, 전체 스위트 631개(628+3 신규 클래스 무관 기존분 포함, 정확히는 아래 참고) 전부 통과(REDIS_PORT=6400, 기존 "pre-existing" 실패로 알려졌던 `UserApplicationFlowTest.fullUserApplicationFlow`도 이번에 `member.address` 필드를 추가하며 함께 그린으로 전환됨 — 별도 버그였던 게 아니라 이 테스트도 개인 신청 API를 그대로 호출하고 있었을 뿐이었음).
+
+### 1-B. 성씨 분리와 작명 완료 불변조건
+
+- [ ] 이름 추천 결과와 이름 사전은 성씨 없는 `name`만 유지.
+- [ ] 관리자 작명 저장 요청에 `surname` 추가.
+- [ ] `surname`은 `NAME_EDITING` 중 nullable, `completeNaming()` 실행 시 필수.
+- [ ] 한글 성씨 1~2글자, 이름 2~3글자, 결합 이름 최대 5글자 검증.
+- [ ] `chineseName`은 이름에 대응하는 한자만 저장하며 `surnameHanja`는 이번 범위에 추가하지 않음.
+- [ ] 한자가 있으면 이름과 Unicode 글자 수 동일 검증, 없으면 허용.
+- [ ] 의미는 필수. 추천 이름은 사전 의미, 수동 이름은 관리자 입력 의미 사용.
+- [ ] Application 소속 Member 전원을 Service에서 집계 검증한 뒤에만 `NAME_EDITING → PRODUCTION_READY` 허용.
+- [ ] Member 한 명이라도 미완료이면 상태를 변경하지 않고 누락 Member 목록을 관리자 오류 응답으로 반환.
+- [ ] 기존 인앱 작명과 Excel import가 같은 Entity 메서드와 검증 규칙을 사용하도록 중복 검증 위치 정리.
+- [ ] 이름 저장·덮어쓰기·작명 완료 성공·누락·형식 오류 테스트.
+
+완료 조건:
+
+- [ ] 사주 추천은 성씨 없이 유지되고 관리자가 성씨를 붙여 최종 확정할 수 있음.
+- [ ] `completeNaming()` 이후 모든 Member가 카드 제작 가능한 작명 데이터를 보유함.
+- [ ] 작명 Service/Controller targeted tests와 `compileJava` 통과.
+
+### 1-C. 관리자 카드번호 개별·일괄 저장
+
+- [ ] 카드번호는 서버 자동 생성하지 않고 관리자가 `ROK-XXXXX-XXXX` 형식으로 입력.
+- [ ] 개인/단일 Member API 구현: `PUT /api/admin/applications/{applicationId}/members/{memberId}/card-number`.
+- [ ] 단체 일괄 API 구현: `PUT /api/admin/applications/{applicationId}/card-numbers`.
+- [ ] 프론트의 탭 구분 붙여넣기는 `사진 번호 + 카드번호` 두 열이며, 프론트가 JSON items로 변환해 전송하는 계약 문서화.
+- [ ] 화면 순서나 Member ID가 아니라 `(applicationId, photoNumber)`로 단체 Member 매칭.
+- [ ] 사진 번호·카드번호의 요청 내부 중복, 존재하지 않는 사진 번호, 형식 오류, DB 전체 중복 검증.
+- [ ] 오류 하나라도 있으면 전체 rollback. 부분 성공 금지.
+- [ ] 일부 Member만 입력하는 요청은 허용하되 최종 카드 생성 전에는 전원 카드번호 필수.
+- [ ] 같은 Member에 같은 번호 재저장은 멱등 성공.
+- [ ] 최초 카드 생성 성공 전에는 번호 변경 허용, 성공 후에는 변경 금지.
+- [ ] Application row 잠금과 요청 `applicationVersion`으로 동시 수정 방지.
+- [ ] `ApplicationMember.cardNumber` DB UNIQUE 위반을 최종 방어선으로 처리하고 충돌을 `409`로 변환.
+- [ ] 단일·일괄 API 통합 테스트: 성공, 부분 목록, 전체 실패, 형식, 중복, 다른 Application 번호, version 충돌, 소속권한.
+
+완료 조건:
+
+- [ ] 단체 최대 100명의 번호를 관리자 UI에서 일괄 붙여넣을 수 있는 백엔드 계약 완성.
+- [ ] 카드번호 저장 외 카드 생성·S3 변경 없음.
+- [ ] 카드번호 Service/Controller targeted tests와 `compileJava` 통과.
+
+### 1-D. 만세력 확정 결과 저장 계약
+
+- [ ] 현재 관리자 프론트의 `computeMemberSaju()`와 mock fallback 사용 범위를 확인하고 mock 결과는 백엔드 확정 데이터로 저장할 수 없도록 계약 정의.
+- [ ] Spring의 출생지·timezone/DST 판정 결과와 프론트 만세력 계산 결과를 연결할 관리자 전용 저장 API 설계.
+- [ ] Member별 계산 입력 hash, `timeAccuracy`, timezoneId, 선택 offset/utcInstant, longitude, confirmed/uncertain pillars, 오행 결과, tzdbVersion, calculationEngineVersion, calculatedAt 저장 구조 정의.
+- [ ] 카드 띠 이미지에 필요한 확정 연주 지지를 별도 조회 가능하게 매핑.
+- [ ] 출생정보·timezone 선택·계산 엔진 버전이 바뀌면 기존 결과를 stale로 판정하고 카드 생성에서 사용 금지.
+- [ ] `PARTIAL`/`UNKNOWN`이어도 모든 후보의 연주가 같아 확정되면 띠 사용 허용. 연주가 불확실하면 카드 자동 생성 거절.
+- [ ] 프론트가 보낸 결과를 그대로 신뢰해 관리자 권한·Member 소속·입력 hash·계산 버전을 검증 없이 저장하지 않음.
+- [ ] 기존 결과를 덮어쓰기보다 재계산 이력을 보존하고 현재 활성 결과를 식별.
+- [ ] 저장·조회·stale·불확실 연주·소속 불일치 통합 테스트.
+
+완료 조건:
+
+- [ ] `CardImageCompositor`가 프론트 runtime이나 mock에 의존하지 않고 DB의 재현 가능한 확정 연주를 조회할 수 있음.
+- [ ] 관리자 만세력 저장 API targeted tests와 `compileJava` 통과.
+
+## 2. CardDesign 매핑과 단일 Member 미리보기
+
+목표: DB/S3 결과를 남기지 않고 실제 카드번호와 입력 데이터로 앞면 또는 뒷면을 확인한다. 이 단계에서는 전체 Member 카드 파일을 확정 저장하지 않는다.
+
+### 2-A. CardDesign과 템플릿 리소스 매핑
+
+- [ ] `CardDesign.designNumber` 또는 `resourceDirectory` 중 하나로 DB 디자인과 클래스패스 리소스를 명시적으로 매핑.
+- [ ] DB PK를 디자인 번호 1~6으로 사용하지 않음.
+- [ ] `(cardTypeId, designNumber)` 유일 제약과 active 정책 적용.
+- [ ] 검수 완료 디자인만 `active=true`; 방문증 디자인 1은 `active=false` 유지.
+- [ ] 비활성 디자인은 기존 결과 조회만 허용하고 신규 미리보기·생성·재생성에서 거절.
+- [ ] 관리자 디자인 조회 API 구현: `GET /api/admin/card-designs?cardTypeId={id}&active=true`.
+- [ ] 카드 종류 불일치, 미지원 학생증, 비활성 디자인을 구분하는 예외 계약 정의.
+- [ ] Repository/Service/Controller targeted tests.
+
+완료 조건:
+
+- [ ] 관리자가 현재 신청의 카드 종류에 맞는 검수 완료 디자인만 조회 가능.
+- [ ] `CardImageCompositor` 호출 전 안정적인 리소스 경로를 얻을 수 있음.
+
+### 2-B. CardImageCompositor 필드 완성
+
+- [ ] 승인된 시안의 앞면·뒷면 필드와 좌표를 코드 상수에 반영.
+- [ ] 좌표 정책 고정: 좌표는 카드 종류별 1세트이며 같은 카드 종류의 디자인 1~6은 동일 좌표를 공유한다. 디자인별 좌표를 임의로 새로 만들지 않는다.
+- [ ] `HONOR_CITIZEN`, `HONOR_KOREAN`, `VISITOR`가 각각 자신의 `CardLayout`을 사용하고 다른 카드 종류 좌표로 fallback하지 않는지 확인.
+- [ ] 디자인 리소스와 좌표를 분리하여, `designNumber`는 배경·이미지 리소스만 선택하고 위치값은 해당 카드 종류의 공통 Layout에서 가져오도록 검증.
+- [ ] 렌더링 입력을 성씨+이름, 이름 한자, 영문명, 사진, 실제 카드번호, 주소, 발급일자, 발행처, 로고·직인, 띠 이미지로 명확히 분리.
+- [ ] 학생증에는 주소 미표시. 일반카드에는 카드 표기 주소 사용.
+- [ ] 로고·직인은 기존 신청 정책 매트릭스 적용: 개인 일반카드 없음, 단체 일반카드 둘 다 필수, 학생증 로고 필수·직인 선택.
+- [ ] 한자가 없으면 한자 영역만 비우고 다른 필드 재배치 금지.
+- [ ] 띠 이미지는 만세력 `confirmedPillars.year`의 지지로 결정. 연주 불확실 시 자동 생성 거절.
+- [ ] 텍스트 겹침 시 기본 글꼴에서 최대 2px 축소하고 계속 겹치면 명시적 렌더링 오류.
+- [ ] 앞면·뒷면 모두 실제 PNG 생성 및 크기·좌표·폰트 검증.
+- [ ] 기존 `CardImageCompositorTest`가 대표 디자인만 검사하는지 확인하고, 활성 디자인 전체를 도는 parameterized test가 없으면 최소 보강.
+- [ ] 활성 디자인 검증 매트릭스 작성 및 전부 실행.
+  - [ ] `HONOR_CITIZEN` 디자인 1~6 × FRONT/BACK.
+  - [ ] `HONOR_KOREAN` 디자인 1~6 × FRONT/BACK.
+  - [ ] `VISITOR` 활성 디자인 2~6 × FRONT/BACK.
+  - [ ] `VISITOR` 디자인 1은 비활성·미검수 오류가 반환되는지 별도 확인.
+- [ ] 각 매트릭스 항목에서 PNG 디코딩, 예상 캔버스 크기, 앞·뒷면 구분, 필수 배경 리소스, 사진 영역, 이름·카드번호·주소·발급일 위치를 검증.
+- [ ] 카드 종류별 기준 디자인 1개 이상은 승인된 시안과 육안 비교하고, 결과 파일명을 `cardType-designNumber-side` 형식으로 남겨 누락 여부를 한눈에 확인.
+- [ ] 검증 결과를 `카드종류 | 디자인번호 | FRONT | BACK | 좌표 프로필 | 결과` 표로 기록. 한 항목이라도 실패하면 2-B를 완료 처리하지 않음.
+- [ ] 시각 검증 결과물은 별도 출력 폴더에 저장하되 자동 테스트 로그에 이미지 바이너리나 전체 렌더링 로그를 출력하지 않음.
+
+완료 조건:
+
+- [ ] 지원 카드 3종의 활성 디자인 17개, 앞·뒷면 총 34개 결과가 모두 렌더링 가능.
+- [ ] 학생증과 방문증 디자인 1은 명시적으로 거절.
+- [ ] Compositor targeted tests 및 수동 시각 검증 통과.
+
+### 2-C. 저장 없는 미리보기 API
+
+- [ ] API 구현: `POST /api/admin/applications/{applicationId}/members/{memberId}/card-preview`.
+- [ ] 요청값: `cardDesignId`, `issueDate`, `side`.
+- [ ] 발급일자는 KST 기준 신청일 이상·신청일에서 3개월 이하인지 검증.
+- [ ] 검증 순서: 관리자 권한 → Application → 상태 → Member 소속 → 디자인 → 작명 → 실제 카드번호 → 주소·발행처 → 원본 파일 → 렌더링.
+- [ ] `PRODUCTION_READY`에서만 허용.
+- [ ] 실제 저장된 카드번호 사용. 예시 번호 발급·예약 없음.
+- [ ] 결과는 `image/png` byte로 반환하며 DB row와 S3 object를 생성하지 않음.
+- [ ] `404` 대상 없음, `409` 상태·동시성, `422` 카드 데이터·렌더링 가능성, `500` 내부 저장소 장애를 구분.
+- [ ] 응답에 S3 key, 파일 시스템 경로, stack trace를 노출하지 않음.
+- [ ] API 통합 테스트: 앞/뒤 성공, DB·S3 무변경, 소속 불일치, 상태, 카드번호 누락, 날짜, 디자인, 파일, 텍스트 초과.
+
+완료 조건:
+
+- [ ] 관리자가 디자인을 바꿔가며 한 Member의 실제 데이터로 미리보기 가능.
+- [ ] 미리보기 호출 전후 DB/S3 상태 동일.
+- [ ] Preview Service/Controller targeted tests와 Application 관련 회귀 테스트 통과.
+
+## 3. 비동기 전체 생성·원자적 저장·후속 상태 전이
+
+목표: 단체 최대 100명의 앞·뒷면을 비동기로 생성하고, 전원 성공했을 때만 DB 결과를 한 번에 반영한다.
+
+### 3-A. CardGenerationJob과 비동기 실행 골격
+
+- [ ] `CardGenerationJob` Entity/Repository 추가.
+- [ ] 필드: applicationId, cardDesignId, issueDate, applicationVersion, status, totalCount, completedCount, failureCode/message, failedMemberId/stage, requestedBy, retryOfJobId, 요청·시작·완료 시각.
+- [ ] 상태: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`.
+- [ ] 생성 요청 API: `POST /api/admin/applications/{id}/card-generation` → `202 Accepted + jobId`.
+- [ ] 상태 조회 API: `GET /api/admin/applications/{id}/card-generation` 또는 jobId 조회 계약 확정·구현.
+- [ ] Job 생성 transaction에서 Application을 잠그고 `PENDING/PROCESSING` 중복 Job 거절.
+- [ ] Job DB commit 후에만 비동기 Worker 실행. `@Async` 자기 호출을 피하기 위해 Worker를 별도 Bean으로 분리.
+- [ ] bounded `TaskExecutor` 설정값 정의. 한 Job 내부 Member 처리는 우선 순차 실행.
+- [ ] 생성 성공 전 ApplicationStatus는 `PRODUCTION_READY` 유지.
+- [ ] 서버 재시작 등으로 장시간 `PROCESSING`인 Job을 설정형 기준시간 후 `FAILED`로 전환하는 복구 작업 설계.
+- [ ] Job 상태·중복 요청·after-commit 시작·재시작 복구 targeted tests.
+
+완료 조건:
+
+- [ ] 실제 렌더링 없이도 생성 요청·비동기 선점·진행 조회·실패 전이가 독립적으로 동작.
+- [ ] 같은 Application에서 실행 Job 하나만 보장.
+
+### 3-B. 전체 렌더링·S3 보상·DB 일괄 확정
+
+- [ ] Worker가 Application/Member/Design/만세력/파일 입력 snapshot을 다시 검증.
+- [ ] Job 전용 S3 prefix 사용: `cards/{applicationId}/jobs/{jobId}/{memberId}/front|back.png`.
+- [ ] Member별 앞·뒷면 순차 렌더링·업로드 후 `completedCount` 진행률 갱신.
+- [ ] 렌더링·업로드 도중 실패하면 신규 Job prefix 파일을 보상 삭제하고 Job `FAILED` 처리.
+- [ ] 모든 S3 업로드 성공 후 별도 `ApplicationCardPersistenceService`의 한 `@Transactional`에서 결과 확정.
+- [ ] 최종 transaction에서 Application status/version, Job status, 전 Member 결과 수와 소속을 재검증.
+- [ ] Application.cardDesignId, cardGeneratedAt과 모든 Member.issueDate/cardFrontPath/cardBackPath를 일괄 저장.
+- [ ] 카드번호는 기존 관리자 확정값을 유지하고 Worker가 새 번호를 생성하지 않음.
+- [ ] 최종 DB 저장 또는 commit 실패 시 DB 전체 rollback 및 신규 S3 파일 보상 삭제.
+- [ ] 재생성 성공 시 기존 카드 파일은 DB commit 이후에만 삭제.
+- [ ] 보상 삭제 실패는 원 실패를 덮지 않고 cleanupRequired와 Job prefix를 남겨 Scheduler가 재시도.
+- [ ] 프로세스 강제 종료로 메모리 추적 목록을 잃어도 FAILED/stale Job prefix로 고아 파일 정리 가능하게 구현.
+- [ ] 생성 성공·실패·재생성과 관리자 ID를 AdminActivityLog에 기록.
+- [ ] 통합 테스트: 개인/단체 성공, N번째 render/upload 실패, DB 실패, commit 실패, 기존 파일 보존, commit 후 삭제, cleanup 실패.
+
+완료 조건:
+
+- [ ] S3는 보상 방식, DB는 단일 transaction으로 전원 성공 또는 전원 미반영 보장.
+- [ ] 실패 후 기존 카드와 Application 상태가 유지되고 관리자가 다시 실행 가능.
+
+### 3-C. 재시도·제작 전이·다운로드 소비 경로
+
+- [ ] 실패 Job 재시도는 새 Job row로 생성하고 `retryOfJobId`로 이전 실패 이력 연결.
+- [ ] 재시도 사유 입력은 필수로 받지 않음. 수행 관리자·시각·실패 원인·결과는 감사 로그에 기록.
+- [ ] `startProducing` 선행조건 추가: `PRODUCTION_READY`, 결제 확인, `cardGeneratedAt`, 최근 Job COMPLETED, 전 Member 카드번호·발급일자·필수 카드 경로.
+- [ ] `cardReady`도 전 Member의 필수 카드 파일 존재 확인.
+- [ ] `MOBILE`은 cardReady 시 COMPLETED.
+- [ ] `MOBILE_AND_PHYSICAL`은 cardReady 후 PRODUCING 유지, 모바일 카드 조회 허용, dispatch 후 COMPLETED.
+- [ ] 사용자 다운로드 조건을 `COMPLETED` 단독 기준에서 `cardReadyAt != null && 필수 파일 존재` 기준으로 정리.
+- [ ] 관리자 제작 파일 다운로드 API 구현. 개인은 앞·뒷면, 단체는 전체 결과 ZIP 제공.
+- [ ] 단체 ZIP 임시 S3 object의 만료·정리 정책 적용.
+- [ ] 멱등 호출: 완료 Job 재조회, 중복 재시도, 중복 startProducing/cardReady가 기존 결과를 훼손하지 않도록 검증.
+- [ ] 통합 테스트: 재시도, 선행조건, MOBILE/MOBILE_AND_PHYSICAL 분기, 발송 전 모바일 다운로드, 관리자 다운로드, ZIP 정리.
+
+완료 조건:
+
+- [ ] 관리자가 카드 생성 요청부터 진행 확인·재시도·제작 시작·카드 준비까지 끊김 없이 수행 가능.
+- [ ] 사용자가 정책상 허용된 시점에 모바일 카드를 조회·다운로드 가능.
+- [ ] 1~3 전체 Application 관련 회귀 테스트 통과.
+- [ ] push 직전 전체 테스트를 로그 파일로 실행하고 종료 코드·전체 테스트 수·실패 이름·리포트 경로만 보고.
+- [ ] `requirements.md`, `data-model.md`, `api.md`, `admin-saju.md`, TODO, CHANGELOG, HANDOFF 최종 정합성 검증.

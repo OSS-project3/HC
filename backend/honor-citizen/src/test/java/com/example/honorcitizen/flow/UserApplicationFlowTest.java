@@ -136,7 +136,8 @@ class UserApplicationFlowTest {
                     "birthDate": "1990-05-15",
                     "nationality": "US",
                     "birthRegion": "Chicago",
-                    "gender": "MALE"
+                    "gender": "MALE",
+                    "address": "서울특별시 종로구 세종대로 1"
                   }
                 }
                 """.formatted(cardType.getId());

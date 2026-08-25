@@ -44,6 +44,27 @@ class ApplicationMemberTest {
         assertThat(member.getPhone()).isEqualTo("010-1111-2222");
         assertThat(member.getAddress()).isEqualTo("Seoul");
         assertThat(member.getEntryDate()).isEqualTo(LocalDate.of(2026, 8, 15));
+        assertThat(member.getPhotoNumber()).isNull();
+    }
+
+    @Test
+    void groupMemberRowCarriesPhotoNumberWhenGiven() {
+        ApplicationMember member = ApplicationMember.createGroupRow(
+                2L, "John Doe", LocalDate.of(1988, 1, 1), "US",
+                null, null, Gender.MALE, LocalDate.of(2026, 8, 15),
+                "john@example.com", "010-1111-2222", "Seoul", null, null, "photos/b.jpg", "001");
+
+        assertThat(member.getPhotoNumber()).isEqualTo("001");
+    }
+
+    @Test
+    void individualMemberWithAddressOverloadStoresCardDisplayAddress() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg", "서울특별시 종로구 세종대로 1");
+
+        assertThat(member.getAddress()).isEqualTo("서울특별시 종로구 세종대로 1");
+        assertThat(member.getSurname()).isNull();
     }
 
     @Test
