@@ -125,6 +125,7 @@ export interface AdminApplicationMember {
   assignedName?: string; assignedHanja?: string;
 }
 export interface NameSelectionStat { name: string; hanja: string; count: number; }
+export interface ApplicationStatusResult { applicationId: number; status: ApplicationStatus; }
 
 // ── Inquiries (1:1 문의, 고객지원) ───────────────────────────────
 export type InquiryCategory = "PRODUCTION" | "PAYMENT_AND_SHIPPING" | "CARD_ISSUANCE" | "EVENT_COLLABORATION" | "OTHER";
@@ -175,6 +176,12 @@ export const api = {
   saveMemberName: (applicationId: number, memberId: number, body: { name: string; hanja?: string; reading?: string; meaning?: string }) =>
     request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/name`, { method: "POST", body: JSON.stringify(body) }),
   getNameSelectionStats: () => request<NameSelectionStat[]>("/api/admin/name-selection-stats"),
+  // 신청 상태 전이(관리자) — 백엔드 존재 엔드포인트 연결.
+  completeNaming: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/complete-naming`, { method: "POST" }),
+  startProducing: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/start-producing`, { method: "POST" }),
+  markCardReady: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/card-ready`, { method: "POST" }),
+  rejectApplicationPhoto: (id: number, reason: string) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/reject-photo`, { method: "POST", body: JSON.stringify({ reason }) }),
+  dispatchApplication: (id: number, trackingNumber: string) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/dispatch`, { method: "POST", body: JSON.stringify({ trackingNumber }) }),
 
   // Inquiries (1:1 문의) — 관리자 목록/상세/답변/상태
   listAdminInquiries: () => request<InquiryListItem[]>("/api/admin/inquiries"),

@@ -131,7 +131,7 @@ export function ApplicationsSection() {
                   </tr>
                   {openId === a.applicationId && (
                     <tr className="admin__detail-row">
-                      <td colSpan={tab === "INDIVIDUAL" ? 7 : 6}><ApplicationNaming app={a} /></td>
+                      <td colSpan={tab === "INDIVIDUAL" ? 7 : 6}><ApplicationNaming app={a} onChanged={load} /></td>
                     </tr>
                   )}
                 </Fragment>
@@ -176,11 +176,12 @@ function genderLabel(g?: "MALE" | "FEMALE"): string | undefined {
   return g === "MALE" ? "남성" : g === "FEMALE" ? "여성" : undefined;
 }
 
-// 신청 상세 + 구성원 작명 플로우. 상세·구성원·확정저장은 실제 API, 만세력은 실제 계산.
-function ApplicationNaming({ app }: { app: AdminApplicationListItem }) {
+// 신청 상세 + 구성원 작명 플로우 + 상태 전이(모두 실제 API), 만세력은 실제 계산.
+function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; onChanged?: () => void | Promise<void> }) {
   const [detail, setDetail] = useState<AdminApplicationDetail | null>(null);
   const [members, setMembers] = useState<AdminApplicationMember[] | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const reloadMembers = useCallback(async () => {
@@ -210,6 +211,31 @@ function ApplicationNaming({ app }: { app: AdminApplicationListItem }) {
   const first = members[0];
   const onSaved = async () => { await Promise.all([reloadMembers(), reloadStats()]); };
 
+  // 백엔드에 존재하는 상태 전이 API를 현재 상태에 맞춰 노출한다. call()이 null이면(입력 취소) 건너뛴다.
+  const runStatus = async (label: string, call: () => Promise<{ status: ApplicationStatus }> | null) => {
+    const p = call();
+    if (!p) return;
+    setStatusBusy(true);
+    try {
+      const res = await p;
+      showToast(`${label} 완료 — 상태: ${statusLabels[res.status]}`);
+      setDetail(await api.getAdminApplication(app.applicationId));
+      await onChanged?.();
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : `${label}에 실패했습니다.`);
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const s = detail.status;
+  const statusActions: { label: string; danger?: boolean; call: () => Promise<{ status: ApplicationStatus }> | null }[] = [];
+  if (s === "REVIEWING") statusActions.push({ label: "사진 반려", danger: true, call: () => { const r = window.prompt("사진 반려 사유를 입력하세요."); return r && r.trim() ? api.rejectApplicationPhoto(app.applicationId, r.trim()) : null; } });
+  if (s === "NAME_EDITING") statusActions.push({ label: "작명 완료 처리", call: () => api.completeNaming(app.applicationId) });
+  if (s === "PRODUCTION_READY") statusActions.push({ label: "제작 시작", call: () => api.startProducing(app.applicationId) });
+  if (s === "PRODUCING" && !detail.cardReadyAt) statusActions.push({ label: "카드 발급 완료", call: () => api.markCardReady(app.applicationId) });
+  if (s === "PRODUCING" && detail.cardReadyAt && detail.issueType === "MOBILE_AND_PHYSICAL" && !detail.physicalDispatchedAt) statusActions.push({ label: "배송 발송(운송장 등록)", call: () => { const t = window.prompt("운송장 번호를 입력하세요."); return t && t.trim() ? api.dispatchApplication(app.applicationId, t.trim()) : null; } });
+
   return (
     <div className="admin-naming">
       <div className="admin-naming__info">
@@ -226,6 +252,18 @@ function ApplicationNaming({ app }: { app: AdminApplicationListItem }) {
           <Item label="연락처" value={detail.applicant.phone} />
           {isGroup && <Item label="인원" value={`${detail.memberCount}명`} />}
         </dl>
+      </div>
+
+      <div className="admin-naming__status">
+        <span className="admin-naming__subtitle">상태 관리</span>
+        <span className="admin__badge">{statusLabels[s]}</span>
+        {detail.physicalDispatchedAt && <span className="admin__muted">발송됨</span>}
+        <span className="admin-naming__status-actions">
+          {statusActions.map((a) => (
+            <button key={a.label} type="button" className={`admin__btn ${a.danger ? "admin__btn--danger" : "admin__btn--primary"}`} disabled={statusBusy} onClick={() => runStatus(a.label, a.call)}>{a.label}</button>
+          ))}
+          {statusActions.length === 0 && <span className="admin__muted">이 상태에서 진행할 전이가 없습니다.</span>}
+        </span>
       </div>
 
       {members.map((m, i) => (
