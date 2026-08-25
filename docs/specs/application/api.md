@@ -1,5 +1,7 @@
 ## Application 도메인
 
+> ⚠️ **정정(2026-08-25):** "입금자명 등록 — 이번 패스 설계 보류"는 이후 **구현됐다.** `PATCH /api/applications/{applicationId}/depositor`(요청 `DepositorNameUpdateRequest{depositorName}`, 응답 Void, 본인·결제 확인 전만). `Application.depositorName` 필드로 저장하고 `MyApplicationDetailResponse`에 노출. (별도 Payment 도메인 아님.)
+
 ### ① 도메인의 책임
 
 카드 제작 신청의 생성·조회를 담당한다. 신청 유형(개인/법인단체), 카드 종류/디자인, 발급 방식(모바일/실물), 신청인·수령인 정보, 카드 1장 단위(`ApplicationMember`)를 포괄한다. (`.md` 2절 기준)

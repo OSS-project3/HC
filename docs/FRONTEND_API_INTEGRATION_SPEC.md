@@ -1,5 +1,7 @@
 # 프론트엔드 API 연동 준비도 및 구현 명세
 
+> ⚠️ **정정(2026-08-25) — 이 문서(2026-08-18)의 "미커밋/미연동/mock/단일이미지" 판정 다수가 낡았다.** 이후 전부 커밋·연동됨: 내 신청(`MyApplicationController`+`listMyApplications`/`getMyApplication`), 관리자 상태전이 8종·엑셀 export·작명, 1:1 문의 도메인, 후기 다중이미지(0~5장), 입금자명(`PATCH .../depositor`), 관리자 전체 행사 목록. §2 공통규칙·§3.1~3.5 계약 자체는 유효. **현재 연동 상태의 단일 소스는 `docs/FRONTEND_API_GAPS.md`·`docs/API_TEST_REPORT.md`다.** 아래는 낡은 준비도 기록.
+
 작성 기준: 2026-08-18
 
 검증 대상: `frontend/src`, `backend/honor-citizen` 현재 워킹 트리

@@ -1,6 +1,8 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
-> **갱신: 2026-08-25(7차) — 전면 재대조.** 백엔드 컨트롤러 엔드포인트 **61개 전부**가 프론트 `api.ts`에서 실호출됨을 코드로 검증(엔드포인트 경로 매칭 61/61, 정의만 하고 미호출 함수 0건). 이번에 발견·수정한 **미연동 3건**: ① `POST /api/admin/applications/export`(엑셀 내보내기) — 프론트가 "백엔드 미구현" 토스트만 띄우던 걸 실제 xlsx 다운로드로 연결(개인 export E2E 200+유효 xlsx 확인) ② `POST /api/admin/applications/{id}/naming-result`(작명결과 엑셀 반영) — 업로드 UI 연결 ③ `GET /api/my/applications/{id}`(내 신청 상세) — 마이페이지 행 펼침 연결. **6차 노트의 "§1.3·§1.4 관리자가 여전히 api.ts를 안 부르고 mock만 쓴다"는 서술은 사실이 아님(현재 `InquiriesSection`/`ApplicationsSection`이 실 API 다수 호출) — 아래 §0 표·§1.4로 정정됨.** 관리자 로그인 `isAdmin`도 정상(`LoginPage`가 `ADMIN→admin` 매핑, `refreshProfile`가 role 보존). 남은 백엔드 부재: 통계·공지검색·이름조회 API 3건.
+> **갱신: 2026-08-25(8차).** 이후 관리자 상태전이 3종(`confirm-payment`·`start-review`·`approve-naming`)과 입금자명(`PATCH /api/applications/{id}/depositor`)이 추가되어 **백엔드 엔드포인트 총 65개**가 되었고 전부 프론트 `api.ts`에서 실호출됨(65/65). 관리자 상태전이는 총 8종(결제확인·검토시작·작명승인·사진반려·작명완료·제작시작·카드발급·배송발송). 후기 수정 removeImage 버그도 수정 완료(§1.8 하단).
+>
+> **갱신: 2026-08-25(7차) — 전면 재대조.** 백엔드 컨트롤러 엔드포인트가 프론트 `api.ts`에서 실호출됨을 코드로 검증(경로 매칭 전건, 정의만 하고 미호출 함수 0건). 이번에 발견·수정한 **미연동 3건**: ① `POST /api/admin/applications/export`(엑셀 내보내기) — 프론트가 "백엔드 미구현" 토스트만 띄우던 걸 실제 xlsx 다운로드로 연결(개인 export E2E 200+유효 xlsx 확인) ② `POST /api/admin/applications/{id}/naming-result`(작명결과 엑셀 반영) — 업로드 UI 연결 ③ `GET /api/my/applications/{id}`(내 신청 상세) — 마이페이지 행 펼침 연결. **6차 노트의 "§1.3·§1.4 관리자가 여전히 api.ts를 안 부르고 mock만 쓴다"는 서술은 사실이 아님(현재 `InquiriesSection`/`ApplicationsSection`이 실 API 다수 호출) — 아래 §0 표·§1.4로 정정됨.** 관리자 로그인 `isAdmin`도 정상(`LoginPage`가 `ADMIN→admin` 매핑, `refreshProfile`가 role 보존). 남은 백엔드 부재: 통계·공지검색·이름조회 API 3건.
 >
 > **갱신: 2026-08-24(6차).** Codex 세션이 오늘 커밋한 변경사항을 실제 코드 대조로 반영: 계정 복구(§1.1-c)·행사 관리자 연동(§1.6)·후기 다중 이미지(§1.8) **연동 완료**로 전환. 공지/FAQ(§1.14)는 데모 시드 추가로 `FaqPage.tsx` 쪽 빈 목록 문제는 해소. ~~관리자 신청관리(§1.4)·1:1 문의 관리자 답변(§1.3)이 여전히 mock~~ **[7차 정정: 이 서술은 오류였음 — 관리자 문의·신청 모두 `InquiriesSection`/`ApplicationsSection`에서 실 API 연동됨. §1.3·§1.4 본문 참고]**. 상세 근거는 각 절의 파일:라인 인용 참고.
 >
@@ -12,7 +14,7 @@
 
 ## 0. 한눈에 보기
 
-> **2026-08-25 전면 갱신**: 아래 표는 이전 버전에서 이미 해소된 항목이 🔴로 남아 본문(§1.x)과 모순됐다. 코드 실호출을 전수 재대조해 현재 상태로 정정했다. **백엔드 컨트롤러 엔드포인트 61개 전부 프론트 `api.ts`에서 실호출됨**(정의만 있고 미호출 0건, 유일한 예외 `api.refresh`는 `request()`의 401 자동재시도가 직접 호출). 남은 것은 백엔드에 엔드포인트 자체가 없는 3건(통계·공지검색·이름조회)과 정적 유지 확정 항목뿐.
+> **2026-08-25 전면 갱신**: 아래 표는 이전 버전에서 이미 해소된 항목이 🔴로 남아 본문(§1.x)과 모순됐다. 코드 실호출을 전수 재대조해 현재 상태로 정정했다. **백엔드 컨트롤러 엔드포인트 65개 전부 프론트 `api.ts`에서 실호출됨**(정의만 있고 미호출 0건, 유일한 예외 `api.refresh`는 `request()`의 401 자동재시도가 직접 호출). 남은 것은 백엔드에 엔드포인트 자체가 없는 3건(통계·공지검색·이름조회)과 정적 유지 확정 항목뿐.
 
 | 기능 영역 | 프론트 연동 | 근거(실호출 위치) | 상태 |
 |---|---|---|---|
@@ -28,7 +30,7 @@
 | 일반 이메일 회원가입(인증 인라인) | ✅ 완료 | `SignupPage`(`checkEmail`/`requestSignupEmailCode`/`confirmSignupEmailCode`/`signup`) | 2026-08-24 구현(§1.1-a). ※ 로컬 dev는 SMTP 미설정으로 코드발송만 503 |
 | 계정 복구(아이디/비밀번호 찾기) | ✅ 완료 | `AccountRecoveryPage`(`request/confirm Id/Password Recovery` 4종) | (§1.1-c) |
 | 1:1 문의(Inquiry) | ✅ 완료 | `InquiryPage`(`createInquiry`, `privacyConsent:true`), `MyPage`/`InquiryDetailPage`(`listMyInquiries`/`getMyInquiry`), 관리자 `InquiriesSection`(`listAdminInquiries`/`getAdminInquiry`/`answerInquiry`/`updateInquiryStatus`) | 관리자 답변까지 실 API(§1.3) |
-| 관리자 신청관리 | ✅ 완료 | `ApplicationsSection`: 조회 3종·작명확정·선택이력·상태전이 5종·**엑셀 export**·**작명결과 업로드** 전부 실호출 | 2026-08-25 export/naming-result 연결(§1.4) |
+| 관리자 신청관리 | ✅ 완료 | `ApplicationsSection`: 조회 3종·작명확정·선택이력·상태전이 8종·**엑셀 export**·**작명결과 업로드** 전부 실호출 | 2026-08-25 export/naming-result·상태전이 3종 연결(§1.4) |
 | 관리자 통계(`GET /api/admin/stats`) | — | (백엔드 엔드포인트 없음) | 🔴 **백엔드 미구현** — 대시보드 통계는 목록 프론트 집계로 대체(§1.4) |
 | 공지 서버 검색 | — | (백엔드 keyword 파라미터 없음) | ⚠️ 클라 검색만. 필요 시 백엔드 추가(§1.7) |
 | 한국이름 조회(`nameResults.json`) | 정적 번들 | (백엔드 조회 API 없음) | ⚠️ 조회 API 미정(§2.2) |
@@ -94,7 +96,7 @@
   - 작명: `POST /api/admin/applications/{id}/members/{memberId}/name`(`saveMemberName`, 인앱 확정), `GET /api/admin/name-selection-stats`(`getNameSelectionStats`, 선택이력).
   - **작명 결과 엑셀 반영: `POST /api/admin/applications/{id}/naming-result`(`applyNamingResult`) — 2026-08-25 연동**(단체 상세의 "작명 결과 엑셀 업로드").
   - **엑셀 내보내기: `POST /api/admin/applications/export`(`exportApplications`) — 2026-08-25 연동**. 개인은 다중선택 일괄, 단체는 상세에서 1건씩(원본 서식 보존). 이전 코드가 "백엔드 미구현"이라 잘못 표기하고 토스트만 띄우던 것을 실제 xlsx 다운로드로 교체(INDIVIDUAL export E2E 200+유효 xlsx 확인).
-  - 상태 전이: `reject-photo`(`rejectApplicationPhoto`), `start-producing`(`startProducing`), `card-ready`(`markCardReady`), `dispatch`(`dispatchApplication`), `complete-naming`(`completeNaming`) — 상세의 "상태 관리" 드롭다운에서 실호출.
+  - 상태 전이(8종): **앞단 3종 `confirm-payment`(`confirmApplicationPayment`)·`start-review`(`startApplicationReview`)·`approve-naming`(`approveApplicationNaming`)** + `reject-photo`(`rejectApplicationPhoto`)·`start-producing`(`startProducing`)·`card-ready`(`markCardReady`)·`dispatch`(`dispatchApplication`)·`complete-naming`(`completeNaming`) — 상세의 "상태 관리" 드롭다운에서 현재 상태에 맞는 것만 실호출.
 - **status enum**: 프론트가 백엔드 실제 enum(`SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING/COMPLETED/CANCELLED`, 결제 `WAITING/CONFIRMED`)을 그대로 사용 — 불일치 해소됨.
 - **❌ 백엔드 미구현(프론트 연동 불가)**: `GET /api/admin/stats`(통계 집계) — 백엔드에 엔드포인트 자체가 없음. 대시보드 통계 카드는 목록에서 프론트 집계로 대체 중.
 - **인가**: `/api/admin/**` → `hasRole("ADMIN")` 서버 검증. 데모 admin 계정은 `TEMP_ADMIN_LOGIN.md`(운영 전 제거).
@@ -159,7 +161,7 @@
 
 | 프론트 입력 | 위치 | 백엔드 현황 |
 |---|---|---|
-| 입금자명 + 입금 확인/취소 | `StepComplete` | 결제·입금(Payment) 도메인 없음(입금 안내는 정적 계좌) |
+| ✅ 입금자명 (저장 완료 2026-08-25) | `StepComplete` | `Application.depositorName` + `PATCH /api/applications/{id}/depositor`로 저장·조회. 입금 확인/취소 **자동화**(결제 게이트웨이)는 별도 미구현 — 관리자 수동 확인(§1.4 confirm-payment)·정적 계좌 안내 유지 |
 | 상담확인·유의사항 동의 | `StepType` | 신청 건별 동의 이력 저장 없음 |
 
 > 단체 "신청 수량"은 백엔드가 엑셀 인원 수로 산정하는 정상 계약이라 프론트 입력을 제거함(응답 `totalQuantity` 사용) — 위 목록과 성격이 다름.
@@ -242,7 +244,7 @@
 | ✅ 3 | 1:1 문의(Inquiry) 전체 연동 | **완료** — `InquiryPage`가 `createInquiry`로 `privacyConsent: true` 전송 | §1.3 |
 | ✅ 4 | 신청 조회 응답 `applicationType`으로 재제출 UI 분기 | **완료(2026-08-24)** — `MobileCardPage`가 개인 `photo`/단체 `submitFile` 파트·안내문구 분기 | §1.10 |
 | ✅ 4 | "내 정보" 표시 정리 — 회원 유형 제거, 전화번호 노출 추가 | **완료(2026-08-24)** — `MyPage` 조회에서 회원유형 제거·전화번호 노출 | §1.9-a |
-| ✅ 5 | 관리자 신청관리 UI | **완료(2026-08-25)** — 목록·상세·구성원·작명확정·선택이력·상태전이 5종·**엑셀 내보내기**·**작명결과 엑셀 업로드** 전부 실 API 연동. `GET /api/admin/stats`(통계)만 백엔드 미구현 | §1.4 |
+| ✅ 5 | 관리자 신청관리 UI | **완료(2026-08-25)** — 목록·상세·구성원·작명확정·선택이력·상태전이 8종(결제확인·검토시작·작명승인 포함)·**엑셀 내보내기**·**작명결과 엑셀 업로드** 전부 실 API 연동. `GET /api/admin/stats`(통계)만 백엔드 미구현 | §1.4 |
 | ✅ - | 내 신청 상세(`getMyApplication`) | **완료(2026-08-25)** — `GET /api/my/applications/{id}` → `MyPage` 제작내역 행 펼침 상세(발급방식·결제·반려사유·발송시각) | §1.2 |
 | 6 | 행사 회사/로고 필드, 공지 서버검색, 후기 다중이미지 | 행사·후기 백엔드와 프론트 연동 완료. 공지 서버검색만 필요 시 백엔드 후속 구현 | §1.6~§1.8 |
 | 7 | 계정복구(아이디/비밀번호 찾기) | **백엔드 구현 및 프론트 연동 완료** — 요청·확인 4개 API와 아이디 찾기/비밀번호 재설정 화면 동작 확인 | §1.1-c |

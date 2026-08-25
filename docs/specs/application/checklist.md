@@ -1,5 +1,7 @@
 # Application Policy Sync and Code Audit
 
+> ⚠️ **정정(2026-08-25):** "일일 KST 3회 제한 / `APPLICATION_LIMIT_EXCEEDED` 미구현(범위 밖)"은 이후 **구현됐다**(2026-08-16) — `ApplicationDailyLimit`(엔티티/Service/Repository) + `ErrorCode.APPLICATION_LIMIT_EXCEEDED`(429). `POLICY_SYNC_CHECKLIST.md`의 동일 "미구현" 표기도 낡음.
+
 ## 2026-08-08 Failure-path and Contract Verification Summary
 
 - 생성 경로: `createIndividual()`/`createGroup()`의 S3 업로드 중간 실패와 DB 저장 실패 모두에서 신규 S3 key를 역순 보상 삭제하도록 검증했다.

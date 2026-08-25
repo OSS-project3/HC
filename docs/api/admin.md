@@ -1,5 +1,13 @@
 ## Admin 도메인 — 신청·결제 흐름 확정 (2026-08-17)
 
+> ⚠️ **정정(2026-08-25) — 아래 상태전이 API의 경로명이 실제 구현과 다르다.** 실제 `AdminApplicationController` 엔드포인트(전부 구현·프론트 연동됨):
+> - 결제 확인: `POST /api/admin/applications/{id}/confirm-payment` · 검토 시작: `.../start-review` · 작명 승인: `.../approve-naming`
+> - 사진 반려: `.../reject-photo` · 작명 완료: `.../complete-naming` · 제작 시작: `.../start-producing` · 카드 발급: `.../card-ready` · 배송 발송: `.../dispatch`(body `{trackingNumber}`)
+> - 작명 저장: **`POST /api/admin/applications/{applicationId}/members/{memberId}/name`**, body `NameAssignRequest { name, hanja, reading, meaning }` (문서의 `application-members/{id}/name` + `{chineseName,...}` 아님)
+> - 신규: `POST .../{id}/naming-result`(작명결과 엑셀 업로드), `POST /api/admin/applications/export`(xlsx 다운로드), `GET .../{id}/members`
+> - 목록 응답은 `applicantName/applicantPhone` 없이 `cardTypeId`+`cardTypeName`+`paymentStatus` 포함.
+> - 미구현: `GET /api/admin/stats`(통계 집계)만. 상세는 `docs/FRONTEND_API_GAPS.md` §1.4. 아래는 낡은 설계 기록.
+
 > 참고 화면(대학교 학생증 관리자 UI 스크린샷)은 **확정 UI 아님 — 구조 참고용 목업.** 실제 화면은 아래 흐름을 기준으로 새로 설계.
 
 ### 신청 상태 흐름

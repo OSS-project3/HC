@@ -4,7 +4,11 @@
 
 - **검증 방식**: ① 정적 — 백엔드 컨트롤러 엔드포인트 ↔ 프론트 `services/api.ts` 호출 대조. ② 라이브 — 도메인별 5개 테스팅 서브에이전트가 실기동 스택(backend·db·redis·minio·frontend, docker compose)에 `curl`로 인증/미인증 호출, HTTP 코드·응답·DB 반영 확인.
 - **계정**: USER `demo@test.com`/`demo1234!` (DB 직접 시드, id=3), ADMIN `admin@test.com`/`admin1234!` (DemoDataSeeder).
-- **대상**: 백엔드 컨트롤러 엔드포인트 **64개** 전부.
+- **대상**: 백엔드 컨트롤러 엔드포인트 전부(리포트 작성 시점 64개 → 이후 입금자명 `PATCH /api/applications/{id}/depositor` 추가로 **총 65개**).
+
+> **후속 정정(리포트 작성 이후):**
+> - 🔴 §3 P1 **후기 수정 removeImage 버그는 수정 완료**(`ReviewUpdateRequest.removeImage` `boolean`→`Boolean`, 회귀 테스트 추가, 라이브 재검증 — 아래 §3 참고). **미해결 결함 0건.**
+> - **입금자명 `PATCH /api/applications/{id}/depositor` 신설·연결·E2E 6케이스 통과**(본인 200 / 상세반영 / 타인 403 / 미인증 401 / 빈값 400 / 결제확인 후 400 가드). 총 엔드포인트 64→65, 아래 표의 64는 이 신규 1건 제외 시점 값.
 
 ---
 
@@ -12,9 +16,9 @@
 
 | 구간 | 결과 |
 |---|---|
-| **정적 연결(프론트↔백엔드)** | ✅ **64 / 64 연결** (모든 백엔드 엔드포인트가 `api.ts`에서 호출됨. `bulk`는 `createApplication`이 동적 생성) |
+| **정적 연결(프론트↔백엔드)** | ✅ **65 / 65 연결** (모든 백엔드 엔드포인트가 `api.ts`에서 호출됨. `bulk`는 `createApplication`이 동적 생성) |
 | **라이브 테스트(71개 케이스/64 엔드포인트)** | ✅ **61** · ⚠️ **9** · ❌ **1** |
-| **실제 결함(수정 필요)** | 🔴 **1건** — `PATCH /api/reviews/{id}` 후기 수정이 실사용 payload에서 항상 400 |
+| **실제 결함** | 🔴 1건 발견 → **✅ 수정 완료** — `PATCH /api/reviews/{id}` removeImage 버그(§3, 미해결 0건) |
 | 인가 경계(미인증 401 / 소유권·권한 403) | 전 도메인 정상 |
 | 상태 가드·검증(400 / 404 / 409) | 전 도메인 정상 |
 
@@ -22,12 +26,12 @@
 
 ---
 
-## 1. 정적 연결 검증 (64/64)
+## 1. 정적 연결 검증 (65/65)
 
 백엔드 `*Controller.java`의 모든 `@{Get,Post,Patch,Delete}Mapping`을 추출해 프론트 `services/api.ts`의 호출 경로와 대조했다.
 
-- 백엔드 엔드포인트 **64개** (직전 61개 + 2026-08-25 추가한 상태전이 3개: `confirm-payment`·`start-review`·`approve-naming`).
-- **64개 전부** `api.ts`에 대응 함수가 있고, 그 함수를 실제 화면(pages/components)이 호출함.
+- 백엔드 엔드포인트 **65개** (직전 61개 + 2026-08-25 추가한 상태전이 3개 `confirm-payment`·`start-review`·`approve-naming` + 입금자명 `PATCH .../depositor` 1개).
+- **65개 전부** `api.ts`에 대응 함수가 있고, 그 함수를 실제 화면(pages/components)이 호출함.
 - 유일한 표기 예외: `POST /api/applications/bulk`은 `createApplication(form, true)`가 `` `/api/applications${bulk ? "/bulk" : ""}` ``로 동적 생성(연결됨).
 - `api.refresh` 헬퍼는 미사용이나, `refresh` 엔드포인트 자체는 `request()`의 401 자동재시도(raw fetch)가 호출 → 엔드포인트는 연결됨(헬퍼만 데드코드).
 
@@ -86,7 +90,7 @@
 | /api/reviews | GET | 공개 200(page/size/cardTypeId/hasPhoto/keyword) / cardTypeId=999 404 | ✅ |
 | /api/reviews/{id} | GET | 비로그인 200(canEdit=false) / ADMIN 200(canEdit=true) / 없는id 404 | ✅ |
 | /api/reviews | POST | 미인증 401 / demo 403 `REVIEW_NOT_ELIGIBLE`(자격정책) | ⚠️ |
-| **/api/reviews/{id}** | **PATCH** | **removeImage 생략 시 400 (프론트 실제 payload) — 수정 실질 불능** | ❌ |
+| /api/reviews/{id} | PATCH | removeImage 생략 시 400이던 버그 → **✅ 수정 완료**(boolean→Boolean), 이제 정상 파싱 | ✅ |
 | /api/reviews/{id} | DELETE | 미인증 401 / 타인 403 / 본인 200 | ✅ |
 | /api/my/reviews | GET | 미인증 401 / 200 | ✅ |
 
@@ -121,7 +125,8 @@ E2E: USER 문의생성→내문의 노출→ADMIN 답변·상태변경→USER �
 
 ## 3. 발견 문제
 
-### 🔴 P1 — `PATCH /api/reviews/{id}` 후기 수정이 실사용에서 항상 400 (CONFIRMED)
+### ✅ P1 (수정 완료) — `PATCH /api/reviews/{id}` 후기 수정이 실사용에서 항상 400이던 버그 (CONFIRMED → FIXED)
+> **2026-08-25 수정 완료**: `ReviewUpdateRequest.removeImage`를 `boolean`→`Boolean`(래퍼)로 변경, `Boolean.TRUE.equals(...)`로 사용, removeImage 생략 케이스 회귀 테스트 추가(`ReviewControllerTest`). 라이브 재검증 시 400(파싱 실패)→403(비즈니스 규칙)으로 바뀌어 본문이 정상 파싱됨을 확인. 아래는 발견 당시 기록.
 - **증상**: 후기 수정 화면 "수정 완료" 저장 시 400 `INVALID_INPUT`. 백엔드 로그: `HttpMessageNotReadableException: Cannot map 'null' into type 'boolean'`(FAIL_ON_NULL_FOR_PRIMITIVES).
 - **근본원인**: `domain/review/dto/ReviewUpdateRequest.java`의 `private boolean removeImage;`(원시타입) + `@AllArgsConstructor`. 프론트 `ReviewUpdateBody`(api.ts)는 title/applicationType/cardTypeId/authorName/content/**keepImageIds**만 보내고 **`removeImage`를 생략**한다. Jackson이 all-args 생성자를 creator로 써서, 생략된 원시 boolean을 null로 바인딩하다 실패.
 - **확정 근거(에이전트 A/B)**: PATCH에 `"removeImage":false`를 넣으면 파싱 통과(403 소유권검사 도달), 생략하면 400. 순수 ASCII payload에서도 재현(셸 인코딩 아티팩트 아님).
@@ -157,4 +162,4 @@ E2E: USER 문의생성→내문의 노출→ADMIN 답변·상태변경→USER �
 | 문의 | 7 | 7 | 0 | 0 |
 | **합계** | **71** | **61** | **9** | **1** |
 
-**결론**: 백엔드 엔드포인트 64개 전부 프론트에 연결되어 있고, 라이브 동작·인가·검증·상태전이가 대부분 정상. **수정이 필요한 실제 결함은 후기 수정(PATCH /api/reviews/{id}) 1건**뿐이며 원인·수정안이 확정돼 있다.
+**결론**: 백엔드 엔드포인트 65개 전부 프론트에 연결되어 있고, 라이브 동작·인가·검증·상태전이가 정상. 발견된 실제 결함 1건(후기 수정 PATCH removeImage)은 **수정 완료**(§3, 미해결 0건).

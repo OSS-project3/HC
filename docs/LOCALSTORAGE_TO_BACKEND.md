@@ -14,7 +14,7 @@
 
 > ✅ **2026-08-25 완료**: 아래 🔴 두 항목(신청·문의)은 백엔드 API 연결 + localStorage 제거 완료.
 > `data/adminMock.ts`·`data/inquiries.ts` 삭제, 일반 로그인도 실제 `/api/auth/login`(실패 시 mock 폴백)으로 전환.
-> (입금자명 서버 저장, managed-content, auth-user 최소화는 미완 — §3/§5 참고.)
+> (managed-content, auth-user 최소화는 미완 — §3 참고. **입금자명 서버 저장은 2026-08-25 완료 — §2.1.**)
 
 | 키 | 저장소 | 파일 | 데이터 | 판정 |
 |---|---|---|---|---|
@@ -30,53 +30,29 @@
 
 ---
 
-## 2. 🔴 백엔드 필수 — localStorage 금지
+## 2. ✅ 완료 — 신청·문의 백엔드 연결(localStorage 제거)
 
-### 2.1 신청 내역 `admin-applications`
-- **현재(잘못)**: 제출 시 `pages/ApplyPage/ApplyPage.tsx`의 `saveLocalApplication`이 신청 전체(PII)를 localStorage에 저장.
-  마이페이지(`pages/MyPage`)·조회(`pages/LookupPage`)가 localStorage에서 읽음.
-  - 문제: 실제 신청은 `POST /api/applications`로도 보내지만(로그인 API 세션일 때만), **localStorage에 중복·영구 저장**되어 유출.
-    또한 일반(mock 로그인) 사용자는 서버에 안 가고 **localStorage에만** 남음.
-- **백엔드 현황(이미 존재)**:
-  - `POST /api/applications`(개인), `POST /api/applications/bulk`(단체) — 생성
-  - `GET /api/my/applications`, `GET /api/my/applications/{id}` — 내 신청 조회
-  - `GET /api/admin/applications`, `.../{id}`, `.../{id}/members` — 관리자
-- **필요 작업**:
-  1. (신규 필드) `POST /api/applications` 요청/엔티티에 **`depositorName`(입금자명)** 추가 — 현재 백엔드에 필드 없음.
-  2. 프론트 `saveLocalApplication`/`loadApplications`(및 `data/adminMock.ts`) **제거**.
-  3. 마이페이지 "제작 내역"을 **`GET /api/my/applications`** 로 교체(현재 localStorage 필터).
-  4. 조회(`LookupPage`)의 localStorage 매칭 제거, `POST /api/applications/lookup`만 사용.
-- **DB**: 기존 `applications`/`applicants`/`application_members`/`receivers` 재사용. depositorName 컬럼만 추가.
-- **선행**: §4(실제 로그인 세션) — `/api/my/*`는 인증 세션 필요.
+> **2026-08-25 재검증(코드 대조):** 아래 두 항목은 백엔드 API 연결 + 프론트 localStorage 제거가 **완료**됐다. 남은 백엔드 미구현은 §2.1의 `depositorName`(입금자명) 저장 **1건뿐**이다.
 
-### 2.2 1:1 문의 `customer-inquiries`
-- **현재(잘못)**: `pages/InquiryPage`가 제출을 **localStorage에만** 저장(`data/inquiries.ts`). 백엔드로 전송 안 함.
-  마이페이지·상세가 localStorage에서 읽음. → 문의가 실제 관리자에게 전달되지 않고 브라우저에만 영구 잔존.
-- **백엔드 현황(이미 존재)**:
-  - `POST /api/inquiries` — 문의 생성(공개)
-  - `GET /api/my/inquiries`, `GET /api/my/inquiries/{id}` — 내 문의
-  - `GET /api/admin/inquiries`, 답변/상태 — 관리자(대시보드 이미 연결됨)
-- **필요 작업**:
-  1. 프론트 `api.ts`에 **공개 `createInquiry`**, **`listMyInquiries`/`getMyInquiry`** 클라이언트 함수 추가(백엔드는 이미 있음).
-  2. `InquiryPage` 제출을 `POST /api/inquiries`로 전환, `saveInquiries` **제거**.
-  3. 마이페이지 "문의 내역"을 `GET /api/my/inquiries`로 교체.
-  4. `data/inquiries.ts` **제거**.
-- **DB**: 기존 `inquiries` 테이블 재사용(신규 불필요).
-- **선행**: §4(실제 로그인 세션) — `/api/my/inquiries` 및 문의 소유자 매칭.
+### 2.1 신청 내역 `admin-applications` — ✅ 완료 (`depositorName` 포함, 2026-08-25)
+- **✅ 완료**: 프론트 `saveLocalApplication`/`loadApplications`·`data/adminMock.ts` **완전 제거**(grep 0건). 신청은 `POST /api/applications`(개인)·`/bulk`(단체)에만 저장, 마이페이지는 `GET /api/my/applications`(+`/{id}` 상세), 조회는 `POST /api/applications/lookup`만 사용. 관리자 조회 `GET /api/admin/applications`(+`/{id}`·`/members`)도 연결됨.
+- **✅ `depositorName`(입금자명) 구현 완료(2026-08-25)**: `Application.depositorName` 필드(nullable) + `registerDepositorName()`(결제 확인 전 SUBMITTED·WAITING에만 허용) + `PATCH /api/applications/{id}/depositor`(본인 소유만). 완료 화면(`StepComplete`)에서 입력→`api.updateDepositor(applicationId, name)`로 저장, 응답(`MyApplicationDetailResponse`)에 포함돼 마이페이지 상세에 노출. 엔티티 규칙 준수(팩토리 인자 아님·명명 mutation·상태가드), E2E 6케이스(200/403/401/400/가드) 통과. DB 컬럼은 ddl-auto가 자동 추가.
+
+### 2.2 1:1 문의 `customer-inquiries` — ✅ 완전 완료
+- **✅ 완료**: `data/inquiries.ts` **삭제됨**. `InquiryPage`가 `POST /api/inquiries`(privacyConsent 포함), 마이페이지/상세가 `GET /api/my/inquiries`(+`/{id}`), 관리자 답변/상태(`InquiriesSection`)까지 전부 실 API. 백엔드 추가 작업 없음. (API 테스트 7/7 통과 — `docs/API_TEST_REPORT.md` §2.5)
 
 ---
 
 ## 3. 🟠 백엔드 이전 권장
 
-### 3.1 관리자 편집 콘텐츠 `managed-content:*`
-- **현재**: `pages/EventsPage`가 이벤트 프로그램/피드 글을 localStorage(`managed-content:events` 등)에 저장/편집(`ContentAdminPanel`, `data/eventFeedPosts.ts`).
-- **문제**: PII는 아니지만 **관리자 편집 결과가 그 브라우저에만** 남아 다른 사용자/기기엔 반영 안 됨(실데이터 아님).
-- **백엔드 현황**: 실제 행사·게시판 CRUD API 존재(`/api/admin/events`, `/api/admin/boards`). 이 레거시 로컬 편집은 그와 **별개**.
-- **필요 작업**: 실제 이벤트/게시판 API로 이관하거나, 레거시 `ContentAdminPanel`/`managed-content` 경로 **제거**. (우선순위 중)
+### 3.1 관리자 편집 콘텐츠 `managed-content:*` — ⚠️ 부분 (백엔드는 있음, 프론트 레거시 경로 잔존)
+- **현황(2026-08-25)**: 행사 **부스/협업 피드**는 이미 실 API 연결됨 — `EventsPage.tsx`가 `api.listEvents({type})`로 조회(`:30-31`), 관리자 편집은 `EventAdminPanel`이 `/api/admin/events` CRUD로 수행(API 테스트 §2.4 통과).
+- **남은 것**: "이벤트 **프로그램**" 블럽만 아직 localStorage(`managed-content:events`, `ContentAdminPanel`, `EventsPage.tsx:25-26,42`). 이 특정 프로그램 콘텐츠는 전용 백엔드 API가 없다.
+- **필요 작업(프론트 정리 위주)**: 이 프로그램 블럽을 boards(공지형) 재활용 또는 events로 흡수하거나, 레거시 `ContentAdminPanel`/`managed-content` 경로 **제거**. PII 아님, 우선순위 중.
 
-### 3.2 로그인 상태 `auth-user`
-- **현재**: mock 로그인이라 사용자 PII를 localStorage에 저장(`AuthContext`).
-- **필요 작업**: §4 실제 로그인 전환 시, 클라이언트엔 표시용 최소 정보만 두고 세션은 서버(HttpOnly 쿠키) 기준. `phone/address`는 저장 제외.
+### 3.2 로그인 상태 `auth-user` — ⚠️ 백엔드 미구현 아님(프론트 저장 최소화 선택)
+- **현황**: 서버 인증 세션은 **HttpOnly 쿠키(백엔드)** 로 이미 존재하고 실 로그인도 동작한다. `AuthContext`의 `auth-user` localStorage는 **화면 표시용 캐시**(name/email/role/phone/address)일 뿐 백엔드 갭이 아니다.
+- **필요 작업(선택)**: 표시에 불필요한 `phone/address`는 저장에서 제외하는 프론트 최소화. 백엔드 작업 없음.
 
 ---
 
@@ -102,7 +78,7 @@
 - [x] **P0** 실제 로그인 세션 전환(§4) — `LoginPage`가 `POST /api/auth/login` 시도(실패 시 mock 폴백).
 - [x] **P0** 문의(§2.2): `createInquiry`/`listMyInquiries`/`getMyInquiry` 추가 → InquiryPage/MyPage/InquiryDetailPage 전환 → `data/inquiries.ts` 삭제. (E2E: 접수 201 → 내 문의 표시 확인)
 - [x] **P0** 신청(§2.1): `listMyApplications`/`getMyApplication` 추가 → MyPage를 `/api/my/applications`로 → `saveLocalApplication`/`data/adminMock.ts` 삭제 → LookupPage localStorage 매칭 제거.
-- [ ] **P0-잔여** 입금자명(`depositorName`) 서버 저장 — 완료 화면에서 입력하므로 별도 업데이트 엔드포인트 필요(현재 미저장).
+- [x] **P0** 입금자명(`depositorName`) 서버 저장 — `PATCH /api/applications/{id}/depositor` 신설(본인 소유·결제 확인 전만), 완료 화면(`StepComplete`)에서 저장. 2026-08-25 완료.
 - [ ] **P1** 관리자 콘텐츠(§3.1): `managed-content:*` 실제 API 이관 또는 제거.
 - [ ] **P1** `auth-user`(§3.2): 실제 로그인 후 클라이언트 저장 최소화.
 - [x] 유지: `application-draft`, `last-application-lookup`, `site-language`.

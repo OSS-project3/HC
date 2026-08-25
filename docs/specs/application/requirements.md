@@ -308,7 +308,7 @@ ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 
 | **Create** | `POST /api/applications` — JSON 1명분 | `POST /api/applications/bulk` — ZIP(엑셀+사진), **필수** |
 | **Read(사용자)** | `POST /api/applications/lookup`(비로그인, 신청번호+연락처) / `GET /api/my/applications`(로그인) | 동일 API — phone 대조 로직은 2절 하단 [TBD] 참고 |
 | **Read(관리자)** | `GET /api/admin/applications`, `GET /api/admin/applications/{id}` | 동일, `members` 배열로 N명 페이지네이션 |
-| **Update(사용자)** | 사진 재업로드(`PATCH .../photo`, `PHOTO_REJECTED` 상태에서만) / 신청 취소(`POST .../cancel`) / 입금자명 등록(`PATCH .../payment`) | 동일 API — 단체는 엑셀+ZIP 전체 재제출 |
+| **Update(사용자)** | 사진 재업로드(`PATCH .../photo`, `PHOTO_REJECTED` 상태에서만) / 신청 취소(`POST .../cancel`) / 입금자명 등록(**`PATCH .../depositor`** — 결제 확인 전만, 2026-08-25 구현) | 동일 API — 단체는 엑셀+ZIP 전체 재제출 |
 | **Update(관리자)** | 결제안내/입금확인/사진검토/작명·편집/제작승인/카드준비/실물 인계/환불완료 (Admin API) | Application 전체 단위로 동일하게 적용(개별 멤버 단위 아님) |
 | **Delete** | 명시적 삭제 API 없음 — `status=CANCELLED` 전이로 대체(소프트) | 동일 |
 

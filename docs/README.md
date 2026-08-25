@@ -11,7 +11,8 @@
 | 문서 | 역할 | 상태 |
 |---|---|---|
 | [`FRONTEND_API_GAPS.md`](./FRONTEND_API_GAPS.md) | 프론트-백엔드 연동 갭 추적(우선순위·완료 표시). **프론트 작업의 단일 소스** | 우선순위 0~4 완료(2026-08-25) |
-| [`BACKEND_API_GAPS.md`](./BACKEND_API_GAPS.md) | 프론트 실동작에 필요하나 백엔드에 없는 API 목록 | 유지 |
+| [`BACKEND_TODO.md`](./BACKEND_TODO.md) | **백엔드가 아직 해야 할 것만** 모은 단일 목록(전 도메인, 2026-08-25 코드 검증 기준) | 신설 |
+| [`BACKEND_API_GAPS.md`](./BACKEND_API_GAPS.md) | (구버전, 2026-08-18) 프론트 실동작에 필요하나 백엔드에 없는 API — 대부분 이후 구현됨(상단 정정 배너 참고). 최신은 `BACKEND_TODO.md` | 정정됨 |
 | [`FRONTEND_API_INTEGRATION_SPEC.md`](./FRONTEND_API_INTEGRATION_SPEC.md) | 프론트 API 연동 준비도·요청/응답 계약 상세(레퍼런스) | 유지 |
 | [`LOCALSTORAGE_TO_BACKEND.md`](./LOCALSTORAGE_TO_BACKEND.md) | 브라우저 저장소(localStorage/sessionStorage) 인벤토리·유출점검·백엔드 이전. **저장소 단일 소스** | P0 완료, P1 일부 잔여 |
 | [`TEST_REPORT.md`](./TEST_REPORT.md) | 백엔드 테스트 스위트 실행 결과 + 프론트 타입체크/빌드 + 엔드포인트 스모크 | 2026-08-25 실행 |
