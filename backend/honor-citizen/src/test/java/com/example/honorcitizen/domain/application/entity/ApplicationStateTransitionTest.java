@@ -37,6 +37,25 @@ class ApplicationStateTransitionTest {
     }
 
     @Test
+    void depositorNameIsRegisteredWhileWaitingForPayment() {
+        Application application = individual(IssueType.MOBILE);
+
+        application.registerDepositorName("홍길동");
+
+        assertThat(application.getDepositorName()).isEqualTo("홍길동");
+    }
+
+    @Test
+    void depositorNameIsRejectedAfterPaymentConfirmed() {
+        Application application = individual(IssueType.MOBILE);
+        application.confirmPayment();
+
+        assertThatThrownBy(() -> application.registerDepositorName("홍길동"))
+                .isInstanceOf(com.example.honorcitizen.common.exception.CustomException.class);
+        assertThat(application.getDepositorName()).isNull();
+    }
+
+    @Test
     void mobileApplicationTransitionsThroughTheCompleteLifecycle() {
         Application application = individual(IssueType.MOBILE);
         application.confirmPayment();

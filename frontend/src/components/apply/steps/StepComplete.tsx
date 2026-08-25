@@ -10,8 +10,8 @@ import { showToast } from "../../ui/toast";
 interface StepCompleteProps {
   draft: ApplicationDraft;
   applicationNumber: string;
-  /** 입금자명을 함께 넘겨 저장한다. */
-  onDone: (depositorName: string) => void;
+  /** 입금자명을 함께 넘겨 저장한다(서버 저장이 끝날 때까지 기다린 뒤 이동한다). */
+  onDone: (depositorName: string) => void | Promise<void>;
 }
 
 /** Completion copy differs by applicant type (personal vs organization). */
@@ -25,6 +25,7 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
   const navigate = useNavigate();
   const isOrg = draft.applicantType === "organization";
   const [depositorName, setDepositorName] = useState(draft.depositorName ?? "");
+  const [saving, setSaving] = useState(false);
 
   const copyAccount = async () => {
     try {
@@ -94,8 +95,10 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
 
       <div className="step__actions step__actions--end">
         <Button
-          onClick={() => {
-            onDone(depositorName.trim());
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true);
+            try { await onDone(depositorName.trim()); } finally { setSaving(false); }
             // 신청/제작 내역은 마이페이지 제작내역에서 확인한다. (조회 페이지는 발급된 카드 확인 전용)
             navigate(`/mypage#production`);
           }}

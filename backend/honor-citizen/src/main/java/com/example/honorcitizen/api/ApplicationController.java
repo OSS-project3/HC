@@ -6,6 +6,7 @@ import com.example.honorcitizen.domain.application.dto.ApplicationCancelResponse
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationCreateResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationLookupRequest;
+import com.example.honorcitizen.domain.application.dto.DepositorNameUpdateRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationLookupResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationPhotoReuploadResponse;
 import com.example.honorcitizen.domain.application.dto.BulkApplicationCreateRequest;
@@ -71,6 +72,16 @@ public class ApplicationController {
             @PathVariable Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.cancelByUser(userId, applicationId)));
+    }
+
+    // 입금자명 등록/수정 — 완료 화면에서 신청자 본인이 호출. 결제 확인 전(SUBMITTED·WAITING)에만 허용.
+    @PatchMapping("/{applicationId}/depositor")
+    public ResponseEntity<ApiResponse<Void>> updateDepositorName(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long applicationId,
+            @Valid @RequestBody DepositorNameUpdateRequest request) {
+        applicationService.updateDepositorName(userId, applicationId, request.getDepositorName());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     @PatchMapping("/{applicationId}/photo")

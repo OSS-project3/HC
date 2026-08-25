@@ -675,6 +675,17 @@ public class ApplicationService {
         return ApplicationCancelResponse.from(application);
     }
 
+    // 입금자명 등록/수정 — 신청자 본인만(소유권), 결제 확인 전(엔티티 가드)까지만. 완료 화면에서 호출된다.
+    @Transactional
+    public void updateDepositorName(Long userId, Long applicationId, String depositorName) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        if (!application.isOwnedBy(userId)) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+        application.registerDepositorName(depositorName.trim());
+    }
+
     @Transactional
     public Application guidePayment(Long adminId, Long applicationId) {
         validateAdmin(adminId);

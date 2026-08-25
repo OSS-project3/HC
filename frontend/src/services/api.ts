@@ -137,7 +137,7 @@ export interface AdminApplicationDetail {
   paymentGuidedAt?: string; paymentDueAt?: string; cancelledAt?: string; refundedAt?: string;
   cardReadyAt?: string; physicalDispatchedAt?: string; photoRejectReason?: string;
   applicant: AdminApplicantSummary; receiver?: AdminReceiverSummary;
-  memberCount: number; createdAt: string;
+  memberCount: number; createdAt: string; depositorName?: string;
 }
 export interface AdminApplicationMember {
   memberId: number; englishName?: string; nationality?: string; gender?: "MALE" | "FEMALE";
@@ -176,6 +176,8 @@ export const api = {
   reuploadPhoto: (id: number, form: FormData) => request(`/api/applications/${id}/photo`, { method: "PATCH", body: form }),
   getCardDownload: (id: number) => request<CardDownload>(`/api/applications/${id}/cards/download`),
   cancelApplication: (id: number) => request<{ applicationId: number; status: ApplicationStatus; refundRequired?: boolean }>(`/api/applications/${id}/cancel`, { method: "POST" }),
+  // 입금자명 등록/수정 — 완료 화면에서 호출(결제 확인 전까지만 허용, 본인 신청).
+  updateDepositor: (id: number, depositorName: string) => request<void>(`/api/applications/${id}/depositor`, { method: "PATCH", body: JSON.stringify({ depositorName }) }),
   oauthUrl: (provider: "google" | "naver") => `${API_BASE_URL}/oauth2/authorization/${provider}`,
 
   // Reviews

@@ -162,6 +162,7 @@ function ApplicationDetail({ loading, detail }: { loading: boolean; detail: Admi
   const rows: { label: string; value?: string }[] = [
     { label: "발급 방식", value: detail.issueType === "MOBILE_AND_PHYSICAL" ? "모바일+실물" : "모바일" },
     { label: "수량", value: `${detail.totalQuantity}매` },
+    { label: "입금자명", value: detail.depositorName },
     { label: "결제 상태", value: detail.paymentStatus === "CONFIRMED" ? "입금 확인" : "입금 대기" },
     { label: "환불", value: detail.refundedAt ? new Date(detail.refundedAt).toLocaleString("ko-KR") : undefined },
     { label: "사진 반려 사유", value: detail.photoRejectReason },

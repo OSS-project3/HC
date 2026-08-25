@@ -35,10 +35,12 @@ export function ApplyPage() {
 
   const [step, setStep] = useState(0);
   const [applicationNumber, setApplicationNumber] = useState("");
+  const [applicationId, setApplicationId] = useState<number | null>(null);
 
   useEffect(() => {
     setStep(0);
     setApplicationNumber("");
+    setApplicationId(null);
   }, [pathname]);
 
   // The selected design is carried through the URL so it survives refresh.
@@ -102,6 +104,7 @@ export function ApplyPage() {
         }
         const result = await api.createApplication(form, isOrg);
         setApplicationNumber(result.applicationNumber);
+        setApplicationId(result.applicationId);
         goTo(4);
     } catch (error) {
       if (error instanceof ApiError && error.errors?.length) {
@@ -166,8 +169,11 @@ export function ApplyPage() {
               <StepComplete
                 draft={draft}
                 applicationNumber={applicationNumber}
-                onDone={() => {
-                  // 입금자명 서버 저장은 별도 엔드포인트 필요(현재 미구현) — 임시 개인정보만 정리한다.
+                onDone={async (depositorName) => {
+                  // 입금자명을 서버에 저장(PATCH /api/applications/{id}/depositor) 후 임시 개인정보 정리.
+                  if (applicationId && depositorName && user?.source === "api") {
+                    try { await api.updateDepositor(applicationId, depositorName); } catch (e) { showToast(e instanceof ApiError ? e.message : "입금자명 저장에 실패했습니다."); }
+                  }
                   clear();
                 }}
               />

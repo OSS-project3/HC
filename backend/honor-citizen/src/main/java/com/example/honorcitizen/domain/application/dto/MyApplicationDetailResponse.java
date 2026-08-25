@@ -38,6 +38,7 @@ public class MyApplicationDetailResponse {
     private final ReceiverSummary receiver;
     private final long memberCount;
     private final LocalDateTime createdAt;
+    private final String depositorName;
 
     private MyApplicationDetailResponse(Long applicationId, String applicationNumber, ApplicationType applicationType,
             Long cardTypeId, String cardTypeName, IssueType issueType, int totalQuantity, ApplicationStatus status,
@@ -45,7 +46,7 @@ public class MyApplicationDetailResponse {
             LocalDateTime cancelledAt, CancellationType cancellationType, CancellationReason cancellationReason,
             LocalDateTime refundedAt, LocalDateTime cardReadyAt, LocalDateTime physicalDispatchedAt,
             String photoRejectReason, ApplicantSummary applicant, ReceiverSummary receiver, long memberCount,
-            LocalDateTime createdAt) {
+            LocalDateTime createdAt, String depositorName) {
         this.applicationId = applicationId;
         this.applicationNumber = applicationNumber;
         this.applicationType = applicationType;
@@ -68,6 +69,7 @@ public class MyApplicationDetailResponse {
         this.receiver = receiver;
         this.memberCount = memberCount;
         this.createdAt = createdAt;
+        this.depositorName = depositorName;
     }
 
     // receiver는 issueType=MOBILE이면 항상 null(api.md API 7 참고) — 호출측이 조회 여부부터 결정해서 넘긴다.
@@ -80,7 +82,8 @@ public class MyApplicationDetailResponse {
                 application.getCancelledAt(), application.getCancellationType(), application.getCancellationReason(),
                 application.getRefundedAt(), application.getCardReadyAt(), application.getPhysicalDispatchedAt(),
                 application.getPhotoRejectReason(), ApplicantSummary.from(applicant),
-                receiver == null ? null : ReceiverSummary.from(receiver), memberCount, application.getCreatedAt());
+                receiver == null ? null : ReceiverSummary.from(receiver), memberCount, application.getCreatedAt(),
+                application.getDepositorName());
     }
 
     @Getter
