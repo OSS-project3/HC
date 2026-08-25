@@ -1,26 +1,38 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
-import { loadInquiries } from "../../data/inquiries";
-import { adminStatusLabels, loadApplications } from "../../data/adminMock";
 import { toReviewPost } from "../../data/reviews";
 import "./MyPage.css";
 import { useEffect, useState } from "react";
-import { api } from "../../services/api";
+import { api, type AdminApplicationListItem, type ApplicationStatus, type InquiryListItem } from "../../services/api";
 import { Button } from "../../components/ui/Button";
+
+const APP_STATUS_LABELS: Record<ApplicationStatus, string> = {
+  SUBMITTED: "접수", REVIEWING: "검토중", PHOTO_REJECTED: "사진반려", NAME_EDITING: "작명중",
+  PRODUCTION_READY: "제작대기", PRODUCING: "제작중", COMPLETED: "발급완료", CANCELLED: "취소",
+};
 
 export function MyPage() {
   const { user, refreshProfile, logout } = useAuth();
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState(() => ({ name: user?.name || "", phone: user?.phone || "", address: user?.address || "" }));
-  // 내 후기는 백엔드 GET /api/my/reviews로 연동. (로그인 세션이 API 기반일 때만 호출)
+  // 내 후기/신청/문의는 모두 백엔드 my-* API로 조회한다(서버 세션 = source "api"일 때만).
   const [myReviews, setMyReviews] = useState<{ id: string; title: string; createdAt: string }[]>([]);
+  const [myApplications, setMyApplications] = useState<AdminApplicationListItem[]>([]);
+  const [myInquiries, setMyInquiries] = useState<InquiryListItem[]>([]);
 
   useEffect(() => {
-    if (user?.source !== "api") { setMyReviews([]); return; }
+    if (user?.source !== "api") { setMyReviews([]); setMyApplications([]); setMyInquiries([]); return; }
     let cancelled = false;
-    api.listMyReviews({ size: 100 })
-      .then((data) => { if (!cancelled) setMyReviews(data.content.map(toReviewPost).map((r) => ({ id: r.id, title: r.title, createdAt: r.createdAt }))); })
-      .catch(() => { if (!cancelled) setMyReviews([]); });
+    Promise.all([
+      api.listMyReviews({ size: 100 }).then((d) => d.content.map(toReviewPost).map((r) => ({ id: r.id, title: r.title, createdAt: r.createdAt }))).catch(() => []),
+      api.listMyApplications({ size: 100 }).then((d) => d.content).catch(() => []),
+      api.listMyInquiries().catch(() => []),
+    ]).then(([reviews, apps, inquiries]) => {
+      if (cancelled) return;
+      setMyReviews(reviews);
+      setMyApplications(apps);
+      setMyInquiries(inquiries);
+    });
     return () => { cancelled = true; };
   }, [user?.source]);
 
@@ -33,11 +45,6 @@ export function MyPage() {
       </section>
     );
   }
-
-  // 내 문의/신청 목록은 백엔드에 my-* 조회 API가 아직 없어(또는 미커밋) 목데이터로 남아 있다.
-  const myInquiries = loadInquiries().filter((inquiry) => inquiry.email === user.email);
-  // 로그인 계정으로 제출한 신청(ownerEmail) 우선, 과거 기록 호환을 위해 신청서 입력 이메일(applicantEmail)도 매칭.
-  const myApplications = loadApplications().filter((application) => (application.ownerEmail ?? application.applicantEmail) === user.email);
 
   return (
     <div className="mypage">
@@ -69,7 +76,7 @@ export function MyPage() {
       <MySection id="production" title="제작 내역">
         <div className="mypage-list mypage-list--production">
           <div className="mypage-list__head"><span>신청번호</span><span>카드 종류</span><span>신청일</span><span>상태</span></div>
-          {myApplications.map((application) => <article key={application.applicationNumber}><strong>{application.applicationNumber}</strong><span>{application.cardType}</span><time>{application.submittedAt.replace(/-/g, ".")}</time><b className="mypage-status">{adminStatusLabels[application.status]}</b></article>)}
+          {myApplications.map((application) => <article key={application.applicationId}><strong>{application.applicationNumber}</strong><span>{application.cardTypeName}</span><time>{new Date(application.createdAt).toLocaleDateString("ko-KR")}</time><b className="mypage-status">{APP_STATUS_LABELS[application.status]}</b></article>)}
           {myApplications.length === 0 && <p className="mypage-list__empty">제작 신청 내역이 없습니다.</p>}
         </div>
       </MySection>
@@ -83,7 +90,7 @@ export function MyPage() {
 
       <MySection title="문의 내역" action={<Link to="/inquiry">문의하기 ›</Link>}>
         <div className="mypage-list mypage-list--activity">
-          {myInquiries.map((inquiry) => <article key={inquiry.id}><Link to={`/mypage/inquiry/${encodeURIComponent(inquiry.id)}`}><strong>{inquiry.title}</strong></Link><span className={`mypage-answer ${inquiry.status === "PENDING" ? "is-waiting" : ""}`}>{inquiry.status === "COMPLETED" ? "문의 완료" : "답변 대기"}</span><time>{new Date(inquiry.createdAt).toLocaleDateString("ko-KR")}</time></article>)}
+          {myInquiries.map((inquiry) => <article key={inquiry.id}><Link to={`/mypage/inquiry/${inquiry.id}`}><strong>{inquiry.title}</strong></Link><span className={`mypage-answer ${inquiry.status === "PENDING" ? "is-waiting" : ""}`}>{inquiry.status === "COMPLETED" ? "문의 완료" : "답변 대기"}</span><time>{new Date(inquiry.createdAt).toLocaleDateString("ko-KR")}</time></article>)}
           {myInquiries.length === 0 && <p className="mypage-list__empty">접수한 문의가 없습니다.</p>}
         </div>
       </MySection>

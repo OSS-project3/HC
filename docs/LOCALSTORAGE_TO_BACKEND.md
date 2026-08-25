@@ -11,10 +11,14 @@
 
 ## 1. 전체 인벤토리
 
+> ✅ **2026-08-25 완료**: 아래 🔴 두 항목(신청·문의)은 백엔드 API 연결 + localStorage 제거 완료.
+> `data/adminMock.ts`·`data/inquiries.ts` 삭제, 일반 로그인도 실제 `/api/auth/login`(실패 시 mock 폴백)으로 전환.
+> (입금자명 서버 저장, managed-content, auth-user 최소화는 미완 — §3/§5 참고.)
+
 | 키 | 저장소 | 파일 | 데이터 | 판정 |
 |---|---|---|---|---|
-| `admin-applications` | localStorage | `data/adminMock.ts`, `pages/ApplyPage`, `pages/MyPage`, `pages/LookupPage` | 제출 신청 전체 PII(+ownerEmail·depositorName) | 🔴 **백엔드 필수** |
-| `customer-inquiries` | localStorage | `data/inquiries.ts`, `pages/InquiryPage`, `pages/MyPage`, `pages/InquiryDetailPage` | 문의자 이름·이메일·전화·내용·답변 | 🔴 **백엔드 필수** |
+| ~~`admin-applications`~~ | ✅ 제거됨 | `ApplyPage`→`POST /api/applications`, `MyPage`→`GET /api/my/applications` | 제출 신청 | ✅ **백엔드 연결 완료** |
+| ~~`customer-inquiries`~~ | ✅ 제거됨 | `InquiryPage`→`POST /api/inquiries`, `MyPage`/`InquiryDetailPage`→`GET /api/my/inquiries` | 문의 | ✅ **백엔드 연결 완료** |
 | `managed-content:*` (`events` 등) | localStorage | `data/eventFeedPosts.ts`, `components/admin/ContentAdminPanel.tsx`, `pages/EventsPage` | 관리자 편집 공개 콘텐츠(이벤트/피드) | 🟠 **백엔드 이전 권장** |
 | `auth-user` | localStorage | `features/auth/AuthContext.tsx` | 로그인 사용자 {name,email,role,phone,address} | 🟠 **실제 로그인 전환 필요** |
 | `application-draft` | sessionStorage | `features/apply/useApplicationDraft.ts` | 작성 중 신청서(PII, 파일 제외) | 🟢 유지 가능(세션·임시) |
@@ -94,12 +98,13 @@
 
 ## 6. 우선순위 · 체크리스트
 
-- [ ] **P0** 실제 로그인 세션 전환(§4) — `/api/my/*` 전제.
-- [ ] **P0** 문의(§2.2): `api.ts` createInquiry/listMyInquiries 추가 → InquiryPage/MyPage 전환 → `data/inquiries.ts` 제거.
-- [ ] **P0** 신청(§2.1): `depositorName` 백엔드 필드 추가 → MyPage를 `/api/my/applications`로 → `saveLocalApplication`/`data/adminMock.ts` 제거 → LookupPage localStorage 매칭 제거.
+- [x] **P0** 실제 로그인 세션 전환(§4) — `LoginPage`가 `POST /api/auth/login` 시도(실패 시 mock 폴백).
+- [x] **P0** 문의(§2.2): `createInquiry`/`listMyInquiries`/`getMyInquiry` 추가 → InquiryPage/MyPage/InquiryDetailPage 전환 → `data/inquiries.ts` 삭제. (E2E: 접수 201 → 내 문의 표시 확인)
+- [x] **P0** 신청(§2.1): `listMyApplications`/`getMyApplication` 추가 → MyPage를 `/api/my/applications`로 → `saveLocalApplication`/`data/adminMock.ts` 삭제 → LookupPage localStorage 매칭 제거.
+- [ ] **P0-잔여** 입금자명(`depositorName`) 서버 저장 — 완료 화면에서 입력하므로 별도 업데이트 엔드포인트 필요(현재 미저장).
 - [ ] **P1** 관리자 콘텐츠(§3.1): `managed-content:*` 실제 API 이관 또는 제거.
 - [ ] **P1** `auth-user`(§3.2): 실제 로그인 후 클라이언트 저장 최소화.
-- [ ] 유지: `application-draft`, `last-application-lookup`, `site-language`.
+- [x] 유지: `application-draft`, `last-application-lookup`, `site-language`.
 
 > 완료 기준: 프론트 코드에서 **사용자/업무 데이터를 쓰는 `localStorage.setItem` 호출이 0개**가 되고(§5의 UI 설정 제외),
 > 해당 데이터가 전부 백엔드 API를 통해 DB에 저장·조회된다.

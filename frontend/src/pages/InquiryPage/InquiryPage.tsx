@@ -4,7 +4,7 @@ import { Button } from "../../components/ui/Button";
 import { SelectField } from "../../components/ui/SelectField";
 import { showToast } from "../../components/ui/toast";
 import { useAuth } from "../../features/auth/AuthContext";
-import { loadInquiries, saveInquiries, type InquiryRecord } from "../../data/inquiries";
+import { api, ApiError, type InquiryCategory } from "../../services/api";
 import "./InquiryPage.css";
 
 export function InquiryPage() {
@@ -14,31 +14,37 @@ export function InquiryPage() {
   const [agreed, setAgreed] = useState(false);
   const [category, setCategory] = useState("");
 
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!category) {
       showToast("문의 유형을 선택해 주세요.");
       return;
     }
+    // 문의는 백엔드(POST /api/inquiries)에 저장한다 — 서버 세션(실제 로그인)이 필요하다.
+    if (user?.source !== "api") {
+      showToast("실제 로그인 후 문의를 접수할 수 있습니다.");
+      return;
+    }
     const form = event.currentTarget;
     const data = new FormData(form);
-    const record: InquiryRecord = {
-      id: crypto.randomUUID(),
-      category,
-      name: String(data.get("name")),
-      email: String(data.get("email")),
-      phone: String(data.get("phone")),
-      title: String(data.get("title")),
-      content: String(data.get("content")),
-      createdAt: new Date().toISOString(),
-      status: "PENDING",
-    };
-    saveInquiries([record, ...loadInquiries()]);
-    showToast("문의가 정상적으로 접수되었습니다.");
-    form.reset();
-    setAgreed(false);
-    setCategory("");
-    window.setTimeout(() => navigate("/support#contact"), 700);
+    try {
+      await api.createInquiry({
+        category: category as InquiryCategory,
+        name: String(data.get("name")),
+        email: String(data.get("email")),
+        phone: String(data.get("phone")),
+        title: String(data.get("title")),
+        content: String(data.get("content")),
+        privacyConsent: true,
+      });
+      showToast("문의가 정상적으로 접수되었습니다.");
+      form.reset();
+      setAgreed(false);
+      setCategory("");
+      window.setTimeout(() => navigate("/mypage"), 700);
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "문의 접수에 실패했습니다.");
+    }
   };
 
   if (!user) {

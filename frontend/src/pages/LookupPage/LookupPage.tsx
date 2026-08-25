@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { FlipCard } from "../../components/ui/FlipCard";
 import { showToast } from "../../components/ui/toast";
-import { loadApplications } from "../../data/adminMock";
 import { api } from "../../services/api";
 import { downloadCompositeCard, downloadImageFile } from "../../lib/cardDownload";
 import "./LookupPage.css";
@@ -120,14 +119,9 @@ export function LookupPage() {
     // 3) 로컬 데모 데이터 폴백.
     const contactMatches =
       normalizePhone(phone) === DEMO_PHONE && email.trim().toLowerCase() === DEMO_EMAIL;
-    const savedApplicationMatches = loadApplications().some(
-      (application) =>
-        normalizePhone(application.phone) === normalizePhone(phone) &&
-        application.applicantEmail?.toLowerCase() === email.trim().toLowerCase(),
-    );
     const cardMatches = normalizeCardNumber(cardNumber) === normalizeCardNumber(DEMO_CARD_NUMBER);
 
-    if ((method === "contact" && (contactMatches || savedApplicationMatches)) || (method === "card" && cardMatches)) {
+    if ((method === "contact" && contactMatches) || (method === "card" && cardMatches)) {
       setError(null);
       setCard({ frontUrl: DEMO_CARD_FRONT, backUrl: DEMO_CARD_BACK });
       return;

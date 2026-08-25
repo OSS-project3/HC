@@ -128,7 +128,8 @@ export interface NameSelectionStat { name: string; hanja: string; count: number;
 export interface ApplicationStatusResult { applicationId: number; status: ApplicationStatus; }
 
 // ── Inquiries (1:1 문의, 고객지원) ───────────────────────────────
-export type InquiryCategory = "PRODUCTION" | "PAYMENT_AND_SHIPPING" | "CARD_ISSUANCE" | "EVENT_COLLABORATION" | "OTHER";
+// 백엔드가 @JsonValue/@JsonCreator로 한글 값을 그대로 주고받는다(InquiryCategory enum). 표시값 = 이 문자열.
+export type InquiryCategory = "제작 신청" | "결제 및 배송" | "카드 발급" | "행사·단체 협업" | "기타";
 export type InquiryStatus = "PENDING" | "COMPLETED";
 export interface InquiryListItem { id: number; category: InquiryCategory; title: string; name: string; email: string; phone: string; status: InquiryStatus; createdAt: string; }
 export interface InquiryDetail { id: number; category: InquiryCategory; name: string; email: string; phone: string; title: string; content: string; status: InquiryStatus; answer?: string; answeredAt?: string; createdAt: string; }
@@ -188,6 +189,13 @@ export const api = {
   getAdminInquiry: (id: number) => request<InquiryDetail>(`/api/admin/inquiries/${id}`),
   answerInquiry: (id: number, answer: string) => request<void>(`/api/admin/inquiries/${id}/answer`, { method: "PATCH", body: JSON.stringify({ answer }) }),
   updateInquiryStatus: (id: number, status: InquiryStatus) => request<void>(`/api/admin/inquiries/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  // Inquiries (공개 생성 + 내 문의) — 로그인 세션 필요.
+  createInquiry: (body: { category: InquiryCategory; name: string; email: string; phone: string; title: string; content: string; privacyConsent: boolean }) => request<{ id: number }>("/api/inquiries", { method: "POST", body: JSON.stringify(body) }),
+  listMyInquiries: () => request<InquiryListItem[]>("/api/my/inquiries"),
+  getMyInquiry: (id: number) => request<InquiryDetail>(`/api/my/inquiries/${id}`),
+  // Applications (내 신청) — 로그인 세션 필요.
+  listMyApplications: (params: { status?: ApplicationStatus; page?: number; size?: number } = {}) => request<PageResponse<AdminApplicationListItem>>(`/api/my/applications${qs({ ...params })}`),
+  getMyApplication: (id: number) => request<AdminApplicationDetail>(`/api/my/applications/${id}`),
 
   // Events (admin)
   listAdminEvents: (params: { type?: EventType; visible?: boolean; page?: number; size?: number } = {}) => request<PageResponse<EventAdminListItem>>(`/api/admin/events${qs({ ...params })}`),

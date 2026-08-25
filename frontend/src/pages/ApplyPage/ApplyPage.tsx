@@ -4,7 +4,6 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";
 import { findCardDesign, honoraryKoreanCards, honoraryCitizenCards, studentCards, visitorCards, cardTypeLabels, cardTypeIds } from "../../data/cards";
 import { toGender, toIssueType, toOrientation, toSchoolType } from "../../features/apply/mappers";
-import { loadApplications, saveApplications, type AdminApplicationDetail } from "../../data/adminMock";
 import { Stepper } from "../../components/apply/Stepper";
 import { CardPreviewPanel } from "../../components/apply/CardPreviewPanel";
 import { StepType } from "../../components/apply/steps/StepType";
@@ -57,40 +56,13 @@ export function ApplyPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const saveLocalApplication = (num: string, serverQuantity?: number) => {
-    const applications = loadApplications();
-    const isOrg = draft.applicantType === "organization";
-    const isPhysical = draft.issuanceMethod === "mobile_and_physical";
-    const genderLabel = draft.applicant.gender === "male" ? "남성" : draft.applicant.gender === "female" ? "여성" : undefined;
-    const schoolLevelLabel = draft.applicant.schoolLevel === "highschool" ? "고등학교" : draft.applicant.schoolLevel === "university" ? "대학교" : undefined;
-    const detail: AdminApplicationDetail = {
-      issuanceMethod: isPhysical ? "모바일 + 실물 발급" : "모바일 발급",
-      email: draft.applicant.email || undefined,
-      englishName: draft.applicant.englishName || undefined,
-      nationality: draft.applicant.nationality || undefined,
-      birthPlace: draft.applicant.birthPlace || undefined,
-      birthDate: draft.applicant.birthDate || undefined,
-      birthTime: draft.applicant.birthTime || undefined,
-      gender: genderLabel,
-      koreaEntryDate: draft.applicant.koreaEntryDate || undefined,
-      schoolLevel: design.cardType === "student" ? schoolLevelLabel : undefined,
-      schoolName: draft.applicant.schoolName || undefined,
-      studentNumber: draft.applicant.studentNumber || undefined,
-      department: draft.applicant.department || undefined,
-      organizationName: isOrg ? draft.applicant.organizationName || undefined : undefined,
-      recipientName: isPhysical ? draft.recipient.name || undefined : undefined,
-      recipientPhone: isPhysical ? draft.recipient.phone || undefined : undefined,
-      recipientAddress: isPhysical ? [draft.recipient.address, draft.recipient.addressDetail].filter(Boolean).join(" ") || undefined : undefined,
-      deliveryRequest: isPhysical ? draft.recipient.deliveryRequest || undefined : undefined,
-    };
-    saveApplications([{ applicationNumber: num, applicantType: isOrg ? "법인·단체" : "개인", cardType: cardTypeLabels[design.cardType], applicantName: draft.applicant.name || draft.applicant.englishName || "", applicantEmail: draft.applicant.email, ownerEmail: user?.email, phone: draft.applicant.phone, quantity: serverQuantity ?? draft.quantity, status: "SUBMITTED", submittedAt: new Date().toISOString().slice(0, 10), detail }, ...applications]);
-    setApplicationNumber(num);
-    goTo(4);
-  };
-
   const submit = async () => {
-    if (user?.source === "api") {
-      try {
+    // 신청은 백엔드(POST /api/applications)에만 저장한다 — 서버 세션(실제 로그인)이 필요하다. localStorage 미사용.
+    if (user?.source !== "api") {
+      showToast("제작 신청은 실제 로그인 후 이용할 수 있습니다.");
+      return;
+    }
+    try {
         const physical = draft.issuanceMethod === "mobile_and_physical";
         const isOrg = draft.applicantType === "organization";
         const isStudent = design.cardType === "student";
@@ -128,21 +100,16 @@ export function ApplyPage() {
           if (draft.sealFile?.file) form.append("schoolSeal", draft.sealFile.file);
         }
         const result = await api.createApplication(form, isOrg);
-        // 단체 수량은 사용자 입력이 아니라 서버가 계산한 totalQuantity를 표시한다.
-        saveLocalApplication(result.applicationNumber, result.totalQuantity);
-        return;
-      } catch (error) {
-        if (error instanceof ApiError && error.errors?.length) {
-          const detail = error.errors.slice(0, 3).map((e) => `${e.row != null ? `${e.row}행 ` : ""}${e.field}: ${e.message}`).join(" / ");
-          showToast(`${error.message}${detail ? ` — ${detail}` : ""}`);
-        } else {
-          showToast(error instanceof Error ? error.message : "신청 API 호출에 실패했습니다.");
-        }
-        return;
+        setApplicationNumber(result.applicationNumber);
+        goTo(4);
+    } catch (error) {
+      if (error instanceof ApiError && error.errors?.length) {
+        const detail = error.errors.slice(0, 3).map((e) => `${e.row != null ? `${e.row}행 ` : ""}${e.field}: ${e.message}`).join(" / ");
+        showToast(`${error.message}${detail ? ` — ${detail}` : ""}`);
+      } else {
+        showToast(error instanceof Error ? error.message : "신청 API 호출에 실패했습니다.");
       }
     }
-    const num = `APP-2026-${String(Math.floor(100000 + (Date.now() % 900000))).padStart(6, "0")}`;
-    saveLocalApplication(num);
   };
 
   const title = design ? `${cardTypeLabels[design.cardType]} 신청` : "제작 신청";
@@ -198,13 +165,8 @@ export function ApplyPage() {
               <StepComplete
                 draft={draft}
                 applicationNumber={applicationNumber}
-                onDone={(depositorName) => {
-                  // 입금자명을 저장된 신청 기록에 반영한다(입금 확인 대조용).
-                  if (depositorName) {
-                    saveApplications(loadApplications().map((a) =>
-                      a.applicationNumber === applicationNumber ? { ...a, depositorName } : a));
-                  }
-                  // Clear temporary personal data once finished.
+                onDone={() => {
+                  // 입금자명 서버 저장은 별도 엔드포인트 필요(현재 미구현) — 임시 개인정보만 정리한다.
                   clear();
                 }}
               />

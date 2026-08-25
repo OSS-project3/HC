@@ -1,15 +1,9 @@
 // 고객지원(1:1 문의) 관리 — 실제 API(/api/admin/inquiries) 연결.
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type InquiryCategory, type InquiryDetail, type InquiryListItem, type InquiryStatus } from "../../../services/api";
+import { api, ApiError, type InquiryDetail, type InquiryListItem, type InquiryStatus } from "../../../services/api";
 import { showToast } from "../../ui/toast";
 
-const categoryLabels: Record<InquiryCategory, string> = {
-  PRODUCTION: "제작",
-  PAYMENT_AND_SHIPPING: "결제·배송",
-  CARD_ISSUANCE: "카드 발급",
-  EVENT_COLLABORATION: "행사·협업",
-  OTHER: "기타",
-};
+// category는 백엔드가 한글 값 그대로 준다(예: "카드 발급") — 별도 라벨 매핑 없이 그대로 표시한다.
 const statusLabels: Record<InquiryStatus, string> = { PENDING: "답변 대기", COMPLETED: "문의 완료" };
 
 export function InquiriesSection() {
@@ -94,7 +88,7 @@ export function InquiriesSection() {
             <tbody>
               {items.map((it) => (
                 <tr key={it.id} className={openId === it.id ? "is-open" : undefined}>
-                  <td><span className="admin__badge is-inquiry">{categoryLabels[it.category]}</span></td>
+                  <td><span className="admin__badge is-inquiry">{it.category}</span></td>
                   <td>
                     <button className="admin__linklike" onClick={() => openDetail(it.id)} aria-expanded={openId === it.id}>{it.title}</button>
                     {openId === it.id && (

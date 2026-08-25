@@ -1,8 +1,9 @@
 // 문의 상세: 마이페이지 문의 내역에서 제목을 눌러 진입한다.
 // 본인 문의만 열람 가능하며, 관리자 답변이 등록되면 답변 내용을 확인할 수 있다.
 import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../features/auth/AuthContext";
-import { findInquiry } from "../../data/inquiries";
+import { api, type InquiryDetail } from "../../services/api";
 import "./InquiryDetailPage.css";
 
 function formatDate(iso: string) {
@@ -13,12 +14,19 @@ function formatDate(iso: string) {
 export function InquiryDetailPage() {
   const { inquiryId } = useParams();
   const { user } = useAuth();
-  const inquiry = inquiryId ? findInquiry(decodeURIComponent(inquiryId)) : undefined;
+  // 본인 문의만 조회하는 GET /api/my/inquiries/{id}로 불러온다(서버 세션 필요).
+  const [inquiry, setInquiry] = useState<InquiryDetail | null>(null);
 
-  // 로그인하지 않았거나, 본인 문의가 아니면 열람할 수 없다.
-  const canView = inquiry && user && (user.email === inquiry.email || user.role === "admin");
+  useEffect(() => {
+    if (!inquiryId || user?.source !== "api") return;
+    let cancelled = false;
+    api.getMyInquiry(Number(inquiryId))
+      .then((d) => { if (!cancelled) setInquiry(d); })
+      .catch(() => { if (!cancelled) setInquiry(null); });
+    return () => { cancelled = true; };
+  }, [inquiryId, user?.source]);
 
-  if (!inquiry || !canView) {
+  if (!inquiry) {
     return (
       <section className="inquiry-detail page-container">
         <header className="inquiry-detail__hero subpage-hero">

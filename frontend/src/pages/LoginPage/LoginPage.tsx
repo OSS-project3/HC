@@ -11,7 +11,7 @@ export function LoginPage() {
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("returnTo");
   const safeReturnTo = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
-  const { login, refreshProfile } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -24,26 +24,18 @@ export function LoginPage() {
     if (!password) nextErrors.password = "비밀번호를 입력해 주세요.";
     if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
     setErrors({});
-    // ⚠️ TEMP: 임시 관리자 로그인. 백엔드에 시드된 admin 계정으로 실제 로그인(ADMIN 토큰)을 시도하고,
-    //    실패 시(오프라인·미시드) 클라이언트 admin 상태로 폴백해 UI만이라도 열리게 한다.
-    //    운영 배포 전 제거. 문서: docs/TEMP_ADMIN_LOGIN.md
-    if (email.trim() === "admin@test.com" && password === "admin1234!") {
-      // 1) 클라이언트 admin 상태를 먼저 세팅해 /admin 가드를 즉시 통과시킨다(렌더 레이스 방지).
-      login({ name: "관리자", email: "admin@test.com", role: "admin" });
-      // 2) 이어서 실제 백엔드 로그인으로 ADMIN 세션 쿠키까지 확보(성공 시 refreshProfile이 서버 기준으로 갱신).
-      //    실패(오프라인·미시드)해도 클라이언트 admin 상태가 남아 UI는 열린다(admin API는 401).
-      try {
-        await api.loginWithPassword("admin@test.com", "admin1234!");
-        await refreshProfile();
-      } catch {
-        /* keep client-only admin */
-      }
-      navigate(safeReturnTo === "/" ? "/admin" : safeReturnTo);
-      return;
+    try {
+      // 실제 백엔드 로그인 — 성공하면 서버 세션(HttpOnly 쿠키) 확보 → 신청/문의 등 /api/my/*가 동작한다.
+      const me = await api.loginWithPassword(email.trim(), password);
+      const role = me.role === "ADMIN" ? "admin" : "user";
+      login({ name: me.name, email: me.email, role, source: "api", phone: me.phone, address: me.address });
+      navigate(role === "admin" && safeReturnTo === "/" ? "/admin" : safeReturnTo);
+    } catch {
+      // ⚠️ 데모 폴백: 실제 계정이 아니면 클라이언트 mock 로그인(서버 세션 없음).
+      //    이 경우 제출/내 내역 등 서버 API는 401이 나므로 실제 로그인이 필요하다. (docs/TEMP_ADMIN_LOGIN.md)
+      login({ name: email.split("@")[0], email, role: "user" });
+      navigate(safeReturnTo);
     }
-    // Mock: sign in as a regular user with the entered email.
-    login({ name: email.split("@")[0], email, role: "user" });
-    navigate(safeReturnTo);
   };
 
   return (
