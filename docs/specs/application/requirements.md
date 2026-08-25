@@ -315,11 +315,92 @@ ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 
 | **Create** | `POST /api/applications` — JSON 1명분 | `POST /api/applications/bulk` — ZIP(엑셀+사진), **필수** |
 | **Read(사용자)** | `POST /api/applications/lookup`(비로그인, 신청번호+연락처) / `GET /api/my/applications`(로그인) | 동일 API — phone 대조 로직은 2절 하단 [TBD] 참고 |
 | **Read(관리자)** | `GET /api/admin/applications`, `GET /api/admin/applications/{id}` | 동일, `members` 배열로 N명 페이지네이션 |
-| **Update(사용자)** | 사진 재업로드(`PATCH .../photo`, `PHOTO_REJECTED` 상태에서만) / 신청 취소(`POST .../cancel`) / 입금자명 등록(**`PATCH .../depositor`** — 결제 확인 전만, 2026-08-25 구현) | 동일 API — 단체는 엑셀+ZIP 전체 재제출 |
-| **Update(관리자)** | 결제안내/입금확인/사진검토/작명·편집/제작승인/카드준비/실물 인계/환불완료 (Admin API) | Application 전체 단위로 동일하게 적용(개별 멤버 단위 아님) |
+| **Update(사용자)** | 사진 재업로드(`PATCH .../photo`, `PHOTO_REJECTED` 상태에서만) / 신청 취소(`POST .../cancel`) / 입금자명 등록(**`PATCH .../depositor`** — 결제 확인 전만, 2026-08-25 구현) | 신청 소유자가 수정 요청을 받은 Member의 요청 필드와 사진만 수정·재업로드 |
+| **Update(관리자)** | 결제안내/입금확인/사진검토/작명·편집/제작승인/카드준비/실물 인계/환불완료 (Admin API) | Member별 검토·필드별 수정 요청·재검토 후 전원 승인 시 Application을 `NAME_EDITING`으로 전이 |
 | **Delete** | 명시적 삭제 API 없음 — `status=CANCELLED` 전이로 대체(소프트) | 동일 |
 
-**신청 내용 자체(카드종류/인적사항 등) 수정 API는 없음** — 한번 제출하면 재작성 불가, 반려된 사진만 재업로드 가능. [TBD] 이 방침이 맞는지(오타 등으로 인한 수정 요청은 고객센터 문의로 처리하는 건지) 확인 필요.
+개인 신청의 일반 인적사항 수정 API는 이번 정책 범위에 포함하지 않는다. 단체 신청은 관리자가 Member별로 요청한 필드에 한해 신청 소유자가 수정할 수 있다. 카드종류, 신청유형, 발급유형, 신청 대표자와 같이 Application·Applicant 단위인 값은 Member 수정 API로 변경할 수 없다.
+
+### 8-1. 단체 구성원별 검토·수정·재검토 정책 (2026-08-25 확정)
+
+단체 신청은 Application 전체를 한 번에 사진 반려하고 Excel+ZIP 전체를 다시 받는 방식이 아니라, 관리자가 `ApplicationMember`를 한 명씩 검토하고 오류가 있는 Member와 필드만 수정 요청하는 방식으로 처리한다.
+
+```text
+단체 100명 신청
+→ Application: REVIEWING
+→ 각 Member: PENDING_REVIEW
+→ 관리자 검토
+   ├─ 정상 Member: APPROVED
+   └─ 오류 Member: REVIEW_REQUIRED + 필드별 수정 요청
+→ 신청 소유자가 요청된 Member·필드만 수정 또는 사진 재업로드
+→ 해당 Member만 REVIEW_REQUIRED 상태로 재검토 대기
+→ 관리자가 수정된 Member 재검토
+→ APPROVED
+→ 모든 Member가 APPROVED
+→ Application: NAME_EDITING
+```
+
+Member 검토 상태는 다음 세 값만 사용한다.
+
+```java
+public enum MemberReviewStatus {
+    PENDING_REVIEW,
+    REVIEW_REQUIRED,
+    APPROVED
+}
+```
+
+- 단체 Application이 `REVIEWING`에 진입하면 모든 Member는 `PENDING_REVIEW` 상태다.
+- 관리자가 정상으로 판단한 Member만 `APPROVED`로 변경한다.
+- 주소·사진 등 문제가 있으면 해당 Member만 `REVIEW_REQUIRED`로 변경한다. 다른 Member의 승인 상태는 변경하지 않는다.
+- Application은 일부 Member가 수정 대기여도 `REVIEWING`을 유지한다. 단체 Member 오류 때문에 Application 전체를 `PHOTO_REJECTED`로 변경하지 않는다.
+- 개인 신청의 사진 반려는 기존 `ApplicationStatus.PHOTO_REJECTED` 흐름을 유지한다.
+- 마지막 미승인 Member가 `APPROVED`가 되면 한 DB 트랜잭션에서 전원 승인 여부를 다시 확인하고 Application을 `NAME_EDITING`으로 전이한다.
+- 일부 Member만 승인된 상태에서는 작명 단계로 이동할 수 없다.
+
+#### 수정 요청과 해결 상태
+
+관리자가 어느 필드를 왜 수정 요청했는지 잃지 않도록 Member별 수정 요청 이력을 저장한다.
+
+```text
+ApplicationMemberReviewIssue
+- applicationId
+- memberId
+- fieldName
+- reason
+- status: OPEN / RESUBMITTED / RESOLVED
+- requestedBy
+- requestedAt
+- resubmittedAt
+- resolvedAt
+```
+
+- 관리자가 수정 요청을 만들면 Issue는 `OPEN`, Member는 `REVIEW_REQUIRED`가 된다.
+- 신청 소유자는 `OPEN`으로 요청된 필드만 수정할 수 있다. 요청받지 않은 다른 Member나 필드는 변경할 수 없다.
+- 요청된 값을 성공적으로 수정하거나 사진을 재업로드하면 해당 Issue는 `RESUBMITTED`가 되고 Member는 `REVIEW_REQUIRED`를 유지한다.
+- 관리자는 모든 Issue가 `RESUBMITTED`인 Member를 재검토하여 승인할 수 있다.
+- 승인 시 Issue를 `RESOLVED`, Member를 `APPROVED`로 변경한다.
+- 수정이 충분하지 않으면 관리자는 사유를 갱신하거나 새 Issue를 추가하고 다시 `OPEN`으로 요청할 수 있다.
+- 한 요청에 여러 필드 오류가 있으면 필드별 Issue를 각각 저장한다.
+
+#### 원본 자료와 최종 데이터
+
+- 최초 업로드한 Excel과 ZIP은 최초 접수 자료·증빙으로 보존하며 수정 요청 과정에서 덮어쓰지 않는다.
+- 이후 수정된 주소·인적사항은 현재 `ApplicationMember` row에 반영한다.
+- Member 사진 재업로드는 해당 Member의 `photoPath`만 교체한다. 다른 Member row와 사진은 변경하지 않는다.
+- 사진 교체는 신규 S3 업로드와 DB 갱신 성공 후 기존 개별 사진을 commit 이후 삭제하는 기존 보상 정책을 적용한다.
+- 수정 과정에서 원본 Excel을 다시 파싱해 전체 Member를 삭제·재생성하지 않는다.
+- 카드 미리보기·최종 생성·다운로드·출력은 원본 Excel 값이 아니라 모든 수정이 반영되고 관리자가 최종 승인한 `ApplicationMember` DB 값을 사용한다.
+- 원본 Excel과 최종 DB 값이 다르면 최종 승인된 DB 값을 카드 제작의 Source of Truth로 사용한다.
+
+#### 권한·원자성
+
+- 수정 API는 JWT의 사용자 ID로 Application 소유권을 확인하며 요청 body에서 userId를 받지 않는다.
+- 단체의 개별 카드 대상자가 아니라 단체 신청을 제출한 사용자만 Member 수정 요청을 처리할 수 있다.
+- Member가 해당 Application 소속인지 반드시 검증한다. 다른 Application의 Member ID는 `404`로 처리한다.
+- 필드 수정과 Issue `RESUBMITTED` 변경은 같은 DB 트랜잭션에서 처리한다.
+- Member 승인과 Issue `RESOLVED`, 마지막 Member 승인 시 Application의 `NAME_EDITING` 전이는 같은 DB 트랜잭션에서 처리한다.
+- 동시 승인·수정 충돌은 `Application`과 `ApplicationMember`의 version 또는 동일 수준의 잠금으로 방지한다.
 
 ---
 
@@ -327,7 +408,7 @@ ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 
 
 | 상황 | 처리 방침 |
 |---|---|
-| 단체 신청 중 일부 인원 사진 반려 | ✅ 기존 확정: `Application` 전체가 `PHOTO_REJECTED`로 전환 — 개별 인원 단위 상태 없음 |
+| 단체 신청 중 일부 인원 정보·사진 오류 | 해당 Member만 `REVIEW_REQUIRED`; Application은 `REVIEWING` 유지. 요청된 필드만 수정 후 해당 Member 재검토 |
 | 단체 신청 검증 오류 | ✅ 2026-08-07 확정(`APPLICATION.md` 기준): 옛 "실패율 30% 룰"은 폐기(Legacy). **오류가 하나라도 있으면 부분 성공 없이 신청 전체를 실패 처리**하고 `BULK_APPLICATION_VALIDATION_FAILED` + `errors[]`로 상세 오류를 반환한다 |
 | 학생증 학번 누락·형식 오류 | ✅ 2026-08-07 확정: 필수값 검증으로 막음. 최대 10자·숫자만 허용 |
 | 학생증 학과 누락 | [TBD] 필수값으로 막을지, 관리자가 나중에 보완 가능하게 할지 — ⚠️ `APPLICATION.md`는 "학과 제외"로 되어 있으나 근거 없음, 사람 확인 결과 미결정 유지(`PENDING_DECISIONS.md`) |
@@ -344,7 +425,6 @@ ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 
 - 학생증 공백 문자열 정책
 - 학교명 필드 추가 여부
 - 학생증 디자인 시안(아직 미도착)
-- 신청 내용 수정 API 필요 여부
 - **신청조회(`lookup`) API의 전화번호 인증 vs 이메일 인증 조합** — 둘 다 필수인지, 둘 중 하나만 있어도 되는지(3절) — API 상세 설계 시 확정
 
 ### 확정 운영 정책 (2026-08-07, `APPLICATION.md` 기준)

@@ -1064,7 +1064,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 >
 > ⚠️ 이 계획은 위의 과거 카드 합성 체크리스트에 남은 `카드번호 무작위 생성`과 `직인·발행처 제외` 기록을 대체한다. 카드번호는 관리자가 입력하며, 로고·직인과 발행처는 최신 신청 정책에 따라 렌더링한다. 과거 미완료 항목을 그대로 구현하지 않는다.
 >
-> ⚠️ 앞의 `HC↔saju 연동` 체크리스트에는 HC가 만세력을 계산하지 않는다는 과거 방향이 남아 있다. 최신 기준은 `admin-saju.md`이며, Spring은 timezone/DST/utcInstant를 확정하고 관리자 프론트는 그 확정값으로 진태양시·만세력을 계산한다. 카드 렌더러는 프론트 메모리나 mock 값을 직접 사용하지 않고 백엔드에 저장된 확정 계산 결과만 사용한다.
+> ⚠️ 만세력 계산의 Source of Truth는 별도 `saju` 프로젝트다. HC는 신청자 Excel 내보내기와 결과 Excel 가져오기만 담당하며 HC 내부에 만세력 계산 API나 전체 계산 결과 엔티티를 추가하지 않는다. 카드 렌더러는 별도 saju 결과에서 import한 최종 작명 값과 띠 코드를 사용한다.
 >
 > 작업은 아래 1 → 2 → 3 순서로 진행한다. `1-A` 같은 하위 단위 하나를 한 세션·한 논리 커밋으로 취급한다. 다음 하위 단위의 코드를 미리 섞지 않는다.
 
@@ -1154,22 +1154,22 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] 카드번호 저장 외 카드 생성·S3 변경 없음.
 - [x] 카드번호 Service/Controller targeted tests와 `compileJava` 통과 — 전체 스위트(REDIS_PORT=6400) 그린, 실패 0.
 
-### 1-D. 만세력 확정 결과 저장 계약
+### 1-D. 별도 saju 결과 Excel import 보강
 
-- [ ] 현재 관리자 프론트의 `computeMemberSaju()`와 mock fallback 사용 범위를 확인하고 mock 결과는 백엔드 확정 데이터로 저장할 수 없도록 계약 정의.
-- [ ] Spring의 출생지·timezone/DST 판정 결과와 프론트 만세력 계산 결과를 연결할 관리자 전용 저장 API 설계.
-- [ ] Member별 계산 입력 hash, `timeAccuracy`, timezoneId, 선택 offset/utcInstant, longitude, confirmed/uncertain pillars, 오행 결과, tzdbVersion, calculationEngineVersion, calculatedAt 저장 구조 정의.
-- [ ] 카드 띠 이미지에 필요한 확정 연주 지지를 별도 조회 가능하게 매핑.
-- [ ] 출생정보·timezone 선택·계산 엔진 버전이 바뀌면 기존 결과를 stale로 판정하고 카드 생성에서 사용 금지.
-- [ ] `PARTIAL`/`UNKNOWN`이어도 모든 후보의 연주가 같아 확정되면 띠 사용 허용. 연주가 불확실하면 카드 자동 생성 거절.
-- [ ] 프론트가 보낸 결과를 그대로 신뢰해 관리자 권한·Member 소속·입력 hash·계산 버전을 검증 없이 저장하지 않음.
-- [ ] 기존 결과를 덮어쓰기보다 재계산 이력을 보존하고 현재 활성 결과를 식별.
-- [ ] 저장·조회·stale·불확실 연주·소속 불일치 통합 테스트.
+- [ ] HC는 신청자 Excel 내보내기와 결과 Excel 가져오기만 담당하고 별도 saju가 만세력과 이름 추천을 전담.
+- [ ] HC에 만세력 계산 API, `SajuCalculationResult`, 사주·오행 계산 이력을 추가하지 않음.
+- [ ] 결과 Excel에 `사주이름`·선택 한자·`띠 코드`를 포함하고 성씨는 포함하지 않음.
+- [ ] 관리자는 HC에서 성씨와 필수 의미를 별도로 확정한 뒤 `completeNaming()` 실행.
+- [ ] 단체 결과를 `(applicationId, photoNumber)`로 매칭하고 행 순서·이메일·전화번호 의존 제거.
+- [ ] 개인 결과는 대상 Application/Member 문맥으로 매칭하고 단체 사진 번호 규칙을 강제하지 않음.
+- [ ] `ApplicationMember.zodiacCode`와 허용 enum 정의. HC는 import된 코드만 카드 렌더링에 사용.
+- [ ] 누락·중복 사진 번호, 존재하지 않는 Member, 잘못된 띠 코드, 필수 결과 누락 시 전체 rollback.
+- [ ] mock fallback 결과 import 금지와 이름·한자·띠 코드의 원자 반영을 통합 테스트.
 
 완료 조건:
 
-- [ ] `CardImageCompositor`가 프론트 runtime이나 mock에 의존하지 않고 DB의 재현 가능한 확정 연주를 조회할 수 있음.
-- [ ] 관리자 만세력 저장 API targeted tests와 `compileJava` 통과.
+- [ ] HC가 최종 이름·한자·띠 코드만 저장하고 자체 만세력 계산 책임을 갖지 않음.
+- [ ] 결과 Excel parser/import targeted tests와 `compileJava` 통과.
 
 ## 2. CardDesign 매핑과 단일 Member 미리보기
 
@@ -1201,7 +1201,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] 학생증에는 주소 미표시. 일반카드에는 카드 표기 주소 사용.
 - [ ] 로고·직인은 기존 신청 정책 매트릭스 적용: 개인 일반카드 없음, 단체 일반카드 둘 다 필수, 학생증 로고 필수·직인 선택.
 - [ ] 한자가 없으면 한자 영역만 비우고 다른 필드 재배치 금지.
-- [ ] 띠 이미지는 만세력 `confirmedPillars.year`의 지지로 결정. 연주 불확실 시 자동 생성 거절.
+- [ ] 띠 이미지는 별도 saju 결과 Excel에서 import한 `ApplicationMember.zodiacCode`로 결정. 누락·잘못된 코드면 자동 생성 거절하며 HC에서 재계산하지 않음.
 - [ ] 텍스트 겹침 시 기본 글꼴에서 최대 2px 축소하고 계속 겹치면 명시적 렌더링 오류.
 - [ ] 앞면·뒷면 모두 실제 PNG 생성 및 크기·좌표·폰트 검증.
 - [ ] 기존 `CardImageCompositorTest`가 대표 디자인만 검사하는지 확인하고, 활성 디자인 전체를 도는 parameterized test가 없으면 최소 보강.
