@@ -198,7 +198,12 @@ export function ApplyPage() {
               <StepComplete
                 draft={draft}
                 applicationNumber={applicationNumber}
-                onDone={() => {
+                onDone={(depositorName) => {
+                  // 입금자명을 저장된 신청 기록에 반영한다(입금 확인 대조용).
+                  if (depositorName) {
+                    saveApplications(loadApplications().map((a) =>
+                      a.applicationNumber === applicationNumber ? { ...a, depositorName } : a));
+                  }
                   // Clear temporary personal data once finished.
                   clear();
                 }}

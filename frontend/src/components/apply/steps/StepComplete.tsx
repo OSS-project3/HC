@@ -1,4 +1,5 @@
 // Apply step: submission-complete confirmation screen.
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ApplicationDraft } from "../../../features/apply/types";
 import { bankInfo } from "../../../config/company";
@@ -9,7 +10,8 @@ import { showToast } from "../../ui/toast";
 interface StepCompleteProps {
   draft: ApplicationDraft;
   applicationNumber: string;
-  onDone: () => void;
+  /** 입금자명을 함께 넘겨 저장한다. */
+  onDone: (depositorName: string) => void;
 }
 
 /** Completion copy differs by applicant type (personal vs organization). */
@@ -22,6 +24,7 @@ const completionMessage: Record<ApplicationDraft["applicantType"], string> = {
 export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteProps) {
   const navigate = useNavigate();
   const isOrg = draft.applicantType === "organization";
+  const [depositorName, setDepositorName] = useState(draft.depositorName ?? "");
 
   const copyAccount = async () => {
     try {
@@ -65,7 +68,12 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
 
       <div className="field complete__depositor">
         <span className="field__label">입금자명 입력</span>
-        <input className="field__input" placeholder="입금자명을 입력해 주세요" />
+        <input
+          className="field__input"
+          placeholder="입금자명을 입력해 주세요"
+          value={depositorName}
+          onChange={(e) => setDepositorName(e.target.value)}
+        />
       </div>
 
       <div className="notice">
@@ -87,7 +95,7 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
       <div className="step__actions step__actions--end">
         <Button
           onClick={() => {
-            onDone();
+            onDone(depositorName.trim());
             // 신청/제작 내역은 마이페이지 제작내역에서 확인한다. (조회 페이지는 발급된 카드 확인 전용)
             navigate(`/mypage#production`);
           }}

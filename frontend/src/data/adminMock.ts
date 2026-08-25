@@ -42,6 +42,8 @@ export interface AdminApplication {
   applicantEmail?: string;
   /** 신청을 제출한 로그인 계정 이메일(마이페이지 "내 신청" 매칭용) — 신청서 입력 이메일과 다를 수 있다. */
   ownerEmail?: string;
+  /** 입금자명(신청 완료 화면에서 입력) — 입금 확인 대조용. */
+  depositorName?: string;
   quantity: number;
   status: AdminStatus;
   submittedAt: string;
