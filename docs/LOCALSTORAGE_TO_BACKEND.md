@@ -4,8 +4,9 @@
 이 문서는 프론트엔드 전체(`frontend/src`)를 순회해 localStorage/sessionStorage에 저장 중인 모든 항목을 찾아,
 **백엔드로 옮겨야 하는 것**과 **그대로 둬도 되는 것**을 구분하고, 각 항목에 필요한 API·DB·프론트 변경을 정리한다.
 
-- 관련: 유출 위험 관점 정리는 [`FRONTEND_STORAGE_AUDIT.md`](./FRONTEND_STORAGE_AUDIT.md), 관리자 영역은 [`specs/admin-dashboard/BACKEND_TODO.md`](./specs/admin-dashboard/BACKEND_TODO.md).
+- 관련: 관리자 영역은 [`specs/admin-dashboard/BACKEND_TODO.md`](./specs/admin-dashboard/BACKEND_TODO.md). (유출 위험 관점 정리 `FRONTEND_STORAGE_AUDIT.md`는 2026-08-25 본 문서로 통합·삭제됨 — 아래 §1 위험도 컬럼 참고.)
 - 인증 토큰(access/refresh)은 이미 **HttpOnly 쿠키(서버)** 라 JS 저장소 대상 아님.
+- 이 문서가 저장소(localStorage/sessionStorage) 데이터에 대한 **단일 소스**다.
 
 ---
 
