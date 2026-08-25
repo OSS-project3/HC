@@ -4,6 +4,7 @@ import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.common.response.PageResponse;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
+import com.example.honorcitizen.domain.application.dto.ApplicationExportRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationStatusResponse;
 import com.example.honorcitizen.domain.application.dto.DispatchRequest;
 import com.example.honorcitizen.domain.application.dto.MyApplicationDetailResponse;
@@ -14,6 +15,8 @@ import com.example.honorcitizen.domain.application.dto.RejectPhotoRequest;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -128,5 +131,19 @@ public class AdminApplicationController {
             @PathVariable Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.completeNaming(adminId, applicationId)));
+    }
+
+    // 신청 명단 엑셀 내보내기(DESIGN.md §2.4). GROUP은 원본 서식 보존을 위해 정확히 1건만 허용
+    // (Service에서 검증) — 2건 이상 보내면 INVALID_INPUT.
+    @PostMapping("/export")
+    public ResponseEntity<byte[]> export(
+            @AuthenticationPrincipal Long adminId,
+            @Valid @RequestBody ApplicationExportRequest request) {
+        byte[] bytes = applicationService.exportExcel(adminId, request.getApplicationIds(), request.getType());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"applications-export.xlsx\"")
+                .body(bytes);
     }
 }

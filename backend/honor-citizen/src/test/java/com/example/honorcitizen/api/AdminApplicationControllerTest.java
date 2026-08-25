@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -319,6 +320,35 @@ class AdminApplicationControllerTest {
     @Test
     void startProducingWithoutTokenReturnsUnauthorized() throws Exception {
         mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/start-producing"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // 엑셀 내보내기 — 비즈니스 로직은 ApplicationServiceExportTest에서 이미 커버, HTTP 배선만 검증.
+    @Test
+    void exportEndpointReturnsXlsxForIndividualApplication() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/export")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"applicationIds\":[" + otherUsersApplication.getId() + "],\"type\":\"INDIVIDUAL\"}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+    }
+
+    @Test
+    void exportForNonAdminReturnsForbidden() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/export")
+                        .header(HttpHeaders.AUTHORIZATION, userToken)
+                        .contentType("application/json")
+                        .content("{\"applicationIds\":[" + otherUsersApplication.getId() + "],\"type\":\"INDIVIDUAL\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void exportWithoutTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/export")
+                        .contentType("application/json")
+                        .content("{\"applicationIds\":[" + otherUsersApplication.getId() + "],\"type\":\"INDIVIDUAL\"}"))
                 .andExpect(status().isUnauthorized());
     }
 }

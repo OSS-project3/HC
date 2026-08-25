@@ -1,6 +1,7 @@
 package com.example.honorcitizen.domain.application.service;
 
 import com.example.honorcitizen.common.enums.ApplicationStatus;
+import com.example.honorcitizen.common.enums.ApplicationType;
 import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.SchoolType;
@@ -116,6 +117,7 @@ public class ApplicationService {
     private final AdminActivityLogRepository adminActivityLogRepository;
     private final NamingResultExcelParser namingResultExcelParser;
     private final NameSelectionStatRepository nameSelectionStatRepository;
+    private final ApplicationExportExcelBuilder applicationExportExcelBuilder;
     private final UserService userService;
     // 트랜잭션 경계를 위한 별도 Bean — 위 클래스 주석의 self-invocation 문제 참고
     private final ApplicationPersistenceService applicationPersistenceService;
@@ -565,6 +567,54 @@ public class ApplicationService {
         adminActivityLogRepository.save(AdminActivityLog.create(
                 adminId, AdminActivityLog.NAMING_COMPLETE, applicationId, "작명 완료 처리"));
         return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
+    /**
+     * 신청 명단을 xlsx로 내보낸다(DESIGN.md §2.4).
+     *
+     * INDIVIDUAL은 원본 파일이 없어 DB 값으로 새 워크북을 만든다(여러 건 → 한 시트에 한 행씩).
+     * GROUP은 신청 시 업로드된 원본 엑셀에 이름·한자 컬럼만 append한다 — 신청마다 원본 서식이
+     * 달라 여러 건을 하나의 워크북으로 합칠 수 없으므로 정확히 1건만 허용한다.
+     */
+    @Transactional(readOnly = true)
+    public byte[] exportExcel(Long adminId, List<Long> applicationIds, ApplicationType type) {
+        validateAdmin(adminId);
+        if (applicationIds == null || applicationIds.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        if (type == ApplicationType.GROUP) {
+            if (applicationIds.size() != 1) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            Long applicationId = applicationIds.get(0);
+            Application application = findApplication(applicationId);
+            if (application.getApplicationType() != ApplicationType.GROUP || application.getSubmitFileId() == null) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            UploadFile uploadFile = uploadFileRepository.findById(application.getSubmitFileId())
+                    .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));
+            byte[] zipBytes = storageService.download(uploadFile.getFilePath());
+            List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(applicationId);
+            return applicationExportExcelBuilder.appendNamesToGroupWorkbook(zipBytes, members);
+        }
+
+        List<ApplicationExportExcelBuilder.IndividualExportRow> rows = new ArrayList<>();
+        for (Long applicationId : applicationIds) {
+            Application application = findApplication(applicationId);
+            if (application.getApplicationType() != ApplicationType.INDIVIDUAL) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(applicationId);
+            if (members.isEmpty()) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            Applicant applicant = applicantRepository.findByApplicationId(applicationId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));
+            rows.add(new ApplicationExportExcelBuilder.IndividualExportRow(
+                    members.get(0), applicant.getEmail(), applicant.getPhone()));
+        }
+        return applicationExportExcelBuilder.buildIndividualWorkbook(rows);
     }
 
     /**
