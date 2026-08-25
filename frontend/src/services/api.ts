@@ -39,9 +39,29 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
   return payload.data;
 }
 
+/** request()와 동일한 인증(쿠키+401 refresh) 처리를 하되, JSON envelope이 아니라 바이너리(파일)를 반환한다. */
+async function requestFile(path: string, init: RequestInit = {}, retried = false): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    credentials: "include",
+    headers: init.body instanceof FormData ? init.headers : { "Content-Type": "application/json", ...init.headers },
+  });
+  if (response.status === 401 && !retried && path !== "/api/auth/refresh") {
+    const refreshed = await fetch(`${API_BASE_URL}/api/auth/refresh`, { method: "POST", credentials: "include" });
+    if (refreshed.ok) return requestFile(path, init, true);
+  }
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiEnvelope<unknown> | null;
+    throw new ApiError(payload?.errorMessage || `파일 요청에 실패했습니다. (${response.status})`, response.status, payload?.errorCode, payload?.errors);
+  }
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  return { blob: await response.blob(), filename: match?.[1] ? decodeURIComponent(match[1]) : "download" };
+}
+
 export interface ApiUser { id: number; name: string; email: string; role: "USER" | "ADMIN"; phone?: string; address?: string; }
 export interface ApplicationResult { applicationId: number; applicationNumber: string; status: string; paymentStatus?: string; createdAt: string; totalQuantity?: number; }
-export interface LookupResult { applicationId: number; applicationNumber: string; applicantNameMasked: string; cardType: string; status: string; photoRejectReason?: string; submittedAt: string; }
+export interface LookupResult { applicationId: number; applicationNumber: string; applicationType: "INDIVIDUAL" | "GROUP"; applicantNameMasked: string; cardType: string; status: string; photoRejectReason?: string; submittedAt: string; }
 export interface CardDownload { applicationId: number; applicationType: "INDIVIDUAL" | "GROUP"; cardFrontUrl?: string; cardBackUrl?: string; downloadUrl?: string; expiresAt: string; }
 
 /** Common paginated envelope for list endpoints. */
@@ -141,14 +161,21 @@ export const api = {
   getMe: () => request<ApiUser>("/api/users/me"),
   updateMe: (body: { name?: string; phone?: string; address?: string }) => request<ApiUser>("/api/users/me", { method: "PATCH", body: JSON.stringify(body) }),
   withdraw: () => request<void>("/api/users/me/withdraw", { method: "POST" }),
+  changePassword: (currentPassword: string, newPassword: string) => request<void>("/api/users/me/password", { method: "PATCH", body: JSON.stringify({ currentPassword, newPassword }) }),
   agreeTerms: (body: { privacyAgreed: boolean; imageUploadAgreed: boolean; shippingAgreed: boolean }) => request("/api/auth/terms", { method: "POST", body: JSON.stringify(body) }),
   refresh: () => request<void>("/api/auth/refresh", { method: "POST" }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   loginWithPassword: (email: string, password: string) => request<ApiUser>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  // 일반 이메일 회원가입 — 인증코드 요청 → 확인(signupToken) → 가입.
+  checkEmail: (email: string) => request<{ exists: boolean }>("/api/auth/email/check", { method: "POST", body: JSON.stringify({ email }) }),
+  requestSignupEmailCode: (email: string) => request<{ expiresInSeconds: number; resendAfterSeconds: number }>("/api/auth/signup/email-verification/request", { method: "POST", body: JSON.stringify({ email }) }),
+  confirmSignupEmailCode: (email: string, code: string) => request<{ signupToken: string; expiresInSeconds: number }>("/api/auth/signup/email-verification/confirm", { method: "POST", body: JSON.stringify({ email, code }) }),
+  signup: (body: { email: string; signupToken: string; password: string; name: string; phone: string }) => request<ApiUser>("/api/auth/signup", { method: "POST", body: JSON.stringify(body) }),
   createApplication: (form: FormData, bulk = false) => request<ApplicationResult>(`/api/applications${bulk ? "/bulk" : ""}`, { method: "POST", body: form }),
   lookupApplication: (body: { method: "application" | "card"; keyValue: string; phone?: string; email?: string }) => request<LookupResult>("/api/applications/lookup", { method: "POST", body: JSON.stringify(body) }),
   reuploadPhoto: (id: number, form: FormData) => request(`/api/applications/${id}/photo`, { method: "PATCH", body: form }),
   getCardDownload: (id: number) => request<CardDownload>(`/api/applications/${id}/cards/download`),
+  cancelApplication: (id: number) => request<{ applicationId: number; status: ApplicationStatus; refundRequired?: boolean }>(`/api/applications/${id}/cancel`, { method: "POST" }),
   oauthUrl: (provider: "google" | "naver") => `${API_BASE_URL}/oauth2/authorization/${provider}`,
 
   // Reviews
@@ -177,7 +204,19 @@ export const api = {
   saveMemberName: (applicationId: number, memberId: number, body: { name: string; hanja?: string; reading?: string; meaning?: string }) =>
     request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/name`, { method: "POST", body: JSON.stringify(body) }),
   getNameSelectionStats: () => request<NameSelectionStat[]>("/api/admin/name-selection-stats"),
+  // 신청 명단 엑셀 내보내기 — xlsx 바이너리 다운로드. GROUP은 원본 서식 보존을 위해 정확히 1건만 허용(백엔드 검증).
+  exportApplications: (applicationIds: number[], type: ApplicationType) =>
+    requestFile("/api/admin/applications/export", { method: "POST", body: JSON.stringify({ applicationIds, type }) }),
+  // 사주 프로그램이 돌려준 "이름 포함" 엑셀을 업로드해 구성원 한글이름을 반영한다(단체 작명 결과 반영).
+  applyNamingResult: (applicationId: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ updatedCount: number }>(`/api/admin/applications/${applicationId}/naming-result`, { method: "POST", body: form });
+  },
   // 신청 상태 전이(관리자) — 백엔드 존재 엔드포인트 연결.
+  confirmApplicationPayment: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/confirm-payment`, { method: "POST" }),
+  startApplicationReview: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/start-review`, { method: "POST" }),
+  approveApplicationNaming: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/approve-naming`, { method: "POST" }),
   completeNaming: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/complete-naming`, { method: "POST" }),
   startProducing: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/start-producing`, { method: "POST" }),
   markCardReady: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/card-ready`, { method: "POST" }),

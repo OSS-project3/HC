@@ -4,6 +4,7 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useApplicationDraft } from "../../features/apply/useApplicationDraft";
 import { findCardDesign, honoraryKoreanCards, honoraryCitizenCards, studentCards, visitorCards, cardTypeLabels, cardTypeIds } from "../../data/cards";
 import { toGender, toIssueType, toOrientation, toSchoolType } from "../../features/apply/mappers";
+import { nationalityToIso } from "../../data/countries";
 import { Stepper } from "../../components/apply/Stepper";
 import { CardPreviewPanel } from "../../components/apply/CardPreviewPanel";
 import { StepType } from "../../components/apply/steps/StepType";
@@ -74,15 +75,15 @@ export function ApplyPage() {
           ? { sameAsApplicant: draft.recipient.sameAsApplicant, ...(isOrg ? { organizationName: draft.recipient.organizationName, department: draft.recipient.department } : {}), name: draft.recipient.name, phone: draft.recipient.phone, zipCode: draft.recipient.postalCode, address: draft.recipient.address, detailAddress: draft.recipient.addressDetail, deliveryRequest: draft.recipient.deliveryRequest }
           : undefined;
         const request = isOrg ? {
-          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType,
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined,
           applicant: { organizationName: draft.applicant.organizationName, department: draft.applicant.department, name: draft.applicant.name, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
         } : {
-          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType,
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined,
           applicant: { name: draft.applicant.name || draft.applicant.englishName, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
           // 학번·학과는 대학교(UNIVERSITY)에서만 전송한다(고등학교·비학생증은 미전송).
-          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: draft.applicant.nationality, birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: toGender(draft.applicant.gender), entryDate: draft.applicant.koreaEntryDate || undefined, studentId: isStudent && isUniversity ? draft.applicant.studentNumber : undefined, department: isStudent && isUniversity ? draft.applicant.department : undefined },
+          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: nationalityToIso(draft.applicant.nationality), birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: toGender(draft.applicant.gender), entryDate: draft.applicant.koreaEntryDate || undefined, studentId: isStudent && isUniversity ? draft.applicant.studentNumber : undefined, department: isStudent && isUniversity ? draft.applicant.department : undefined },
         };
         const form = new FormData();
         form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));

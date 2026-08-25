@@ -189,3 +189,5 @@
 .auth__switch a:hover {
   text-decoration: underline;
 }
+
+.auth__field-hint--ok { color: #2f7d4f; font-weight: 600; }

@@ -90,7 +90,32 @@ public class AdminApplicationController {
                 applicationService.applyNamingResult(adminId, applicationId, file)));
     }
 
-    // 상태 전이 5종 — 전이 규칙 자체는 Application 엔티티에 있고, 여기·Service는 호출·인가·감사로그만 담당한다.
+    // 상태 전이 — 전이 규칙 자체는 Application 엔티티에 있고, 여기·Service는 호출·인가·감사로그만 담당한다.
+    // 앞단 3종(결제확인·검토시작·작명승인)은 신청 접수 직후 관리자가 진행하는 흐름이다.
+    @PostMapping("/{applicationId}/confirm-payment")
+    public ResponseEntity<ApiResponse<ApplicationStatusResponse>> confirmPayment(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.confirmPaymentByAdmin(adminId, applicationId)));
+    }
+
+    @PostMapping("/{applicationId}/start-review")
+    public ResponseEntity<ApiResponse<ApplicationStatusResponse>> startReview(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.startReview(adminId, applicationId)));
+    }
+
+    @PostMapping("/{applicationId}/approve-naming")
+    public ResponseEntity<ApiResponse<ApplicationStatusResponse>> approveNaming(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.approveToNaming(adminId, applicationId)));
+    }
+
     @PostMapping("/{applicationId}/reject-photo")
     public ResponseEntity<ApiResponse<ApplicationStatusResponse>> rejectPhoto(
             @AuthenticationPrincipal Long adminId,

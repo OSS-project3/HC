@@ -15,7 +15,17 @@ export function useApplicationDraft() {
   const [draft, setDraft] = useState<ApplicationDraft>(() => {
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (raw) return { ...createEmptyDraft(), ...(JSON.parse(raw) as ApplicationDraft) };
+      if (raw) {
+        // 파일(File)은 sessionStorage에 바이너리로 저장되지 않는다(아래 저장 로직에서 name/size만 남김).
+        // {name,size}만 남은 '유령 첨부'를 화면에 첨부된 것처럼 표시하면 제출 시점에야 실패하므로,
+        // 복원 시 파일 필드는 제외하고 재첨부를 요구한다.
+        const parsed = JSON.parse(raw) as ApplicationDraft;
+        delete parsed.logoFile;
+        delete parsed.sealFile;
+        delete parsed.archiveFile;
+        delete parsed.faceFile;
+        return { ...createEmptyDraft(), ...parsed };
+      }
     } catch {
       /* ignore malformed storage */
     }

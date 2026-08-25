@@ -4,6 +4,7 @@ import { companyInfo } from "../../config/company";
 import { PhoneIcon, MailIcon, DocIcon, ChatIcon, ArrowUpRight } from "../../components/ui/icons";
 import { Modal } from "../../components/ui/Modal";
 import { useAuth } from "../../features/auth/AuthContext";
+import { api } from "../../services/api";
 import "./SupportPage.css";
 
 export const notices = [
@@ -13,7 +14,8 @@ export const notices = [
   { id: "service-guide", title: "공식 서비스 및 운영 안내", date: "2027.01.08", content: "한글과 세종 공식 서비스 운영 안내입니다. 서비스 이용과 제작 신청에 관한 문의는 고객지원 상담·문의 메뉴를 이용해 주세요.", attachment: "서비스_운영_안내.txt" },
 ];
 
-export const faqs = [
+// 백엔드 FAQ(GET /api/boards?type=FAQ)가 비어있거나 오류일 때만 쓰는 폴백. 정상 시 API 값으로 대체된다.
+const FALLBACK_FAQS: { q: string; a: string }[] = [
   { q: "제작된 카드는 실제 신분증으로 사용할 수 있나요?", a: "아니요.\n본 상품은 신분증으로서의 법적 효력을 갖지 않습니다." },
   { q: "작명 의뢰는 각 개인이 직접 하여야 하나요?", a: "개인 신청과 단체 신청 모두 가능하며, 신청 유형에 맞는 정보를 입력해 주시면 됩니다." },
   { q: "의뢰 후 제작 기간은 어느정도 걸리나요?", a: "상담과 자료 확인이 완료된 뒤 제작 일정과 수령 방법을 개별 안내드립니다." },
@@ -49,6 +51,16 @@ export function SupportPage() {
   const { user } = useAuth();
   const inquiryPath = user ? "/inquiry" : `/login?returnTo=${encodeURIComponent("/inquiry")}`;
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
+  // FAQ는 /faq 화면과 동일한 소스(GET /api/boards?type=FAQ)를 쓴다. 실패/빈 응답이면 폴백 유지.
+  const [faqs, setFaqs] = useState(FALLBACK_FAQS);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.listBoards({ type: "FAQ", size: 100 })
+      .then((page) => { if (!cancelled && page.content.length) setFaqs(page.content.map((b) => ({ q: b.title, a: b.content }))); })
+      .catch(() => { /* 폴백 유지 */ });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const id = hash.replace("#", "");
