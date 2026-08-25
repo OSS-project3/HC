@@ -214,7 +214,7 @@ public class ReviewService {
         List<MultipartFile> newFiles = presentImages(images);
         newFiles.forEach(imageValidator::validate);
 
-        List<ReviewImage> keptImages = resolveKeptImages(id, request.getKeepImageIds(), request.isRemoveImage());
+        List<ReviewImage> keptImages = resolveKeptImages(id, request.getKeepImageIds(), Boolean.TRUE.equals(request.getRemoveImage()));
         if (keptImages.size() + newFiles.size() > MAX_IMAGE_COUNT) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }

@@ -90,6 +90,18 @@ class ReviewControllerTest {
             }
             """;
 
+    // 프론트(ReviewUpdateBody)가 실제로 보내는 형태 — removeImage 생략, keepImageIds 포함.
+    private static final String UPDATE_REQUEST_JSON_NO_REMOVE_IMAGE = """
+            {
+              "title": "수정된 제목",
+              "applicationType": "INDIVIDUAL",
+              "cardTypeId": %d,
+              "authorName": "수정된 작성자",
+              "content": "수정된 내용",
+              "keepImageIds": []
+            }
+            """;
+
     @BeforeEach
     void setUp() {
         reviewRepository.deleteAll();
@@ -267,6 +279,21 @@ class ReviewControllerTest {
                 ApplicationType.INDIVIDUAL, cardType.getId(), "내용", null));
         MockMultipartFile requestPart = new MockMultipartFile(
                 "request", "", "application/json", UPDATE_REQUEST_JSON.formatted(cardType.getId(), false).getBytes());
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/reviews/{id}", review.getId())
+                        .file(requestPart)
+                        .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    // 회귀 방지: 프론트가 removeImage를 생략해도 400(FAIL_ON_NULL_FOR_PRIMITIVES) 없이 정상 수정돼야 한다.
+    @Test
+    void updateSucceedsWhenRemoveImageOmitted() throws Exception {
+        Review review = reviewRepository.save(Review.create(owner.getId(), "홍길동", "제목",
+                ApplicationType.INDIVIDUAL, cardType.getId(), "내용", null));
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", "application/json", UPDATE_REQUEST_JSON_NO_REMOVE_IMAGE.formatted(cardType.getId()).getBytes());
 
         mockMvc.perform(multipart(HttpMethod.PATCH, "/api/reviews/{id}", review.getId())
                         .file(requestPart)
