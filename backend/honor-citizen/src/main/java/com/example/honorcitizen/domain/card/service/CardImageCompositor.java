@@ -90,11 +90,27 @@ class CardImageCompositor {
             drawTitle(g, cardType, layout, scaleX, scaleY);
             drawPhoto(g, dir, data.photo(), layout, scaleX, scaleY);
             drawText(g, data.fullName(), dotumBold, 8f, Color.BLACK, layout.name(), layout, scaleX, scaleY);
-            drawText(g, data.englishName(), dotumMedium, 5f, Color.DARK_GRAY, layout.englishName(), layout, scaleX, scaleY);
-            drawText(g, data.cardNumber(), dotumMedium, 5f, Color.DARK_GRAY, layout.cardNumber(), layout, scaleX, scaleY);
-            drawText(g, data.address(), dotumMedium, 4.5f, Color.DARK_GRAY, layout.address(), layout, scaleX, scaleY);
-            drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
-                    layout.issueDate(), layout, scaleX, scaleY);
+            if (cardType == CardTypeCode.HONOR_CITIZEN) {
+                // HONOR_CITIZEN 위치값 표는 영문명/카드번호/주소/발급일자를 각자 다른 x에서 중앙
+                // 정렬하는 걸 전제로 한 듯한데, 문자열 길이가 서로 달라(특히 주소) 실제 렌더링해보면
+                // 왼쪽 시작점이 들쭉날쭉했다(사용자 확인). 이름의 왼쪽 끝을 기준선으로 계산해 그 지점에
+                // 왼쪽 정렬한다. 각 필드 자신의 y좌표·폰트 크기는 그대로 쓴다.
+                double nameLeftEdge = leftEdgeX(data.fullName(), dotumBold, 8f, layout.name(), layout, scaleX);
+                drawTextAtPixelX(g, data.englishName(), dotumMedium, 5f, Color.DARK_GRAY, nameLeftEdge,
+                        layout.englishName(), layout, scaleX, scaleY);
+                drawTextAtPixelX(g, data.cardNumber(), dotumMedium, 5f, Color.DARK_GRAY, nameLeftEdge,
+                        layout.cardNumber(), layout, scaleX, scaleY);
+                drawTextAtPixelX(g, data.address(), dotumMedium, 4.5f, Color.DARK_GRAY, nameLeftEdge,
+                        layout.address(), layout, scaleX, scaleY);
+                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
+                        nameLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
+            } else {
+                drawText(g, data.englishName(), dotumMedium, 5f, Color.DARK_GRAY, layout.englishName(), layout, scaleX, scaleY);
+                drawText(g, data.cardNumber(), dotumMedium, 5f, Color.DARK_GRAY, layout.cardNumber(), layout, scaleX, scaleY);
+                drawText(g, data.address(), dotumMedium, 4.5f, Color.DARK_GRAY, layout.address(), layout, scaleX, scaleY);
+                drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
+                        layout.issueDate(), layout, scaleX, scaleY);
+            }
             drawZodiac(g, data.zodiacBranch(), layout.zodiac(), layout, scaleX, scaleY);
             drawSlotImage(g, dir, LOGO_CANDIDATES, data.logo(), layout.issuerLogo(), layout, scaleX, scaleY);
             drawSlotImage(g, dir, SEAL_CANDIDATES, data.seal(), layout.seal(), layout, scaleX, scaleY);
@@ -281,6 +297,35 @@ class CardImageCompositor {
         double x = cx - bounds.getWidth() / 2.0;
         double y = cy + bounds.getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
         g.drawString(text, (float) x, (float) y);
+    }
+
+    // 가운데 정렬(drawText)로 그렸을 때의 왼쪽 끝 픽셀 x를 계산한다 — 짝을 이루는 아래 줄들을 그
+    // x에 왼쪽 정렬로 맞추기 위한 기준점. 서로 다른 좌표에서 각자 중앙 정렬하면 문자열 길이가 다를 때
+    // 왼쪽 끝이 어긋난다(HONOR_CITIZEN에서 주소·발급일자가 이름보다 오른쪽으로 밀리는 문제, 실제
+    // 렌더링 후 발견).
+    private double leftEdgeX(String text, Font baseFont, float sizeAtBaseScale, CardFieldOffset offset,
+            CardLayout layout, double scaleX) {
+        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
+        FontRenderContext frc = new FontRenderContext(null, true, true);
+        Rectangle2D bounds = font.getStringBounds(text, frc);
+        double cx = (layout.baseWidth() / 2 + offset.x()) * scaleX;
+        return cx - bounds.getWidth() / 2.0;
+    }
+
+    // 짝을 이루는 위 줄(이름)의 왼쪽 끝에 맞춰 왼쪽 정렬로 그린다. y좌표·폰트 크기는 이 필드 자신의
+    // 값을 그대로 쓰고, x만 pixelX로 고정한다.
+    private void drawTextAtPixelX(Graphics2D g, String text, Font baseFont, float sizeAtBaseScale, Color color,
+            double pixelX, CardFieldOffset offset, CardLayout layout, double scaleX, double scaleY) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
+        g.setFont(font);
+        g.setColor(color);
+        FontRenderContext frc = g.getFontRenderContext();
+        double cy = (layout.baseHeight() / 2 + offset.y()) * scaleY;
+        double y = cy + font.getStringBounds(text, frc).getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
+        g.drawString(text, (float) pixelX, (float) y);
     }
 
     private BufferedImage resolveImage(String dir, List<String> candidates) {
