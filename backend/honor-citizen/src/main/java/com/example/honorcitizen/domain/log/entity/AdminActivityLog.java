@@ -60,4 +60,5 @@ public class AdminActivityLog {
     // NAME_EDITING→PRODUCTION_READY 상태 전이 자체를 기록한다 — 이름 값 저장은
     // KOREAN_NAME_REGISTER/KOREAN_NAME_UPDATE(applyNamingResult)가 별도로 남기므로 중복 기록하지 않는다.
     public static final String NAMING_COMPLETE       = "NAMING_COMPLETE";
+    public static final String MANSERYEOK_CONFIRMED  = "MANSERYEOK_CONFIRMED";
 }

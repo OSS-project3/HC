@@ -816,6 +816,68 @@ Cookie: accessToken={JWT}
 - DB UNIQUE 위반(요청 통과 후에도 동시성으로 충돌 발생)은 `CARD_NUMBER_ALREADY_USED`(409)로 응답하고 전체 rollback.
 - 같은 `items`로 재호출하면 멱등 성공(카드번호가 이미 같은 값이면 변경 없이 `updatedCount`만 반환).
 
+### 출생지역 검색 — `GET /api/admin/birth-region/search?query={query}`
+
+✅ 2026-08-26 신규(1-D): Google Geocoding API로 지명 → 좌표 후보를 조회한다. 특정 신청/구성원과 무관한 순수 조회.
+
+```json
+{ "data": [ { "displayName": "Chicago, IL, USA", "latitude": 41.8781, "longitude": -87.6298 } ] }
+```
+
+- Google Maps API 키가 설정 안 되어 있으면 `GEOCODING_NOT_CONFIGURED`(503).
+- 검색 결과가 없으면 빈 배열(에러 아님) — 관리자가 timezoneId를 직접 입력하는 경로로 유도.
+
+### 만세력 timezone/DST 판정(미리보기) — `POST /api/admin/applications/{applicationId}/members/{memberId}/manseryeok/resolve`
+
+✅ 2026-08-26 신규(1-D): **DB에 아무것도 저장하지 않는다.** `ApplicationMember`의 생년월일시 + 요청의 좌표/timezoneId로 절대 시각을 확정 시도한다.
+
+```json
+{ "latitude": 41.8781, "longitude": -87.6298, "timezoneId": "America/Chicago", "selectedOffset": null }
+```
+
+- `timezoneId`를 안 보내면 서버가 `latitude`/`longitude`로 Google Time Zone API를 호출해 조회한다.
+- `selectedOffset`을 보내면(AMBIGUOUS 후보 중 관리자가 하나를 골랐을 때) 그 값이 실제 유효 후보인지 재검증한 뒤 EXACT로 확정한다.
+- 응답은 `status`에 따라 형태가 다르다(admin-saju.md "DST 경계 정책" 그대로):
+
+```json
+// EXACT
+{ "status": "EXACT", "timezoneId": "America/Chicago", "longitude": -87.6298, "selectedOffset": "-05:00", "utcInstant": "...", "candidates": [] }
+// NONEXISTENT_LOCAL_TIME — DST 시작으로 그 현지시각 자체가 존재하지 않음. 관리자가 출생기록 재확인 필요.
+{ "status": "NONEXISTENT_LOCAL_TIME", "timezoneId": "...", "selectedOffset": null, "utcInstant": null, "candidates": [] }
+// AMBIGUOUS_LOCAL_TIME — DST 종료로 같은 현지시각이 두 번 존재.
+{ "status": "AMBIGUOUS_LOCAL_TIME", "timezoneId": "America/New_York", "candidates": [
+  { "offset": "-04:00", "utcInstant": "2000-10-29T05:30:00Z" },
+  { "offset": "-05:00", "utcInstant": "2000-10-29T06:30:00Z" }
+] }
+```
+
+### 만세력 확정 결과 저장 — `POST /api/admin/applications/{applicationId}/members/{memberId}/manseryeok`
+
+✅ 2026-08-26 신규(1-D): 프론트(`saju.ts`)가 위 resolve 응답의 확정값으로 진태양시 보정+만세력 계산을 마친 뒤, 최종 결과를 저장 요청한다.
+
+```json
+{
+  "timezoneId": "America/New_York",
+  "longitude": -74.0060,
+  "selectedOffset": "-04:00",
+  "utcInstant": "2000-10-29T05:30:00Z",
+  "timeAccuracy": "EXACT",
+  "confirmedPillars": { "year": {"stem": "경", "branch": "진"}, "month": {...}, "day": {...}, "hour": {...} },
+  "uncertainPillars": [],
+  "elementCounts": { "목": 2, "화": 1, "토": 1, "금": 2, "수": 2 },
+  "calculationEngineVersion": "manseryeok@1.0.0",
+  "inputHash": "..."
+}
+```
+
+- `timeAccuracy=EXACT`이면 Spring이 `timezoneId`+`ApplicationMember`의 생년월일시로 자체 재계산해 `selectedOffset`/`utcInstant`가 일치하는지 검증한다 — 불일치하면 `INVALID_INPUT`(프론트가 보낸 timezone 확정값을 신뢰하지 않고 무결성만 재검증, 실제 사주 계산 자체는 재현하지 않음).
+- 저장은 이력 보존 방식이다 — 기존 활성 결과가 있으면 비활성화하고 새 행을 활성으로 추가한다. 덮어쓰지 않는다.
+- `AdminActivityLog.MANSERYEOK_CONFIRMED`로 기록한다.
+
+### 활성 만세력 결과 조회 — `GET /api/admin/applications/{applicationId}/members/{memberId}/manseryeok`
+
+✅ 2026-08-26 신규(1-D): 현재 활성(`active=true`) 결과를 반환한다. 없으면 `NOT_FOUND`(404). 카드 띠 이미지 결정 등에 쓴다.
+
 ---
 Application 도메인 완료.
 

@@ -16,6 +16,11 @@ import com.example.honorcitizen.domain.application.dto.NameAssignRequest;
 import com.example.honorcitizen.domain.application.dto.NamingResultApplyResponse;
 import com.example.honorcitizen.domain.application.dto.RejectPhotoRequest;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
+import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokActiveResultResponse;
+import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokConfirmRequest;
+import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokResolveRequest;
+import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokResolveResponse;
+import com.example.honorcitizen.domain.manseryeok.service.ManseryeokService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -44,6 +49,7 @@ import java.util.List;
 public class AdminApplicationController {
 
     private final ApplicationService applicationService;
+    private final ManseryeokService manseryeokService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<MyApplicationListItemResponse>>> list(
@@ -113,6 +119,38 @@ public class AdminApplicationController {
             @Valid @RequestBody CardNumberBatchAssignRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.assignCardNumbersBatch(adminId, applicationId, request)));
+    }
+
+    // 만세력 timezone/DST 판정 — 미리보기 전용, DB에 저장하지 않는다(1-D).
+    @PostMapping("/{applicationId}/members/{memberId}/manseryeok/resolve")
+    public ResponseEntity<ApiResponse<ManseryeokResolveResponse>> resolveManseryeokBirthTime(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody ManseryeokResolveRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                manseryeokService.resolveBirthTime(adminId, applicationId, memberId, request)));
+    }
+
+    // 만세력 확정 결과 저장 — 프론트가 계산한 사주 결과를 이력 보존 방식으로 저장한다(1-D).
+    @PostMapping("/{applicationId}/members/{memberId}/manseryeok")
+    public ResponseEntity<ApiResponse<Void>> confirmManseryeokResult(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody ManseryeokConfirmRequest request) {
+        manseryeokService.confirmManseryeokResult(adminId, applicationId, memberId, request);
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    // 현재 활성 만세력 결과 조회 — 카드 띠 이미지 등에서 확정 연주를 읽어올 때 쓴다.
+    @GetMapping("/{applicationId}/members/{memberId}/manseryeok")
+    public ResponseEntity<ApiResponse<ManseryeokActiveResultResponse>> getActiveManseryeokResult(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @PathVariable Long memberId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                manseryeokService.getActiveManseryeokResult(adminId, applicationId, memberId)));
     }
 
     // 상태 전이 — 전이 규칙 자체는 Application 엔티티에 있고, 여기·Service는 호출·인가·감사로그만 담당한다.

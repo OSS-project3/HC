@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-26 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 1-D — 만세력 확정 결과 저장 계약, 백엔드)
+
+- 변경: 관리자가 출생지역을 검색하면 Google Geocoding API로 좌표를, Google Time Zone API로 IANA timezoneId를 자동 조회하고, `ApplicationMember`의 생년월일시와 함께 `java.time.zone.ZoneRules.getValidOffsets()`로 DST를 직접 판정(EXACT/NONEXISTENT_LOCAL_TIME/AMBIGUOUS_LOCAL_TIME)하는 기능을 구현했다. 실제 사주 8자·오행 계산 자체는 여전히 프론트(`saju.ts`)가 담당하며, HC는 계산에 필요한 확정 절대시각(`utcInstant`)만 만들어 넘긴다. 확정 결과는 `ManseryeokResult`에 이력 보존 방식(덮어쓰지 않고 이전 결과를 비활성화 후 새 행 추가)으로 저장하며, `timeAccuracy=EXACT`일 때는 Spring이 timezoneId+생년월일시로 자체 재계산해 무결성을 검증한다(실제 사주 계산 결과 자체는 재현 불가능해 프론트 값을 신뢰).
+- **⚠️ 세션 중 발생한 문제와 정정**: 이 작업을 시작하기 전, 같은 저장소를 동시에 쓰는 다른 세션(Codex로 추정)이 이미 "HC는 만세력 계산을 하지 않고 별도 saju 프로젝트가 전담, HC는 Excel 왕복만 담당"하는 정반대 방향으로 `TODO.md`의 1-D를 다시 쓴 커밋(`2be7862`)을 남겼는데, 본인이 그 내용을 확인하지 않은 채 함께 push해버렸다. 사용자와 이번 세션에서 Google Geocoding 방향을 처음부터 다시 설계·구현 완료한 뒤 문서 동기화 중에야 이 충돌을 발견했다. 사용자가 "Google Geocoding+HC가 timezone/DST 계산" 방향을 최종 확정해, `TODO.md`의 해당 문구를 superseded로 표시하고 1-D 섹션을 실제 구현대로 다시 작성했다. 별도 `saju` 리포의 timezone 해석 자체 개선 작업(`HC↔saju 연동` 체크리스트)과 기존 엑셀 왕복 작명 경로(1-B `applyNamingResult`)는 이 결정과 무관하게 그대로 유지된다 — 서로 다른 두 경로(엑셀 왕복 vs 인앱 즉석 계산)가 공존하는 것으로 정리됨.
+- 파일: `TimeAccuracy.java`(신규 enum), `domain/manseryeok/`(신규 패키지 — `BirthTimeResolutionStatus`/`BirthTimeResolution`/`BirthTimeZoneResolver`/`ManseryeokService`/`ManseryeokResult`(entity)/`ManseryeokResultRepository`/DTO 4종), `infra/geocoding/`(신규 패키지 — `BirthRegionLookupClient`/`RegionCandidate`/`GoogleBirthRegionLookupClient`), `ErrorCode.java`(`GEOCODING_NOT_CONFIGURED`/`GEOCODING_PROVIDER_ERROR`/`REGION_NOT_FOUND`), `AdminActivityLog.java`(`MANSERYEOK_CONFIRMED`), `AdminApplicationController.java`/`BirthRegionController.java`(신규), `application.properties`(`app.google-maps.*`), 테스트(`BirthTimeZoneResolverTest` 12개, `GoogleBirthRegionLookupClientTest` 2개, `ManseryeokServiceTest` 10개), 문서(`data-model.md` §2.6 신규, `api.md` 4개 API 신규 섹션, `TODO.md` superseded 정정 포함).
+- 사유: 카드에 필요한 띠(연주 지지) 이미지 결정과 관리자가 "정확한 출생 절대시각"을 확정하는 절차가 admin-saju.md의 DST 정책을 지키려면 HC 자체의 timezone/DST 판정이 선행돼야 한다.
+- 검증: `./gradlew.bat test`(REDIS_PORT=6400) 전체 통과, 실패 0. 도중 `RestClient.Builder` 빈 미등록으로 514/694 테스트가 대거 실패했던 걸 발견해 수정(Jackson 3(`tools.jackson`) 이전으로 Spring Boot `RestClientAutoConfiguration`이 기대하는 classic Jackson 2가 클래스패스에 없어 빈이 등록 안 됐던 것 — `RestClient.builder()`를 직접 생성하도록 변경해 해소).
+- 미완료(범위 밖, 별도 세션 필요): 프론트 `saju.ts` 재작성(백엔드 확정값을 받아 계산하도록), 관리자 화면(출생지역 검색·AMBIGUOUS 후보 선택 UI), stale 결과 명시적 플래그 로직.
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 1-D, `docs/specs/application/admin-saju.md`
+
 ## 2026-08-26 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 1-C — 관리자 카드번호 개별·일괄 저장)
 
 - 변경: 관리자가 카드번호(`ROK-XXXXX-XXXX`)를 직접 입력·확정하는 API 2종을 신규 구현했다(서버 채번 없음). `PUT /api/admin/applications/{id}/members/{memberId}/card-number`(개인/단일)와 `PUT /api/admin/applications/{id}/card-numbers`(단체 일괄, `(applicationId, photoNumber)` 기준 매칭 — 화면 순서·memberId 매칭 아님). 일괄 API는 `Application`을 `PESSIMISTIC_WRITE`로 잠그고 요청 `applicationVersion`을 대조해 동시 수정을 막으며, 요청 내부 중복·존재하지 않는 사진 번호·형식 오류·이미 카드가 생성된 Member의 번호 변경 시도를 전부 모아 하나라도 있으면 전체 거절한다(all-or-nothing, `BulkValidationException`). `ApplicationMember.isCardGenerated()`(`cardFrontPath != null` 기준)로 "최초 카드 생성 이후"를 판정해 값이 다른 번호로의 변경만 막고 같은 값 재저장은 멱등 허용한다. DB `UNIQUE` 위반은 `DataIntegrityViolationException` → `CARD_NUMBER_ALREADY_USED`(409)로 최종 방어.

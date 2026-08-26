@@ -158,3 +158,30 @@
 - 모든 검증 후 최종 경로에 업로드하고 `UploadFile`을 저장한다. DB 저장 실패 시 해당 요청이 업로드한 파일을 역순 삭제하며 삭제 실패는 Error 로그로 남긴다.
 - 얼굴사진·학교 로고·직인 수정은 새 파일 업로드와 DB 갱신 성공 후 기존 파일을 삭제한다.
 - 신청 생성 시 Payment를 생성하거나 totalPrice를 계산하지 않는다. 향후 온라인 결제를 위해 Payment Entity와 관련 도메인은 유지한다.
+
+### 2.6 ManseryeokResult (관리자 만세력 확정 결과, 2026-08-26 신규 — `admin-saju.md`/1-D)
+
+> ✅ 확정(사용자, 2026-08-26): HC 백엔드가 출생지역 검색(Google Geocoding API)과 timezone/DST 판정(`java.time.zone.ZoneRules`)을 직접 수행하고 그 결과를 저장한다. 실제 사주 8자·오행 계산 자체는 여전히 프론트(`saju.ts`, `manseryeok` 라이브러리)가 담당 — HC는 계산에 필요한 확정된 절대 시각(`utcInstant`)을 만들어 넘길 뿐, 계산 결과는 재현하지 않고 프론트가 보낸 값을 신뢰해 저장한다(단, timezoneId·offset·utcInstant 자체의 정합성은 재계산해 검증한다). `ApplicationMember` 1건에 여러 row가 쌓일 수 있으며 `active=true`인 행 하나만 "현재 활성 결과"다 — 재확정 시 덮어쓰지 않고 이전 행을 `active=false`로 바꾼 뒤 새 행을 추가해 이력을 보존한다.
+
+| 필드 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | |
+| application_member_id | BIGINT | NOT NULL | `ApplicationMember` FK(Long 참조, JPA 연관관계 없음) |
+| input_hash | VARCHAR(64) | NOT NULL | 계산 입력(생년월일시+timezoneId+longitude+엔진버전) 해시 — 입력이 바뀌면 stale 판정에 쓴다 |
+| timezone_id | VARCHAR(100) | NOT NULL | IANA timezoneId(예: `America/New_York`) |
+| longitude | DOUBLE | NULL | 진태양시 보정용 경도 — 관리자가 Google Geocoding 후보 중 선택하거나 직접 입력 |
+| selected_offset | VARCHAR(10) | NULL | EXACT일 때만 값 존재(예: `-04:00`) |
+| utc_instant | TIMESTAMP | NULL | EXACT일 때만 확정. PARTIAL/UNKNOWN이면 NULL |
+| time_accuracy | ENUM | NOT NULL | `EXACT`/`PARTIAL`/`UNKNOWN`(`common.enums.TimeAccuracy`, admin-saju.md "시간 정확도") |
+| confirmed_pillars_json | TEXT | NULL | `{"year":{"stem":"갑","branch":"자"}, ...}` — 확정된 주만. 프론트 계산 결과를 그대로 저장(재계산 안 함) |
+| uncertain_pillars_json | TEXT | NULL | 확정 못한 주 이름 목록(예: `["hour"]`). PARTIAL/UNKNOWN에서만 값 존재 |
+| element_counts_json | TEXT | NULL | `{"목":2,"화":1,...}` — 오행 카운트, 프론트 계산 결과 |
+| tzdb_version | VARCHAR(50) | NULL | 계산 시점 JVM 번들 IANA tzdata 버전(재현성 기록용) |
+| calculation_engine_version | VARCHAR(50) | NULL | 프론트 `manseryeok` 라이브러리/계산기 버전 |
+| calculated_at | DATETIME | NOT NULL | |
+| confirmed_by_admin_id | BIGINT | NOT NULL | |
+| active | BOOLEAN | NOT NULL | 현재 활성 결과 여부. `(application_member_id, active=true)`는 항상 최대 1건 |
+| created_at / updated_at | DATETIME | NOT NULL | `BaseTimeEntity` |
+
+- 카드 띠 이미지는 활성 `ManseryeokResult.confirmed_pillars_json`의 `year` 지지로 결정한다(연주가 `uncertain_pillars_json`에 포함되면 자동 생성 거절 — admin-saju.md "띠 이미지 결정 정책").
+- "출생정보·timezone·계산 엔진 버전 변경 시 stale 판정" 로직은 `input_hash` 컬럼만 정의된 상태이며 실제 stale 플래그·재계산 강제 로직은 아직 없다(TODO 1-D 후속 항목).

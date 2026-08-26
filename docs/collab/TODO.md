@@ -1064,7 +1064,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 >
 > ⚠️ 이 계획은 위의 과거 카드 합성 체크리스트에 남은 `카드번호 무작위 생성`과 `직인·발행처 제외` 기록을 대체한다. 카드번호는 관리자가 입력하며, 로고·직인과 발행처는 최신 신청 정책에 따라 렌더링한다. 과거 미완료 항목을 그대로 구현하지 않는다.
 >
-> ⚠️ 만세력 계산의 Source of Truth는 별도 `saju` 프로젝트다. HC는 신청자 Excel 내보내기와 결과 Excel 가져오기만 담당하며 HC 내부에 만세력 계산 API나 전체 계산 결과 엔티티를 추가하지 않는다. 카드 렌더러는 별도 saju 결과에서 import한 최종 작명 값과 띠 코드를 사용한다.
+> ⚠️ **superseded (2026-08-26, 사용자 확인)** — 아래 문장은 "HC는 계산 안 함, 별도 saju 프로젝트가 timezone/만세력을 전담" 방향이었으나, 사용자가 이번 세션에서 반대로 최종 확정했다: **HC 백엔드가 Google Geocoding+Time Zone API로 출생지역을 조회하고 `ZoneRules`로 timezone/DST를 직접 판정·확정(`utcInstant`)해 저장한다.** 실제 만세력 8자·오행 계산 자체(순수 사주 산출 로직)만 여전히 프론트(`saju.ts`, `manseryeok` 라이브러리)가 담당하고, 그 계산에 필요한 "확정된 절대 시각"은 HC가 만들어 넘긴다 — 별도 saju 프로젝트로의 Excel 내보내기·가져오기 경로가 아니다. 아래 1-D 섹션은 이 확정 방향으로 다시 작성했다. ~~만세력 계산의 Source of Truth는 별도 saju 프로젝트다. HC는 신청자 Excel 내보내기와 결과 Excel 가져오기만 담당하며 HC 내부에 만세력 계산 API나 전체 계산 결과 엔티티를 추가하지 않는다. 카드 렌더러는 별도 saju 결과에서 import한 최종 작명 값과 띠 코드를 사용한다.~~
 >
 > 작업은 아래 1 → 2 → 3 순서로 진행한다. `1-A` 같은 하위 단위 하나를 한 세션·한 논리 커밋으로 취급한다. 다음 하위 단위의 코드를 미리 섞지 않는다.
 
@@ -1154,22 +1154,31 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] 카드번호 저장 외 카드 생성·S3 변경 없음.
 - [x] 카드번호 Service/Controller targeted tests와 `compileJava` 통과 — 전체 스위트(REDIS_PORT=6400) 그린, 실패 0.
 
-### 1-D. 별도 saju 결과 Excel import 보강
+### 1-D. 만세력 확정 결과 저장 계약 — 🔵 백엔드 완료, 프론트 미착수 (Claude, 2026-08-26)
 
-- [ ] HC는 신청자 Excel 내보내기와 결과 Excel 가져오기만 담당하고 별도 saju가 만세력과 이름 추천을 전담.
-- [ ] HC에 만세력 계산 API, `SajuCalculationResult`, 사주·오행 계산 이력을 추가하지 않음.
-- [ ] 결과 Excel에 `사주이름`·선택 한자·`띠 코드`를 포함하고 성씨는 포함하지 않음.
-- [ ] 관리자는 HC에서 성씨와 필수 의미를 별도로 확정한 뒤 `completeNaming()` 실행.
-- [ ] 단체 결과를 `(applicationId, photoNumber)`로 매칭하고 행 순서·이메일·전화번호 의존 제거.
-- [ ] 개인 결과는 대상 Application/Member 문맥으로 매칭하고 단체 사진 번호 규칙을 강제하지 않음.
-- [ ] `ApplicationMember.zodiacCode`와 허용 enum 정의. HC는 import된 코드만 카드 렌더링에 사용.
-- [ ] 누락·중복 사진 번호, 존재하지 않는 Member, 잘못된 띠 코드, 필수 결과 누락 시 전체 rollback.
-- [ ] mock fallback 결과 import 금지와 이름·한자·띠 코드의 원자 반영을 통합 테스트.
+> ⚠️ 이 섹션은 "별도 saju 결과 Excel import 보강"으로 한 번 대체됐다가, 사용자가 다시 원래 방향(HC가 timezone/DST 직접 판정)으로 최종 확정하며 되돌아왔다. 위 공통 노트의 superseded 문구 참고.
+
+- [x] 출생지역(도시명) 검색 → Google Geocoding API로 좌표 후보 조회: `GET /api/admin/birth-region/search?query=`.
+- [x] 좌표 → IANA timezoneId 조회: Google Time Zone API(`BirthRegionLookupClient`/`GoogleBirthRegionLookupClient`, 공급자 교체 가능하게 인터페이스로 추상화).
+- [x] timezoneId + Member 생년월일시로 DST 판정: `BirthTimeZoneResolver`가 `ZoneRules.getValidOffsets(LocalDateTime)`로 EXACT(1개)/NONEXISTENT(0개)/AMBIGUOUS(2개) 구분, `LocalDateTime.atZone()`을 검증 없이 바로 쓰지 않음(admin-saju.md 원칙 그대로).
+- [x] AMBIGUOUS일 때 관리자가 후보 offset 중 선택 → `confirmOffset()`으로 재검증 후 EXACT 확정.
+- [x] 미리보기 API(DB 미변경): `POST /api/admin/applications/{id}/members/{memberId}/manseryeok/resolve`.
+- [x] 실제 사주 8자·오행 계산은 여전히 프론트(`saju.ts`, `manseryeok` 라이브러리)가 담당 — HC는 확정된 `utcInstant`+`longitude`만 넘기고 계산 결과 자체를 재현하지 않는다(재현 불가능한 부분은 신뢰하되, 신원·소속·timezone 재계산 일치 여부만 검증).
+- [x] 확정 결과 저장(이력 보존): `ManseryeokResult` 엔티티 — `applicationMemberId`, `inputHash`, `timezoneId`, `longitude`, `selectedOffset`, `utcInstant`, `timeAccuracy`, `confirmedPillarsJson`/`uncertainPillarsJson`/`elementCountsJson`(프론트 계산 결과, 신뢰 저장), `tzdbVersion`, `calculationEngineVersion`, `calculatedAt`, `active`. 새 확정 시 기존 active row를 `deactivate()`하고 새 row를 active로 저장 — 덮어쓰지 않고 이력 유지.
+- [x] 저장 API: `POST /api/admin/applications/{id}/members/{memberId}/manseryeok` — `timeAccuracy=EXACT`면 Spring이 `timezoneId`+생년월일시로 자체 재계산해 요청의 `selectedOffset`/`utcInstant`와 일치하는지 무결성 검증(불일치 시 `INVALID_INPUT`). PARTIAL/UNKNOWN은 사주 계산 자체를 Spring이 재현할 수 없어 그대로 저장.
+- [x] 현재 활성 결과 조회: `GET /api/admin/applications/{id}/members/{memberId}/manseryeok` — 카드 띠 이미지 등에서 `confirmedPillars.year` 조회에 사용 가능.
+- [x] Google Maps API 키 미설정 시 기동은 막지 않고 호출 시점에 `GEOCODING_NOT_CONFIGURED`(503)로 거절 — 사용자 결정("구조만 먼저, 키는 나중에")에 따름. `app.google-maps.api-key`(`GOOGLE_MAPS_API_KEY`)/`app.google-maps.base-url` 설정 추가.
+- [x] 신규 테스트 24개(`BirthTimeZoneResolverTest` 12 — EXACT/NONEXISTENT/AMBIGUOUS/남반구/1970년 이전/UTC 날짜 경계 등, `GoogleBirthRegionLookupClientTest` 2, `ManseryeokServiceTest` 10 — resolve DB 미변경·confirm 무결성/이력보존/PARTIAL·조회·권한).
+- [ ] 프론트(`saju.ts`) 재작성 — 로컬시각을 그대로 쓰는 현재 방식을 버리고 백엔드가 확정한 `utcInstant`+`longitude`를 받아 진태양시 보정 후 계산하도록 변경. **미착수, 별도 세션.**
+- [ ] 관리자 화면 — 출생지역 검색·후보 선택·AMBIGUOUS 후보 선택 UI. **미착수, 별도 세션.**
+- [ ] "출생정보·timezone 선택·계산 엔진 버전이 바뀌면 기존 결과를 stale로 판정" 로직 — 현재는 재확정 시 이력만 보존하고 이전 결과를 active=false로 바꿀 뿐, "이 결과가 최신 입력과 다른 stale 상태"라고 명시적으로 플래그하지는 않는다. **후속 보강 필요.**
+- [ ] `tzdb`/계산 엔진 버전이 실제로 바뀌었을 때 재계산을 강제하는 배치·알림은 없음. **범위 밖으로 명시.**
 
 완료 조건:
 
-- [ ] HC가 최종 이름·한자·띠 코드만 저장하고 자체 만세력 계산 책임을 갖지 않음.
-- [ ] 결과 Excel parser/import targeted tests와 `compileJava` 통과.
+- [x] `CardImageCompositor`가 프론트 runtime이나 mock에 의존하지 않고 DB의 재현 가능한 확정 연주를 조회할 수 있음 — `GET .../manseryeok`으로 조회 가능(단, `CardImageCompositor` 자체 연동은 2단계 범위).
+- [x] 관리자 만세력 저장 API targeted tests와 `compileJava` 통과 — 전체 스위트(REDIS_PORT=6400) 그린, 실패 0(도중 `RestClient.Builder` 빈 미등록으로 514/694 대거 실패했던 걸 `RestClient.builder()` 직접 생성으로 수정해 해소 — 이 프로젝트가 Jackson 3(`tools.jackson`)로 옮겨가 있어 Spring Boot `RestClientAutoConfiguration`이 기대하는 classic Jackson 2가 클래스패스에 없어 빈 자체가 안 만들어졌던 것).
+- [ ] 프론트 연동까지는 미완료 — 이 섹션은 백엔드 저장 계약까지만 완료 처리한다.
 
 ## 2. CardDesign 매핑과 단일 Member 미리보기
 
@@ -1201,7 +1210,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] 학생증에는 주소 미표시. 일반카드에는 카드 표기 주소 사용.
 - [ ] 로고·직인은 기존 신청 정책 매트릭스 적용: 개인 일반카드 없음, 단체 일반카드 둘 다 필수, 학생증 로고 필수·직인 선택.
 - [ ] 한자가 없으면 한자 영역만 비우고 다른 필드 재배치 금지.
-- [ ] 띠 이미지는 별도 saju 결과 Excel에서 import한 `ApplicationMember.zodiacCode`로 결정. 누락·잘못된 코드면 자동 생성 거절하며 HC에서 재계산하지 않음.
+- [ ] 띠 이미지는 1-D에서 저장한 `ManseryeokResult`의 활성 결과 중 `confirmedPillars.year`(연주 지지)로 결정한다(admin-saju.md "띠 이미지 결정 정책" — ⚠️ 이전에 "별도 saju Excel에서 zodiacCode를 import"로 잠깐 바뀌었으나 1-D가 다시 HC 자체 저장으로 확정되며 대체됨). 활성 결과가 없거나 연주가 `uncertainPillars`에 포함되면 자동 생성 거절.
 - [ ] 텍스트 겹침 시 기본 글꼴에서 최대 2px 축소하고 계속 겹치면 명시적 렌더링 오류.
 - [ ] 앞면·뒷면 모두 실제 PNG 생성 및 크기·좌표·폰트 검증.
 - [ ] 기존 `CardImageCompositorTest`가 대표 디자인만 검사하는지 확인하고, 활성 디자인 전체를 도는 parameterized test가 없으면 최소 보강.
