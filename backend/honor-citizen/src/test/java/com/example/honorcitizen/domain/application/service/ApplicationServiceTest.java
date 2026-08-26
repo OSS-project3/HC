@@ -19,6 +19,8 @@ import com.example.honorcitizen.domain.application.repository.ApplicationReposit
 import com.example.honorcitizen.domain.application.repository.ReceiverRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
+import com.example.honorcitizen.domain.school.entity.School;
+import com.example.honorcitizen.domain.school.repository.SchoolRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
@@ -62,6 +64,8 @@ class ApplicationServiceTest {
     private CardTypeRepository cardTypeRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private SchoolRepository schoolRepository;
 
     @MockitoBean
     private StorageService storageService;
@@ -80,6 +84,7 @@ class ApplicationServiceTest {
         applicantRepository.deleteAll();
         applicationRepository.deleteAll();
         cardTypeRepository.deleteAll();
+        schoolRepository.deleteAll();
         userRepository.deleteAll();
 
         user = User.createOAuthUser("member@example.com", "oauth-app", "google", "Member");
@@ -112,6 +117,13 @@ class ApplicationServiceTest {
     private ApplicationCreateRequest fromJson(Long cardTypeId, String issueType,
             Boolean sameAsApplicant, String studentId, String department,
             Orientation orientation, SchoolType schoolType, String schoolName) {
+        return fromJson(cardTypeId, issueType, sameAsApplicant, studentId, department,
+                orientation, schoolType, schoolName, null);
+    }
+
+    private ApplicationCreateRequest fromJson(Long cardTypeId, String issueType,
+            Boolean sameAsApplicant, String studentId, String department,
+            Orientation orientation, SchoolType schoolType, String schoolName, Long schoolId) {
         // 학생증은 카드에 주소를 표시하지 않아 address를 보내면 거절되므로 학생증 카드타입일 때만 비운다.
         // (studentCardType이 아직 설정 전인 호출 경로는 없음 — setUp()에서 항상 먼저 초기화된다.)
         boolean isStudentCard = studentCardType != null && cardTypeId != null
@@ -136,7 +148,8 @@ class ApplicationServiceTest {
                 cardTypeId, issueType,
                 (orientation == null ? "" : "\"orientation\": \"%s\",".formatted(orientation))
                         + (schoolType == null ? "" : "\"schoolType\": \"%s\",".formatted(schoolType))
-                        + (schoolName == null ? "" : "\"schoolName\": \"%s\",".formatted(schoolName)),
+                        + (schoolName == null ? "" : "\"schoolName\": \"%s\",".formatted(schoolName))
+                        + (schoolId == null ? "" : "\"schoolId\": %d,".formatted(schoolId)),
                 sameAsApplicant == null ? "" : """
                         "receiver": {
                           "sameAsApplicant": %s,
@@ -677,5 +690,58 @@ class ApplicationServiceTest {
 
         ApplicationMember member = applicationMemberRepository.findByApplicationId(response.getApplicationId()).get(0);
         assertThat(member.getAddress()).isEqualTo("서울특별시 종로구 세종대로 1");
+    }
+
+    // --- School 검색select(schoolId) 관련 (TODO.md "학생증 카드" 4-A) ---
+
+    @Test
+    void createIndividualResolvesRegisteredSchoolAndIgnoresTamperedSchoolNameAndType() {
+        School school = schoolRepository.save(School.create("전북대학교", SchoolType.UNIVERSITY));
+        // 클라이언트가 schoolId와 함께 일부러 다른 schoolName/schoolType(고등학교)을 같이 보내도
+        // 서버는 School(전북대학교, UNIVERSITY) 값을 그대로 강제해야 한다 — 위변조 차단 검증.
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null,
+                "20261234", "컴퓨터공학과", Orientation.LANDSCAPE, SchoolType.HIGH_SCHOOL, "가짜대학", school.getId());
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        var response = applicationService.createIndividual(user.getId(), request, photo(), logo, null);
+
+        Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
+        assertThat(saved.getSchoolId()).isEqualTo(school.getId());
+        assertThat(saved.getSchoolName()).isEqualTo("전북대학교");
+        assertThat(saved.getSchoolType()).isEqualTo(SchoolType.UNIVERSITY);
+
+        // schoolType이 실제로는 UNIVERSITY로 확정됐으므로 학번/학과도 정상 저장돼야 한다
+        // (클라이언트가 보낸 HIGH_SCHOOL을 그대로 믿었다면 학번/학과가 있다는 이유로 거절됐을 것).
+        ApplicationMember member = applicationMemberRepository.findByApplicationId(response.getApplicationId()).get(0);
+        assertThat(member.getStudentId()).isEqualTo("20261234");
+        assertThat(member.getDepartment()).isEqualTo("컴퓨터공학과");
+    }
+
+    @Test
+    void createIndividualRejectsUnknownSchoolId() {
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null,
+                "20261234", "컴퓨터공학과", Orientation.LANDSCAPE, null, null, 999999L);
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        assertThatThrownBy(() -> applicationService.createIndividual(user.getId(), request, photo(), logo, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+
+        assertThat(applicationRepository.count()).isZero();
+    }
+
+    @Test
+    void createIndividualSucceedsWithDirectInputSchoolWhenSchoolIdAbsent() {
+        // schoolId 없이 기존처럼 schoolName/schoolType 직접입력으로도 여전히 성공해야 한다(회귀 확인).
+        ApplicationCreateRequest request = fromJson(studentCardType.getId(), "MOBILE", null,
+                "20261234", "컴퓨터공학과", Orientation.LANDSCAPE, SchoolType.UNIVERSITY, "전북대학교");
+        MockMultipartFile logo = new MockMultipartFile("schoolLogo", "logo.png", "image/png", imageBytes(50, 50, "png"));
+
+        var response = applicationService.createIndividual(user.getId(), request, photo(), logo, null);
+
+        Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
+        assertThat(saved.getSchoolId()).isNull();
+        assertThat(saved.getSchoolName()).isEqualTo("전북대학교");
+        assertThat(saved.getSchoolType()).isEqualTo(SchoolType.UNIVERSITY);
     }
 }

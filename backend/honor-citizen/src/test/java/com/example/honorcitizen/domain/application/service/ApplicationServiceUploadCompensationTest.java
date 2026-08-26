@@ -82,10 +82,10 @@ class ApplicationServiceUploadCompensationTest {
         when(storageService.upload(anyString(), any())).thenReturn("http://mock-storage/uploaded");
         when(storageService.uploadBytes(anyString(), any(), anyString())).thenReturn("http://mock-storage/uploaded");
         when(applicationPersistenceService.saveIndividual(
-                any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any(), any()))
+                any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("DB failure"));
         when(applicationPersistenceService.saveGroup(
-                any(), any(), any(), any(), anyBoolean(), anyInt(), any(), any(), any(), any(), any(), any()))
+                any(), any(), any(), any(), anyBoolean(), anyInt(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("DB failure"));
     }
 

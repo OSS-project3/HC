@@ -41,6 +41,12 @@ public class ApplicationCreateRequest {
     // 서비스 레벨에서 isStudent 기준으로 조건부 필수 검증(validateStudentFields).
     private String schoolName;
 
+    // 학교 검색select로 등록된 School을 선택했을 때만 값이 있다(School.id). 이 값이 있으면 서버가
+    // schoolName/schoolType을 School 엔티티 값으로 강제 확정하고 위 두 필드의 요청값은 무시한다 —
+    // 클라이언트가 schoolType을 임의로 바꿔 보내는 걸 원천 차단하기 위함(TODO.md 4-A).
+    // null이면 기존처럼 schoolName/schoolType을 직접입력 값 그대로 사용한다.
+    private Long schoolId;
+
     @NotNull
     @Valid
     private ApplicantRequest applicant;

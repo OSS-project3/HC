@@ -146,6 +146,11 @@ public class Application extends BaseTimeEntity {
     @Column(length = 20)
     private String schoolName;
 
+    // School 마스터 목록에서 검색select로 등록 학교를 골랐을 때만 값이 있다 — 학교명 직접입력이면 null.
+    // 값이 있으면 schoolName/schoolType은 School 엔티티에서 스냅샷 복사된 값이다(서비스 레벨에서 확정,
+    // 이 엔티티는 위변조 방지 로직을 갖지 않는다 — TODO.md "학생증 카드" 4-A).
+    private Long schoolId;
+
     // 기존 호출부(비학생증 픽스처 다수)와의 하위 호환용 — orientation/schoolType/schoolName 없이 호출하면 전부 null로 생성한다.
     public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId) {
@@ -161,10 +166,18 @@ public class Application extends BaseTimeEntity {
                 logoFileId, sealFileId, orientation, schoolType, null);
     }
 
-    // 개인 신청: 대상자(ApplicationMember)는 항상 1명, submitFileId(제출 ZIP)는 없음
+    // 기존 호출부(schoolId 없이 schoolName만 반영된 픽스처)와의 하위 호환용 — schoolId 없이 호출하면 null(직접입력)로 생성한다.
     public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId,
             Orientation orientation, SchoolType schoolType, String schoolName) {
+        return createIndividual(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
+                logoFileId, sealFileId, orientation, schoolType, schoolName, null);
+    }
+
+    // 개인 신청: 대상자(ApplicationMember)는 항상 1명, submitFileId(제출 ZIP)는 없음
+    public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId,
+            Orientation orientation, SchoolType schoolType, String schoolName, Long schoolId) {
         Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
         application.applicationType = ApplicationType.INDIVIDUAL;
         application.totalQuantity = 1;
@@ -173,6 +186,7 @@ public class Application extends BaseTimeEntity {
         application.orientation = orientation;
         application.schoolType = schoolType;
         application.schoolName = schoolName;
+        application.schoolId = schoolId;
         return application;
     }
 
@@ -192,11 +206,20 @@ public class Application extends BaseTimeEntity {
                 totalQuantity, logoFileId, sealFileId, submitFileId, orientation, schoolType, null);
     }
 
-    // 단체 신청: 대상자는 제출 ZIP(엑셀) 행 수만큼(totalQuantity), submitFileId로 원본 ZIP을 추적
+    // 기존 호출부(schoolId 없이 schoolName만 반영된 픽스처)와의 하위 호환용 — schoolId 없이 호출하면 null(직접입력)로 생성한다.
     public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
             Long logoFileId, Long sealFileId, Long submitFileId, Orientation orientation, SchoolType schoolType,
             String schoolName) {
+        return createGroup(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
+                totalQuantity, logoFileId, sealFileId, submitFileId, orientation, schoolType, schoolName, null);
+    }
+
+    // 단체 신청: 대상자는 제출 ZIP(엑셀) 행 수만큼(totalQuantity), submitFileId로 원본 ZIP을 추적
+    public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
+            Long logoFileId, Long sealFileId, Long submitFileId, Orientation orientation, SchoolType schoolType,
+            String schoolName, Long schoolId) {
         Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
         application.applicationType = ApplicationType.GROUP;
         application.totalQuantity = totalQuantity;
@@ -206,6 +229,7 @@ public class Application extends BaseTimeEntity {
         application.orientation = orientation;
         application.schoolType = schoolType;
         application.schoolName = schoolName;
+        application.schoolId = schoolId;
         return application;
     }
 

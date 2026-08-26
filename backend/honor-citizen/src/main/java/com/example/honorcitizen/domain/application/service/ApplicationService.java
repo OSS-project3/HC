@@ -46,6 +46,8 @@ import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
 import com.example.honorcitizen.domain.log.entity.AdminActivityLog;
 import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository;
+import com.example.honorcitizen.domain.school.entity.School;
+import com.example.honorcitizen.domain.school.repository.SchoolRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.service.UserService;
 import com.example.honorcitizen.infra.storage.StorageService;
@@ -132,6 +134,7 @@ public class ApplicationService {
     private final StorageService storageService;
     // ZIP 파일에서 엑셀을 파싱하고 사진을 매칭하는 단체 신청 전용 파서
     private final BulkExcelParser bulkExcelParser;
+    private final SchoolRepository schoolRepository;
 
     // JPA Repository가 아닌 네이티브 쿼리(SELECT nextval)로 DB 시퀀스를 직접 채번해야 하므로
     // EntityManager를 직접 주입받는다. @Autowired 대신 @PersistenceContext를 사용하는 이유는
@@ -158,10 +161,14 @@ public class ApplicationService {
         CardType cardType = findActiveCardType(request.getCardTypeId());
         boolean isStudent = cardType.isStudentCard();
 
+        // School 검색select(schoolId 있음) 또는 직접입력(schoolId 없음) 중 실제로 저장할 값을 먼저 확정한다.
+        // 검증(validateStudentFields)과 저장(applicationPersistenceService.saveIndividual) 둘 다 이 결과를 쓴다.
+        ResolvedSchool resolvedSchool = resolveSchool(request.getSchoolId(), request.getSchoolName(), request.getSchoolType());
+
         // 입력 검증을 S3 업로드 이전에 먼저 수행한다.
         // 사진 검증(ApplicationPhotoValidator)은 파일을 통째로 메모리에 읽어야 하므로
         // 리소스 소비가 있지만, S3 업로드보다는 훨씬 저렴하다. -> S3업로드 되면, 다시 삭제해야하는 불편함 발생.
-        validateCreateIndividual(request, photo, schoolLogo, schoolSeal, isStudent);
+        validateCreateIndividual(request, photo, schoolLogo, schoolSeal, isStudent, resolvedSchool);
 
         // 하루 3회 제한(개인/단체 합산) — 파일 업로드 이전에 자리를 먼저 확정해 실패 시 슬롯 낭비 없이
         // 빠르게 거절한다. 실패(아래 catch)하면 예약한 자리를 반환한다.
@@ -188,7 +195,7 @@ public class ApplicationService {
 
             Application application = applicationPersistenceService.saveIndividual(
                     userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
-                    logoFileMetadata, sealFileMetadata, request, applicantEmail, photoPath);
+                    logoFileMetadata, sealFileMetadata, request, applicantEmail, photoPath, resolvedSchool);
             return ApplicationCreateResponse.from(application);
         } catch (RuntimeException e) {
             // DB 저장이 실패하면 이미 S3에 업로드한 파일들을 역순으로 제거해 고아 파일이 남지 않도록 한다.
@@ -216,12 +223,24 @@ public class ApplicationService {
     //   수령인은 비즈니스 규칙(IssueType에 따라 필수/불가), 사진은 파일 I/O, 학생 필드는 카드 타입 의존이므로
     //   논리 검증 → 파일 검증 → 조건부 검증 순으로 빠른 실패(fail-fast)를 유도한다.
     private void validateCreateIndividual(ApplicationCreateRequest request, MultipartFile photo,
-            MultipartFile schoolLogo, MultipartFile schoolSeal, boolean isStudent) {
+            MultipartFile schoolLogo, MultipartFile schoolSeal, boolean isStudent, ResolvedSchool resolvedSchool) {
         validateReceiverPresence(request);
         applicationPhotoValidator.validateFacePhoto(photo);
-        validateStudentFields(isStudent, request.getOrientation(), request.getSchoolType(), request.getSchoolName(),
+        validateStudentFields(isStudent, request.getOrientation(), resolvedSchool,
                 request.getMember().getStudentId(), request.getMember().getDepartment(), schoolLogo, schoolSeal);
         validateCardAddress(isStudent, request.getMember().getAddress());
+    }
+
+    // schoolId가 있으면 School 존재를 확인하고 name/schoolType을 School 값으로 강제 확정한다
+    // (클라이언트가 같이 보낸 schoolName/schoolType은 무시 — 위변조 차단, TODO.md "학생증 카드" 4-A).
+    // schoolId가 없으면 직접입력 값(schoolName/schoolType)을 그대로 쓴다.
+    private ResolvedSchool resolveSchool(Long schoolId, String schoolName, SchoolType schoolType) {
+        if (schoolId == null) {
+            return new ResolvedSchool(null, schoolName, schoolType);
+        }
+        School school = schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));
+        return new ResolvedSchool(school.getId(), school.getName(), school.getSchoolType());
     }
 
     // 카드에 인쇄되는 주소 — 학생증은 카드에 주소를 표시하지 않으므로 값이 있으면 거절하고,
@@ -278,13 +297,18 @@ public class ApplicationService {
         if (!isPresent(logo) || (!isStudent && !isPresent(seal))) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
+        // School 검색select(schoolId 있음) 또는 직접입력(schoolId 없음) 중 실제로 저장할 값을 먼저 확정한다.
+        ResolvedSchool resolvedSchool = resolveSchool(request.getSchoolId(), request.getSchoolName(), request.getSchoolType());
+
         // orientation·schoolType·schoolName은 개인 신청과 동일하게 신청서 전체에 1개, 학생증일 때만 필수
         // (orientation/schoolType은 2026-08-14, schoolName은 2026-08-19 신규 — 단체 신청은 항상 한 학교 단위로 접수된다는 전제).
         // 학번·학과는 단체는 여전히 첨부 엑셀(BulkExcelParser)로만 받으므로 여기서는 검증하지 않는다.
-        boolean hasStudentApplicationField = request.getOrientation() != null || request.getSchoolType() != null
-                || hasText(request.getSchoolName());
-        if (isStudent && (request.getOrientation() == null || request.getSchoolType() == null
-                || !isValidSchoolName(request.getSchoolName()))) {
+        // schoolId로 등록 학교를 골랐으면 자유텍스트 형식 검사(isValidSchoolName)는 건너뛴다(resolveSchool의
+        // School 존재 확인으로 이미 충분 — validateStudentFields와 동일한 원칙).
+        boolean hasStudentApplicationField = request.getOrientation() != null || resolvedSchool.schoolType() != null
+                || hasText(resolvedSchool.schoolName());
+        boolean schoolNameValid = resolvedSchool.schoolId() != null || isValidSchoolName(resolvedSchool.schoolName());
+        if (isStudent && (request.getOrientation() == null || resolvedSchool.schoolType() == null || !schoolNameValid)) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         if (!isStudent && hasStudentApplicationField) {
@@ -294,7 +318,9 @@ public class ApplicationService {
         // ZIP 파싱 — 엑셀의 모든 행을 검증하고 오류가 있으면 BulkValidationException으로 전체 실패.
         // 개별 행의 오류를 하나씩 반환하는 게 아니라 모든 오류를 한 번에 errors[] 배열로 반환하는 이유:
         //   사용자가 한 번에 전체 오류를 파악하고 ZIP을 다시 만들 수 있게 UX를 개선하기 위해서다.
-        List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, isStudent, request.getSchoolType());
+        // schoolType은 request가 아니라 resolvedSchool 기준 — schoolId로 학교를 고르면 학번/학과 열
+        // 파싱 여부(UNIVERSITY/HIGH_SCHOOL)도 School의 실제 schoolType을 따라야 한다.
+        List<BulkMemberRow> rows = bulkExcelParser.parse(submitFile, isStudent, resolvedSchool.schoolType());
 
         // 하루 3회 제한(개인/단체 합산) — 단체 신청도 개인 신청과 동일하게 파일 업로드 이전에 자리를 확정한다.
         LocalDate today = ApplicationDailyLimitService.today();
@@ -327,7 +353,8 @@ public class ApplicationService {
 
             Application application = applicationPersistenceService.saveGroup(
                     userId, applicationNumber, cardType.getId(), request.getIssueType(), receiverSameAsApplicant,
-                    rows.size(), logoFileMetadata, sealFileMetadata, submitFileMetadata, request, applicantEmail, memberUploads);
+                    rows.size(), logoFileMetadata, sealFileMetadata, submitFileMetadata, request, applicantEmail,
+                    memberUploads, resolvedSchool);
             return BulkApplicationCreateResponse.from(application);
         } catch (RuntimeException e) {
             // DB 저장 실패 시 업로드된 모든 파일(로고, 직인, ZIP, 멤버 사진 전부)을 역순 삭제한다.
@@ -1326,8 +1353,10 @@ public class ApplicationService {
      * validateFacePhoto와 달리 해상도 하한 검증이 없는 이유: 로고·직인은 카드에 비율 축소해 넣으므로
      * 300x400 기준이 의미가 없기 때문이다.
      */
-    private void validateStudentFields(boolean isStudent, Orientation orientation, SchoolType schoolType,
-            String schoolName, String studentId, String department, MultipartFile schoolLogo, MultipartFile schoolSeal) {
+    private void validateStudentFields(boolean isStudent, Orientation orientation, ResolvedSchool resolvedSchool,
+            String studentId, String department, MultipartFile schoolLogo, MultipartFile schoolSeal) {
+        SchoolType schoolType = resolvedSchool.schoolType();
+        String schoolName = resolvedSchool.schoolName();
         boolean anyStudentFieldPresent = orientation != null || schoolType != null || hasText(schoolName)
                 || hasText(studentId) || hasText(department) || isPresent(schoolLogo) || isPresent(schoolSeal);
 
@@ -1338,7 +1367,10 @@ public class ApplicationService {
             return;
         }
 
-        if (orientation == null || schoolType == null || !isPresent(schoolLogo) || !isValidSchoolName(schoolName)) {
+        // schoolId로 등록 학교를 골랐으면 School 존재 확인(resolveSchool)만으로 이름 검증이 끝난 셈이라
+        // 자유텍스트 형식 검사(isValidSchoolName)는 직접입력(schoolId 없음)일 때만 적용한다.
+        boolean schoolNameValid = resolvedSchool.schoolId() != null || isValidSchoolName(schoolName);
+        if (orientation == null || schoolType == null || !isPresent(schoolLogo) || !schoolNameValid) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 

@@ -17,6 +17,8 @@ import com.example.honorcitizen.domain.application.repository.ApplicationReposit
 import com.example.honorcitizen.domain.application.repository.ReceiverRepository;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
+import com.example.honorcitizen.domain.school.entity.School;
+import com.example.honorcitizen.domain.school.repository.SchoolRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
@@ -64,6 +66,8 @@ class ApplicationServiceBulkTest {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private SchoolRepository schoolRepository;
+    @Autowired
     private ObjectMapper objectMapper;
 
     @MockitoBean
@@ -80,6 +84,7 @@ class ApplicationServiceBulkTest {
         applicantRepository.deleteAll();
         applicationRepository.deleteAll();
         cardTypeRepository.deleteAll();
+        schoolRepository.deleteAll();
         userRepository.deleteAll();
 
         user = User.createOAuthUser("group@example.com", "oauth-group", "google", "Group");
@@ -105,6 +110,11 @@ class ApplicationServiceBulkTest {
 
     private BulkApplicationCreateRequest request(Long cardTypeId, Orientation orientation, SchoolType schoolType,
             String schoolName) {
+        return request(cardTypeId, orientation, schoolType, schoolName, null);
+    }
+
+    private BulkApplicationCreateRequest request(Long cardTypeId, Orientation orientation, SchoolType schoolType,
+            String schoolName, Long schoolId) {
         String json = """
                 {
                   "cardTypeId": %d,
@@ -115,7 +125,8 @@ class ApplicationServiceBulkTest {
                 """.formatted(cardTypeId,
                 (orientation == null ? "" : "\"orientation\": \"%s\",".formatted(orientation))
                         + (schoolType == null ? "" : "\"schoolType\": \"%s\",".formatted(schoolType))
-                        + (schoolName == null ? "" : "\"schoolName\": \"%s\",".formatted(schoolName)));
+                        + (schoolName == null ? "" : "\"schoolName\": \"%s\",".formatted(schoolName))
+                        + (schoolId == null ? "" : "\"schoolId\": %d,".formatted(schoolId)));
         try {
             return objectMapper.readValue(json, BulkApplicationCreateRequest.class);
         } catch (Exception e) {
@@ -566,5 +577,73 @@ class ApplicationServiceBulkTest {
                 unagreed.getId(), request(honorKoreanCardType.getId()), logo, seal, submitFile))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.TERMS_NOT_AGREED);
+    }
+
+    // --- School 검색select(schoolId) 관련 (TODO.md "학생증 카드" 4-A) ---
+
+    @Test
+    void createGroupResolvesRegisteredSchoolAndIgnoresTamperedSchoolNameAndType() throws Exception {
+        School school = schoolRepository.save(School.create("전북대학교", SchoolType.UNIVERSITY));
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        byte[] excel = buildExcel(true, studentRow);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+
+        // 클라이언트가 schoolId와 함께 일부러 다른 schoolName/schoolType(고등학교)을 같이 보내도
+        // 서버는 School(전북대학교, UNIVERSITY) 값을 그대로 강제해야 한다 — 위변조 차단 검증.
+        BulkApplicationCreateRequest request = request(
+                studentCardType.getId(), Orientation.LANDSCAPE, SchoolType.HIGH_SCHOOL, "가짜대학", school.getId());
+
+        BulkApplicationCreateResponse response = applicationService.createGroup(
+                user.getId(), request, logo, null, submitFile);
+
+        Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
+        assertThat(saved.getSchoolId()).isEqualTo(school.getId());
+        assertThat(saved.getSchoolName()).isEqualTo("전북대학교");
+        assertThat(saved.getSchoolType()).isEqualTo(SchoolType.UNIVERSITY);
+
+        // schoolType이 실제로는 UNIVERSITY로 확정됐으므로 엑셀의 학번/학과 열도 정상 반영돼야 한다
+        // (클라이언트가 보낸 HIGH_SCHOOL을 그대로 믿었다면 학번/학과가 있다는 이유로 거절됐을 것).
+        ApplicationMember member = applicationMemberRepository.findByApplicationId(response.getApplicationId()).get(0);
+        assertThat(member.getStudentId()).isEqualTo("20261234");
+        assertThat(member.getDepartment()).isEqualTo("컴퓨터공학과");
+    }
+
+    @Test
+    void createGroupRejectsUnknownSchoolId() throws Exception {
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        byte[] excel = buildExcel(true, studentRow);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+
+        BulkApplicationCreateRequest request = request(
+                studentCardType.getId(), Orientation.LANDSCAPE, null, null, 999999L);
+
+        assertThatThrownBy(() -> applicationService.createGroup(user.getId(), request, logo, null, submitFile))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+
+        assertThat(applicationRepository.count()).isZero();
+    }
+
+    @Test
+    void createGroupSucceedsWithDirectInputSchoolWhenSchoolIdAbsent() throws Exception {
+        // schoolId 없이 기존처럼 schoolName/schoolType 직접입력으로도 여전히 성공해야 한다(회귀 확인).
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        byte[] excel = buildExcel(true, studentRow);
+        byte[] zip = buildZip(excel, "1");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+
+        BulkApplicationCreateResponse response = applicationService.createGroup(
+                user.getId(), request(studentCardType.getId(), Orientation.LANDSCAPE, SchoolType.UNIVERSITY, "전북대학교"),
+                logo, null, submitFile);
+
+        Application saved = applicationRepository.findById(response.getApplicationId()).orElseThrow();
+        assertThat(saved.getSchoolId()).isNull();
+        assertThat(saved.getSchoolName()).isEqualTo("전북대학교");
+        assertThat(saved.getSchoolType()).isEqualTo(SchoolType.UNIVERSITY);
     }
 }

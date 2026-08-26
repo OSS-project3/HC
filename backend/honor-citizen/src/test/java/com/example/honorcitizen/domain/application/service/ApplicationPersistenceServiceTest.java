@@ -71,7 +71,7 @@ class ApplicationPersistenceServiceTest {
 
         Application application = persistenceService.saveIndividual(
                 1L, "APP-2026-900001", cardType.getId(), IssueType.MOBILE, true,
-                null, null, request, "member@example.com", "photos/member.jpg");
+                null, null, request, "member@example.com", "photos/member.jpg", noSchool());
 
         assertThat(application.getId()).isNotNull();
 
@@ -90,7 +90,7 @@ class ApplicationPersistenceServiceTest {
 
         Application application = persistenceService.saveIndividual(
                 1L, "APP-2026-900002", cardType.getId(), IssueType.MOBILE_AND_PHYSICAL, true,
-                null, null, request, "member@example.com", "photos/member.jpg");
+                null, null, request, "member@example.com", "photos/member.jpg", noSchool());
 
         assertThat(receiverRepository.findByApplicationId(application.getId())).isPresent();
     }
@@ -104,7 +104,8 @@ class ApplicationPersistenceServiceTest {
 
         Application application = persistenceService.saveGroup(
                 1L, "APP-2026-900003", cardType.getId(), IssueType.MOBILE, true, uploads.size(),
-                null, null, uploadMetadata("submit.zip", UploadFileType.ZIP), request, "rep@example.com", uploads);
+                null, null, uploadMetadata("submit.zip", UploadFileType.ZIP), request, "rep@example.com", uploads,
+                noSchool());
 
         assertThat(application.getId()).isNotNull();
         Applicant applicant = applicantRepository.findByApplicationId(application.getId()).orElseThrow();
@@ -123,7 +124,7 @@ class ApplicationPersistenceServiceTest {
 
         Application application = persistenceService.saveIndividual(
                 1L, "APP-2026-900006", cardType.getId(), IssueType.MOBILE, true,
-                null, null, request, "member@example.com", "photos/member.jpg");
+                null, null, request, "member@example.com", "photos/member.jpg", noSchool());
 
         ApplicationMember member = applicationMemberRepository.findByApplicationId(application.getId()).get(0);
         assertThat(member.getAddress()).isEqualTo("서울특별시 종로구 세종대로 1");
@@ -139,7 +140,7 @@ class ApplicationPersistenceServiceTest {
         assertThatThrownBy(() -> persistenceService.saveIndividual(
                 1L, "APP-2026-900004", cardType.getId(), IssueType.MOBILE, true,
                 uploadMetadata("logo.png", UploadFileType.PHOTO), uploadMetadata("seal.png", UploadFileType.PHOTO),
-                request, "member@example.com", "photos/member.jpg"))
+                request, "member@example.com", "photos/member.jpg", noSchool()))
                 .isInstanceOf(RuntimeException.class);
 
         assertThat(uploadFileRepository.count()).isZero();
@@ -161,7 +162,7 @@ class ApplicationPersistenceServiceTest {
         assertThatThrownBy(() -> persistenceService.saveGroup(
                 1L, "APP-2026-900005", cardType.getId(), IssueType.MOBILE, true, uploads.size(),
                 uploadMetadata("logo.png", UploadFileType.PHOTO), uploadMetadata("seal.png", UploadFileType.PHOTO),
-                uploadMetadata("submit.zip", UploadFileType.ZIP), request, "rep@example.com", uploads))
+                uploadMetadata("submit.zip", UploadFileType.ZIP), request, "rep@example.com", uploads, noSchool()))
                 .isInstanceOf(RuntimeException.class);
 
         assertThat(uploadFileRepository.count()).isZero();
@@ -169,6 +170,11 @@ class ApplicationPersistenceServiceTest {
         assertThat(applicantRepository.count()).isZero();
         assertThat(receiverRepository.count()).isZero();
         assertThat(applicationMemberRepository.count()).isZero();
+    }
+
+    // 이 테스트 파일의 시나리오는 전부 비학생증이라 schoolId/schoolName/schoolType 모두 null.
+    private ResolvedSchool noSchool() {
+        return new ResolvedSchool(null, null, null);
     }
 
     private UploadedFileMetadata uploadMetadata(String filename, UploadFileType fileType) {

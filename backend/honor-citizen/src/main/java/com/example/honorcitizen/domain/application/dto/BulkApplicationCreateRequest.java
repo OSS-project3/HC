@@ -30,6 +30,9 @@ public class BulkApplicationCreateRequest {
     // 학생증(STUDENT)일 때만 사용 — 신청서 전체에 1개(개인 DTO와 동일 위치·의미). 단체 신청은 항상 한 학교 단위로 접수된다는 전제.
     private String schoolName;
 
+    // 학교 검색select로 등록된 School을 선택했을 때만 값이 있다 — ApplicationCreateRequest.schoolId와 동일 의미.
+    private Long schoolId;
+
     @NotNull
     @Valid
     private ApplicantRequest applicant;

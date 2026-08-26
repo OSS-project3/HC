@@ -72,15 +72,16 @@ class ApplicationPersistenceService {
     @Transactional
     Application saveIndividual(Long userId, String applicationNumber, Long cardTypeId, IssueType issueType,
             boolean receiverSameAsApplicant, UploadedFileMetadata logoFileMetadata, UploadedFileMetadata sealFileMetadata,
-            ApplicationCreateRequest request, String applicantEmail, String photoPath) {
+            ApplicationCreateRequest request, String applicantEmail, String photoPath, ResolvedSchool resolvedSchool) {
 
         Long logoFileId = saveUploadFileMetadataIfPresent(logoFileMetadata);
         Long sealFileId = saveUploadFileMetadataIfPresent(sealFileMetadata);
 
         // 1. Application 루트 엔티티 저장 — 이 시점에 auto-increment ID가 생성된다.
+        // schoolName/schoolType은 request가 아니라 resolvedSchool(School 검색select 또는 직접입력 확정 결과)에서 가져온다.
         Application application = applicationFactory.createIndividualApplication(
                 userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant, logoFileId, sealFileId,
-                request.getOrientation(), request.getSchoolType(), request.getSchoolName());
+                request.getOrientation(), resolvedSchool.schoolType(), resolvedSchool.schoolName(), resolvedSchool.schoolId());
         applicationRepository.save(application);
 
         // 2. Applicant 저장 — application.getId()를 외래키로 사용하므로 1번 이후에 저장한다.
@@ -129,17 +130,19 @@ class ApplicationPersistenceService {
     Application saveGroup(Long userId, String applicationNumber, Long cardTypeId, IssueType issueType,
             boolean receiverSameAsApplicant, int totalQuantity, UploadedFileMetadata logoFileMetadata,
             UploadedFileMetadata sealFileMetadata, UploadedFileMetadata submitFileMetadata,
-            BulkApplicationCreateRequest request, String applicantEmail, Iterable<GroupMemberUpload> memberUploads) {
+            BulkApplicationCreateRequest request, String applicantEmail, Iterable<GroupMemberUpload> memberUploads,
+            ResolvedSchool resolvedSchool) {
 
         Long logoFileId = saveUploadFileMetadataIfPresent(logoFileMetadata);
         Long sealFileId = saveUploadFileMetadataIfPresent(sealFileMetadata);
         Long submitFileId = saveUploadFileMetadataIfPresent(submitFileMetadata);
 
         // 1. Application 루트 엔티티 저장 — 단체는 totalQuantity, submitFileId가 추가된다.
+        // schoolName/schoolType은 request가 아니라 resolvedSchool(School 검색select 또는 직접입력 확정 결과)에서 가져온다.
         Application application = Application.createGroup(
                 userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant, totalQuantity,
-                logoFileId, sealFileId, submitFileId, request.getOrientation(), request.getSchoolType(),
-                request.getSchoolName());
+                logoFileId, sealFileId, submitFileId, request.getOrientation(), resolvedSchool.schoolType(),
+                resolvedSchool.schoolName(), resolvedSchool.schoolId());
         applicationRepository.save(application);
 
         // 2. Applicant 저장 — 단체 신청자는 개인과 달리 조직명·부서를 추가로 저장한다.

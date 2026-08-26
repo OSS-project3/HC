@@ -41,9 +41,9 @@ class ApplicationFactory {
      */
     Application createIndividualApplication(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId,
-            Orientation orientation, SchoolType schoolType, String schoolName) {
+            Orientation orientation, SchoolType schoolType, String schoolName, Long schoolId) {
         return Application.createIndividual(userId, applicationNumber, cardTypeId, issueType,
-                receiverSameAsApplicant, logoFileId, sealFileId, orientation, schoolType, schoolName);
+                receiverSameAsApplicant, logoFileId, sealFileId, orientation, schoolType, schoolName, schoolId);
     }
 
     /**

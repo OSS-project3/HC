@@ -15,7 +15,7 @@ class ApplicationFactoryTest {
     @Test
     void createsIndividualApplicationWithoutPersistenceDependency() {
         Application application = factory.createIndividualApplication(
-                1L, text('A', 'P', 'P', '-', '1'), 2L, IssueType.MOBILE, true, null, null, null, null, null);
+                1L, text('A', 'P', 'P', '-', '1'), 2L, IssueType.MOBILE, true, null, null, null, null, null, null);
 
         assertThat(application.getUserId()).isEqualTo(1L);
         assertThat(application.getApplicationNumber()).isEqualTo(text('A', 'P', 'P', '-', '1'));
