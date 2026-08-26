@@ -24,6 +24,9 @@ public class AdminApplicationMemberResponse {
     // 작명 결과(확정 한글/한자 이름) — 아직 지정 전이면 null.
     private final String assignedName;
     private final String assignedHanja;
+    // 단체 신청 사진번호(카드번호 일괄 매칭 키) + 관리자가 확정한 카드번호 — 지정 전이면 null.
+    private final String photoNumber;
+    private final String cardNumber;
 
     private AdminApplicationMemberResponse(ApplicationMember m) {
         this.memberId = m.getId();
@@ -35,6 +38,8 @@ public class AdminApplicationMemberResponse {
         this.birthRegion = m.getBirthRegion();
         this.assignedName = m.getName();
         this.assignedHanja = m.getChineseName();
+        this.photoNumber = m.getPhotoNumber();
+        this.cardNumber = m.getCardNumber();
     }
 
     public static AdminApplicationMemberResponse from(ApplicationMember m) {

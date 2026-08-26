@@ -296,3 +296,10 @@
 .admin-naming__group-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; }
 .admin-naming__upload { cursor: pointer; }
 .admin-naming__upload.is-disabled { opacity: 0.5; pointer-events: none; }
+
+/* 카드번호 입력(개인) + 일괄 입력(단체) */
+.admin-naming__cardnum { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.admin-naming__cardnum .field__label { font-size: 0.85rem; color: #555; }
+.admin-naming__cardbatch { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.admin-naming__cardbatch textarea { font-family: monospace; resize: vertical; }
+.admin-naming__cardbatch-actions { display: flex; align-items: center; gap: 10px; }

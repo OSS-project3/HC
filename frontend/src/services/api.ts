@@ -137,12 +137,12 @@ export interface AdminApplicationDetail {
   paymentGuidedAt?: string; paymentDueAt?: string; cancelledAt?: string; refundedAt?: string;
   cardReadyAt?: string; physicalDispatchedAt?: string; photoRejectReason?: string;
   applicant: AdminApplicantSummary; receiver?: AdminReceiverSummary;
-  memberCount: number; createdAt: string; depositorName?: string;
+  memberCount: number; createdAt: string; depositorName?: string; version?: number;
 }
 export interface AdminApplicationMember {
   memberId: number; englishName?: string; nationality?: string; gender?: "MALE" | "FEMALE";
   birthDate?: string; birthTime?: string; birthRegion?: string;
-  assignedName?: string; assignedHanja?: string;
+  assignedName?: string; assignedHanja?: string; photoNumber?: string; cardNumber?: string;
 }
 export interface NameSelectionStat { name: string; hanja: string; count: number; }
 export interface ApplicationStatusResult { applicationId: number; status: ApplicationStatus; }
@@ -198,7 +198,7 @@ export const api = {
   // Events (public)
   listEvents: (params: { type: EventType; page?: number; size?: number }) => request<PageResponse<EventListItem>>(`/api/events${qs({ ...params })}`),
   getEvent: (id: number) => request<EventDetail>(`/api/events/${id}`),
-  // Applications (admin, 제작신청 관리) — 읽기 전용(목록/상세). 상태 전이·이름확정·엑셀출력은 미구현(문서 참고).
+  // Applications (admin, 제작신청 관리) — 조회(목록/상세/구성원)·이름확정·선택이력·상태전이 8종·엑셀 export·작명결과·카드번호 전부 연결됨.
   listAdminApplications: (params: { status?: ApplicationStatus; page?: number; size?: number } = {}) => request<PageResponse<AdminApplicationListItem>>(`/api/admin/applications${qs({ ...params })}`),
   getAdminApplication: (id: number) => request<AdminApplicationDetail>(`/api/admin/applications/${id}`),
   getAdminApplicationMembers: (id: number) => request<AdminApplicationMember[]>(`/api/admin/applications/${id}/members`),
@@ -206,6 +206,12 @@ export const api = {
   saveMemberName: (applicationId: number, memberId: number, body: { name: string; hanja?: string; reading?: string; meaning?: string }) =>
     request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/name`, { method: "POST", body: JSON.stringify(body) }),
   getNameSelectionStats: () => request<NameSelectionStat[]>("/api/admin/name-selection-stats"),
+  // 카드번호 확정 — 개인/단일 멤버(관리자 직접 입력, 서버 채번 없음).
+  assignCardNumber: (applicationId: number, memberId: number, cardNumber: string) =>
+    request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/card-number`, { method: "PUT", body: JSON.stringify({ cardNumber }) }),
+  // 카드번호 일괄 확정(단체) — 사진번호 기준 매칭, all-or-nothing. applicationVersion으로 동시수정 감지.
+  assignCardNumbersBatch: (applicationId: number, applicationVersion: number, items: { photoNumber: string; cardNumber: string }[]) =>
+    request<{ updatedCount: number }>(`/api/admin/applications/${applicationId}/card-numbers`, { method: "PUT", body: JSON.stringify({ applicationVersion, items }) }),
   // 신청 명단 엑셀 내보내기 — xlsx 바이너리 다운로드. GROUP은 원본 서식 보존을 위해 정확히 1건만 허용(백엔드 검증).
   exportApplications: (applicationIds: number[], type: ApplicationType) =>
     requestFile("/api/admin/applications/export", { method: "POST", body: JSON.stringify({ applicationIds, type }) }),

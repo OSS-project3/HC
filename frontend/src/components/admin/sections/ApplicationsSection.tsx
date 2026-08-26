@@ -207,6 +207,8 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [statusBusy, setStatusBusy] = useState(false);
   const [groupBusy, setGroupBusy] = useState(false);
+  const [cardBatchOpen, setCardBatchOpen] = useState(false);
+  const [cardBatchText, setCardBatchText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const reloadMembers = useCallback(async () => {
@@ -259,6 +261,28 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
       await Promise.all([reloadMembers(), reloadStats()]);
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : "작명 결과 업로드에 실패했습니다.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+  // 카드번호 일괄 입력: "사진번호<탭/공백>카드번호" 줄들을 파싱해 PUT .../card-numbers (applicationVersion 동시성).
+  const submitCardNumbersBatch = async () => {
+    const items = cardBatchText.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+      const parts = l.split(/[\t,]+|\s+/).filter(Boolean);
+      return { photoNumber: parts[0] ?? "", cardNumber: parts.slice(1).join(" ").trim() };
+    }).filter((it) => it.photoNumber && it.cardNumber);
+    if (items.length === 0) { showToast("‘사진번호 카드번호’ 형식으로 입력해 주세요."); return; }
+    if (detail?.version == null) { showToast("신청 버전을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요."); return; }
+    setGroupBusy(true);
+    try {
+      const res = await api.assignCardNumbersBatch(app.applicationId, detail.version, items);
+      showToast(`카드번호 ${res.updatedCount}건을 저장했습니다.`);
+      setDetail(await api.getAdminApplication(app.applicationId));
+      await reloadMembers();
+      setCardBatchOpen(false);
+      setCardBatchText("");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "카드번호 일괄 저장에 실패했습니다.");
     } finally {
       setGroupBusy(false);
     }
@@ -336,7 +360,25 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
             <span aria-hidden="true">⭱</span> 작명 결과 엑셀 업로드
             <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden disabled={groupBusy} onChange={applyNamingResult} />
           </label>
+          <button type="button" className="admin__btn" disabled={groupBusy} onClick={() => setCardBatchOpen((v) => !v)}>
+            <span aria-hidden="true">#</span> 카드번호 일괄 입력
+          </button>
           <span className="admin__muted">사주 프로그램이 채운 이름 엑셀을 업로드하면 구성원 한글이름이 일괄 반영됩니다.</span>
+          {cardBatchOpen && (
+            <div className="admin-naming__cardbatch">
+              <textarea
+                className="field__input"
+                rows={5}
+                value={cardBatchText}
+                onChange={(e) => setCardBatchText(e.target.value)}
+                placeholder={"사진번호와 카드번호를 한 줄에 하나씩 (탭/공백 구분, 카드번호 형식 ROK-#####-####)\n예)\n001\tROK-00001-0001\n002\tROK-00002-0002"}
+              />
+              <div className="admin-naming__cardbatch-actions">
+                <button type="button" className="admin__btn admin__btn--primary" disabled={groupBusy} onClick={submitCardNumbersBatch}>일괄 저장</button>
+                <span className="admin__muted">사진번호 기준 매칭 · 전부 성공해야 저장(all-or-nothing)</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -395,6 +437,7 @@ function NamingCard({ appId, index, member, isGroup, counts, onSaved }: {
           <span className="admin-naming__done-name">{chosen.name}{chosen.hanja && <em>{chosen.hanja}</em>}</span>
           <span className="admin__muted">확정된 이름 (서버 저장)</span>
         </div>
+        {!isPreview && <CardNumberField appId={appId} memberId={member.memberId} current={member.cardNumber} onSaved={onSaved} />}
       </div>
     );
   }
@@ -453,6 +496,35 @@ function NamingCard({ appId, index, member, isGroup, counts, onSaved }: {
           </li>
         ))}
       </ul>
+      {!isPreview && <CardNumberField appId={appId} memberId={member.memberId} current={member.cardNumber} onSaved={onSaved} />}
+    </div>
+  );
+}
+
+// 개인/단일 멤버 카드번호 확정 — 관리자 직접 입력(PUT .../members/{memberId}/card-number).
+function CardNumberField({ appId, memberId, current, onSaved }: { appId: number; memberId: number; current?: string; onSaved: () => Promise<void> }) {
+  const [value, setValue] = useState(current ?? "");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!value.trim()) { showToast("카드번호를 입력해 주세요."); return; }
+    setBusy(true);
+    try {
+      await api.assignCardNumber(appId, memberId, value.trim());
+      showToast("카드번호를 저장했습니다.");
+      await onSaved();
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "카드번호 저장에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="admin-naming__cardnum">
+      <span className="field__label">카드번호</span>
+      <div className="field__with-btn">
+        <input className="field__input" value={value} onChange={(e) => setValue(e.target.value)} placeholder="ROK-00000-0000" maxLength={30} />
+        <button type="button" className="postal-btn" disabled={busy} onClick={save}>저장</button>
+      </div>
     </div>
   );
 }
