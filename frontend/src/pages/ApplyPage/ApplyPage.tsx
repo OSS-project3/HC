@@ -72,16 +72,19 @@ export function ApplyPage() {
         // 학생증만 orientation/schoolType를 전송한다(일반 카드는 학생증 필드를 보내면 안 됨).
         const orientation = isStudent ? toOrientation(draft.cardOrientation ?? design.orientation) : undefined;
         const schoolType = isStudent ? toSchoolType(draft.applicant.schoolLevel) : undefined;
+        // 검색select로 등록 학교를 선택했을 때만 값이 있다 — 있으면 서버가 schoolName/schoolType을
+        // School 값으로 강제 확정하므로(위변조 차단), 위 두 값은 직접입력 시에만 실질적으로 쓰인다.
+        const schoolId = isStudent ? draft.applicant.schoolId : undefined;
         const isUniversity = schoolType === "UNIVERSITY";
         const receiver = physical
           ? { sameAsApplicant: draft.recipient.sameAsApplicant, ...(isOrg ? { organizationName: draft.recipient.organizationName, department: draft.recipient.department } : {}), name: draft.recipient.name, phone: draft.recipient.phone, zipCode: draft.recipient.postalCode, address: draft.recipient.address, detailAddress: draft.recipient.addressDetail, deliveryRequest: draft.recipient.deliveryRequest }
           : undefined;
         const request = isOrg ? {
-          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined,
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined, schoolId,
           applicant: { organizationName: draft.applicant.organizationName, department: draft.applicant.department, name: draft.applicant.name, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
         } : {
-          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined,
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined, schoolId,
           applicant: { name: draft.applicant.name || draft.applicant.englishName, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
           // 학번·학과는 대학교(UNIVERSITY)에서만 전송한다(고등학교·비학생증은 미전송).

@@ -416,6 +416,22 @@
   color: var(--color-primary);
 }
 
+/* 학교 검색select ↔ 직접입력 토글 링크(StepInfo). */
+.field__toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.field__toggle:hover,
+.field__toggle:focus-visible {
+  color: var(--color-primary);
+}
+
 /* ---- Step 3: uploads ----------------------------------------------------- */
 .upload-row {
   display: grid;

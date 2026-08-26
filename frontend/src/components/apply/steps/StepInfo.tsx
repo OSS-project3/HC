@@ -8,7 +8,8 @@ import { SelectField } from "../../ui/SelectField";
 import { SearchableSelectField } from "../../ui/SearchableSelectField";
 import { countries } from "../../../data/countries";
 import { birthCitiesFor, formatUtcOffset } from "../../../data/birthCities";
-import { useMemo, useRef, useState } from "react";
+import { api, type SchoolOption } from "../../../services/api";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // Country options are static — build once (ko is the stored value, en aids search).
 const countryOptions = countries.map((c) => ({ value: c.ko, label: c.ko, keywords: c.en }));
@@ -32,6 +33,52 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
     update({ applicant: { ...draft.applicant, ...patch } });
   const setRecipient = (patch: Partial<RecipientInfo>) =>
     update({ recipient: { ...draft.recipient, ...patch } });
+
+  // 학교 검색select — 등록 학교 수가 적을 것으로 예상돼(서버 페이지네이션 없음) isStudent일 때
+  // 전체 목록을 1회만 조회하고 SearchableSelectField에서 클라이언트 필터링한다. 직접입력으로
+  // 채워진 기존 draft(schoolName은 있고 schoolId는 없음)를 복원한 경우 직접입력 모드로 시작한다.
+  const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
+  const [manualSchoolInput, setManualSchoolInput] = useState(
+    () => !!draft.applicant.schoolName && draft.applicant.schoolId == null,
+  );
+
+  useEffect(() => {
+    if (!isStudent) return;
+    let cancelled = false;
+    api.searchSchools().then((options) => {
+      if (!cancelled) setSchoolOptions(options);
+    }).catch(() => {
+      // 목록 조회 실패해도 직접입력으로 계속 진행할 수 있으므로 별도 에러 처리는 하지 않는다.
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isStudent]);
+
+  const schoolSelectOptions = useMemo(
+    () =>
+      schoolOptions.map((school) => ({
+        value: String(school.id),
+        label: school.name,
+        keywords: school.schoolType === "UNIVERSITY" ? "대학교" : "고등학교",
+      })),
+    [schoolOptions],
+  );
+
+  const selectSchool = (value: string) => {
+    const school = schoolOptions.find((option) => String(option.id) === value);
+    if (!school) return;
+    const isUniversity = school.schoolType === "UNIVERSITY";
+    setApplicant({
+      schoolId: school.id,
+      schoolName: school.name,
+      // 단체 신청 화면의 "학교명"(orgLabel)은 organizationName을 그대로 쓰는 기존 필드라, 검색select로
+      // 골라도 같은 값을 여기에도 채운다(개인 신청에서는 이 필드를 아무도 읽지 않아 영향 없음).
+      organizationName: school.name,
+      schoolLevel: isUniversity ? "university" : "highschool",
+      ...(isUniversity ? {} : { studentNumber: "", department: "" }),
+    });
+  };
 
   // 출생지역: 선택된 국적의 "시차 결정용 대표 도시"만 드롭다운에 노출하고, 라벨에 표준시 시차를
   // 함께 표기한다(예: "서울 (+9)"). 도시 데이터가 없는 국적은 자유 입력으로 폴백한다(아래 렌더 참고).
@@ -226,18 +273,100 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   placeholder="담당자 이름"
                 />
               </label>
-              <div className="field-row">
-                <label className="field" ref={registerField("organizationName")}>
-                  <span className="field__label">
-                    {orgLabel}<span className="req">*</span>
-                  </span>
-                  <input
-                    className={inputCls("organizationName")}
-                    value={draft.applicant.organizationName ?? ""}
-                    onChange={(e) => setApplicant({ organizationName: e.target.value })}
-                    placeholder={isStudent ? "학교명을 입력해 주세요" : "법인·단체명을 입력해 주세요"}
-                  />
-                </label>
+              {isStudent && !manualSchoolInput ? (
+                <>
+                  <label className="field" ref={registerField("organizationName")}>
+                    <span className="field__label">
+                      {orgLabel}<span className="req">*</span>
+                    </span>
+                    <SearchableSelectField
+                      ariaLabel="학교 선택"
+                      placeholder="학교명을 검색해 주세요"
+                      searchPlaceholder="학교명을 입력해 주세요"
+                      value={draft.applicant.schoolId != null ? String(draft.applicant.schoolId) : ""}
+                      onChange={selectSchool}
+                      triggerClassName={`field__select${hasError("organizationName") ? " field__select--invalid" : ""}`}
+                      options={schoolSelectOptions}
+                    />
+                  </label>
+                  <button type="button" className="field__toggle" onClick={() => setManualSchoolInput(true)}>
+                    찾는 학교가 없나요? 직접 입력
+                  </button>
+                </>
+              ) : isStudent ? (
+                <>
+                  <fieldset className="form-block">
+                    <legend className="form-block__legend">
+                      학교 구분<span className="req">*</span>
+                    </legend>
+                    <div className="radio-row">
+                      <label className="check">
+                        <input
+                          type="radio"
+                          name="orgSchoolLevel"
+                          checked={(draft.applicant.schoolLevel ?? "university") === "university"}
+                          onChange={() => setApplicant({ schoolLevel: "university", schoolId: undefined })}
+                        />
+                        <span>대학교</span>
+                      </label>
+                      <label className="check">
+                        <input
+                          type="radio"
+                          name="orgSchoolLevel"
+                          checked={draft.applicant.schoolLevel === "highschool"}
+                          onChange={() => setApplicant({ schoolLevel: "highschool", schoolId: undefined })}
+                        />
+                        <span>고등학교</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                  <label className="field" ref={registerField("organizationName")}>
+                    <span className="field__label">
+                      {orgLabel}<span className="req">*</span>
+                    </span>
+                    <input
+                      className={inputCls("organizationName")}
+                      value={draft.applicant.organizationName ?? ""}
+                      onChange={(e) => setApplicant({ organizationName: e.target.value, schoolName: e.target.value, schoolId: undefined })}
+                      placeholder="학교명을 입력해 주세요"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="field__toggle"
+                    onClick={() => {
+                      setApplicant({ schoolId: undefined, schoolName: "", organizationName: "" });
+                      setManualSchoolInput(false);
+                    }}
+                  >
+                    목록에서 학교 찾기
+                  </button>
+                </>
+              ) : (
+                <div className="field-row">
+                  <label className="field" ref={registerField("organizationName")}>
+                    <span className="field__label">
+                      {orgLabel}<span className="req">*</span>
+                    </span>
+                    <input
+                      className={inputCls("organizationName")}
+                      value={draft.applicant.organizationName ?? ""}
+                      onChange={(e) => setApplicant({ organizationName: e.target.value })}
+                      placeholder="법인·단체명을 입력해 주세요"
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">부서</span>
+                    <input
+                      className="field__input"
+                      value={draft.applicant.department ?? ""}
+                      onChange={(e) => setApplicant({ department: e.target.value })}
+                      placeholder="부서 (선택)"
+                    />
+                  </label>
+                </div>
+              )}
+              {isStudent && (
                 <label className="field">
                   <span className="field__label">부서</span>
                   <input
@@ -247,7 +376,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                     placeholder="부서 (선택)"
                   />
                 </label>
-              </div>
+              )}
               <label className="field" ref={registerField("phone")}>
                 <span className="field__label">
                   연락처<span className="req">*</span>
@@ -395,7 +524,52 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   ]}
                 />
               </div>
-              {isStudent && (
+              {isStudent && !manualSchoolInput && (
+                <>
+                  <label className="field" ref={registerField("schoolName")}>
+                    <span className="field__label">학교<span className="req">*</span></span>
+                    <SearchableSelectField
+                      ariaLabel="학교 선택"
+                      placeholder="학교명을 검색해 주세요"
+                      searchPlaceholder="학교명을 입력해 주세요"
+                      value={draft.applicant.schoolId != null ? String(draft.applicant.schoolId) : ""}
+                      onChange={selectSchool}
+                      triggerClassName={`field__select${hasError("schoolName") ? " field__select--invalid" : ""}`}
+                      options={schoolSelectOptions}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="field__toggle"
+                    onClick={() => setManualSchoolInput(true)}
+                  >
+                    찾는 학교가 없나요? 직접 입력
+                  </button>
+                  {draft.applicant.schoolLevel === "highschool" ? null : (
+                    <div className="field-row">
+                      <label className="field" ref={registerField("studentNumber")}>
+                        <span className="field__label">학번<span className="req">*</span></span>
+                        <input
+                          className={inputCls("studentNumber")}
+                          value={draft.applicant.studentNumber ?? ""}
+                          onChange={(e) => setApplicant({ studentNumber: e.target.value })}
+                          placeholder="20260001"
+                        />
+                      </label>
+                      <label className="field" ref={registerField("department")}>
+                        <span className="field__label">학과<span className="req">*</span></span>
+                        <input
+                          className={inputCls("department")}
+                          value={draft.applicant.department ?? ""}
+                          onChange={(e) => setApplicant({ department: e.target.value })}
+                          placeholder="학과를 입력해 주세요"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
+              {isStudent && manualSchoolInput && (
                 <>
                   <fieldset className="form-block">
                     <legend className="form-block__legend">
@@ -407,7 +581,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                           type="radio"
                           name="schoolLevel"
                           checked={(draft.applicant.schoolLevel ?? "university") === "university"}
-                          onChange={() => setApplicant({ schoolLevel: "university" })}
+                          onChange={() => setApplicant({ schoolLevel: "university", schoolId: undefined })}
                         />
                         <span>대학교</span>
                       </label>
@@ -418,7 +592,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                           checked={draft.applicant.schoolLevel === "highschool"}
                           onChange={() =>
                             // 고등학교 선택 시 대학교 전용 항목(학번·학과)은 비운다.
-                            setApplicant({ schoolLevel: "highschool", studentNumber: "", department: "" })
+                            setApplicant({ schoolLevel: "highschool", schoolId: undefined, studentNumber: "", department: "" })
                           }
                         />
                         <span>고등학교</span>
@@ -431,7 +605,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                       <input
                         className={inputCls("schoolName")}
                         value={draft.applicant.schoolName ?? ""}
-                        onChange={(e) => setApplicant({ schoolName: e.target.value })}
+                        onChange={(e) => setApplicant({ schoolName: e.target.value, schoolId: undefined })}
                         placeholder="학교명을 입력해 주세요"
                       />
                     </label>
@@ -442,7 +616,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                         <input
                           className={inputCls("schoolName")}
                           value={draft.applicant.schoolName ?? ""}
-                          onChange={(e) => setApplicant({ schoolName: e.target.value })}
+                          onChange={(e) => setApplicant({ schoolName: e.target.value, schoolId: undefined })}
                           placeholder="대학교명을 입력해 주세요"
                         />
                       </label>
@@ -468,6 +642,16 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                       </div>
                     </>
                   )}
+                  <button
+                    type="button"
+                    className="field__toggle"
+                    onClick={() => {
+                      setApplicant({ schoolId: undefined, schoolName: "", studentNumber: "", department: "" });
+                      setManualSchoolInput(false);
+                    }}
+                  >
+                    목록에서 학교 찾기
+                  </button>
                 </>
               )}
               <label className="field" ref={registerField("koreaEntryDate")}>

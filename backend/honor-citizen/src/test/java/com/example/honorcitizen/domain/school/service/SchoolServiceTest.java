@@ -45,10 +45,13 @@ class SchoolServiceTest {
         assertThat(result.get(0).schoolType()).isEqualTo(SchoolType.UNIVERSITY);
     }
 
+    // 검색어가 비어있으면 전체 학교를 이름순으로 반환한다 — 프론트가 최초 1회 전체 목록을 받아
+    // SearchableSelectField로 클라이언트 필터링하는 방식을 쓰기 때문(등록 학교 수가 적을 것으로 예상).
     @Test
-    void searchReturnsEmptyListForBlankQuery() {
-        assertThat(schoolService.search(" ")).isEmpty();
-        assertThat(schoolService.search(null)).isEmpty();
+    void searchReturnsAllSchoolsOrderedByNameForBlankQuery() {
+        assertThat(schoolService.search(" ")).extracting(SchoolSearchResponse::name)
+                .containsExactly("전북대학교", "전북대학교사범대학부설고등학교", "전주대학교");
+        assertThat(schoolService.search(null)).hasSize(3);
     }
 
     @Test

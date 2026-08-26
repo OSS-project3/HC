@@ -108,6 +108,7 @@ export interface BoardWriteBody { boardType: BoardType; title: string; content: 
 export type EventType = "BOOTH" | "COLLABORATION";
 export interface EventImage { id: number; originalFileName: string; url: string; }
 export interface EventListItem { id: number; eventType: EventType; title: string; eventDate?: string; eventDateText: string; place: string; host: string; cardLabel: string; content: string; thumbnailImageUrl?: string; company?: string; logoUrl?: string; displayOrder?: number; }
+export interface SchoolOption { id: number; name: string; schoolType: "UNIVERSITY" | "HIGH_SCHOOL"; }
 export interface EventDetail extends Omit<EventListItem, "displayOrder"> { images: EventImage[]; }
 export interface EventAdminListItem extends EventListItem { visible: boolean; }
 export interface EventAdminDetail extends EventAdminListItem { images: EventImage[]; }
@@ -172,6 +173,9 @@ export const api = {
   confirmSignupEmailCode: (email: string, code: string) => request<{ signupToken: string; expiresInSeconds: number }>("/api/auth/signup/email-verification/confirm", { method: "POST", body: JSON.stringify({ email, code }) }),
   signup: (body: { email: string; signupToken: string; password: string; name: string; phone: string }) => request<ApiUser>("/api/auth/signup", { method: "POST", body: JSON.stringify(body) }),
   createApplication: (form: FormData, bulk = false) => request<ApplicationResult>(`/api/applications${bulk ? "/bulk" : ""}`, { method: "POST", body: form }),
+  // 학생증 신청 폼의 학교 검색select — 비로그인 공개 API. query 없이 부르면 전체 목록을 받는다
+  // (등록 학교 수가 적어 최초 1회만 받아 SearchableSelectField로 클라이언트 필터링).
+  searchSchools: (query?: string) => request<SchoolOption[]>(`/api/schools/search${qs({ query })}`),
   lookupApplication: (body: { method: "application" | "card"; keyValue: string; phone?: string; email?: string }) => request<LookupResult>("/api/applications/lookup", { method: "POST", body: JSON.stringify(body) }),
   reuploadPhoto: (id: number, form: FormData) => request(`/api/applications/${id}/photo`, { method: "PATCH", body: form }),
   getCardDownload: (id: number) => request<CardDownload>(`/api/applications/${id}/cards/download`),

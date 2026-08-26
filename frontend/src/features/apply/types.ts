@@ -21,6 +21,8 @@ export interface ApplicantInfo {
   schoolLevel?: "university" | "highschool";
   /** 학생증 개인 신청: 대학교명 · 고등학교명. */
   schoolName?: string;
+  /** 검색select로 등록 학교를 선택했을 때만 값이 있다. 직접입력이면 undefined. */
+  schoolId?: number;
   phone: string;
   email: string;
 }

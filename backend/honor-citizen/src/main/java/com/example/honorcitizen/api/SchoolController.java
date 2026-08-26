@@ -21,8 +21,11 @@ public class SchoolController {
 
     private final SchoolService schoolService;
 
+    // query 없이 호출하면 전체 학교를 반환한다(SchoolService.search 참고 — 프론트가 최초 1회 전체
+    // 목록을 받아 클라이언트에서 필터링하는 용도).
     @GetMapping("/search")
-    public ResponseEntity<ApiResponse<List<SchoolSearchResponse>>> search(@RequestParam String query) {
+    public ResponseEntity<ApiResponse<List<SchoolSearchResponse>>> search(
+            @RequestParam(required = false) String query) {
         return ResponseEntity.ok(ApiResponse.success(schoolService.search(query)));
     }
 }
