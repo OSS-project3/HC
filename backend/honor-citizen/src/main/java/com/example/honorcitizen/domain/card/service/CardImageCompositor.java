@@ -108,13 +108,18 @@ class CardImageCompositor {
                 drawText(g, data.cardNumber(), dotumMedium, 5f, Color.DARK_GRAY, layout.cardNumber(), layout, scaleX, scaleY);
                 drawText(g, data.address(), dotumMedium, 4.5f, Color.DARK_GRAY, layout.address(), layout, scaleX, scaleY);
             }
-            // 발급일자는 HONOR_CITIZEN만 왼쪽 열에 속해(x=-76.7) 이름 기준선에 맞추고, HONOR_KOREAN은
-            // 카드 우측(x=+79.96)에 별도로 배치되는 디자인이라 중앙 정렬을 그대로 둔다(요청 범위에
-            // 발급일자가 포함되지 않았고, 실제 렌더링해보면 우측 배치가 의도된 것으로 보임).
+            // 발급일자는 HONOR_CITIZEN은 이름 왼쪽 끝 기준선에 맞춘다(이름도 왼쪽 열에 속함).
+            // VISITOR는 이름/영문명이 카드 중앙 정렬이라 이름 기준으로 맞추면 오히려 카드번호/주소
+            // 왼쪽 그룹에서 어긋난다(실제 렌더링 후 발견) — 대신 카드번호의 왼쪽 끝을 기준으로 맞춘다
+            // (사용자 확인). HONOR_KOREAN은 카드 우측(x=+79.96)에 별도 배치되는 디자인이라 중앙 정렬 유지.
             if (cardType == CardTypeCode.HONOR_CITIZEN) {
                 double nameLeftEdge = leftEdgeX(data.fullName(), dotumBold, 8f, layout.name(), layout, scaleX);
                 drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
                         nameLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
+            } else if (cardType == CardTypeCode.VISITOR) {
+                double cardNumberLeftEdge = leftEdgeX(data.cardNumber(), dotumMedium, 5f, layout.cardNumber(), layout, scaleX);
+                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
+                        cardNumberLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
             } else {
                 drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
                         layout.issueDate(), layout, scaleX, scaleY);
