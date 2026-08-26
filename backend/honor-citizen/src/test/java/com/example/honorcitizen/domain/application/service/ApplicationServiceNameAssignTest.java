@@ -85,8 +85,11 @@ class ApplicationServiceNameAssignTest {
         assertThat(reloaded.getSurname()).isEqualTo("홍");
         assertThat(reloaded.getName()).isEqualTo("길동");
         assertThat(reloaded.getChineseName()).isEqualTo("吉童");
-        assertThat(reloaded.getNameMeaning()).isEqualTo("복을 비는 이름");
-        assertThat(reloaded.getNameInterpretation()).isEqualTo("길할 길, 아이 동");
+        // nameMeaning=짧은 훈음(카드 뒷면 "한자뜻음" 위치), nameInterpretation=긴 풀이 문단("풀이" 위치).
+        // assignMemberName의 reading 인자(짧은 훈음)가 nameMeaning으로, meaning 인자(긴 풀이)가
+        // nameInterpretation으로 들어간다 — 예전엔 반대로 들어가는 버그가 있었다(실제 카드 렌더링으로 발견).
+        assertThat(reloaded.getNameMeaning()).isEqualTo("길할 길, 아이 동");
+        assertThat(reloaded.getNameInterpretation()).isEqualTo("복을 비는 이름");
     }
 
     @Test

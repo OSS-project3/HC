@@ -459,8 +459,12 @@ public class ApplicationService {
         if (!member.getApplicationId().equals(applicationId)) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
+        // assignKoreanName(..., nameMeaning, nameInterpretation) — nameMeaning은 짧은 훈음(카드 뒷면
+        // "한자뜻음" 위치), nameInterpretation은 긴 풀이 문단("풀이" 위치)을 기대한다. 이 메서드의
+        // reading 파라미터가 짧은 훈음, meaning이 긴 풀이 문단이므로 순서를 맞춰 전달한다(기존엔
+        // 반대로 넘어가 카드 렌더링 시 두 필드가 뒤바뀌어 나오던 버그 — 실제 렌더링으로 확인 후 수정).
         String safeHanja = hanja == null ? "" : hanja;
-        member.assignKoreanName(surname, name, safeHanja.isEmpty() ? null : safeHanja, meaning, reading);
+        member.assignKoreanName(surname, name, safeHanja.isEmpty() ? null : safeHanja, reading, meaning);
 
         // 이름(한글+한자)별 선택 이력 +1 — 없으면 생성.
         NameSelectionStat stat = nameSelectionStatRepository.findByNameAndHanja(name, safeHanja)
