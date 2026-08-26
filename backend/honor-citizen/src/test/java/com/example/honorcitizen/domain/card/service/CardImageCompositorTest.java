@@ -163,8 +163,10 @@ class CardImageCompositorTest {
     }
 
     @Test
-    void skipsSealSilentlyWhenSlotAssetMissingForDesign() throws Exception {
-        // HONOR_CITIZEN/2엔 직인.png가 없다(에셋 누락, 실제 폴더 확인) — 렌더링 자체는 계속 성공해야 한다.
+    void drawsSealForHonorCitizenDesign2AfterAssetAdded() throws Exception {
+        // HONOR_CITIZEN/2엔 원래 직인.png가 없었다(에셋 누락) — HONOR_CITIZEN/1 것을 그대로 복사해
+        // 채워넣었다(슬롯 크기 참고용일 뿐 실제 콘텐츠로는 안 쓰여 재사용 가능, 2026-08-26 해소).
+        // 슬롯 파일이 아예 없는 디자인은 drawSlotImage()가 조용히 건너뛰도록 여전히 방어돼 있다.
         BufferedImage sealImg = new BufferedImage(50, 50, BufferedImage.TYPE_INT_ARGB);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ImageIO.write(sealImg, "png", out);
