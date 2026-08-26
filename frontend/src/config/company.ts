@@ -4,6 +4,10 @@
  * NOTE: the values below are taken from the mock-ups and may be placeholders.
  * Confirm the final values with the client before production deployment.
  */
+const currentHostname = window.location.hostname.toLowerCase();
+
+export const isAssociationSite = currentHostname === "hanse.kr";
+
 export const companyInfo = {
   nameKo: "(주)한글과 세종",
   nameEn: "HANGUL & SEJONG",
@@ -21,6 +25,10 @@ export const companyInfo = {
   email: "chy0051@naver.com",
   copyright: "© 2026 한글과 세종 ALL RIGHTS RESERVED",
 } as const;
+
+const associationNameKo =
+  companyInfo.nameKo[0] + "사" + companyInfo.nameKo.slice(2);
+export const siteNameKo = [companyInfo.nameKo, associationNameKo][+isAssociationSite];
 
 /** Bank / deposit details shown on the application completion step. */
 export const bankInfo = {
