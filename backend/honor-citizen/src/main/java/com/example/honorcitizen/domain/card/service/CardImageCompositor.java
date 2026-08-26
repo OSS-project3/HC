@@ -90,11 +90,12 @@ class CardImageCompositor {
             drawTitle(g, cardType, layout, scaleX, scaleY);
             drawPhoto(g, dir, data.photo(), layout, scaleX, scaleY);
             drawText(g, data.fullName(), dotumBold, 8f, Color.BLACK, layout.name(), layout, scaleX, scaleY);
-            if (cardType == CardTypeCode.HONOR_CITIZEN) {
-                // HONOR_CITIZEN 위치값 표는 영문명/카드번호/주소/발급일자를 각자 다른 x에서 중앙
-                // 정렬하는 걸 전제로 한 듯한데, 문자열 길이가 서로 달라(특히 주소) 실제 렌더링해보면
-                // 왼쪽 시작점이 들쭉날쭉했다(사용자 확인). 이름의 왼쪽 끝을 기준선으로 계산해 그 지점에
-                // 왼쪽 정렬한다. 각 필드 자신의 y좌표·폰트 크기는 그대로 쓴다.
+            // HONOR_CITIZEN/HONOR_KOREAN 위치값 표는 영문명/카드번호/주소를 각자 다른 x에서 중앙
+            // 정렬하는 걸 전제로 한 듯한데, 문자열 길이가 서로 달라(특히 주소) 실제 렌더링해보면
+            // 왼쪽 시작점이 들쭉날쭉했다(사용자 확인, 두 카드종류 모두 동일 원칙 적용 요청). 이름의
+            // 왼쪽 끝을 기준선으로 계산해 그 지점에 왼쪽 정렬한다. 각 필드 자신의 y좌표·폰트 크기는
+            // 그대로 쓴다. VISITOR는 요청 범위 밖이라 기존 중앙 정렬 유지.
+            if (cardType == CardTypeCode.HONOR_CITIZEN || cardType == CardTypeCode.HONOR_KOREAN) {
                 double nameLeftEdge = leftEdgeX(data.fullName(), dotumBold, 8f, layout.name(), layout, scaleX);
                 drawTextAtPixelX(g, data.englishName(), dotumMedium, 5f, Color.DARK_GRAY, nameLeftEdge,
                         layout.englishName(), layout, scaleX, scaleY);
@@ -102,12 +103,19 @@ class CardImageCompositor {
                         layout.cardNumber(), layout, scaleX, scaleY);
                 drawTextAtPixelX(g, data.address(), dotumMedium, 4.5f, Color.DARK_GRAY, nameLeftEdge,
                         layout.address(), layout, scaleX, scaleY);
-                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
-                        nameLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
             } else {
                 drawText(g, data.englishName(), dotumMedium, 5f, Color.DARK_GRAY, layout.englishName(), layout, scaleX, scaleY);
                 drawText(g, data.cardNumber(), dotumMedium, 5f, Color.DARK_GRAY, layout.cardNumber(), layout, scaleX, scaleY);
                 drawText(g, data.address(), dotumMedium, 4.5f, Color.DARK_GRAY, layout.address(), layout, scaleX, scaleY);
+            }
+            // 발급일자는 HONOR_CITIZEN만 왼쪽 열에 속해(x=-76.7) 이름 기준선에 맞추고, HONOR_KOREAN은
+            // 카드 우측(x=+79.96)에 별도로 배치되는 디자인이라 중앙 정렬을 그대로 둔다(요청 범위에
+            // 발급일자가 포함되지 않았고, 실제 렌더링해보면 우측 배치가 의도된 것으로 보임).
+            if (cardType == CardTypeCode.HONOR_CITIZEN) {
+                double nameLeftEdge = leftEdgeX(data.fullName(), dotumBold, 8f, layout.name(), layout, scaleX);
+                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
+                        nameLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
+            } else {
                 drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
                         layout.issueDate(), layout, scaleX, scaleY);
             }
