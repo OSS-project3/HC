@@ -1315,4 +1315,227 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] 사용자가 정책상 허용된 시점에 모바일 카드를 조회·다운로드 가능.
 - [ ] 1~3 전체 Application 관련 회귀 테스트 통과.
 - [ ] push 직전 전체 테스트를 로그 파일로 실행하고 종료 코드·전체 테스트 수·실패 이름·리포트 경로만 보고.
+
+---
+
+## 4. 학생증(STUDENT) 카드 — 작명~카드 제작 확장 계획 (2026-08-27, 정책 확정)
+
+> 위 "관리자 작명 확정·카드 제작 구현 계획"(1~3)은 "범위 제외"에 학생증 카드 렌더링을 명시적으로 뺐다(1085행). 이 절은 그 후속으로, 신청~작명~카드번호까지는 1~3에서 이미 만든 흐름을 그대로 타고 카드 디자인·미리보기만 학생증 전용으로 확장하는 계획이다. **전체 레포 재분석·과거 정책 재검토는 하지 않고, 아래 확정된 정책 기준으로 남은 기능 단위만 정리한다.**
+
+### 기존 파이프라인 재사용 현황 (분석 완료, 재검토 불필요)
+
+`Application.orientation`/`schoolType`/`schoolName`, `ApplicationMember.studentId`/`department`, 대학교/고등학교 엑셀 컬럼 분기(`BulkExcelParser`)는 이미 구현·검증 완료. 신청 검토·상태전이·만세력(출생지역검색/timezone판정/확정저장/조회)·작명(인앱+엑셀)·카드번호 부여·발급일자 검증은 전부 `CardType` 분기가 없어 학생증도 코드 변경 없이 그대로 통과한다. 막히는 지점은 정확히 카드 디자인 카탈로그·렌더링 두 곳뿐 — `CardDesignService`가 STUDENT를 `UNSUPPORTED_CARD_TYPE`으로 하드 거절하고, `CardLayouts`에 STUDENT 항목이 없어 `CardImageCompositor`가 `INVALID_INPUT`을 던진다.
+
+### 확정된 정책 (사용자 확인 완료)
+
+1. **`School` 마스터 엔티티 신설** — `id, name, schoolType(고정)`. 템플릿(`CardDesign`) 등록 여부와 무관하게 지원 대상 학교 전부 포함. `active` 플래그는 이번 범위 생략.
+2. **⚠️ 정정(2026-08-27) — 등록 학교 선택 시에만 `schoolType`이 School에서 파생, 직접입력은 사용자가 그대로 선택**: 검색select로 등록된 학교(`schoolId` 있음)를 고르면 `schoolType`은 School 값으로 서버가 확정(사용자가 뭘 보내든 무시하고 School 값으로 덮어써 위변조 차단). 목록에 없어 **직접입력**(`schoolId=null`)으로 넘어가면, 기존처럼 `schoolName`(자유텍스트)+`schoolType`(사용자 선택) 그대로 받는다 — 이 경로는 기존 로직을 대체하는 게 아니라 **그대로 유지**하고, 그 위에 "등록 학교 검색select"라는 새 경로를 얹는 구조.
+3. **학생증 디자인은 학교마다 다르며, 같은 `schoolId + orientation`에 활성 `CardDesign`은 최대 1개만 허용**한다. 템플릿 등록 전에는 0개일 수 있지만 Preview/최종 생성 시에는 정확히 1개가 필요하다. `schoolType`은 School에 종속되므로 매칭축에서 제외한다. 관리자가 여러 디자인 중 선택하는 구조가 아니라 신청의 학교와 방향으로 활성 디자인 1개를 서버가 확정한다.
+4. **템플릿은 `UploadFile`(S3) 기반** — 관리자 업로드 UI는 이번 범위에서 만들지 않는다. 신규 학교 템플릿은 개발/운영자가 S3에 직접 등록 후 `CardDesign.templateFrontId`/`templateBackId`에 연결.
+5. **`School` 마스터 목록도 관리자 UI 없이 운영자가 직접 DB 등록**(템플릿과 동일 패턴).
+6. **⚠️ 신청 접수 단계부터 변경 필요** — `schoolName`은 지금도 개인/단체 신청서 **제출 시점**(비로그인/일반 사용자용 공개 폼)에 자유텍스트로 받고 있어, 검색select를 추가하려면 관리자 화면이 아니라 **신청 접수 API 자체**를 고쳐야 한다. 학교 검색 API는 다른 학생증 관련 API(전부 `/api/admin/**`)와 달리 **인증 없이 접근 가능한 공개 API**여야 한다(신청서 작성자가 관리자가 아니므로) — `SecurityConfig`에 `permitAll` 경로 추가 필요, `/api/applications/lookup` 패턴 재사용.
+7. **⚠️ 정정(2026-08-27) — 마스터 목록에 없는 학교는 접수를 막지 않고 직접입력으로 받는다.** 검색select에 "찾는 학교가 없나요? 직접 입력" 폴백을 두고, 이 경우 `schoolId=null` + `schoolName`(자유텍스트) + `schoolType`(사용자 선택)을 그대로 저장한다. 문의(Inquiry) 유도로 접수를 막는 이전 결정은 폐기.
+8. **템플릿 미등록 학교와 직접입력 학교는 신청~검토~작명까지 진행 가능**하다. 단, 카드 Preview/최종 생성 전에는 반드시 같은 `schoolType`의 등록된 `School`과 연결되어 `Application.schoolId`가 존재하고, 해당 `schoolId + orientation`의 활성 `CardDesign` 1개가 등록되어야 한다. 직접입력 신청은 운영자가 School과 CardDesign을 등록한 뒤 Application에 schoolId를 연결하면 카드 제작을 계속할 수 있다.
+9. **에러 처리는 기존 `CARD_DESIGN_NOT_FOUND` 재사용** — STUDENT 전용 에러코드 신설 안 함. 안내문구 분기("이 학교의 학생증 템플릿이 아직 등록되지 않았습니다" vs "사용 가능한 카드 디자인이 없습니다")는 프론트가 `cardType`으로 판단.
+10. **단체 신청은 한 학교로 고정**(여러 학교 섞임 불가, 기존 전제 유지).
+11. **카드 미리보기는 동기**(2-C와 동일, 변경 없음).
+12. **최종 카드 배치 생성(3-A/B, 아직 미착수)에서 템플릿은 Job 시작 시 1회 로드해 Job 범위 내 재사용** — 전역 TTL 캐시는 초기 범위 제외, 실제 트래픽/성능 문제 확인되면 추후 도입.
+13. **`schoolId`는 학교 식별과 CardDesign 매칭에만 사용하고, 카드에 표시하는 학교명은 `Application.schoolName` 스냅샷을 사용**한다. 이후 `School.name`이 변경되어도 기존 신청·Preview·발급 카드에 소급 적용하지 않는다.
+14. **사용자 입력 학교명 오타는 관리자 검토 단계에서만 `Application.schoolName`을 정정 가능**하다. 검토가 최종 승인되어 `NAME_EDITING`으로 전이된 뒤에는 학교명 스냅샷을 변경하지 않는다. 직접입력 신청을 나중에 School과 연결하더라도 schoolId만 연결하며 확정된 schoolName을 School.name으로 자동 덮어쓰지 않는다.
+
+### 4-A. `School` 마스터 + 신청 접수 연결 — 🟡 기본 접수 완료, 관리자 연결·정정 미착수
+
+**요청 계약(개인·단체 공통, 확정)**:
+- 등록 학교 선택: `schoolId`(Long, 필수 아님 — 아래 참고), `schoolName`/`schoolType`은 보내도 서버가 무시(School 값으로 강제 확정).
+- 직접입력: `schoolId=null`(또는 필드 자체 생략) + `schoolName`(자유텍스트, 기존 5~20자 검증 그대로) + `schoolType`(필수, 사용자 선택) 그대로 저장.
+- 즉 `schoolId`는 nullable — null이면 직접입력 경로, 값이 있으면 등록 학교 경로로 분기.
+
+**백엔드**
+- [x] `School` 엔티티/Repository 신규(`id, name, schoolType, createdAt` — `active` 생략). `domain/school/entity/School.java`, `domain/school/repository/SchoolRepository.java`.
+- [x] `GET /api/schools/search?query=`(공개, `permitAll`) — 이름 부분일치 검색, 페이지네이션 없음. `SchoolController`/`SchoolService`. `SecurityConfig`에 permitAll 추가 완료.
+- [x] `ApplicationCreateRequest`/`BulkApplicationCreateRequest`에 `schoolId`(nullable) 추가. 기존 `schoolName`/`schoolType` 필드는 유지(직접입력 경로에서 계속 사용).
+- [x] `Application` 엔티티에 `schoolId`(nullable) 컬럼 추가. 기존 `schoolName`/`schoolType` 컬럼 구조는 그대로 유지. `createIndividual`/`createGroup`에 schoolId 포함 새 오버로드 추가(기존 호출부 하위호환 유지).
+- [x] `ApplicationService.resolveSchool()` 신설 — `schoolId` 있으면 School 존재 검증(없으면 `INVALID_INPUT`) 후 `schoolName`/`schoolType`을 School 값으로 강제 확정(클라이언트 값 무시). `schoolId` 없으면 기존 직접입력 검증(`isValidSchoolName` 등) 그대로. 개인(`createIndividual`)·단체(`createGroup`) 둘 다 적용, `BulkExcelParser` 호출도 resolvedSchool 기준으로 교체(학번/학과 열 파싱 분기가 School의 실제 schoolType을 따르도록).
+- [x] `BulkExcelParser` 자체는 변경 없음(학번/학과만 여전히 엑셀 컬럼).
+- [ ] 직접입력 신청의 카드 제작 전환을 위한 관리자 학교 연결 기능 추가 — Application.schoolType과 같은 유형의 등록된 School만 지정할 수 있고 Application.schoolId만 연결하며 Application.schoolName 스냅샷을 자동 변경하지 않는다.
+- [ ] 관리자 학교명 오타 정정 기능 추가 — REVIEWING까지 Application.schoolName만 수정 가능하고 NAME_EDITING 이후에는 거절한다. School 마스터 이름은 이 기능으로 수정하지 않는다.
+- [ ] 학교 연결·학교명 정정은 관리자 권한, Application 잠금/version, AdminActivityLog를 적용하고 카드 생성 이후 변경을 금지한다.
+- [ ] `docs/specs/application/data-model.md`/`api.md`에 `School` 테이블·`schoolId` 필드 계약 반영 — 아직 미기록.
+
+**백엔드 검증 완료(2026-08-27)** — JUnit(`@SpringBootTest`, 실제 DB) + 실제 docker+curl 둘 다 확인:
+- `ApplicationServiceTest`/`ApplicationServiceBulkTest`에 신규 테스트 7개(개인 3 + 단체 3 + `SchoolServiceTest` 검색 조회 4개) 전부 통과 — 등록 학교 선택 시 클라이언트가 보낸 다른 `schoolName`/`schoolType`을 무시하고 School 값으로 강제 확정하는지, 존재하지 않는 `schoolId` 거절, `schoolId` 없는 직접입력 회귀(기존 동작 그대로) 3가지 다 커버.
+- 실제 docker 컨테이너 재빌드 후 curl로 재검증: `GET /api/schools/search?query=전북`(비로그인) 정상 응답 → 단체 신청에 등록 학교(`schoolId=2`, 전주고등학교/HIGH_SCHOOL) 넣으면서 일부러 `schoolType=UNIVERSITY`+`schoolName=가짜대학`을 같이 보냈더니 DB에는 실제로 `school_id=2, school_name=전주고등학교, school_type=HIGH_SCHOOL`로 저장됨(위변조 차단 실증) → 존재하지 않는 `schoolId=999999`는 `400 INVALID_INPUT`으로 거절. 직접입력(schoolId 없음) 경로는 테스트 계정 일일 3회 한도 소진으로 curl 재현은 못 했으나 JUnit 3개 테스트로 커버됨(`createGroupSucceedsWithDirectInputSchoolWhenSchoolIdAbsent` 등).
+
+**프론트(계약만 전달, 이번 구현 범위 아님 — `docs/FRONTEND_API_GAPS.md`에도 반영)**
+- [ ] 기존 학교명 text input → 검색 가능한 select로 교체("학교명을 검색하세요" + 후보 리스트).
+- [ ] "찾는 학교가 없나요? 직접 입력" 클릭 시 기존 자유입력 필드(학교명 텍스트 + 대학교/고등학교 토글) 노출.
+- [ ] 개인·단체 신청 폼 둘 다 동일한 방식으로 연결.
+- [ ] **범위 주의**: 이 컴포넌트와 `submit()`의 schoolId 분기 추가 외의 기존 로직(사진 업로드, 결제, 다른 스텝 컴포넌트 등)은 건드리지 않는다 — PR diff가 학교 관련 파일 2~3개 + `api.ts` 범위를 벗어나면 점검 필요.
+
+**프론트 완성 후 병합 전 필수 검증 체크리스트** (아래 둘 다 실제로 신청이 생성되는지 눈으로 확인):
+- [ ] (a) 검색select에서 등록된 학교를 골라 제출 → 정상 접수되고, 관리자 화면(또는 DB)에서 그 학교의 실제 이름/schoolType으로 저장됐는지 확인.
+- [ ] (b) "직접 입력"으로 전환해 학교명+구분을 수동 입력 후 제출 → 기존과 동일하게 정상 접수되는지 확인.
+- [ ] (c) 개인 신청·단체 신청 두 진입점 모두에서 (a)(b) 반복 확인(폼이 분리돼 있어 한쪽만 고치고 다른 쪽을 빠뜨리는 실수 방지).
+- [ ] (d) PR diff 크기 확인 — 학교 검색select 관련 파일과 `api.ts` 외에 다른 스텝/로직 파일이 포함돼 있지 않은지.
+
+### 4-B. `CardDesign` 학교 매칭 + 조회 API 개방
+
+- [ ] `CardDesign`에 `schoolId`(nullable — STUDENT 외 카드종류는 계속 null) 컬럼 추가, 학생증 조회 조건을 `schoolId + orientation`으로 한다.
+- [ ] 같은 `schoolId + orientation`에는 활성 STUDENT 디자인을 1개만 허용한다. 등록·활성화 동시성까지 Service/DB 수준에서 보장하고, 비활성 이력 row는 보존 가능하게 한다.
+- [ ] `CardDesignService`의 STUDENT 하드 거절(`UNSUPPORTED_CARD_TYPE`) 제거, STUDENT는 `schoolId` 기준 조회로 분기.
+- [ ] STUDENT 템플릿 등록은 운영자가 `CardDesign` row를 직접 insert(관리자 업로드 UI 없음 — 정책 4).
+
+### 4-C. 카드 미리보기 렌더링(`CardLayouts`/`CardImageCompositor`)
+
+- [ ] `CardLayouts.FRONT`/`BACK`에 STUDENT 4개 조합(고등학교/대학교 × 가로/세로) 레이아웃 등록 — 좌표값은 이미 확정돼 있음(이 계획 범위에서 좌표 자체는 다루지 않음).
+- [ ] `CardImageCompositor`가 `schoolType`에 따라 필드 표시 분기(고등학교=생년월일 표시·학번/학과 숨김, 대학교=반대) — `CardMemberData`에 필요한 값 추가.
+- [ ] `CardPreviewService`는 4-A/4-B 완료 시 코드 변경 없이 그대로 동작 확인(현재 STUDENT 거절은 `CardImageCompositor`가 담당).
+
+완료 조건:
+
+- [ ] 학생증 개인/단체 신청이 등록 학교 선택(`schoolId`)과 직접입력(`schoolName`+`schoolType`) 두 경로 모두로 정상 접수되고, 등록 학교 선택 시 서버가 `schoolType`을 School 값으로 강제 확정한다(클라이언트 위변조 무시).
+- [ ] 템플릿 미등록 학교와 직접입력 학교는 신청~작명까지 진행되며, Preview/최종 생성 전에는 등록 School 연결과 `schoolId + orientation` 활성 디자인 1개가 필수다.
+- [ ] 직접입력 신청을 School에 연결한 뒤에도 카드 표시 학교명은 검토 단계에서 확정한 `Application.schoolName`을 사용하고 School.name 변경은 소급 적용되지 않는다.
+- [ ] 템플릿 등록 학교는 실제 카드 렌더링까지 성공하고, 고등학교/대학교 필드 표시 분기가 육안으로 맞다.
+- [ ] Application 관련 회귀 테스트 통과.
 - [ ] `requirements.md`, `data-model.md`, `api.md`, `admin-saju.md`, TODO, CHANGELOG, HANDOFF 최종 정합성 검증.
+
+### 단계별 실행 체크리스트 — 학생증 단체 Excel부터 카드 Preview까지
+
+> 이 체크리스트는 위 4-A~4-C 확정 정책을 구현 순서로 세분화한 실행 문서다. 정책을 다시 설계하지 않으며, 학생증 좌표·폰트·레이아웃 값은 이미 확정된 값만 사용한다. 기존 시민증·방문증 공통 구현을 우선 재사용하고, 기존 구조로 해결할 수 없는 경우에만 Entity/API 추가를 제안한다.
+
+#### 0-A. 학생증 Excel 스키마와 데이터 흐름 기준선 확정 — 선행 조사
+
+현재 코드 기준 데이터 흐름표:
+
+| 값 | 현재 입력 위치 | Parser/요청 객체 | 현재 저장 위치 | 이후 소비 경로 |
+|---|---|---|---|---|
+| 사진 번호 | Excel A열, `001`~`100` 텍스트 사전 입력 | `BulkMemberRow.photoNumber` | `ApplicationMember.photoNumber` | ZIP 사진 매칭, 관리자 일괄 카드번호 입력의 Member 식별 |
+| 영문명 | Excel B열, 필수 | `BulkMemberRow.englishName` | `ApplicationMember.englishName` | 작명 대상 표시, 카드 렌더링 |
+| 생년월일 | Excel C열, 필수 | `BulkMemberRow.birthDate` | `ApplicationMember.birthDate` | 만세력 입력, 학생증 카드 표시 정책 |
+| 출생국가 | Excel D열, 필수 | `BulkMemberRow.nationality` | `ApplicationMember.nationality` | 신청 검토 및 카드별 표시 데이터 |
+| 출생시간 | Excel E열, 선택 | `BulkMemberRow.birthTime` | `ApplicationMember.birthTime` | 만세력 시간 정확도 판정 |
+| 출생지역 | Excel F열, 필수 도시명 | `BulkMemberRow.birthRegion` | `ApplicationMember.birthRegion` | timezone/경도 해석 및 만세력 입력 |
+| 성별 | Excel G열, 필수 | `BulkMemberRow.gender` | `ApplicationMember.gender` | 신청 검토 및 작명 입력 |
+| 입국예정일 | Excel H열 또는 신청 공통값 | `BulkMemberRow.entryDate` | `ApplicationMember.entryDate` | 신청 검토 및 카드별 표시 데이터 |
+| 이메일 | Excel I열, 필수 | `BulkMemberRow.email` | `ApplicationMember.email` | 신청자 연락·개별 카드 조회 계약 |
+| 전화번호 | Excel J열, 필수 | `BulkMemberRow.phone` | `ApplicationMember.phone` | 신청자 연락·개별 카드 조회 계약 |
+| 주소 | Excel K열, 선택 | `BulkMemberRow.address` | `ApplicationMember.address` | 학생증을 제외한 카드 주소 표시, 관리자 검토 |
+| 학번 | 대학교 Excel L열, 필수 | `BulkMemberRow.studentId` | `ApplicationMember.studentId` | 대학교 학생증 렌더링 |
+| 학과 | 대학교 Excel M열, 필수 | `BulkMemberRow.department` | `ApplicationMember.department` | 대학교 학생증 렌더링 |
+| 학교 유형 | 신청 JSON, Application 단위 | `BulkApplicationCreateRequest.schoolType` | `Application.schoolType` | Excel 고등학교/대학교 분기, 학생증 디자인·렌더링 분기 |
+| 학교 | 신청 JSON, Application 단위 | `schoolId` 또는 `schoolName` | `Application.schoolId/schoolName` | schoolId는 학교·디자인 매칭, schoolName 스냅샷은 카드 표시 |
+| 카드 방향 | 신청 JSON, Application 단위 | `BulkApplicationCreateRequest.orientation` | `Application.orientation` | 가로/세로 디자인 조회 및 렌더링 |
+| 얼굴 사진 | ZIP 루트의 `{사진 번호}.jpg|jpeg|png` | `BulkMemberRow.photoBytes/photoFilename` | S3 `ApplicationMember.photoPath` | 관리자 검토, 만세력/작명 화면, 카드 렌더링 |
+| 신청 대표자·기관 정보 | 단체 신청 JSON | `ApplicantRequest` 및 신청 요청 | `Applicant`, 일부 `Application` | 신청 소유권·연락·발행처 데이터 |
+
+- [ ] **고등학교 양식 A~K열 확인** — `BulkExcelParser`, 고등학교 `.xlsx`, `BulkExcelParserTest`를 대조해 L/M 학번·학과가 없고 입력 시 거절되는지 확인한다. **재사용:** 기존 `schoolType == HIGH_SCHOOL` 분기. **완료 조건:** 문서·양식·Parser 테스트의 열 계약이 일치한다.
+- [ ] **대학교 양식 A~M열 확인** — 같은 파일에서 L 학번과 M 학과가 필수이며 학번은 숫자 1~10자리, 학과는 최대 100자인지 확인한다. **재사용:** 기존 `schoolType == UNIVERSITY` 분기. **완료 조건:** 누락·형식 오류와 정상 행이 테스트로 구분된다.
+- [ ] **사진 번호만 채워진 행 제외 확인** — `BulkExcelParser`의 데이터 행 판정이 A열 사전 입력만 있는 빈 행을 Member로 만들지 않는지 확인한다. **재사용:** 기존 B열 이후 입력 존재 판정. **완료 조건:** 빈 양식은 100명이 아닌 0명으로 판정되고, 실제 필수 정보가 있는 행만 처리된다.
+- [ ] **개인·단체 계약 차이 표 확정** — `ApplicationCreateRequest.MemberRequest`, `BulkApplicationCreateRequest`, `BulkMemberRow`를 대조한다. 개인은 Member JSON+개별 photo part, 단체는 Application 단위 학교/방향 JSON+Excel Member+ZIP 사진이라는 경계를 유지한다. **재사용:** 현재 Controller 요청 형식. **완료 조건:** 학생증 공통값과 Member별 값의 저장 위치가 중복되지 않는다.
+
+#### 0-B. 호출 경로·영향 범위·재사용 기준선 확정 — 선행 조사
+
+- [ ] **Excel부터 DB까지 실제 호출 경로 확인** — **확인 대상:** `ApplicationController`, `ApplicationService.createGroup`, `BulkExcelParser.parse`, `ApplicationPersistenceService.saveGroup`, `ApplicationFactory`, Application 관련 Repository. **재사용:** 현재 개인·단체 공통 생성 흐름과 S3 업로드 보상 구조 전체. **완료 조건:** `Controller → Service → Parser → S3 → PersistenceService(@Transactional) → Application/Applicant/Receiver/ApplicationMember` 순서와 각 트랜잭션 경계를 데이터 흐름표에 연결한다.
+- [ ] **Entity 저장 책임 확인** — **확인 대상:** `Application`, `ApplicationMember`, `Applicant`, `UploadFile`. **재사용:** Application 단위 학교·방향, Member 단위 Excel 값, Applicant 단위 대표자 정보라는 현재 경계. **완료 조건:** 학생증 때문에 필드를 중복 저장하거나 새 StudentApplication Entity를 만들 필요가 없는지 확인한다.
+- [ ] **작명 재사용 경로 확인** — **확인 대상:** `ManseryeokService`, `BirthTimeZoneResolver`, `ManseryeokResult`, `AdminNamingController`, `ApplicationService.assignMemberName/completeNaming`, 작명 결과 Excel parser. **재사용:** CardType에 의존하지 않는 기존 만세력·작명·상태 전이. **완료 조건:** 학생증 전용 만세력/작명 Service·API·Entity를 추가하지 않는 것으로 확정하고, 예외가 있으면 해당 분기만 기록한다.
+- [ ] **카드 제작 재사용 경로 확인** — **확인 대상:** `CardDesign`, `CardDesignService`, `CardPreviewRequest`, `CardPreviewService`, `CardMemberData`, `CardLayouts`, `CardImageCompositor`, `AdminApplicationController`. **재사용:** 기존 디자인 조회, 관리자 권한, 상태·발급일자·카드번호 검증, 앞/뒤 PNG 응답. **완료 조건:** 학생증 구현에 필요한 최소 확장 지점만 2-A/2-B 입력으로 남긴다.
+- [ ] **백엔드 영향 파일 목록 확정** — **확인 대상:** 위 클래스와 `SchoolController/SchoolService/SchoolRepository`, 신청 DTO, 관련 테스트·문서. **재사용:** 4-A에서 완료한 School 마스터·등록학교 강제 확정·직접입력 폴백. **완료 조건:** 이미 완료된 4-A와 앞으로 변경할 4-B/4-C 파일을 구분하고 같은 작업을 반복하지 않는다.
+- [ ] **프론트 영향 파일은 연결 상태만 조사** — **확인 대상:** `frontend/src/components/apply/steps/StepInfo.tsx`, `features/apply/types.ts`, `pages/ApplyPage/ApplyPage.tsx`, `services/api.ts`, `components/admin/sections/ApplicationsSection.tsx`. **재사용:** 기존 신청 폼·관리자 신청 상세. **완료 조건:** Backend/Frontend/E2E 상태를 별도로 기록하고 이번 백엔드 작업에서는 `frontend/`를 수정하지 않는다.
+
+**기존 버그·계약 갭 기준선**
+
+- [ ] **[GAP]** `CardDesignService`가 STUDENT를 `UNSUPPORTED_CARD_TYPE`으로 거절하므로 2-A 전에는 학생증 디자인 조회가 불가능하다.
+- [ ] **[GAP]** `CardLayouts`에 STUDENT가 없고 `CardImageCompositor`가 학생증을 처리하지 못한다. 이미 확정된 학생증 좌표를 등록할 뿐 좌표·폰트·레이아웃을 재설계하지 않는다.
+- [ ] **[GAP]** `CardMemberData`에 학교유형·학교명·학번·학과·학생증 표시용 생년월일 등 렌더링 입력이 부족하다. 공통 입력 객체의 최소 확장을 우선하며 새 학생증 전용 중간 객체는 기존 구조로 해결할 수 없을 때만 제안한다.
+- [ ] **[GAP]** 관리자 프론트에는 실제 card-design 조회, card-preview 호출, 디자인·발급일자 선택 UI가 아직 연결되지 않았다.
+- [ ] **[GAP]** 직접입력 신청을 등록 School에 연결하고 REVIEWING 단계에서 schoolName 오타를 정정하는 관리자 기능이 아직 없다.
+- [ ] **[주의]** 신청 단계의 `CardPreviewPanel.tsx`는 시안 표시용이며 관리자 실제 `CardPreviewService` 결과가 아니다.
+- [ ] **[주의]** 작업 트리의 미커밋 STUDENT 템플릿과 탐색용 렌더 테스트는 존재만으로 완료 처리하지 않는다. 정식 테스트·정책·커밋 소유권을 확인한 뒤 반영한다.
+
+#### 1-A. 학생증 Excel 데이터 저장 검증 — 데이터 처리
+
+- [ ] **고등학교 정상행 저장 테스트** — **확인 대상:** `BulkExcelParserTest`, `ApplicationServiceBulkTest`, `ApplicationPersistenceServiceTest`. **재사용:** 기존 HIGH_SCHOOL 열 분기와 saveGroup 트랜잭션. **완료 조건:** A~K의 실제 입력값과 photoPath가 같은 Member에 저장되고 `studentId/department == null`이며, Application에는 schoolId/name/type/orientation이 저장된다.
+- [ ] **대학교 정상행 저장 테스트** — **확인 대상:** 같은 테스트와 Entity. **재사용:** 기존 UNIVERSITY L/M 파싱. **완료 조건:** 학번·학과를 포함한 A~M 값과 사진이 올바른 Member에 저장되고 Application 단위 학교·방향 값과 연결된다.
+- [ ] **빈 행·사진 번호 행 처리 회귀 테스트** — **확인 대상:** `BulkExcelParserTest`. **재사용:** B열 이후 입력 존재 판정. **완료 조건:** 사진 번호만 사전 입력된 행과 완전한 빈 행은 수량에 포함되지 않고, 실제 정상 처리 Member 수와 `totalQuantity`가 일치한다.
+- [ ] **ZIP 사진 정확 매칭 회귀 테스트** — **확인 대상:** `BulkExcelParserTest`, 단체 신청 테스트 ZIP fixture. **재사용:** 사진 번호 stem의 정확 매칭과 전체 실패 정책. **완료 조건:** 실제 입력된 행만 사진을 요구하고 누락·여분·동일 번호 다중 확장자·중복 ID는 전체 실패한다.
+- [ ] **등록학교·직접입력 두 경로 회귀 확인** — **확인 대상:** `ApplicationServiceTest`, `ApplicationServiceBulkTest`, `SchoolServiceTest`. **재사용:** 완료된 4-A. **완료 조건:** 등록학교는 서버 School 값으로 강제 저장되고, 직접입력은 기존 schoolName/schoolType 검증을 유지하며 Parser 분기는 최종 확정 schoolType을 사용한다.
+- [ ] **직접입력 학교 연결과 스냅샷 검증** — **확인 대상:** 신규 또는 기존 관리자 Application 수정 Service/API, `Application`, AdminActivityLog. **재사용:** 관리자 권한·Application 잠금/version 검증. **완료 조건:** 등록 School 연결 전에는 신청~작명까지만 가능하고, 연결 후 Preview가 가능하며 schoolId만 변경되고 Application.schoolName은 유지된다.
+- [ ] **학교명 오타 정정·동결 검증** — **확인 대상:** Application Entity 상태 전이와 관리자 수정 Service 테스트. **재사용:** 기존 REVIEWING 상태 검증. **완료 조건:** REVIEWING까지 schoolName 정정이 가능하고 NAME_EDITING 이후 또는 카드 생성 후에는 거절되며, 이후 School.name 변경도 기존 Application.schoolName에 영향을 주지 않는다.
+- [ ] **저장 실패 원자성 유지 확인** — **확인 대상:** `ApplicationPersistenceServiceTest`, `ApplicationServiceUploadCompensationTest`. **재사용:** UploadFile 포함 DB 단일 트랜잭션과 S3 역순 보상 삭제. **완료 조건:** 학생증 Excel N번째 Member 저장 실패 시 DB 전체 rollback, 신규 S3 객체 보상 삭제, 부분 Member 미생성을 보장한다.
+
+**1-A 테스트:** `BulkExcelParserTest` → `ApplicationServiceBulkTest` → `ApplicationPersistenceServiceTest` → `ApplicationServiceUploadCompensationTest` → `SchoolServiceTest` → `compileJava`. 기존 테스트가 같은 계약을 충분히 보장하면 중복 테스트를 추가하지 않고 실제 공백만 최소 보강한다.
+
+#### 1-B. 저장된 Member부터 만세력·이름 확정까지 연결 — 작명
+
+- [ ] **Excel 출생정보의 만세력 입력 연결 확인** — **확인 대상:** `ApplicationMember.birthDate/birthTime/birthRegion`, `ManseryeokService`, `BirthTimeZoneResolver`. **재사용:** 기존 출생지역 resolve, timezoneId·경도, DST 경계, timeAccuracy 정책. **완료 조건:** 학생증 Excel에서 저장된 실제 Member 값이 복사·재입력 없이 기존 resolve/confirm API 입력으로 사용된다.
+- [ ] **만세력 확정 결과 저장 확인** — **확인 대상:** `ManseryeokResult`, `ManseryeokServiceTest`, `BirthTimeZoneResolverTest`. **재사용:** 현재 활성 결과·이력·계산 버전 저장 구조. **완료 조건:** 정상 시간은 확정 결과를 저장하고, 모호하거나 존재하지 않는 현지시간은 확정 정책대로 처리되며 mock fallback을 DB 확정 결과로 오인하지 않는다.
+- [ ] **학생증 Member 이름 추천 조회 확인** — **확인 대상:** 기존 이름 추천 Controller/Service와 관리자 신청 상세 응답. **재사용:** 시민증·방문증과 동일한 이름 사전·점수·재현 가능한 정렬. **완료 조건:** CardType 분기 없이 학생증 Member ID로 기존 추천 결과를 조회할 수 있고 학생증용 추천 로직을 복제하지 않는다.
+- [ ] **관리자 최종 이름 저장 확인** — **확인 대상:** `ApplicationService.assignMemberName`, `ApplicationMember.assignKoreanName`, `AdminNamingController`, `ApplicationServiceNameAssignTest`. **재사용:** 성씨, 이름, 한자, 뜻·해석 검증과 덮어쓰기 정책. **완료 조건:** 성씨와 추천 이름 선택 결과, 선택 한자, 훈음/뜻에 대응하는 현재 Entity 필드가 한 Member에 저장되며 임의 문자열 허용 정책과 충돌하지 않는다.
+- [ ] **작명 완료 집계·상태 전이 확인** — **확인 대상:** `ApplicationService.completeNaming`, `ApplicationServiceAdminTransitionTest`, `ApplicationServiceNamingResultTest`. **재사용:** 전체 Member의 성씨·이름·필수 의미 집계 후 `NAME_EDITING → PRODUCTION_READY`. **완료 조건:** 한 명이라도 미완료면 Member 오류 목록과 함께 전체 전이를 거절하고, 전원 완료 시 학생증도 같은 전이를 통과한다.
+- [ ] **테스트용 학생증 Member 종단 통합 테스트** — **확인 대상:** Application/Manseryeok/Naming 서비스 통합 테스트 fixture. **재사용:** 기존 API·Entity·Repository. **완료 조건:** 학생증 Excel Member 최소 1명을 `Excel → DB → 만세력 resolve/confirm → 이름 추천 → 성씨·이름·한자·뜻 확정 → DB 재조회` 순서로 검증한다.
+
+**1-B 테스트:** `ManseryeokServiceTest` → `BirthTimeZoneResolverTest` → `ApplicationServiceNameAssignTest` → `ApplicationServiceNamingResultTest` → `ApplicationServiceAdminTransitionTest` → 관련 `AdminApplicationControllerTest` → `compileJava`.
+
+#### 2-A. 학생증 CardDesign 매칭과 렌더링 입력 확장 — 카드 렌더링
+
+- [ ] **CardDesign 학교 매칭 구현** — **확인 대상:** `CardDesign`, `CardDesignRepository`, `CardDesignService`, `CardDesignServiceTest`. **재사용:** 기존 cardType·active·orientation 검증과 디자인 응답. **완료 조건:** STUDENT는 `Application.schoolId + Application.orientation`에 맞는 active 디자인 정확히 1개만 반환하고, 비학생 카드는 기존 조회 결과가 변하지 않는다.
+- [ ] **STUDENT 하드 거절 제거** — **확인 대상:** `CardDesignService`의 `UNSUPPORTED_CARD_TYPE` 분기. **재사용:** 기존 `CARD_DESIGN_NOT_FOUND`. **완료 조건:** 등록 템플릿은 조회되고, schoolId 미연결 또는 템플릿 미등록 상태는 신청·작명을 막지 않으며 디자인 조회·Preview에서만 `CARD_DESIGN_NOT_FOUND`가 발생한다.
+- [ ] **디자인 학교 불변조건 검증** — **확인 대상:** `CardDesign` 생성/활성화 메서드와 Repository 테스트. **재사용:** 기존 카드종류·방향 불변조건. **완료 조건:** STUDENT 디자인은 schoolId가 필요하고 비학생 디자인은 schoolId가 null이며, 같은 학교+방향의 활성 디자인 2개와 다른 학교·방향 디자인 선택을 모두 차단한다.
+- [ ] **렌더링 입력 최소 확장** — **확인 대상:** `CardMemberData`, `CardPreviewService`, `Application`, `ApplicationMember`. **재사용:** 기존 이름·영문명·사진·카드번호·주소·발급일자·로고·직인·띠 입력. **완료 조건:** schoolType, schoolName, studentId, department, 학생증 표시용 생년월일, orientation을 실제 DB 값으로 전달하고 기존 세 카드 렌더링 결과를 깨지 않는다.
+- [ ] **학생증 템플릿 로딩 경로 확인** — **확인 대상:** `UploadFile`, `StorageService`, `CardDesign.templateFrontId/templateBackId`, STUDENT 리소스/운영 등록 방식. **재사용:** 기존 S3 template 다운로드. **완료 조건:** 개발 탐색용 로컬 파일 경로가 운영 API에 하드코딩되지 않고, 디자인 row가 가리키는 앞·뒷면 template을 사용한다.
+- [ ] **확정 레이아웃만 등록** — **확인 대상:** `CardLayouts.FRONT/BACK`, `CardImageCompositor`, 확정 STUDENT 좌표 자료. **재사용:** 기존 텍스트 축소 최대 2px, 사진·로고·직인 합성 primitive. **완료 조건:** 고등학교/대학교 × 가로/세로 4개 조합을 기존 확정값 그대로 등록하며 좌표·폰트·배치를 새로 설계하거나 임의 보정하지 않는다.
+
+**2-A 테스트:** `CardDesignServiceTest` → CardDesign Entity/Repository 관련 테스트 → `CardImageCompositorTest`의 비학생 회귀 → `compileJava`.
+
+#### 2-B. 확정 DB 데이터로 학생증 Preview 생성 — 카드 렌더링
+
+- [ ] **기존 Preview API 재사용** — **확인 대상:** CardPreviewRequest, CardPreviewService, AdminApplicationController. **재사용:** cardDesignId·issueDate·side 요청, 관리자 권한, PRODUCTION_READY, Member 소속, 카드번호·발급일자·작명·만세력 검증, image/png 응답. **완료 조건:** 학생증 전용 Preview API를 만들지 않고 기존 엔드포인트가 STUDENT도 처리한다.
+- [ ] **실제 DB 값 매핑 검증** — **확인 대상:** CardPreviewService의 CardMemberData 구성부와 CardImageCompositor. **재사용:** 저장된 최종 데이터 우선 원칙. **완료 조건:** Excel 저장값, 확정 성씨·이름·한자·뜻, photoPath, 관리자 카드번호, 발급일자, Application.schoolName 스냅샷, 학번·학과, 로고·선택 직인, 띠 결과가 요청 임시값이나 현재 School.name이 아니라 DB 신청 스냅샷에서 전달된다.
+- [ ] **고등학교 × 세로 앞·뒷면 검증** — **확인 대상:** STUDENT HIGH_SCHOOL PORTRAIT layout과 CardImageCompositorTest. **재사용:** 공통 이미지 합성·빈 한자 영역 처리. **완료 조건:** 생년월일 등 고등학교 확정 필드는 표시되고 학번·학과는 표시되지 않으며 앞·뒷면 PNG가 정상 생성된다.
+- [ ] **고등학교 × 가로 앞·뒷면 검증** — **확인 대상:** STUDENT HIGH_SCHOOL LANDSCAPE layout. **재사용:** 동일. **완료 조건:** 세로형과 같은 DB 값이 가로형 확정 좌표에 렌더링되며 잘림·사진 겹침이 없다.
+- [ ] **대학교 × 세로 앞·뒷면 검증** — **확인 대상:** STUDENT UNIVERSITY PORTRAIT layout. **재사용:** 동일. **완료 조건:** 학번·학과가 표시되고 고등학교 전용 표시값은 노출되지 않으며 앞·뒷면 PNG가 정상 생성된다.
+- [ ] **대학교 × 가로 앞·뒷면 검증** — **확인 대상:** STUDENT UNIVERSITY LANDSCAPE layout. **재사용:** 동일. **완료 조건:** 학번·학과를 포함한 실제 DB 값이 가로형 확정 좌표에 렌더링되며 잘림·사진 겹침이 없다.
+- [ ] **학생증 선택 직인·한자 없음 검증** — **확인 대상:** CardPreviewServiceTest, CardImageCompositor. **재사용:** 기존 nullable asset/text 처리. **완료 조건:** 학교 직인이나 한자가 없는 합법적 입력에서 해당 영역만 비어 있고 Preview 전체가 실패하지 않는다.
+- [ ] **Preview 무저장 불변조건 확인** — **확인 대상:** CardPreviewServiceTest, StorageService mock/spy. **재사용:** 기존 read-only Preview. **완료 조건:** 호출 전후 Application/Member/UploadFile row와 S3 객체 수가 같고 다운로드 외 업로드·삭제가 없다.
+- [ ] **관리자 프론트 연결 작업 분리 기록** — **확인 대상:** frontend/src/services/api.ts, ApplicationsSection.tsx, docs/FRONTEND_API_GAPS.md. **재사용:** 기존 관리자 신청 상세 화면. **완료 조건:** 디자인 목록, 발급일자, Member 선택, FRONT/BACK Preview 호출이 없으면 Frontend NOT CONNECTED로 기록하며 백엔드 결과를 FAIL 처리하지 않는다.
+
+**2-B 테스트:** CardPreviewServiceTest → CardImageCompositorTest → 관련 AdminApplicationControllerTest → 학생증 4조합 앞·뒷면 시각 산출물 검증 → compileJava. 탐색용 StudentCardExploratoryRenderTest는 정식 fixture·assertion으로 승격한 경우에만 자동 테스트 근거로 인정한다.
+
+#### 3-A. 학생증 전체 플로우 통합 검증
+
+- [ ] **고등학교 종단 시나리오** — **확인 대상:** 실제 고등학교 xlsx+사진 ZIP, Application/Manseryeok/Naming/Card 통합 경로. **재사용:** 앞 단계 전체. **완료 조건:** Excel 업로드 → Member 저장 → 관리자 검토 → 만세력 → 이름 추천 → 성씨·이름 확정 → 카드번호·발급일자 → 학생증 디자인 선택 → Preview가 최소 1명으로 완료된다.
+- [ ] **대학교 종단 시나리오** — **확인 대상:** 실제 대학교 xlsx+사진 ZIP과 동일 통합 경로. **재사용:** 앞 단계 전체. **완료 조건:** 학번·학과가 DB와 Preview에 동일하게 반영되고 전 단계가 완료된다.
+- [ ] **가로·세로 조합 전체 검증** — **확인 대상:** 고등학교/대학교 각각 PORTRAIT·LANDSCAPE fixture. **재사용:** 같은 API·Service와 다른 확정 layout. **완료 조건:** 총 4조합의 FRONT/BACK 렌더링 결과를 남기고 각 이미지 필드의 출처를 DB 값과 대조한다.
+- [ ] **직접입력 학교 제작 전환 시나리오** — **확인 대상:** 직접입력 Application, School/CardDesign 운영 등록, 관리자 학교 연결, Preview. **재사용:** 동일 Application과 schoolName 스냅샷. **완료 조건:** schoolId=null 상태에서는 작명까지 진행되고 Preview는 차단되며, School/CardDesign 등록 후 schoolId 연결만으로 같은 신청의 Preview가 성공한다.
+- [ ] **실패 경계 통합 검증** — **확인 대상:** 잘못된 Excel, 사진 누락, schoolId 미연결, 미등록 학교 템플릿, 동일 학교·방향 활성 디자인 중복, 작명 미완료, 카드번호 누락, 발급일자 범위 초과, 다른 학교 디자인 선택. **재사용:** 기존 ErrorCode와 전체 실패 정책. **완료 조건:** 실패 단계 이전의 유효 데이터는 정책대로 유지되고 Preview 실패가 신청 자체를 취소하거나 훼손하지 않는다.
+- [ ] **Backend/Frontend/E2E 판정표 작성** — **확인 대상:** 실제 최신 백엔드·프론트 호출 코드와 테스트 결과. **재사용:** 아래 공통 상태값. **완료 조건:** 프론트 미연동을 백엔드 실패로 합산하지 않고 막힌 계층과 후속 작업을 명시한다.
+
+| 단계 | Backend | Frontend | E2E | 문제 | 필요한 작업 |
+|---|---|---|---|---|---|
+| 학생증 Excel 업로드·Member 저장 | PASS/FAIL | CONNECTED/NOT CONNECTED | PASS/BLOCKED | 검증 후 기록 | 실패 계층의 최소 작업 |
+| 만세력 resolve·confirm | PASS/FAIL | CONNECTED/NOT CONNECTED | PASS/BLOCKED | 검증 후 기록 | 실패 계층의 최소 작업 |
+| 이름 추천·성씨/이름 확정 | PASS/FAIL | CONNECTED/NOT CONNECTED | PASS/BLOCKED | 검증 후 기록 | 실패 계층의 최소 작업 |
+| 카드번호·발급일자·디자인 선택 | PASS/FAIL | CONNECTED/NOT CONNECTED | PASS/BLOCKED | 검증 후 기록 | 실패 계층의 최소 작업 |
+| 학생증 FRONT/BACK Preview | PASS/FAIL | CONNECTED/NOT CONNECTED | PASS/BLOCKED | 검증 후 기록 | 실패 계층의 최소 작업 |
+
+- [ ] **Backend 회귀 검증** — **확인 대상:** Application, School, Manseryeok, Naming, Card 관련 테스트. **재사용:** 각 단계 targeted tests. **완료 조건:** 단계별 targeted test 후 Application/Card 관련 묶음 테스트가 통과한다.
+- [ ] **Frontend 정적·빌드 검증** — **확인 대상:** 실제 연동이 추가된 경우에만 관련 프론트 테스트와 build. **재사용:** 기존 frontend build. **완료 조건:** API가 미연동이면 NOT CONNECTED로 남기고, 연결됐다면 타입·enum·multipart 계약과 build 통과를 확인한다.
+- [ ] **E2E 실제 요청 검증** — **확인 대상:** 로컬 Docker/API와 테스트용 Excel·ZIP·학생증 템플릿. **재사용:** 실제 운영과 같은 Controller/S3/DB 흐름. **완료 조건:** 네 조합의 실제 HTTP 흐름을 검증하고 결과 이미지와 DB를 대조한다.
+- [ ] **최종 문서 정합성 검증** — **확인 대상:** requirements.md, data-model.md, api.md, admin-saju.md, TODO, CHANGELOG, HANDOFF, FRONTEND_API_GAPS.md. **재사용:** 현재 Source of Truth 우선순위. **완료 조건:** 구현된 계약·남은 프론트 갭·테스트 결과가 서로 모순되지 않는다.
+
+### 의존성 순서와 작업 단위별 검증
+
+0-A → 0-B → 1-A → 1-B → 2-A → 2-B → 3-A
+
+| 작업 단위 | 구현·검증 범위 | 단위 종료 시 실행 |
+|---|---|---|
+| 0-A | Excel 열·요청·Entity·소비 경로 표 확정 | 코드 테스트 없음. 정적 코드/양식 대조와 문서 diff만 확인 |
+| 0-B | 호출 경로, 재사용 범위, 변경 파일, 기존 GAP 확정 | 코드 테스트 없음. rg, git diff, 현재 테스트 목록 확인 |
+| 1-A | 고등학교/대학교 Excel→DB·사진 매칭·원자성 | BulkExcelParserTest, ApplicationServiceBulkTest, ApplicationPersistenceServiceTest, ApplicationServiceUploadCompensationTest, SchoolServiceTest, compileJava |
+| 1-B | DB Member→만세력→추천→이름 확정→PRODUCTION_READY | ManseryeokServiceTest, BirthTimeZoneResolverTest, NameAssign/NamingResult/AdminTransition/Controller targeted tests, compileJava |
+| 2-A | schoolId+orientation 디자인 매칭, 렌더 입력·레이아웃 확장 | CardDesignServiceTest, CardDesign Entity/Repository tests, 비학생 CardImageCompositorTest, compileJava |
+| 2-B | 학생증 4조합 FRONT/BACK 무저장 Preview | CardPreviewServiceTest, CardImageCompositorTest, AdminApplicationControllerTest, 4조합 시각 검증, compileJava |
+| 3-A | 실제 Excel부터 Preview까지 Backend/Frontend/E2E 분리 판정 | Application·School·Manseryeok·Naming·Card 관련 묶음, 필요한 frontend build와 실제 HTTP E2E, 마지막 전체 테스트 1회 |
+
+**실행 규칙:** 각 단위는 정책 확인 → 기존 테스트 확인 → 필요한 실패 테스트 최소 보강 → 최소 구현 → targeted 회귀 → 문서 갱신 순서로 진행한다. 대량 출력 명령은 stdout/stderr를 로그 파일로 저장하고 종료 코드·테스트 집계·실패 이름·최초 원인·리포트 경로만 보고한다. 전체 테스트는 3-A 또는 push 직전 한 번 실행한다.
