@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { useAuth } from "../../features/auth/AuthContext";
-import { api } from "../../services/api";
+import { api, ApiError } from "../../services/api";
 import "./LoginPage.css";
 
 export function LoginPage() {
@@ -15,26 +15,35 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     const nextErrors: typeof errors = {};
     if (!email.trim()) nextErrors.email = "이메일을 입력해 주세요.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = "올바른 이메일 형식으로 입력해 주세요.";
     if (!password) nextErrors.password = "비밀번호를 입력해 주세요.";
     if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
     setErrors({});
+    setSubmitting(true);
     try {
-      // 실제 백엔드 로그인 — 성공하면 서버 세션(HttpOnly 쿠키) 확보 → 신청/문의 등 /api/my/*가 동작한다.
+      // 실제 백엔드 로그인 — 성공하면 서버 세션(HttpOnly 쿠키) 확보. 로그인 상태로 홈(또는 returnTo)으로 이동.
       const me = await api.loginWithPassword(email.trim(), password);
       const role = me.role === "ADMIN" ? "admin" : "user";
       login({ name: me.name, email: me.email, role, source: "api", phone: me.phone, address: me.address });
-      navigate(role === "admin" && safeReturnTo === "/" ? "/admin" : safeReturnTo);
-    } catch {
-      // ⚠️ 데모 폴백: 실제 계정이 아니면 클라이언트 mock 로그인(서버 세션 없음).
-      //    이 경우 제출/내 내역 등 서버 API는 401이 나므로 실제 로그인이 필요하다. (docs/TEMP_ADMIN_LOGIN.md)
-      login({ name: email.split("@")[0], email, role: "user" });
-      navigate(safeReturnTo);
+      const dest = role === "admin" && safeReturnTo === "/" ? "/admin" : safeReturnTo;
+      navigate(dest, { replace: true });
+    } catch (err) {
+      // 실패 시 mock 로그인/이동 없이 안내 문구만 표시하고 로그인 화면에 머무른다.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 400 || err.status === 404)) {
+        setFormError("아이디/비밀번호가 틀리거나 존재하지 않는 계정입니다.");
+      } else {
+        setFormError("로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -64,8 +73,9 @@ export function LoginPage() {
             <input className="field__input" type="password" autoComplete="current-password" placeholder="비밀번호" value={password} onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors((current) => ({ ...current, password: undefined })); }} required aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "login-password-error" : undefined} />
             {errors.password && <span id="login-password-error" className="field-error" role="alert">{errors.password}</span>}
           </label>
-          <Button type="submit" block>
-            로그인
+          {formError && <p className="auth__form-error" role="alert">{formError}</p>}
+          <Button type="submit" block disabled={submitting}>
+            {submitting ? "로그인 중…" : "로그인"}
           </Button>
         </form>
 

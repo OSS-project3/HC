@@ -39,6 +39,8 @@ public class MyApplicationDetailResponse {
     private final long memberCount;
     private final LocalDateTime createdAt;
     private final String depositorName;
+    // 낙관적 락 버전 — 카드번호 일괄 저장(PUT .../card-numbers)의 applicationVersion 대조용.
+    private final Long version;
 
     private MyApplicationDetailResponse(Long applicationId, String applicationNumber, ApplicationType applicationType,
             Long cardTypeId, String cardTypeName, IssueType issueType, int totalQuantity, ApplicationStatus status,
@@ -46,7 +48,7 @@ public class MyApplicationDetailResponse {
             LocalDateTime cancelledAt, CancellationType cancellationType, CancellationReason cancellationReason,
             LocalDateTime refundedAt, LocalDateTime cardReadyAt, LocalDateTime physicalDispatchedAt,
             String photoRejectReason, ApplicantSummary applicant, ReceiverSummary receiver, long memberCount,
-            LocalDateTime createdAt, String depositorName) {
+            LocalDateTime createdAt, String depositorName, Long version) {
         this.applicationId = applicationId;
         this.applicationNumber = applicationNumber;
         this.applicationType = applicationType;
@@ -70,6 +72,7 @@ public class MyApplicationDetailResponse {
         this.memberCount = memberCount;
         this.createdAt = createdAt;
         this.depositorName = depositorName;
+        this.version = version;
     }
 
     // receiver는 issueType=MOBILE이면 항상 null(api.md API 7 참고) — 호출측이 조회 여부부터 결정해서 넘긴다.
@@ -83,7 +86,7 @@ public class MyApplicationDetailResponse {
                 application.getRefundedAt(), application.getCardReadyAt(), application.getPhysicalDispatchedAt(),
                 application.getPhotoRejectReason(), ApplicantSummary.from(applicant),
                 receiver == null ? null : ReceiverSummary.from(receiver), memberCount, application.getCreatedAt(),
-                application.getDepositorName());
+                application.getDepositorName(), application.getVersion());
     }
 
     @Getter
