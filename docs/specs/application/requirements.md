@@ -207,6 +207,16 @@
 - `DesignPage.tsx`의 디자인 갤러리는 "예시 전시"로 성격이 바뀜(신청과 연결 안 됨) — `/apply?designId=xxx` 딥링크 방식 재검토 필요.
 - `/apply` 진입 시 필요한 건 `cardType`(카드종류)뿐, 특정 `designId`는 더 이상 필요 없음.
 
+### 6-1. 디자인 번호와 카드 렌더링 리소스 매핑 (2026-08-26, 2-A 확정)
+
+✅ **`CardDesign.designNumber`가 `CardImageCompositor`의 classpath 리소스 디렉터리(`card-templates/{cardType}/{designNumber}/`)를 그대로 가리킨다.** DB PK를 그 번호로 쓰지 않는다 — PK는 재사용 대상 시퀀스라 리소스 디렉터리명과 우연히 어긋날 수 있다.
+
+- `(card_type_id, design_number)`는 유일 제약. 같은 카드 종류 안에서 디자인 번호가 중복되지 않는다.
+- 검수 완료된 디자인만 `active=true`. `VISITOR` 디자인 1은 렌더링 파일명 문제로 아직 미검수라 `active=false`로 유지한다(`CardImageCompositor.isUnverifiedDesign()`과 동일 판단).
+- 비활성 디자인은 신규 미리보기·카드 생성·재생성에서 거절하되, 이미 그 디자인으로 만들어진 기존 결과 조회는 막지 않는다.
+- 관리자 조회 API는 `GET /api/admin/card-designs?cardTypeId={id}&active={true|false}` — `active` 생략 시 전체(활성+비활성) 반환.
+- `STUDENT`는 이번 카드 제작 계획 범위 밖이라 이 API에서 `UNSUPPORTED_CARD_TYPE`(400)으로 거절한다(학생증 카드 렌더링은 "범위 제외" 항목 그대로 유지).
+
 ---
 
 ## 7. 사용자 흐름 (프론트 5단계 기준)

@@ -1184,21 +1184,21 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 목표: DB/S3 결과를 남기지 않고 실제 카드번호와 입력 데이터로 앞면 또는 뒷면을 확인한다. 이 단계에서는 전체 Member 카드 파일을 확정 저장하지 않는다.
 
-### 2-A. CardDesign과 템플릿 리소스 매핑
+### 2-A. CardDesign과 템플릿 리소스 매핑 — ✅ 완료 (Claude, 2026-08-26)
 
-- [ ] `CardDesign.designNumber` 또는 `resourceDirectory` 중 하나로 DB 디자인과 클래스패스 리소스를 명시적으로 매핑.
-- [ ] DB PK를 디자인 번호 1~6으로 사용하지 않음.
-- [ ] `(cardTypeId, designNumber)` 유일 제약과 active 정책 적용.
-- [ ] 검수 완료 디자인만 `active=true`; 방문증 디자인 1은 `active=false` 유지.
-- [ ] 비활성 디자인은 기존 결과 조회만 허용하고 신규 미리보기·생성·재생성에서 거절.
-- [ ] 관리자 디자인 조회 API 구현: `GET /api/admin/card-designs?cardTypeId={id}&active=true`.
-- [ ] 카드 종류 불일치, 미지원 학생증, 비활성 디자인을 구분하는 예외 계약 정의.
-- [ ] Repository/Service/Controller targeted tests.
+- [x] `CardDesign.designNumber`(int)로 DB 디자인과 클래스패스 리소스(`card-templates/{cardType}/{designNumber}/`)를 명시적으로 매핑. DB PK는 별도 IDENTITY, 디자인 번호로 쓰지 않음.
+- [x] `(card_type_id, design_number)` 유일 제약(`@UniqueConstraint`) 적용.
+- [x] `CardDesignSeeder`(`@Order(2)`, CardTypeSeeder 다음)가 `HONOR_KOREAN`/`HONOR_CITIZEN`/`VISITOR` 1~6번 디자인 18개를 시드. `VISITOR` 디자인 1만 `active=false`(`CardImageCompositor.isUnverifiedDesign()`과 동일 판단) — 나머지 17개 `active=true`. `HONOR_KOREAN`/`HONOR_CITIZEN`은 LANDSCAPE, `VISITOR`는 PORTRAIT(`CardLayouts` 실측 치수 기준). `STUDENT`는 범위 밖이라 시드하지 않음.
+- [x] 관리자 디자인 조회 API 구현: `GET /api/admin/card-designs?cardTypeId={id}&active={true|false}`(active 생략 시 전체 반환) — `CardDesignController`/`CardDesignService`.
+- [x] 예외 계약: 존재하지 않는 cardTypeId → `CARD_TYPE_NOT_FOUND`(404), 학생증 cardTypeId → `UNSUPPORTED_CARD_TYPE`(400). ⚠️ "비활성 디자인은 신규 미리보기·생성에서 거절"은 이 조회 API 자체가 아니라 2-C 미리보기/3단계 생성 쪽에서 `active` 플래그를 보고 실제로 막아야 하는 후속 항목 — 2-A는 그 판단에 필요한 데이터·플래그까지만 준비했다.
+- [x] `CardDesignServiceTest` 6개(전체 조회/active=true/active=false 필터/학생증 거절/존재하지 않는 cardTypeId/비관리자 거절) — `CardTypeRepository.findByCode` 신규 추가해 시더에서 재사용.
+- [x] 전체 스위트 700개 통과(1 skipped[기존 visual-dump], 실패 0) — 로컬 `honor-citizen-redis-test`(포트 6400) 컨테이너가 이 세션 중 Docker 재기동으로 내려가 있어 첫 실행에서 154개가 무관하게 실패했었음(코드 문제 아님, `docker start honor-citizen-redis-test`로 해소, HANDOFF.md 기존 기록과 동일 패턴).
+- [x] 실제 API 호출 검증(docker 재빌드 후 curl): `cardTypeId=1`(HONOR_KOREAN) 전체 6개, `cardTypeId=3&active=true`(VISITOR) 5개, `cardTypeId=4`(STUDENT) → 400, `cardTypeId=999` → 404 — 전부 기대대로 응답.
 
 완료 조건:
 
-- [ ] 관리자가 현재 신청의 카드 종류에 맞는 검수 완료 디자인만 조회 가능.
-- [ ] `CardImageCompositor` 호출 전 안정적인 리소스 경로를 얻을 수 있음.
+- [x] 관리자가 현재 신청의 카드 종류에 맞는 검수 완료 디자인만 조회 가능(`active=true` 필터).
+- [x] `CardImageCompositor` 호출 전 안정적인 리소스 경로(`designNumber`)를 얻을 수 있음.
 
 ### 2-B. CardImageCompositor 필드 완성
 

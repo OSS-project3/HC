@@ -878,6 +878,21 @@ Cookie: accessToken={JWT}
 
 ✅ 2026-08-26 신규(1-D): 현재 활성(`active=true`) 결과를 반환한다. 없으면 `NOT_FOUND`(404). 카드 띠 이미지 결정 등에 쓴다.
 
+### 카드 디자인 조회 — `GET /api/admin/card-designs?cardTypeId={id}&active={true|false}`
+
+✅ 2026-08-26 신규(2-A): 관리자가 신청의 카드 종류에 맞는 검수 완료 디자인을 조회한다. 특정 신청·구성원과 무관한 순수 카탈로그 조회.
+
+```json
+{ "data": [
+  { "id": 1, "designNumber": 1, "name": "명예한국인증 디자인1", "orientation": "LANDSCAPE", "isDefault": true, "active": true }
+] }
+```
+
+- `active` 생략 시 활성+비활성 전체 반환. `true`/`false`로 필터링 가능.
+- `cardTypeId`가 존재하지 않으면 `CARD_TYPE_NOT_FOUND`(404).
+- `cardTypeId`가 학생증이면 `UNSUPPORTED_CARD_TYPE`(400) — 학생증 카드 렌더링은 이번 카드 제작 계획 범위 밖(TODO.md 참고).
+- `designNumber`는 `card-templates/{cardType}/{designNumber}/` classpath 리소스와 1:1 대응하며, `CardImageCompositor` 호출 시 그대로 넘긴다.
+
 ---
 Application 도메인 완료.
 

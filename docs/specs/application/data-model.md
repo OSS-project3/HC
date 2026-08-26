@@ -185,3 +185,29 @@
 
 - 카드 띠 이미지는 활성 `ManseryeokResult.confirmed_pillars_json`의 `year` 지지로 결정한다(연주가 `uncertain_pillars_json`에 포함되면 자동 생성 거절 — admin-saju.md "띠 이미지 결정 정책").
 - "출생정보·timezone·계산 엔진 버전 변경 시 stale 판정" 로직은 `input_hash` 컬럼만 정의된 상태이며 실제 stale 플래그·재계산 강제 로직은 아직 없다(TODO 1-D 후속 항목).
+
+### 2.7 CardDesign (카드 디자인 카탈로그, 2026-08-26 갱신 — 2-A)
+
+> `design_number` 컬럼을 신규 추가했다. `CardImageCompositor`가 참조하는 classpath 리소스
+> 디렉터리(`card-templates/{cardType}/{designNumber}/`)와 1:1로 대응하는 값이며, DB PK(`id`)는
+> 이 번호로 쓰지 않는다 — PK는 재사용 대상 시퀀스라 리소스 디렉터리명과 우연히 어긋날 수 있다.
+
+| 필드 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | |
+| card_type_id | BIGINT | NOT NULL | `CardType` FK |
+| name | VARCHAR(100) | NOT NULL | |
+| design_number | INT | NOT NULL, `(card_type_id, design_number)` UNIQUE | classpath 리소스 디렉터리 번호(1~6) |
+| orientation | ENUM | NOT NULL | `LANDSCAPE`/`PORTRAIT`(`common.enums.CardDesignOrientation`) — `HONOR_KOREAN`/`HONOR_CITIZEN`은 LANDSCAPE, `VISITOR`는 PORTRAIT(`CardLayouts` 실측 치수 기준) |
+| template_front_id / template_back_id | BIGINT | NULL | 시안 이미지 업로드 참조용으로 마련된 필드 — 이번 2-A 범위에서는 사용하지 않음(classpath 리소스를 직접 읽음) |
+| is_default | BOOLEAN | NOT NULL | |
+| active | BOOLEAN | NOT NULL | 검수 완료 여부. `false`면 신규 미리보기·생성에서 거절(기존 결과 조회만 허용) |
+| created_at / updated_at | DATETIME | NOT NULL | `BaseTimeEntity` |
+
+- `CardDesignSeeder`가 `HONOR_KOREAN`/`HONOR_CITIZEN`/`VISITOR` 각 1~6번 디자인을 시드한다. `VISITOR`
+  디자인 1은 `active=false`로 시드된다 — `CardImageCompositor.isUnverifiedDesign()`이 렌더링 자체를
+  거절하는 미검수 디자인(대지 1.png 파일명 문제, TODO.md "카드 이미지 합성" 참고)이기 때문.
+- `STUDENT`는 이번 카드 제작 계획 범위 밖이라 디자인을 시드하지 않는다. `GET /api/admin/card-designs`도
+  `cardTypeId`가 STUDENT면 `UNSUPPORTED_CARD_TYPE`(400)으로 거절한다.
+- `Application.card_design_id`(2.1절)를 이 테이블의 어느 시점에 배정하는지는 여전히 [TBD](6절 참고) —
+  2-A는 카탈로그 조회만 다루고 배정 시점 결정은 후속 단계(2-C 미리보기, 3단계 최종 생성) 몫이다.

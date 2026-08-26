@@ -15,6 +15,22 @@
 
 ---
 
+## 2026-08-26 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 2-A — CardDesign과 템플릿 리소스 매핑)
+
+- 변경: `CardDesign`에 `designNumber`(int) 필드를 신규 추가해 `CardImageCompositor`가 참조하는 classpath 리소스 디렉터리(`card-templates/{cardType}/{designNumber}/`)와 1:1 매핑을 명시적으로 정의했다. DB PK는 그 번호로 쓰지 않는다. `(card_type_id, design_number)` 유일 제약을 걸고, `CardDesignSeeder`가 `HONOR_KOREAN`/`HONOR_CITIZEN`/`VISITOR` 1~6번 디자인 18개를 시드한다(`VISITOR` 디자인 1만 `active=false` — `CardImageCompositor.isUnverifiedDesign()`이 이미 렌더링을 거절하는 미검수 디자인). 관리자 조회 API `GET /api/admin/card-designs?cardTypeId={id}&active={true|false}`를 신규 구현했다.
+- 파일: `CardDesign.java`(`designNumber`/`deactivate()` 추가, 유일 제약), `CardDesignSeeder.java`(신규), `CardDesignRepository.java`/`CardTypeRepository.java`(조회 메서드 추가), `CardDesignResponse.java`(신규 DTO), `CardDesignService.java`(신규), `CardDesignController.java`(신규), `ErrorCode.java`(`CARD_TYPE_NOT_FOUND`/`UNSUPPORTED_CARD_TYPE`), 테스트(`CardDesignServiceTest` 6개 신규), 문서(`requirements.md` §6-1, `data-model.md` §2.7, `api.md` 신규 섹션, `TODO.md`).
+- 사유: 2-B(`CardImageCompositor` 필드 완성)·2-C(미리보기 API)가 DB의 `CardDesign` 행을 실제 classpath 리소스로 안정적으로 변환할 방법이 필요했다 — 지금까지 `composeFront(cardType, int design, ...)`은 호출부가 없어 이 매핑이 정의된 적이 없었다.
+- 검증: 신규 `CardDesignServiceTest` 6개 통과, 전체 스위트 700개 통과(1 skipped[기존 visual-dump], 실패 0). 실제 docker 재빌드 후 curl로 `GET /api/admin/card-designs` 4개 케이스(전체 조회/active 필터/학생증 거절/존재하지 않는 cardTypeId) 검증 완료 — 응답 데이터가 시드된 DB 값과 정확히 일치.
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 2-A
+
+## 2026-08-26 — Claude — `main` (Google Geocoding/Time Zone API 실키 연동 검증 + status 필드 버그 수정)
+
+- 변경: 1-D에 실제 Google Maps API 키를 연결해 검증하는 과정에서 두 가지를 고쳤다. (1) `.env`에 키가 `GOOGLE_MAPS_API_KEY`가 아니라 `key`라는 잘못된 변수명으로 들어가 있어 정정하고, `docker-compose.yml` backend 서비스 환경변수에 `GOOGLE_MAPS_API_KEY` 전달을 추가했다(원래 빠져 있었음). (2) `GoogleBirthRegionLookupClient`가 Google 응답의 `status` 필드를 무시하고 `results`가 비어있으면 무조건 "검색 결과 없음"으로 처리하던 문제를 수정 — `status`가 `OK`/`ZERO_RESULTS`가 아니면(`REQUEST_DENIED`/`OVER_QUERY_LIMIT` 등 진짜 설정·과금 오류) `GEOCODING_PROVIDER_ERROR`(503)를 명시적으로 던지도록 했다. 실제로 이 세션 중 키에 애플리케이션 제한(IP 미허용)이 걸려 있어 `REQUEST_DENIED`가 "결과 없음"으로 잘못 보이는 걸 직접 재현·확인한 뒤 고쳤다.
+- 파일: `.env`(변수명 정정, 코드 저장소 대상 아님), `docker-compose.yml`, `GoogleBirthRegionLookupClient.java`.
+- 사유: 실키 연동 없이 유닛테스트로만 검증했던 1-D가 실제 Google API와 맞물렸을 때도 정확히 동작하는지 확인하는 과정에서 발견한 결함.
+- 검증: 실제 Google Geocoding/Time Zone API로 EXACT(서울)·AMBIGUOUS(뉴욕, admin-saju.md 예시 재현)·저장(`POST .../manseryeok`)·조회(`GET .../manseryeok`) 전부 curl로 확인. `GoogleBirthRegionLookupClientTest` 2개 통과, 회귀 없음.
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 1-D
+
 ## 2026-08-26 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 1-D — 만세력 확정 결과 저장 계약, 백엔드)
 
 - 변경: 관리자가 출생지역을 검색하면 Google Geocoding API로 좌표를, Google Time Zone API로 IANA timezoneId를 자동 조회하고, `ApplicationMember`의 생년월일시와 함께 `java.time.zone.ZoneRules.getValidOffsets()`로 DST를 직접 판정(EXACT/NONEXISTENT_LOCAL_TIME/AMBIGUOUS_LOCAL_TIME)하는 기능을 구현했다. 실제 사주 8자·오행 계산 자체는 여전히 프론트(`saju.ts`)가 담당하며, HC는 계산에 필요한 확정 절대시각(`utcInstant`)만 만들어 넘긴다. 확정 결과는 `ManseryeokResult`에 이력 보존 방식(덮어쓰지 않고 이전 결과를 비활성화 후 새 행 추가)으로 저장하며, `timeAccuracy=EXACT`일 때는 Spring이 timezoneId+생년월일시로 자체 재계산해 무결성을 검증한다(실제 사주 계산 결과 자체는 재현 불가능해 프론트 값을 신뢰).

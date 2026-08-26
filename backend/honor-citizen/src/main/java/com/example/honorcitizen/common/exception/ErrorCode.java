@@ -62,6 +62,8 @@ public enum ErrorCode {
 
     // Card
     CARD_NOT_READY(400, "아직 카드가 발급되지 않았습니다."),
+    CARD_TYPE_NOT_FOUND(404, "존재하지 않는 카드 종류입니다."),
+    UNSUPPORTED_CARD_TYPE(400, "학생증은 이 기능에서 지원하지 않습니다."),
 
     // Review
     REVIEW_NOT_FOUND(404, "존재하지 않는 후기입니다."),
