@@ -15,6 +15,25 @@
 
 ---
 
+## 2026-08-26 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 2-C — 저장 없는 카드 미리보기 API)
+
+- 변경: `POST /api/admin/applications/{id}/members/{memberId}/card-preview`를 신규 구현했다. 실제 Application/ApplicationMember/CardDesign/ManseryeokResult/UploadFile을 조회해 `CardMemberData`를 조립하고 `CardImageCompositor`를 호출해 PNG를 반환한다 — DB row·S3 object는 생성하지 않는다(읽기 전용). 검증 순서는 관리자 권한 → Application → 상태(PRODUCTION_READY) → Member 소속 → 디자인(존재+카드종류 일치+active) → 작명 완료 → 카드번호 → 발행처(단체 로고·직인 필수) → 만세력 확정(연주 확정 여부) → 렌더링.
+- 파일: `CardSide.java`(신규 enum), `CardPreviewRequest.java`(신규 DTO), `CardPreviewService.java`(신규, `domain/card/service` 패키지 — `CardImageCompositor`/`CardMemberData`가 패키지 프라이빗이라 같은 패키지에 둠), `AdminApplicationController.java`(엔드포인트 추가), `ErrorCode.java`(`CARD_DESIGN_NOT_FOUND`/`CARD_DESIGN_MISMATCH`/`CARD_ISSUE_DATE_OUT_OF_RANGE`/`MANSERYEOK_NOT_CONFIRMED`/`CARD_ISSUER_ASSETS_MISSING`), 테스트(`CardPreviewServiceTest` 17개), `TODO.md`.
+- 사유: 1-B(작명)·1-D(만세력)·2-B(컴포지터)가 각각 구현·검증됐지만 이걸 실제 DB 데이터로 연결해 카드를 만들어내는 코드가 없었다 — 사용자가 "만세력에서 구한 이름이 카드 렌더링까지 이어지는지" 확인을 요청해 이 연결부가 빠져있다는 게 드러났다.
+- 검증: 신규 테스트 17개 통과. 실제 docker 재빌드 후 curl로 개인 신청 1건(기존 데이터)+단체 Excel로 새로 만든 신청 1건 둘 다 실제 FRONT/BACK PNG 생성 확인 — 이름/영문명/카드번호/주소/발급일자/띠 전부 실제 DB 저장값과 일치.
+- 미완료(범위 밖): 프론트 연동 전혀 없음(아래 통합 감사 항목 참고) — `api.ts`에 이 6개 API(출생지역 검색/만세력 resolve·confirm·조회/카드디자인 목록/카드 미리보기) 래퍼 자체가 없다. 3단계(비동기 전체 생성)도 미착수.
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 2-C
+
+## 2026-08-26/27 — Claude — `main` (관리자 전체 플로우 통합 검증 + 이름 필드 스왑 버그 수정)
+
+- 변경(검증): 단체 Excel 신청 생성부터 카드 미리보기까지 13단계를 실제 API로 전부 실행해 어디서 끊기는지 확인했다(구현 아님, 순수 검증). 테스트용 단체 Excel(1일반카드_단체신청_양식_v1.1.xlsx에 실제 데이터 채움) → `POST /api/applications/bulk` → DB Member 저장 확인 → confirm-payment/start-review/approve-naming → birth-region 검색+manseryeok resolve/confirm(실제 Google API) → 이름 배정 → complete-naming → 카드번호 배정 → card-designs 조회 → card-preview(FRONT/BACK) 순으로 전부 실제 호출.
+- **발견한 버그**: `ApplicationService.assignMemberName()`이 `NameAssignRequest`의 `reading`(짧은 훈음)과 `meaning`(긴 풀이 문단)을 엔티티의 `nameMeaning`/`nameInterpretation`에 뒤바꿔 저장하고 있었다 — `CardImageCompositor`는 `nameMeaning`을 카드 뒷면 "한자뜻음"(짧은 자리)에, `nameInterpretation`을 "풀이"(긴 자리)에 그리므로, 실제 카드를 렌더링해보니 긴 문단이 좁은 "한자뜻음" 자리에 밀려 들어가고 짧은 훈음이 "풀이" 자리에 덩그러니 있는 걸 육안으로 확인했다. `ApplicationService.java:463`의 `assignKoreanName(...)` 호출에서 `meaning`/`reading` 인자 순서를 바로잡아 고쳤다.
+- **발견한 프론트 연동 갭(수정 안 함, 보고만)**: 13단계 중 6단계(출생지역 검색/만세력 resolve/만세력 confirm/카드디자인 목록/카드 미리보기/최종 생성)가 프론트에 전혀 연결돼 있지 않다. 특히 `frontend/src/data/adminNamingMock.ts`의 `mockSaju()`(해시 기반 가짜 사주 생성)가 여전히 실사용 경로의 fallback으로 남아있고, 실제 만세력 API를 프론트가 안 불러서 사실상 항상 이 fallback을 탄다 — 이름 추천 자체(700개 사전 점수화)는 정상 동작하지만 입력값(오행)이 가짜다. `AdminPage.tsx`의 "작명은 백엔드 미구현" 안내 문구도 이제 낡았다(작명 저장·상태전이는 실제로 연결돼 있음).
+- 파일(수정): `ApplicationService.java`(`assignMemberName` 인자 순서), `ApplicationServiceNameAssignTest.java`(예전 버그를 "정상"으로 어설션하던 테스트 수정).
+- 사유: 통합 검증 중 실제 카드 렌더링으로 발견한 데이터 무결성 버그 — 사용자가 확인 후 즉시 수정 요청.
+- 검증: `ApplicationServiceNameAssignTest` 7개 통과. docker 재빌드 후 동일 이름을 실제 API로 재배정하고 카드 뒷면을 다시 렌더링해 "한자뜻음"/"풀이" 위치가 올바르게 뒤바뀌었음을 육안 확인.
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 2-C, `docs/FRONTEND_API_GAPS.md`(추가 필요)
+
 ## 2026-08-26 — Claude — `main` (2-B 후속 — HONOR_CITIZEN 직인 위치·에셋 결함 해소)
 
 - 변경: 2-B에서 발견한 두 결함을 사용자 지시대로 해소했다. (1) `HONOR_CITIZEN` 직인 좌표를 캔버스 안쪽(90,60)에 두고 실제로 잘리지 않는지 재렌더링 확인. (2) `HONOR_CITIZEN/2` 폴더에 없던 `직인.png`을 같은 카드종류인 `HONOR_CITIZEN/1/직인.png`로 채워넣었다 — 이 파일은 실제 콘텐츠로 렌더링되지 않고 슬롯 크기 참고용으로만 쓰여(진짜 그려지는 이미지는 신청자 업로드분) 다른 디자인 것을 그대로 재사용해도 문제없다.

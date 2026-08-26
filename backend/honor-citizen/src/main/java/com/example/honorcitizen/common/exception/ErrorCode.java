@@ -64,6 +64,11 @@ public enum ErrorCode {
     CARD_NOT_READY(400, "아직 카드가 발급되지 않았습니다."),
     CARD_TYPE_NOT_FOUND(404, "존재하지 않는 카드 종류입니다."),
     UNSUPPORTED_CARD_TYPE(400, "학생증은 이 기능에서 지원하지 않습니다."),
+    CARD_DESIGN_NOT_FOUND(404, "존재하지 않는 카드 디자인입니다."),
+    CARD_DESIGN_MISMATCH(400, "이 신청의 카드 종류와 맞지 않거나 비활성화된 디자인입니다."),
+    CARD_ISSUE_DATE_OUT_OF_RANGE(400, "발급일자는 신청일 이후, 신청일로부터 3개월 이내여야 합니다."),
+    MANSERYEOK_NOT_CONFIRMED(400, "만세력 결과가 확정되지 않아 띠 이미지를 결정할 수 없습니다."),
+    CARD_ISSUER_ASSETS_MISSING(400, "단체 신청은 로고와 직인 이미지가 모두 있어야 합니다."),
 
     // Review
     REVIEW_NOT_FOUND(404, "존재하지 않는 후기입니다."),

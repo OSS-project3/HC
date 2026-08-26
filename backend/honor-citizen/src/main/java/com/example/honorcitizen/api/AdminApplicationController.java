@@ -16,6 +16,8 @@ import com.example.honorcitizen.domain.application.dto.NameAssignRequest;
 import com.example.honorcitizen.domain.application.dto.NamingResultApplyResponse;
 import com.example.honorcitizen.domain.application.dto.RejectPhotoRequest;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
+import com.example.honorcitizen.domain.card.dto.CardPreviewRequest;
+import com.example.honorcitizen.domain.card.service.CardPreviewService;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokActiveResultResponse;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokConfirmRequest;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokResolveRequest;
@@ -50,6 +52,7 @@ public class AdminApplicationController {
 
     private final ApplicationService applicationService;
     private final ManseryeokService manseryeokService;
+    private final CardPreviewService cardPreviewService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<MyApplicationListItemResponse>>> list(
@@ -151,6 +154,17 @@ public class AdminApplicationController {
             @PathVariable Long memberId) {
         return ResponseEntity.ok(ApiResponse.success(
                 manseryeokService.getActiveManseryeokResult(adminId, applicationId, memberId)));
+    }
+
+    // 저장 없는 카드 미리보기(2-C) — DB row·S3 object를 만들지 않고 실제 신청 데이터로 PNG만 반환한다.
+    @PostMapping("/{applicationId}/members/{memberId}/card-preview")
+    public ResponseEntity<byte[]> cardPreview(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody CardPreviewRequest request) {
+        byte[] png = cardPreviewService.preview(adminId, applicationId, memberId, request);
+        return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).body(png);
     }
 
     // 상태 전이 — 전이 규칙 자체는 Application 엔티티에 있고, 여기·Service는 호출·인가·감사로그만 담당한다.

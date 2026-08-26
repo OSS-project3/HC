@@ -1228,24 +1228,27 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 3. `card-templates/zodiac/`의 12지 아이콘 파일명·라벨이 부분적으로 어긋나 있음(`말.png`이 강아지 그림처럼 보이는 것 등) — 사용자가 실제 렌더링 이미지를 직접 확인하고 "정상"으로 확정(2026-08-26). 코드는 파일명 그대로 신뢰해서 그린다.
 4. 파일명 비표준 패턴이 예상보다 다양함을 추가로 확인 — `HONOR_KOREAN/3`은 로고.png, `VISITOR/6`은 "발행처 로고.png"(공백 포함), `HONOR_KOREAN/6`은 뒷면.png 대신 "대지 1 사본.png"+직인.png 대신 "아트보드 6.png". 전부 후보 리스트(`LOGO_CANDIDATES`/`SEAL_CANDIDATES`/`BACK_CANDIDATES`)에 반영해 처리했다.
 
-### 2-C. 저장 없는 미리보기 API
+### 2-C. 저장 없는 미리보기 API — 🔵 백엔드 완료, 프론트 미착수 (Claude, 2026-08-26)
 
-- [ ] API 구현: `POST /api/admin/applications/{applicationId}/members/{memberId}/card-preview`.
-- [ ] 요청값: `cardDesignId`, `issueDate`, `side`.
-- [ ] 발급일자는 KST 기준 신청일 이상·신청일에서 3개월 이하인지 검증.
-- [ ] 검증 순서: 관리자 권한 → Application → 상태 → Member 소속 → 디자인 → 작명 → 실제 카드번호 → 주소·발행처 → 원본 파일 → 렌더링.
-- [ ] `PRODUCTION_READY`에서만 허용.
-- [ ] 실제 저장된 카드번호 사용. 예시 번호 발급·예약 없음.
-- [ ] 결과는 `image/png` byte로 반환하며 DB row와 S3 object를 생성하지 않음.
-- [ ] `404` 대상 없음, `409` 상태·동시성, `422` 카드 데이터·렌더링 가능성, `500` 내부 저장소 장애를 구분.
-- [ ] 응답에 S3 key, 파일 시스템 경로, stack trace를 노출하지 않음.
-- [ ] API 통합 테스트: 앞/뒤 성공, DB·S3 무변경, 소속 불일치, 상태, 카드번호 누락, 날짜, 디자인, 파일, 텍스트 초과.
+- [x] API 구현: `POST /api/admin/applications/{applicationId}/members/{memberId}/card-preview` — `CardPreviewService`(domain/card/service, `CardImageCompositor`/`CardMemberData`가 패키지 프라이빗이라 같은 패키지에 둠).
+- [x] 요청값: `cardDesignId`, `issueDate`, `side`(`CardSide` enum, FRONT/BACK).
+- [x] 발급일자는 신청일(`Application.createdAt`) 이상·신청일로부터 3개월 이하인지 검증(`CARD_ISSUE_DATE_OUT_OF_RANGE`).
+- [x] 검증 순서: 관리자 권한 → Application → 상태 → Member 소속 → 디자인(존재+카드종류 일치+active) → 작명 완료(`NAMING_INCOMPLETE`) → 실제 카드번호(`CARD_NOT_READY`) → 발행처(단체 로고·직인 필수, `CARD_ISSUER_ASSETS_MISSING`) → 만세력 확정 결과(연주 확정 여부, `MANSERYEOK_NOT_CONFIRMED`) → 렌더링.
+- [x] `PRODUCTION_READY`에서만 허용(`INVALID_STATUS_TRANSITION`).
+- [x] 실제 저장된 카드번호 사용(예시 번호 발급 없음 — `member.getCardNumber()`를 그대로 씀).
+- [x] 결과는 `image/png` byte로 반환(`ResponseEntity<byte[]>`, `ApiResponse` 미포장 — `export` 엔드포인트와 동일 패턴), DB row·S3 object 생성 없음(`@Transactional(readOnly = true)`, `StorageService.download`만 호출).
+- [x] 에러 구분: `404`(디자인 없음/멤버 없음), `400`(상태·소속불일치·작명미완료·카드번호없음·날짜범위·디자인불일치·만세력미확정·발행처누락), `409`는 이번 범위에서 동시성 잠금을 안 걸어 해당 없음(읽기 전용 미리보기라 실사용상 충돌 여지가 낮다고 판단) — 422 대신 프로젝트 기존 관례대로 400 계열로 통일(다른 도메인도 전부 400/404/409만 씀).
+- [x] 응답에 S3 key·파일 경로·stack trace 노출 없음(기존 `GlobalExceptionHandler`가 `CustomException`을 errorCode+message로만 직렬화).
+- [x] `CardPreviewServiceTest` 17개: 앞/뒤 성공, DB·S3 무변경(Mockito verify), 소속 불일치, 상태, 카드번호 누락, 날짜(이전/3개월 초과), 디자인(없음/카드종류 불일치/비활성), 작명 미완료, 만세력 미확정/연주 불확실, 단체 발행처 누락, 로고·직인 UploadFile 경로 해석. "텍스트 초과"는 자동 검증 대상에서 제외(픽셀 단위 검증이 필요해 육안 확인 영역, 2-B와 동일 판단).
+- [x] **실제 API 검증(2026-08-26/27)**: docker 재빌드 후 실제 DB row(1건은 개인, 1건은 단체 Excel로 직접 생성)로 FRONT/BACK 둘 다 실제 렌더링 성공 — 이름/영문명/카드번호/주소/발급일자/띠가 전부 실제 저장값과 일치함을 육안 확인. 실패 케이스(존재하지 않는 디자인/카드종류 불일치/상태 미충족)도 실제 호출로 확인.
 
 완료 조건:
 
-- [ ] 관리자가 디자인을 바꿔가며 한 Member의 실제 데이터로 미리보기 가능.
-- [ ] 미리보기 호출 전후 DB/S3 상태 동일.
-- [ ] Preview Service/Controller targeted tests와 Application 관련 회귀 테스트 통과.
+- [x] 관리자가 디자인을 바꿔가며 한 Member의 실제 데이터로 미리보기 가능(백엔드 API 기준 — 프론트 연동은 미착수, 아래 참고).
+- [x] 미리보기 호출 전후 DB/S3 상태 동일(테스트+실제 호출 둘 다 확인).
+- [x] Preview Service/Controller targeted tests와 Application 관련 회귀 테스트 통과.
+
+**⚠️ 프론트 연동 상태(2026-08-27 통합 플로우 감사)**: 이 API를 부르는 프론트 코드가 전혀 없다(`api.ts`에 래퍼조차 없음). `card-designs` 조회 API(2-A)도 마찬가지로 미연동. 관리자 화면에 카드 디자인 선택·발급일자 입력·미리보기 UI 자체가 없어 이 3개(2-A 조회, 2-C resolve/confirm 계열, 2-C 미리보기)는 백엔드만 완성된 상태 — `docs/FRONTEND_API_GAPS.md`에 기록 필요.
 
 ## 3. 비동기 전체 생성·원자적 저장·후속 상태 전이
 
