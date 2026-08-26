@@ -191,3 +191,5 @@
 }
 
 .auth__field-hint--ok { color: #2f7d4f; font-weight: 600; }
+
+.auth__form-error { margin: 4px 0 2px; color: #c0392b; font-size: 0.9rem; font-weight: 600; text-align: center; }
