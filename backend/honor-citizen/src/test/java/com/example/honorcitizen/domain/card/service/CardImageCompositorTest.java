@@ -24,8 +24,14 @@ class CardImageCompositorTest {
     private final CardImageCompositor compositor = new CardImageCompositor();
 
     private CardMemberData sampleData() {
-        return new CardMemberData("김학생", "Kim Hak-saeng", samplePhoto(),
-                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25));
+        return new CardMemberData("김", "학생", "Kim Hak-saeng", null, null, null, samplePhoto(),
+                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25), null, null, null);
+    }
+
+    private CardMemberData sampleDataWithHanja() {
+        return new CardMemberData("김", "학생", "Kim Hak-saeng", "學生",
+                "배울 학(學) 날 생(生)", "배우고 익히며 성장하는 삶을 산다.", samplePhoto(),
+                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25), "인", null, null);
     }
 
     private byte[] samplePhoto() {
@@ -93,8 +99,8 @@ class CardImageCompositorTest {
         BufferedImage wide = new BufferedImage(800, 200, BufferedImage.TYPE_INT_RGB);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ImageIO.write(wide, "png", out);
-        CardMemberData data = new CardMemberData("김학생", "Kim Hak-saeng", out.toByteArray(),
-                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25));
+        CardMemberData data = new CardMemberData("김", "학생", "Kim Hak-saeng", null, null, null, out.toByteArray(),
+                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25), null, null, null);
 
         byte[] png = compositor.composeFront(CardTypeCode.HONOR_KOREAN, 1, data);
 
@@ -116,11 +122,95 @@ class CardImageCompositorTest {
 
     @Test
     void nullPhotoSkipsPhotoDrawingWithoutError() throws Exception {
-        CardMemberData data = new CardMemberData("김학생", "Kim Hak-saeng", null,
-                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25));
+        CardMemberData data = new CardMemberData("김", "학생", "Kim Hak-saeng", null, null, null, null,
+                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25), null, null, null);
 
         byte[] png = compositor.composeFront(CardTypeCode.HONOR_KOREAN, 1, data);
 
         assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void drawsZodiacIconWhenBranchProvided() throws Exception {
+        CardMemberData data = sampleDataWithHanja();
+
+        byte[] png = compositor.composeFront(CardTypeCode.HONOR_KOREAN, 1, data);
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void throwsWhenZodiacBranchIsInvalid() {
+        CardMemberData data = new CardMemberData("김", "학생", "Kim Hak-saeng", null, null, null, samplePhoto(),
+                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25), "존재안함", null, null);
+
+        assertThatThrownBy(() -> compositor.composeFront(CardTypeCode.HONOR_KOREAN, 1, data))
+                .isInstanceOf(CustomException.class);
+    }
+
+    @Test
+    void drawsLogoAndSealWhenBytesProvided() throws Exception {
+        BufferedImage logoImg = new BufferedImage(100, 100, BufferedImage.TYPE_INT_ARGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(logoImg, "png", out);
+        CardMemberData data = new CardMemberData("김", "학생", "Kim Hak-saeng", null, null, null, samplePhoto(),
+                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25), null,
+                out.toByteArray(), out.toByteArray());
+
+        byte[] png = compositor.composeFront(CardTypeCode.HONOR_KOREAN, 1, data);
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void skipsSealSilentlyWhenSlotAssetMissingForDesign() throws Exception {
+        // HONOR_CITIZEN/2엔 직인.png가 없다(에셋 누락, 실제 폴더 확인) — 렌더링 자체는 계속 성공해야 한다.
+        BufferedImage sealImg = new BufferedImage(50, 50, BufferedImage.TYPE_INT_ARGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(sealImg, "png", out);
+        CardMemberData data = new CardMemberData("김", "학생", "Kim Hak-saeng", null, null, null, samplePhoto(),
+                "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25), null, null, out.toByteArray());
+
+        byte[] png = compositor.composeFront(CardTypeCode.HONOR_CITIZEN, 2, data);
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void composesHonorKoreanBackWithHanjaVariant() throws Exception {
+        byte[] png = compositor.composeBack(CardTypeCode.HONOR_KOREAN, 1, sampleDataWithHanja());
+
+        BufferedImage result = ImageIO.read(new ByteArrayInputStream(png));
+        assertThat(result).isNotNull();
+        // 뒷면.png는 앞면.png와 별도로 export된 에셋이라 픽셀 치수가 정확히 같다는 보장은 없다(HONOR_KOREAN/1
+        // 실측: 980x651 vs 앞면 980x650) — 세로형/가로형 여부만 구조적으로 검증한다.
+        assertThat(result.getWidth()).isGreaterThan(result.getHeight());
+    }
+
+    @Test
+    void composesHonorKoreanBackWithoutHanjaVariant() throws Exception {
+        byte[] png = compositor.composeBack(CardTypeCode.HONOR_KOREAN, 1, sampleData());
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void composesHonorKoreanDesign6BackUsingNonStandardFileName() throws Exception {
+        // 명예한국인증/6은 뒷면.png 대신 "대지 1 사본.png".
+        byte[] png = compositor.composeBack(CardTypeCode.HONOR_KOREAN, 6, sampleDataWithHanja());
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void throwsForVisitorDesign1BackBecauseFrontBackRoleIsUnverified() {
+        assertThatThrownBy(() -> compositor.composeBack(CardTypeCode.VISITOR, 1, sampleDataWithHanja()))
+                .isInstanceOf(CustomException.class);
+    }
+
+    @Test
+    void throwsBackForCardTypeWithoutLayout() {
+        assertThatThrownBy(() -> compositor.composeBack(CardTypeCode.STUDENT, 1, sampleDataWithHanja()))
+                .isInstanceOf(CustomException.class);
     }
 }

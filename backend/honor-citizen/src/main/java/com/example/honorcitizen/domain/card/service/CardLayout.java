@@ -18,5 +18,8 @@ record CardLayout(
         CardFieldOffset photo,
         CardFieldOffset cardNumber,
         CardFieldOffset address,
-        CardFieldOffset issueDate) {
+        CardFieldOffset issueDate,
+        CardFieldOffset zodiac,
+        CardFieldOffset issuerLogo,
+        CardFieldOffset seal) {
 }

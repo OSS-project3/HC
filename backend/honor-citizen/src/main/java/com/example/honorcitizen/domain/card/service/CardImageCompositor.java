@@ -50,10 +50,16 @@ class CardImageCompositor {
     private static final String TEMPLATE_ROOT = "card-templates/";
     private static final DateTimeFormatter ISSUE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy.MM.dd");
 
-    // 앞면 배경/사진 자리 파일명이 디자인마다 다르게 export되어 있어(디자이너 파일명 비표준) 후보를
-    // 순서대로 시도한다. TODO.md "카드 이미지 합성" 섹션의 파일명 불일치 조사 결과.
+    // 앞·뒷면 배경/사진/로고/직인 자리 파일명이 디자인마다 다르게 export되어 있어(디자이너 파일명
+    // 비표준) 후보를 순서대로 시도한다. TODO.md "카드 이미지 합성"/2-B 섹션의 파일명 불일치 조사 결과.
     private static final List<String> FRONT_CANDIDATES = List.of("앞면.png", "대지 1.png");
-    private static final List<String> PHOTO_CANDIDATES = List.of("사진.png", "아트보드 2.png", "캐릭터.png");
+    private static final List<String> BACK_CANDIDATES = List.of("뒷면.png", "대지 1 사본.png");
+    private static final List<String> PHOTO_CANDIDATES = List.of("사진.png", "아트보드 2.png");
+    private static final List<String> LOGO_CANDIDATES = List.of("발행처로고.png", "로고.png", "발행처 로고.png");
+    private static final List<String> SEAL_CANDIDATES = List.of("직인.png", "아트보드 6.png");
+    // 띠 아이콘은 디자인별 슬롯 에셋이 없어(HONOR_CITIZEN/1의 캐릭터.png가 유일한 참고용) 슬롯 크기에
+    // coverFit하지 않고, 기준 캔버스 스케일로 이 논리 너비(pt)만큼 그린다 — 시안 목업 비율을 육안 참고.
+    private static final double ZODIAC_BASE_WIDTH = 9d;
 
     private final Font dotumMedium;
     private final Font dotumBold;
@@ -83,16 +89,62 @@ class CardImageCompositor {
         try {
             drawTitle(g, cardType, layout, scaleX, scaleY);
             drawPhoto(g, dir, data.photo(), layout, scaleX, scaleY);
-            drawText(g, data.name(), dotumBold, 8f, Color.BLACK, layout.name(), layout, scaleX, scaleY);
+            drawText(g, data.fullName(), dotumBold, 8f, Color.BLACK, layout.name(), layout, scaleX, scaleY);
             drawText(g, data.englishName(), dotumMedium, 5f, Color.DARK_GRAY, layout.englishName(), layout, scaleX, scaleY);
             drawText(g, data.cardNumber(), dotumMedium, 5f, Color.DARK_GRAY, layout.cardNumber(), layout, scaleX, scaleY);
             drawText(g, data.address(), dotumMedium, 4.5f, Color.DARK_GRAY, layout.address(), layout, scaleX, scaleY);
             drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
                     layout.issueDate(), layout, scaleX, scaleY);
+            drawZodiac(g, data.zodiacBranch(), layout.zodiac(), layout, scaleX, scaleY);
+            drawSlotImage(g, dir, LOGO_CANDIDATES, data.logo(), layout.issuerLogo(), layout, scaleX, scaleY);
+            drawSlotImage(g, dir, SEAL_CANDIDATES, data.seal(), layout.seal(), layout, scaleX, scaleY);
         } finally {
             g.dispose();
         }
         return toPngBytes(bg);
+    }
+
+    // 뒷면(한국이름풀이) — 배경 위에 이름·(있으면)한자·영문명·(있으면)한자뜻음·풀이를 얹는다.
+    // 배경 자체(뒷면.png)는 신청자 정보와 무관한 디자인 고정 그래픽이라 필드가 없다.
+    byte[] composeBack(CardTypeCode cardType, int design, CardMemberData data) {
+        CardBackLayout layout = CardLayouts.BACK.get(cardType);
+        if (layout == null || isUnverifiedDesign(cardType, design)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        String dir = TEMPLATE_ROOT + cardType.name() + "/" + design + "/";
+        BufferedImage bg = copy(resolveImage(dir, BACK_CANDIDATES));
+        double scaleX = bg.getWidth() / layout.baseWidth();
+        double scaleY = bg.getHeight() / layout.baseHeight();
+        CardBackVariant variant = data.hasHanja() ? layout.hanjaVariant() : layout.noHanjaVariant();
+
+        Graphics2D g = bg.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        try {
+            drawBackText(g, titleFallbackBackText(), batangBold, 8f, Color.BLACK,
+                    layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            drawBackText(g, data.fullName(), dotumBold, 7f, Color.BLACK,
+                    variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            drawBackText(g, data.englishName(), dotumMedium, 4.5f, Color.DARK_GRAY,
+                    variant.englishName(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            if (data.hasHanja()) {
+                drawBackText(g, "(" + data.chineseName() + ")", batangBold, 5.5f, Color.DARK_GRAY,
+                        variant.hanja(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+                drawBackText(g, data.nameMeaning(), dotumMedium, 4f, Color.DARK_GRAY,
+                        variant.hanjaMeaning(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            }
+            drawBackText(g, data.nameInterpretation(), dotumMedium, 4f, Color.DARK_GRAY,
+                    variant.interpretation(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+        } finally {
+            g.dispose();
+        }
+        return toPngBytes(bg);
+    }
+
+    // 세 카드종류 모두 뒷면 타이틀은 "한국이름풀이"로 동일하다(HONOR_KOREAN/HONOR_CITIZEN/VISITOR
+    // 시안_최종.jpg 전부 육안 확인). STUDENT는 CardLayouts.BACK에 없어 이 메서드까지 오지 않는다.
+    private String titleFallbackBackText() {
+        return "한 국 이 름 풀 이";
     }
 
     // 방문증/1은 앞면.png/뒷면.png가 없고 "대지 1.png" 파일 하나뿐이라 그게 앞면인지 뒷면인지
@@ -100,6 +152,60 @@ class CardImageCompositor {
     // 오류 없이 "성공"해버리므로, 잘못된 이미지로 카드가 만들어지는 걸 막기 위해 명시적으로 막는다.
     private boolean isUnverifiedDesign(CardTypeCode cardType, int design) {
         return cardType == CardTypeCode.VISITOR && design == 1;
+    }
+
+    private void drawZodiac(Graphics2D g, String zodiacBranch, CardFieldOffset offset, CardLayout layout,
+            double scaleX, double scaleY) {
+        if (zodiacBranch == null || offset == null) {
+            return;
+        }
+        String path = ZodiacIcon.resourcePathFor(zodiacBranch);
+        if (path == null || !resourceExists(path)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        BufferedImage icon = copy(loadImage(path));
+        double scale = (ZODIAC_BASE_WIDTH * scaleX) / icon.getWidth();
+        int targetW = (int) Math.round(icon.getWidth() * scale);
+        int targetH = (int) Math.round(icon.getHeight() * scale);
+        BufferedImage scaled = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D sg = scaled.createGraphics();
+        sg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        sg.drawImage(icon, 0, 0, targetW, targetH, null);
+        sg.dispose();
+        drawImageCentered(g, scaled, offset, layout, scaleX, scaleY);
+    }
+
+    // 로고·직인은 신청자가 업로드한 이미지를 슬롯 크기에 coverFit해서 그린다. bytes가 null이면(정책상
+    // 로고·직인이 없는 신청) 그리지 않는다. 슬롯 참고 파일이 이 디자인에 없으면(에셋 누락, 예:
+    // HONOR_CITIZEN/2엔 직인.png가 없음) 조용히 건너뛴다 — 렌더링 자체를 막을 이유는 아니다.
+    private void drawSlotImage(Graphics2D g, String dir, List<String> candidates, byte[] bytes,
+            CardFieldOffset offset, CardLayout layout, double scaleX, double scaleY) {
+        if (bytes == null || bytes.length == 0 || offset == null) {
+            return;
+        }
+        BufferedImage slot = resolveOptionalImage(dir, candidates);
+        if (slot == null) {
+            return;
+        }
+        BufferedImage fitted = coverFit(readPhoto(bytes), slot.getWidth(), slot.getHeight());
+        drawImageCentered(g, fitted, offset, layout, scaleX, scaleY);
+    }
+
+    private void drawBackText(Graphics2D g, String text, Font baseFont, float sizeAtBaseScale, Color color,
+            CardFieldOffset offset, double baseWidth, double baseHeight, double scaleX, double scaleY) {
+        if (text == null || text.isBlank() || offset == null) {
+            return;
+        }
+        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
+        g.setFont(font);
+        g.setColor(color);
+        FontRenderContext frc = g.getFontRenderContext();
+        Rectangle2D bounds = font.getStringBounds(text, frc);
+        double cx = (baseWidth / 2 + offset.x()) * scaleX;
+        double cy = (baseHeight / 2 + offset.y()) * scaleY;
+        double x = cx - bounds.getWidth() / 2.0;
+        double y = cy + bounds.getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
+        g.drawString(text, (float) x, (float) y);
     }
 
     private String formatIssueDate(LocalDate issueDate) {
@@ -178,13 +284,23 @@ class CardImageCompositor {
     }
 
     private BufferedImage resolveImage(String dir, List<String> candidates) {
+        BufferedImage image = resolveOptionalImage(dir, candidates);
+        if (image == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        return image;
+    }
+
+    // 슬롯 참고 파일이 이 디자인에 아예 없어도(에셋 누락) 예외를 던지지 않고 null을 돌려준다 —
+    // 로고·직인처럼 없어도 렌더링 자체는 계속 가능한 선택적 필드에 쓴다.
+    private BufferedImage resolveOptionalImage(String dir, List<String> candidates) {
         for (String candidate : candidates) {
             String path = dir + candidate;
             if (resourceExists(path)) {
                 return loadImage(path);
             }
         }
-        throw new CustomException(ErrorCode.INVALID_INPUT);
+        return null;
     }
 
     private boolean resourceExists(String classpathPath) {

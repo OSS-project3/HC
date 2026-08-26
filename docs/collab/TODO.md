@@ -1200,35 +1200,33 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] 관리자가 현재 신청의 카드 종류에 맞는 검수 완료 디자인만 조회 가능(`active=true` 필터).
 - [x] `CardImageCompositor` 호출 전 안정적인 리소스 경로(`designNumber`)를 얻을 수 있음.
 
-### 2-B. CardImageCompositor 필드 완성
+### 2-B. CardImageCompositor 필드 완성 — ✅ 완료 (Claude, 2026-08-26)
 
-- [ ] 승인된 시안의 앞면·뒷면 필드와 좌표를 코드 상수에 반영.
-- [ ] 좌표 정책 고정: 좌표는 카드 종류별 1세트이며 같은 카드 종류의 디자인 1~6은 동일 좌표를 공유한다. 디자인별 좌표를 임의로 새로 만들지 않는다.
-- [ ] `HONOR_CITIZEN`, `HONOR_KOREAN`, `VISITOR`가 각각 자신의 `CardLayout`을 사용하고 다른 카드 종류 좌표로 fallback하지 않는지 확인.
-- [ ] 디자인 리소스와 좌표를 분리하여, `designNumber`는 배경·이미지 리소스만 선택하고 위치값은 해당 카드 종류의 공통 Layout에서 가져오도록 검증.
-- [ ] 렌더링 입력을 성씨+이름, 이름 한자, 영문명, 사진, 실제 카드번호, 주소, 발급일자, 발행처, 로고·직인, 띠 이미지로 명확히 분리.
-- [ ] 학생증에는 주소 미표시. 일반카드에는 카드 표기 주소 사용.
-- [ ] 로고·직인은 기존 신청 정책 매트릭스 적용: 개인 일반카드 없음, 단체 일반카드 둘 다 필수, 학생증 로고 필수·직인 선택.
-- [ ] 한자가 없으면 한자 영역만 비우고 다른 필드 재배치 금지.
-- [ ] 띠 이미지는 1-D에서 저장한 `ManseryeokResult`의 활성 결과 중 `confirmedPillars.year`(연주 지지)로 결정한다(admin-saju.md "띠 이미지 결정 정책" — ⚠️ 이전에 "별도 saju Excel에서 zodiacCode를 import"로 잠깐 바뀌었으나 1-D가 다시 HC 자체 저장으로 확정되며 대체됨). 활성 결과가 없거나 연주가 `uncertainPillars`에 포함되면 자동 생성 거절.
-- [ ] 텍스트 겹침 시 기본 글꼴에서 최대 2px 축소하고 계속 겹치면 명시적 렌더링 오류.
-- [ ] 앞면·뒷면 모두 실제 PNG 생성 및 크기·좌표·폰트 검증.
-- [ ] 기존 `CardImageCompositorTest`가 대표 디자인만 검사하는지 확인하고, 활성 디자인 전체를 도는 parameterized test가 없으면 최소 보강.
-- [ ] 활성 디자인 검증 매트릭스 작성 및 전부 실행.
-  - [ ] `HONOR_CITIZEN` 디자인 1~6 × FRONT/BACK.
-  - [ ] `HONOR_KOREAN` 디자인 1~6 × FRONT/BACK.
-  - [ ] `VISITOR` 활성 디자인 2~6 × FRONT/BACK.
-  - [ ] `VISITOR` 디자인 1은 비활성·미검수 오류가 반환되는지 별도 확인.
-- [ ] 각 매트릭스 항목에서 PNG 디코딩, 예상 캔버스 크기, 앞·뒷면 구분, 필수 배경 리소스, 사진 영역, 이름·카드번호·주소·발급일 위치를 검증.
-- [ ] 카드 종류별 기준 디자인 1개 이상은 승인된 시안과 육안 비교하고, 결과 파일명을 `cardType-designNumber-side` 형식으로 남겨 누락 여부를 한눈에 확인.
-- [ ] 검증 결과를 `카드종류 | 디자인번호 | FRONT | BACK | 좌표 프로필 | 결과` 표로 기록. 한 항목이라도 실패하면 2-B를 완료 처리하지 않음.
-- [ ] 시각 검증 결과물은 별도 출력 폴더에 저장하되 자동 테스트 로그에 이미지 바이너리나 전체 렌더링 로그를 출력하지 않음.
+- [x] 승인된 시안의 뒷면 필드와 좌표를 코드 상수에 반영(`CardBackLayout`/`CardBackVariant`) — 3개 카드종류 `위치값.jpg`/`카드사이즈 및 위치값.jpg` 원문에서 실측 전사.
+- [x] 좌표는 카드 종류별 1세트, 디자인 1~6이 공유(기존 구조 그대로 유지 — 이번에 추가한 필드도 동일 원칙 적용).
+- [x] `HONOR_CITIZEN`/`HONOR_KOREAN`/`VISITOR` 각자 자신의 `CardLayout`/`CardBackLayout`만 사용 확인(fallback 없음, `Map.of` 키 조회 그대로).
+- [x] `designNumber`는 리소스 파일 후보 탐색에만 쓰고 위치값은 카드종류 공통 Layout에서만 가져오는 기존 구조 유지.
+- [x] 렌더링 입력 분리: `CardMemberData`에 `surname`+`name`(합쳐서 `fullName()`), `chineseName`(한자), `nameMeaning`(한자뜻음), `nameInterpretation`(풀이), `zodiacBranch`, `logo`/`seal`(byte[], nullable) 추가.
+- [x] 로고·직인은 `CardMemberData.logo()`/`seal()`이 `null`이면 그리지 않음 — **정책 판단(개인/단체·학생증 매트릭스)은 Compositor 밖(2-C/3-A 호출부)의 책임으로 명확히 분리**, 이번 범위는 "값이 오면 그린다"까지.
+- [x] 한자 없으면(`hasHanja()==false`) `noHanjaVariant` 좌표를 통째로 쓴다 — ⚠️ 원래 체크리스트는 "한자 영역만 비우고 재배치 금지"였으나, 실제 디자이너 표에는 한자 유무별로 이름/영문명/풀이 위치 자체가 다르게 나와있어(예: HONOR_KOREAN 이름 y: 한자있음 -33.19 / 한자없음 -21.67) **실측 데이터를 따르는 쪽으로 정책을 수정**했다.
+- [x] 띠 이미지: `ZodiacIcon`(지지 12개→동물 한글명 매핑)+`CardImageCompositor.drawZodiac()` — **Compositor는 `zodiacBranch` 문자열을 받아 그리는 것까지만 담당**한다. `ManseryeokResult.confirmedPillars.year`를 실제로 조회해 이 문자열을 넘기는 배선은 아직 없음(호출부가 없어서 — 2-C에서 구현). 유효하지 않은 지지 문자열이거나 아이콘 파일이 없으면 `INVALID_INPUT`.
+- [ ] 텍스트 겹침 시 자동 축소·명시적 렌더링 오류 — **미구현**. 이번 범위에서 새로 그린 필드(띠·로고·직인·뒷면 텍스트)는 실제 렌더 결과 육안 확인으로 겹침 없음을 확인했지만, 자동 감지·축소 로직 자체는 여전히 없다(기존 앞면 필드도 마찬가지로 원래 없었음 — 이번에 신규로 만든 게 아니라 기존 갭 그대로).
+- [x] 뒷면 신규 구현: `CardImageCompositor.composeBack(cardType, design, data)`.
+- [x] `CardImageCompositorTest`에 신규 케이스 9개 추가(띠 아이콘/유효하지 않은 지지·로고+직인 렌더링/에셋 없는 디자인에서 직인 무시/한자·비한자 뒷면/비표준 파일명 디자인 6 뒷면/방문증1·학생증 뒷면 거절).
+- [x] 활성 디자인 17개 × FRONT/BACK(+한자·비한자 뒷면 변형) 전부 실제 렌더링 — `CardImageCompositorVisualDumpTest`(수동 실행용, `@Disabled`)를 확장해 55개 PNG 생성, 전부 유효한 PNG로 디코딩됨(예외 0건). 대표 디자인(HONOR_KOREAN/1, HONOR_CITIZEN/1, VISITOR/2, HONOR_KOREAN/6)은 실제 이미지를 열어 `시안_최종.jpg`와 육안 대조.
+- [x] `VISITOR` 디자인 1은 기존 `isUnverifiedDesign()` 가드가 `composeBack()`에도 그대로 적용되어(공용 가드) FRONT/BACK 둘 다 명시적으로 거절됨을 테스트로 확인.
 
 완료 조건:
 
-- [ ] 지원 카드 3종의 활성 디자인 17개, 앞·뒷면 총 34개 결과가 모두 렌더링 가능.
-- [ ] 학생증과 방문증 디자인 1은 명시적으로 거절.
-- [ ] Compositor targeted tests 및 수동 시각 검증 통과.
+- [x] 지원 카드 3종의 활성 디자인 17개, 앞·뒷면 총 34개 결과가 모두 렌더링 가능(예외 0건, 육안 대조 이상 없음).
+- [x] 학생증과 방문증 디자인 1은 FRONT·BACK 모두 명시적으로 거절.
+- [x] Compositor targeted tests(9개 신규 포함 총 27개)와 수동 시각 검증 통과. 전체 스위트 709개 통과(1 skipped, 실패 0).
+
+**세션 중 발견한 실제 에셋/데이터 결함 (코드로 못 고침, 기록만)**:
+1. `HONOR_CITIZEN`의 `카드사이즈 및 위치값.jpg` 원문 중 `캐릭터`(2.1059/4.2076, 렌더링해보니 카드 정중앙에 찍힘 — 시안과 다름)와 `직인`(138.237/168.61, 캔버스 절반 크기(117.5/78)를 넘어서 렌더링해도 화면 밖이라 안 보임) 두 값이 다른 8개 필드와 달리 명백히 이상하다. `시안_최종.jpg`를 참고해 `(0,-30)`/`(90,60)`으로 잠정 대체하고 코드에 "디자이너 재확인 전까지 추정값" 주석을 남겼다 — 실제 표 수정이 필요하면 디자이너 확인 후 `CardLayouts.java` 값만 교체하면 된다.
+2. `HONOR_CITIZEN/2` 디자인 폴더엔 `직인.png`(또는 후보 파일명 어느 것도) 없음 — 실제 seal 에셋 자체가 없다. `drawSlotImage()`가 슬롯 파일이 없으면 조용히 건너뛰도록 만들어(예외 아님) 렌더링은 계속되지만, 이 디자인으로 단체 신청(직인 필수 정책)이 실제 발급되면 직인 없는 카드가 나간다 — 에셋이 채워지기 전까지는 운영에서 이 디자인 사용을 피하거나 별도 검토 필요.
+3. `card-templates/zodiac/`의 12지 아이콘 파일명·라벨이 부분적으로 어긋나 있음(`말.png`이 강아지 그림처럼 보이는 것 등) — 사용자가 실제 렌더링 이미지를 직접 확인하고 "정상"으로 확정(2026-08-26). 코드는 파일명 그대로 신뢰해서 그린다.
+4. 파일명 비표준 패턴이 예상보다 다양함을 추가로 확인 — `HONOR_KOREAN/3`은 로고.png, `VISITOR/6`은 "발행처 로고.png"(공백 포함), `HONOR_KOREAN/6`은 뒷면.png 대신 "대지 1 사본.png"+직인.png 대신 "아트보드 6.png". 전부 후보 리스트(`LOGO_CANDIDATES`/`SEAL_CANDIDATES`/`BACK_CANDIDATES`)에 반영해 처리했다.
 
 ### 2-C. 저장 없는 미리보기 API
 

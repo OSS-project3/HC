@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-26 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 2-B — CardImageCompositor 필드 완성)
+
+- 변경: `CardImageCompositor`에 뒷면 합성(`composeBack`)을 신규 구현하고, 앞면에 띠 아이콘·로고·직인 합성을 추가했다. 뒷면은 "한국이름풀이" — 이름(성씨+이름)/영문명/풀이는 항상, 한자가 있으면 `(한자)`와 한자뜻음도 함께 그린다. 한자 유무에 따라 좌표 세트 자체가 다르다(디자이너 실측값 그대로 — 기존 "한자 없으면 재배치 금지" 방침을 실측 데이터에 맞게 수정). 좌표는 3개 카드종류의 `위치값.jpg`/`카드사이즈 및 위치값.jpg` 원본에서 전사했다. 로고·직인은 `CardMemberData`에 byte[]로 받아 null이면 안 그린다(정책 판단은 이 클래스 밖 — 2-C/3-A 몫). 파일명이 디자인마다 달라(로고.png/발행처 로고.png/아트보드 6.png 등) 후보 리스트 방식을 로고·직인·뒷면 배경에도 확장했다.
+- **발견한 실제 결함(코드로 못 고침)**: (1) `HONOR_CITIZEN` 위치값 표의 `캐릭터`/`직인` 좌표 2개가 다른 8개 필드와 달리 렌더링해보니 시안과 명백히 다르다(직인은 아예 캔버스 밖) — 시안을 참고해 잠정 대체값으로 교체하고 "디자이너 재확인 전까지 추정값" 주석을 남겼다. (2) `HONOR_CITIZEN/2`엔 직인 에셋 자체가 없다(조용히 스킵하도록 처리, 운영 시 이 디자인 직인 필요 정책과 충돌 가능). (3) `zodiac/` 폴더 12지 아이콘 파일명·라벨이 일부 어긋나 보였으나 사용자가 실제 렌더링 이미지를 직접 확인해 정상으로 확정.
+- 파일: `CardLayout.java`(zodiac/issuerLogo/seal 필드 추가), `CardBackLayout.java`/`CardBackVariant.java`(신규), `CardLayouts.java`(BACK 맵 신규 + FRONT 3개 필드 추가, 3개 카드종류 전부), `CardMemberData.java`(surname/chineseName/nameMeaning/nameInterpretation/zodiacBranch/logo/seal 추가), `ZodiacIcon.java`(신규, 지지→동물명 매핑), `CardImageCompositor.java`(composeBack 신규, drawZodiac/drawSlotImage/drawBackText 신규, LOGO/SEAL/BACK 후보 리스트 추가), 테스트(`CardImageCompositorTest` +9, `CardImageCompositorVisualDumpTest` 55개 PNG로 확장), `TODO.md`.
+- 사유: 2-C(미리보기 API)가 실제 카드 앞·뒷면을 만들려면 Compositor가 뒷면과 로고·직인·띠 이미지까지 지원해야 한다 — 지금까지는 앞면 텍스트 필드 7개만 가능했다.
+- 검증: 신규 테스트 9개 포함 `CardImageCompositorTest` 27개 통과, 전체 스위트 709개 통과(1 skipped, 실패 0). 활성 디자인 17개 × FRONT/BACK(+한자·비한자 뒷면) 총 55개 PNG를 실제 렌더링해 전부 유효한 PNG로 디코딩 확인, 대표 디자인 4개는 `시안_최종.jpg`와 육안 대조.
+- 미완료(범위 밖 또는 후속 항목): 텍스트 겹침 자동 축소·명시적 오류(기존부터 없던 갭, 이번에 새로 만들지 않음), `ManseryeokResult.confirmedPillars.year`→`zodiacBranch` 실제 조회 배선(호출부가 없어 2-C 몫), 로고·직인 포함 여부 정책 매트릭스 적용(2-C/3-A 몫).
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 2-B
+
 ## 2026-08-26 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 2-A — CardDesign과 템플릿 리소스 매핑)
 
 - 변경: `CardDesign`에 `designNumber`(int) 필드를 신규 추가해 `CardImageCompositor`가 참조하는 classpath 리소스 디렉터리(`card-templates/{cardType}/{designNumber}/`)와 1:1 매핑을 명시적으로 정의했다. DB PK는 그 번호로 쓰지 않는다. `(card_type_id, design_number)` 유일 제약을 걸고, `CardDesignSeeder`가 `HONOR_KOREAN`/`HONOR_CITIZEN`/`VISITOR` 1~6번 디자인 18개를 시드한다(`VISITOR` 디자인 1만 `active=false` — `CardImageCompositor.isUnverifiedDesign()`이 이미 렌더링을 거절하는 미검수 디자인). 관리자 조회 API `GET /api/admin/card-designs?cardTypeId={id}&active={true|false}`를 신규 구현했다.
