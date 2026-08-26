@@ -48,8 +48,15 @@ class GoogleBirthRegionLookupClient implements BirthRegionLookupClient {
                 .retrieve()
                 .body(GeocodingResponse.class));
 
-        if (response == null || response.results() == null) {
+        if (response == null) {
             return List.of();
+        }
+        if ("ZERO_RESULTS".equals(response.status())) {
+            return List.of();
+        }
+        if (!"OK".equals(response.status())) {
+            log.warn("Google Geocoding API 비정상 status: {}", response.status());
+            throw new CustomException(ErrorCode.GEOCODING_PROVIDER_ERROR);
         }
         return response.results().stream()
                 .filter(result -> result.geometry() != null && result.geometry().location() != null)
@@ -73,6 +80,9 @@ class GoogleBirthRegionLookupClient implements BirthRegionLookupClient {
                 .body(TimeZoneResponse.class));
 
         if (response == null || !StringUtils.hasText(response.timeZoneId())) {
+            if (response != null) {
+                log.warn("Google Time Zone API 비정상 status: {}", response.status());
+            }
             throw new CustomException(ErrorCode.GEOCODING_PROVIDER_ERROR);
         }
         return response.timeZoneId();
