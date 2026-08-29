@@ -15,7 +15,15 @@
 
 ---
 
-## 2026-08-30 — Claude — `feat/card-generation-minimal` (3. 카드 생성·저장 — 최소 버전 신규 구현)
+## 2026-08-30 — Claude — `main` (3. 카드 생성·저장 — 실제 Docker+MinIO+curl 검증, RULES.md §5 문서 갱신)
+
+- 변경(검증만, 코드 없음): 아래 3. 카드 생성·저장 커밋 2개(`3ab32f4`/`ac981e7`)를 실제로 검증했다. `docker compose build backend` 재빌드 → 실제 fixture(application 7/member 12, 기존 DB의 PRODUCTION_READY 데이터)로 `POST .../card-generate` curl 호출 → 응답 JSON 확인 → DB(`applications.card_design_id/card_issue_date`, `application_members.card_front_path/card_back_path/issue_date`) 실제 반영 확인 → MinIO 버킷(`honorcard-storage-2026`)에 실제 PNG 2개(front 539KiB/back 80KiB) 존재 확인 → 재생성 curl로 새 파일 생성 + 기존 파일이 MinIO에서 실제로 사라지는 것까지 확인 → `AdminActivityLog.CARD_IMAGE_GENERATED` 기록 확인 → 없는 신청 ID curl로 `404 APPLICATION_NOT_FOUND` JSON 확인.
+- 파일: `docs/collab/TODO.md`(3-E 체크박스 갱신), `docs/collab/HANDOFF.md`(전체 재작성), `docs/collab/CHANGELOG.md`(이 항목).
+- 사유: RULES.md §5 작업 종료 절차 준수 — JUnit(`@SpringBootTest`, `StorageService` mock)만으로는 실제 S3 업로드·HTTP 라우팅이 검증 안 되므로 실물 확인이 필요했다.
+- 부수 발견: 세션 중간에 `RULES.md` §1("main 하나만 사용")을 어기고 별도 브랜치(`feat/card-generation-minimal`)에 커밋했던 걸 뒤늦게 알아채 로컬에서 `main`으로 fast-forward 병합 후 브랜치 삭제. **이 시점까지 origin에는 미push.**
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 3
+
+## 2026-08-30 — Claude — `main` (3. 카드 생성·저장 — 최소 버전 신규 구현)
 
 - 변경: `POST /api/admin/applications/{applicationId}/members/{memberId}/card-generate`를 신규 구현했다. Member 1명 단위로 카드 앞/뒤를 렌더링해 S3에 저장하고 `ApplicationMember.cardFrontPath/cardBackPath/issueDate`, `Application.cardDesignId/cardIssueDate`에 연결한다(동기, 배치·비동기 Job 없음). 검증·S3 다운로드·렌더링 로직을 `CardPreviewService.preview()`에서 `CardRenderPreparation`으로 추출해 Preview·Generate가 공유하도록 리팩터했고, 여기에 "Application에 이미 확정된 cardDesignId/cardIssueDate와 다른 값이 오면 Preview도 거절"하는 검증을 추가했다(신규 `CARD_ISSUE_DATE_MISMATCH`, 기존 `CARD_DESIGN_MISMATCH` 재사용). 렌더링·S3 업로드·DB 반영은 `CardGenerationService`(오케스트레이션, 비-transactional)와 `CardGenerationPersistenceService`(`@Transactional`, 최종 재검증 후 반영)로 분리했다. FRONT/BACK 중 하나라도 실패하면 이번 요청에서 새로 올라간 S3 key를 역순 보상 삭제한다(기존 `ApplicationService`의 `uploadedKeys` 패턴 재사용). 재생성은 새 파일 선업로드 → DB commit 성공 → 기존 파일 후삭제 순서로 처리한다. 상태 게이트는 `PRODUCTION_READY` 또는 (`PRODUCING && cardReadyAt == null`)만 허용 — `cardReadyAt`이 찍힌 이후와 `COMPLETED`는 재생성도 거절한다. 카드 생성 성공은 어떤 `ApplicationStatus` 전이도 트리거하지 않는다.
 - 파일: `CardGenerateResponse.java`/`CardRenderPreparation.java`/`CardGenerationService.java`/`CardGenerationPersistenceService.java`(신규), `CardPreviewService.java`(`CardRenderPreparation` 위임으로 리팩터), `Application.java`(`cardIssueDate` 필드+`confirmCardGeneration()`), `ApplicationMember.java`(`assignCardImages()`), `ErrorCode.java`(`CARD_ISSUE_DATE_MISMATCH`), `AdminApplicationController.java`(엔드포인트 추가), `docs/collab/TODO.md`("3. 카드 생성·저장 — 최소 버전" 신규 절 + "5. [보류 — 향후 확장]"으로 async Job 설계 이동).

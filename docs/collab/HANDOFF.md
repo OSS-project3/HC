@@ -1,71 +1,51 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-08-24
-- 작성자: Codex
+- 마지막 갱신: 2026-08-30
+- 작성자: Claude
 - 작성 브랜치: main
 
 ## 지금 어디까지 됐는가
 
-- **✅ 개인·단체 신청 출생지역 필수화 + Excel v1.1 양식 3종 갱신(Codex, 2026-08-24)**: 개인 `ApplicationCreateRequest.MemberRequest.birthRegion`에 `@NotBlank`를 추가하고, `BulkExcelParser`가 단체 Excel F열 출생지역을 필수 도시명으로 검증하도록 변경했다. DB 컬럼은 기존 데이터 호환을 위해 nullable 유지. 양식 작성안내에 `Chicago`, `London`, `Tokyo`, `Beijing`, `Los Angeles` 예시와 필수 표시를 추가했다. 사용자 노출 D열 명칭은 `출생국가`로 병합했으며 내부 `nationality` 키는 유지한다. 신규 테스트 2개 red→green, Application 도메인 182개 통과, 워크북 3종 각각 24개 자동 검증 및 전 시트 렌더 확인.
-- **✅ 계정 복구 RECOVERY-3 마무리 — 미검증 경계 케이스 6건 테스트 보강(Claude, 2026-08-23)**: 사용자가 "계정 복구 정책을 임의로 넣은 거 아니냐"고 재확인을 요청 → `docs/api/auth.md` API 7·8과 코드를 다시 줄 단위로 대조해 일치함을 확인하는 과정에서, 2026-08-21 `e4c3287` 커밋이 RECOVERY-3 섹션을 "완료" 메시지로 추가했지만 체크박스는 전부 미체크로 남아있던 걸 발견했다(전체 테스트 실행 자체는 그때 CHANGELOG에 남긴 대로 실질적으로 했었음 — 문서 마무리만 비어있었음). TODO.md에 ⚠️로 남아있던 6개 미검증 항목을 전부 실제 테스트로 채웠다: (a) 코드 만료(TTL) confirm, (b) confirm 시점 계정삭제/OAuth전환(id·password 양쪽), (c) 재설정 직후 같은 초 재로그인 토큰 허용(end-to-end), (d) DB 실패 후 세션 미복구, (e) 동시요청 cooldown 우회 방지, (f) Redis 장애 시 HTTP 필터체인 통합.
-  - **(d)의 기술적 해법**: 진짜 DB 장애를 재현할 인프라가 없었던 문제를 `TokenSessionStore`를 `@MockitoSpyBean`으로 감싸 해결 — `recordUserAccessRevocation` 호출 시 실제 Redis 기록은 `callRealMethod()`로 그대로 성공시키고, 그 직후 현재 트랜잭션에 `TransactionSynchronization.beforeCommit`을 등록해 예외를 던진다. Spring의 `AbstractPlatformTransactionManager`는 `beforeCommit` 콜백들을 실제 `doCommit()`(및 그 안의 Hibernate flush)보다 먼저 호출하므로, "Redis는 성공했는데 DB flush 직전에 실패"하는 순서를 결정론적으로 재현할 수 있다. 결과: 비밀번호는 롤백되지만 Redis `auth:access:user-revoked-after:{userId}` 키는 실제로 남아있음을 확인 — 문서(API 8 ⑤-1)가 말하는 "세션 미복구"가 실제로 그렇게 동작함을 증명했다.
-  - **(f)의 기술적 해법**: `TokenSessionStoreSessionValidationTest`는 `TokenSessionStore` 단위에서 예외가 던져지는 것만 확인했을 뿐 HTTP 레벨에서 어떻게 응답되는지는 검증한 적이 없었다 — 신규 `JwtAuthFilterSessionValidationIntegrationTest`가 `@AutoConfigureMockMvc`로 실제 필터 체인(`JwtAuthFilter`→`HandlerExceptionResolver`→`GlobalExceptionHandler`)을 관통시켜 503 JSON(`success:false`, `errorCode:AUTH_SESSION_VALIDATION_UNAVAILABLE`)을 직접 확인한다.
-  - **테스트**: `AccountRecoveryServiceTest` 17→25(+8), `UserServiceResetPasswordRollbackTest`(신규 1), `JwtAuthFilterSessionValidationIntegrationTest`(신규 1) — 신규/보강 10개 전부 통과. 전체 스위트 553개 중 552개 통과(실패 1개는 아래 "기존 결함"과 동일한 `UserApplicationFlowTest:143`, 이번 변경과 무관함을 라인 단위로 재확인).
-  - **작업 중 발견**: 로컬 Docker Desktop 엔진이 중간에 죽어있었음(무관한 환경 문제) — 재기동 후 `honor-citizen-redis-test` 컨테이너도 같이 내려가 있어 다시 `docker start` 함. 다음에 이 컨테이너로 테스트가 안 붙으면 Docker Desktop 자체가 떠 있는지부터 확인할 것.
-- **✅ Event 협업 로고·회사명·관리자 전체목록·갤러리 편집 구현 완료(Claude, 2026-08-21, 커밋 `ea1a41f` 구현 + `433993b` 테스트)**: `EventPost`에 `companyName`/`logoImagePath`(`COLLABORATION` 전용, `BOOTH`가 보내면 `INVALID_INPUT`) 추가 — 엔티티가 `assertCollaborationInvariant()`로 최종 상태를 스스로 검증해 호출 순서에 안 흔들리게 설계함. 생성 API에 `logo` multipart part 추가, 수정 API에 `removeLogo`/`removeThumbnail`(유지·교체·삭제)와 `keepImageIds`(생략=전체유지, `[]`=전체삭제, 그 외=지정 순서로 재정렬+신규 이미지 추가, 타 Event 이미지 ID 거절) 갤러리 편집 추가. 관리자 전체목록·상세(`GET /api/admin/events`, `/{id}`, `visible` 무관) 신규. 공개 응답에도 `company`/`logoUrl` 추가(기존 필드는 안 건드려 하위 호환 — 필드명은 2026-08-21 중 프론트 규칙에 맞춰 `companyName`/`logoImageUrl`에서 리네임됨, 아래 참고).
-  - **갤러리 재정렬 기술적 포인트**: `EventImage`가 `UNIQUE(event_post_id, display_order)` 제약이 있어서, 유지되는 이미지들의 순서를 한 번에 바꾸면 중간 상태에서 값이 겹칠 수 있다 — 임시 오프셋(+1000)으로 먼저 밀고 flush한 뒤 최종 값을 배정하는 2단계 방식으로 처리.
-  - **테스트**: `EventPostTest`(10)·`EventServiceTest`(33)·`EventAdminControllerTest`(13)·`EventControllerTest`(6) 전부 통과, Event 도메인 전체 70개. 전체 스위트 543개 중 542개 통과(실패 1개는 아래와 동일한 기존 `UserApplicationFlowTest` 결함).
-  - **✅ (수정됨) 프론트 필드명 불일치는 리네임으로 해소(2026-08-21, 커밋 `1e5a7b3`)**: 처음엔 백엔드 응답을 `companyName`/`logoImageUrl`(기존 `thumbnailImageUrl` 명명 규칙과 통일)로 유지하고 프론트 `eventToFeedPost()` 어댑터에서 매핑하는 쪽으로 정리했으나, 사용자가 "프론트 명명규칙을 따르는 게 낫지 않냐"고 지적해 DTO 6종(`EventCreateRequest`/`EventUpdateRequest`/`EventListItemResponse`/`EventDetailResponse`/`EventAdminListItemResponse`/`EventAdminDetailResponse`)의 필드를 `company`/`logoUrl`로 리네임했다(엔티티 컬럼명 `company_name`/`logo_image_path`는 내부 구현이라 그대로 둠). 이제 프론트 어댑터 매핑이 아예 불필요 — `docs/FRONTEND_API_GAPS.md` §1.6·`docs/specs/events/api.md` 갱신 완료.
-  - **⚠️ 의도적으로 안 한 것**: TDD 순서 엄격 준수 안 함(RECOVERY와 동일 사유). "신규 파일 업로드 중간 실패·DB 실패·기존 파일 삭제 실패의 예외 우선순위" 조합은 개별 테스트로 나눠 검증하지 않고 Board/Review의 기존 검증된 패턴 재사용으로 대체함 — `TODO.md` EVENT-EXT-3에 명시.
-- **✅ 관리자 신청 목록·상세 조회 API 구현 완료(Claude, 2026-08-21, 커밋 `6575d09`)**: `GET /api/admin/applications`, `/{id}` 신규 — 소유자 무관 전체 신청 조회. 기존 `validateAdmin`과 마이페이지용 응답 DTO(`MyApplicationListItemResponse`/`MyApplicationDetailResponse`)를 그대로 재사용. 상태 전이(사진반려/카드발급/배송추적 등)·통계는 범위 밖(사용자가 명시적으로 순수 조회 2개만 요청). 테스트 7개 신규 통과. `docs/BACKEND_API_GAPS.md` P0-3, `docs/FRONTEND_API_INTEGRATION_SPEC.md` 갱신 완료(커밋 `c99873c`).
-- **✅ 계정 복구(아이디 찾기·비밀번호 재설정) 구현 완료(Claude, 2026-08-21, 커밋 `db002a7` 구현 + `2d49acd` 테스트)**: Codex가 확정한 정책(`docs/api/auth.md` API 7·8, `arch.md` §4.1)을 그대로 구현했다. `AccountRecoveryService`(4개 엔드포인트) + `VerificationChallengeStore`(가입 인증과 공유하는 HMAC/Lua challenge·원자 rate-limit) + `ClientIpResolver`(신뢰 프록시 X-Forwarded-For) 신규. `EmailVerificationService`는 내부적으로 `VerificationChallengeStore`를 쓰도록 리팩터링(외부 동작 불변, 기존 테스트로 회귀 확인 완료). access token 세션 무효화 인프라(JWT `authIssuedAtMillis` 커스텀 클레임 + `auth:access:user-revoked-after:{userId}` Redis 키)를 새로 만들고, `JwtAuthFilter`가 Redis 장애 시 기존 fail-open(블랙리스트 확인 실패→통과)을 버리고 `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)`로 fail-closed 응답하도록 교체했다(`HandlerExceptionResolver`로 `GlobalExceptionHandler`와 동일한 JSON 포맷 유지). `UserService.changePassword`도 같은 revoke primitive를 적용해 다른 기기의 access token까지 실제로 무효화하도록 고쳤다(기존엔 요청에 쓰인 토큰 1개만 blacklist).
-  - **테스트**: 새로 29개 작성해 전부 통과(`AccountRecoveryServiceTest` 17, `ClientIpResolverTest` 7, `TokenSessionStoreSessionValidationTest` 5 — 마지막 건은 `StringRedisTemplate`을 Mock으로 교체해 Redis 장애 상황을 직접 재현). 전체 스위트 506개 중 505개 통과, 실패 1개는 `UserApplicationFlowTest.fullUserApplicationFlow()`(라인 143, 약관동의 안 거치는 기존 테스트 픽스처 결함 — 여러 세션째 기록된 회귀 아닌 결함, 이번 세션 변경과 무관함을 라인 단위로 확인).
-  - **⚠️ 의도적으로 안 한 것(다음에 볼 사람이 알아야 함)**: (1) TDD 순서(실패 테스트 먼저 확인 후 구현)를 엄격히 지키지 않음 — 정책 확인 후 구현·테스트를 함께 작성하고 완성본 기준으로 테스트 통과만 확인했다. (2) 코드 만료(TTL 10분 경과) confirm 시나리오, confirm 시점에 대상 계정이 삭제/OAuth 전환된 케이스, DB 실패 후 세션 미복구 시나리오, 동시 코드 요청의 cooldown 우회 방지, Redis 장애 시 실제 HTTP 요청이 503을 반환하고 `SecurityContext`가 안 만들어지는지의 필터 체인 통합 테스트 — 이 5가지는 코드는 구현돼 있지만 전용 테스트가 없다(`TODO.md` RECOVERY-1/2 체크리스트에 항목별로 명시해뒀음). 필요하면 이어서 채울 것.
-  - **프론트 작업**: `pages/AccountRecoveryPage`가 여전히 요청 단계 mock만 있고 확인 화면 자체가 없음 — `docs/FRONTEND_API_GAPS.md` §1.1-c 참고.
-- **✅ 회원정보 address 수정 정책 재확정 원복 + 조회 응답에서 role 제거 + 마이페이지 스펙 확정(2026-08-20, 커밋 완료)**: 이날 세션 초반에 "이름·전화번호만" → "address도 수정 가능"으로 뒤집었던 정책을, 사용자가 다시 "수정에는 이름과 전화번호만 가능해야 한다"고 확인해 **원래대로(이름·전화번호만) 최종 원복**했다. `UserUpdateRequest`에서 `address` 필드 제거, `User.updateProfile` 2-인자로 복원, `UserService.updateMe` address 검증 삭제, `UserControllerTest`도 "address 무시" 검증으로 원복, `docs/api/user.md` API 5 원복. **교훈**: 같은 날 두 번 바뀐 정책이라 다음 세션에서 다시 헷갈릴 수 있음 — `PATCH /api/users/me`는 **이름·전화번호만** 수정 가능이 최종 확정 상태다(주소는 조회 응답엔 계속 포함되지만 수정 불가).
-  - **`UserMeResponse`에서 `role` 필드 완전 제거**: 사용자가 마이페이지 "내 정보"에 뜨던 "회원 유형"(일반회원/관리자) 표시를 등급제처럼 잘못 보인다고 지적 — 단순 화면 숨김이 아니라 `GET`/`PATCH /api/users/me` 응답 DTO(`UserMeResponse`) 자체에서 `role`을 뺐다. 관련 테스트 3곳(`UserControllerTest`/`AuthControllerSignupTest`/`UserApplicationFlowTest`)도 `.doesNotExist()`로 수정. **role은 애초에 `UserUpdateRequest`에 없어서 관리자든 일반유저든 이 API로 수정 불가**(변경 없음, 원래도 그랬음) — 이번 변경은 조회 응답에서 노출만 없앤 것.
-  - **⚠️ 프론트 영향(대응은 프론트 몫, `FRONTEND_API_GAPS.md` §1.9-a에 기록만 함)**: `AuthContext.tsx`의 `refreshProfile()`이 이 응답의 `role`을 읽어 `isAdmin`을 세팅하고 있었는데(`Header.tsx` 관리자 메뉴, `InquiryDetailPage.tsx` 열람권한 체크가 의존), 이제 그 필드가 없어 이 로직은 더 이상 동작하지 않는다. 지금은 실 서버 인가와 무관한 프론트 전용 데모 값이라 당장 보안 문제는 아님.
-  - **마이페이지 "내 정보" 표시 스펙 확정(프론트 작업, `FRONTEND_API_GAPS.md` §1.9-a에 기록만 함)**: 조회 시 이름·전화번호·이메일 3개만 노출("회원 유형"은 응답 자체에 없어 표시 불가), 수정 가능 필드는 이름·전화번호뿐. 현재 `MyPage.tsx`는 전화번호 미표시 + 회원유형 표시 중이라 둘 다 프론트에서 손봐야 함.
-  - **별건 — 마이페이지 "제작 내역" 빈 목록 문제 재확인(코드 근거 확보, 아직 미수정)**: 사용자가 실제로 신청을 제출해도 "제작 신청 내역이 없습니다"만 뜨는 걸 보고했다. 원인은 `MyPage.tsx`가 실 API(`GET /api/my/applications`, 이미 `main`에 구현 완료·`b5f6140`)를 아예 호출하지 않고 `data/adminMock.ts` localStorage(`applicantEmail === user.email` 필터)만 읽기 때문 — 서버 저장 여부와 무관하게 표시된다. **백엔드 작업은 없음(순수 프론트 스코프)**. `services/api.ts`에 `listMyApplications` 함수가 아예 없는 것, 상태 라벨(`adminStatusLabels`)이 옛 mock enum 기준이라 실 enum과 3개만 겹치는 것, 날짜 필드가 `submittedAt`(날짜만)→`createdAt`(`LocalDateTime`)로 바뀌어 포맷이 깨지는 것까지 `FRONTEND_API_GAPS.md` §1.2에 상세 기록해뒀다.
-- **✅ 배포 준비 + 버그 수정 다발(2026-08-20)**: 사용자가 EC2 배포를 진행하면서 발견된 문제들을 그때그때 고쳤다. 전부 `main`에 커밋·푸시 완료.
-  - **단체신청 엑셀 템플릿 유효성검사 수식 버그 2건**(`artifact-work/bulk-excel-templates-20260818/build_templates.py`, git 미추적 로컬 스크립트): `type="custom"`(영문명/이메일/전화번호/학번/학과)과 `type="list"`(국적/성별, 이름정의 참조) 데이터 유효성검사의 `formula1`에 불필요한 선행 `=`가 있어 **한컴오피스 한셀에서 정상 입력값도 전부 거부**되던 버그. Excel은 관대하게 처리하지만 한셀은 안 그럼 — OOXML 스펙상 원래 `=` 없이 써야 하는 게 맞음. 3개 템플릿(`outputs/bulk-excel-templates-20260818/*.xlsx`) 재생성해 반영(`20ee58e`, `c0e61e4`).
-  - **고등학교 단체신청 학번·학과 정책 왕복 수정**: 처음엔 "단체는 schoolType 무관하게 학번·학과 필수"인 기존 코드에 맞춰 고등학교 템플릿에 학번·학과 열 추가(`5d8af19`)했으나, 사용자가 프론트 코드(`StepInfo.tsx`의 "고등학교 선택 시 대학교 전용 항목은 비운다" 주석)를 근거로 "개인 신청처럼 단체도 고등학교면 학번·학과를 받으면 안 된다"고 정정 — `BulkExcelParser`가 `schoolType`을 아예 몰랐던 게 진짜 버그였음이 드러남. `BulkExcelParser.parse(zipFile, isStudent, schoolType)`로 시그니처 확장, `UNIVERSITY`만 필수·`HIGH_SCHOOL`이면 있으면 거절하도록 개인 신청과 통일(`6efd2b8`), 템플릿의 학번·학과 열도 다시 제거(`ba80a79`). **교훈**: 코드가 이미 있다고 정책이 맞다고 가정하지 말 것 — 프론트 실제 동작이 더 신뢰할 수 있는 정책 근거였음.
-  - **회원정보 `address` 수정 정책 재정정**: 2026-08-08에 "이름·전화번호만 수정 가능, address 제외"로 확정했던 걸 사용자 지시로 뒤집음 — `PATCH /api/users/me`가 이제 `address`도 받는다(`UserUpdateRequest`/`User.updateProfile`/`UserService.updateMe` 전부 반영, `10a0441`). `docs/api/user.md` API 5, `docs/FRONTEND_API_GAPS.md` §1.9(a) 갱신 완료 — 프론트가 주소 입력란을 다시 만들어야 하는 항목으로 전환.
-  - **`User.createLocalUser`가 phone을 생성 시점에 받도록 리팩터링**: `registerLocalUser()`가 생성 직후 `updateProfile(null, phone, null)`로 채우던 걸, `SignupRequest.phone`이 이미 `@NotBlank`라는 근거로 팩토리 4번째 파라미터로 승격(`1983021`). 기존 3인자 오버로드는 하위호환 없이 제거 — 호출부 12곳(운영 1+테스트 11) 전부 4인자로 이관.
-  - **배포 인프라**: `docker-compose.yml`에 Postgres 추가(이전엔 H2 인메모리로 떠서 재시작마다 데이터 소실, `8cdafb2`), `MAIL_HOST`/`MAIL_PORT`/`MAIL_FROM`이 컨테이너에 전달 안 되던 버그 수정(`.env`에 값 넣어도 무시되고 있었음, `30a1a52`), 루트 `.gitignore`에 `.env` 누락 발견해 추가(실제 AWS 시크릿이 든 `backend/.env`가 커밋될 뻔함 — git history엔 다행히 없었음 확인 완료, `d5dc282`), EC2 배포 시크릿 3단 분리(Dockerfile 무시크릿 → compose는 변수명만 → EC2 `.env`는 실값, git 미추적) 절차를 `DOCKER.md`에 문서화(`12f28bc`).
-  - **실제 배포 테스트(로컬 Docker Desktop으로 재현, EC2 아님)**: SMTP(Gmail, 앱 비밀번호)·S3(업로드/다운로드/삭제)·구글/네이버 OAuth 리다이렉트 구성을 전부 직접 호출해서 정상 동작 확인함. **EC2 자체의 `.env`는 로컬 PC의 `.env`와 별개 파일**이라는 걸 사용자가 뒤늦게 발견 — EC2 쪽엔 Google/Naver 자격증명이 비어있어서 `docker-compose.yml`의 로컬 placeholder(`docker-local-google-client` 등)로 폴백되고 있었고, 이게 `401 invalid_client`의 원인이었음. 사용자가 EC2 쪽 별도 세션에서 채우는 걸로 진행 중 — **다음에 이어서 볼 때 EC2 `.env`가 다 채워졌는지, `docker compose up -d --no-deps backend`로 반영됐는지부터 확인할 것.**
-  - **프론트-백엔드 갭 재확인(2026-08-20)**: `docs/FRONTEND_API_GAPS.md`를 실제 프론트 코드(`ApplyPage.tsx`)와 재대조하다가 **`schoolName`(2026-08-19 신규 백엔드 필수 필드)을 프론트가 요청에 안 보내서 학생증 신청이 전부 400으로 깨져 있는 회귀**를 발견(`4a6db96`). §6에 우선순위 표로 정리(`e496f6a`) — 0순위로 등록돼 있음. `updateMe`의 `address` 죽은 파라미터, `PATCH.../cancel` 미바인딩 등도 같이 점검했으나 이 둘은 실제 문제 없음(주소는 이번에 반영 완료, cancel은 원래 §1.5에 미착수로 기록돼 있던 것과 일치).
-- **✅ 학생증 신청에 학교명(schoolName) 필드 추가 완료(2026-08-19, SCHOOLNAME-1)**: `Application` 레벨 단일 필드(개인·단체 공통), `UNIVERSITY`/`HIGH_SCHOOL` 둘 다 필수, 트림 후 5~20자·한글/영문/숫자/공백만 허용. 커밋 `575f6c0`/`6653fd2`. (위 2026-08-20 항목에서 이 필드를 프론트가 아직 안 보내는 회귀를 발견함 — 별개 사안이니 혼동 주의.)
-- **✅ 회원탈퇴 정책 변경 완료(2026-08-19)**: 소프트 삭제(7일 유예+익명화) 폐지 → 즉시 하드 삭제. `docs/collab/user.md`가 source of truth(§19 체크리스트). WITHDRAW-1~4 전부 완료(`a3bc798`/`b83bd65`/`f956120`/`861b92e`/`7e131f5`). 상세는 `docs/api/user.md` API 4, `arch.md` §4.1/§4.7/§11.
-- **✅ Inquiry(1:1 문의) 도메인 신규 구현 완료(2026-08-19)**: 6개 API 전부 구현·테스트·커밋 완료(`1abab25`~`a9abff7`). `docs/specs/inquiry/requirements.md`가 source of truth.
-- **✅ 일반 이메일 인증·로그인·계정관리(AUTH-1~6·PW-1·MAIL-1·SIGNUP-1/2·RATE-1)** — 이전 세션에 완료. `POST /api/auth/login`·`/email/check`, `PATCH /api/users/me/password` 전부 구현돼 있음.
-- **⚠️ 로컬 테스트 환경 참고**: Docker 컨테이너 `honor-citizen-redis-test`(호스트 포트 **6400**). `REDIS_PORT=6400 ./gradlew.bat test`로 실행. 별도로 `docker compose`(저장소 루트, Postgres+Redis+backend+frontend 통합 실행)도 오늘 세션에서 실제 배포 테스트용으로 씀 — 둘은 다른 용도(전자는 단위테스트용 Redis만, 후자는 전체 스택).
-- **⚠️ 발견된 기존 결함(고치지 않고 기록만 함, 여러 세션째 유지)**: `UserApplicationFlowTest.fullUserApplicationFlow()`가 403으로 실패 — 약관동의 단계를 안 거치는 기존 결함(회귀 아님).
-- 그 외 도메인(Board/Event/Review 등)은 이전 세션들에서 전부 완료·커밋된 상태.
+- **✅ "3. 카드 생성·저장 — 최소 버전" 구현+테스트+실검증 완료, 2-C Preview 계약 변경 포함(Claude, 2026-08-30, 로컬 `main`에 커밋 완료 — `ac981e7`/`3ab32f4`, ⚠️ 아직 origin에 push 안 함)**:
+  - `POST /api/admin/applications/{applicationId}/members/{memberId}/card-generate` 신규 — Member 1명 단위 동기 처리로 카드 앞/뒤를 렌더링해 S3에 저장하고 `ApplicationMember.cardFrontPath/cardBackPath/issueDate`, `Application.cardDesignId/cardIssueDate`에 연결한다. 비동기 `CardGenerationJob`/Worker/진행률/재시도는 이번 스코프가 아니고 `TODO.md` "5. [보류 — 향후 확장]"에 원문 그대로 보존돼 있다.
+  - 검증·S3 다운로드·렌더링을 `CardPreviewService.preview()`에서 `CardRenderPreparation`으로 추출해 Preview·Generate가 공유(신규 컴포넌트). `Application.cardDesignId`/`cardIssueDate`가 이미 확정된 뒤에는 Preview도 다른 값을 거절한다(`CARD_DESIGN_MISMATCH`/신규 `CARD_ISSUE_DATE_MISMATCH`).
+  - `CardGenerationService`(오케스트레이션, 비-transactional)+`CardGenerationPersistenceService`(`@Transactional`, 최종 재검증 후 반영) 분리. FRONT/BACK 중 하나라도 실패하면 신규 S3 key 보상삭제. 재생성은 신규 파일 선업로드→DB commit→기존 파일 후삭제. 상태 게이트는 `PRODUCTION_READY` 또는 (`PRODUCING && cardReadyAt == null`)만 허용.
+  - **최초 구현엔 더 있었다가 재검토 후 되돌린 것(=`TODO.md` "3-F. 후속 강화"로 이동, 코드는 없음)**: `applyNamingResult`/`assignMemberName`의 `NAME_EDITING` 상태 제한, `startProducing`/`markCardReady`의 카드 생성 완료 집계 검증, `ApplicationMember`에 대한 낙관적 락(`@Version`) 기반 동시성 방어. 셋 다 §3 핵심 동작과 독립적이고 §3 밖 기존 API·엔티티에 부수효과가 있어 제외했다 — 근거는 `TODO.md` 3-F에 항목별로 남겨뒀다. `ApplicationService.java`는 이 되돌리기 결과 커밋된 원본(이번 세션 이전)과 diff 0.
+  - **테스트**: `CardGenerationServiceTest`(신규 11개), `CardPreviewServiceTest`(+3, 16→19), `ApplicationMemberTest`/`ApplicationStateTransitionTest`(+3, 신규 mutator 단위테스트). 테스트 작성 중 실제 버그 하나 발견해 수정: `CardGenerationService`가 `CustomException`이 아닌 일반 `RuntimeException`(S3 장애 등) 실패는 감사로그를 안 남기고 있었음 — 전부 남기도록 수정.
+  - **전체 스위트**: `REDIS_PORT=6400 ./gradlew.bat test` 753개 중 751 통과, skip 2(기존부터 있던 것, 무관), 실패/에러 0.
+  - **실제 Docker+MinIO+curl 검증(2026-08-30)**: `docker compose build backend` 재빌드 → 실제 fixture(application 7/member 12, 기존 PRODUCTION_READY 데이터)로 실제 curl 호출 → 응답 JSON, DB(`applications.card_design_id/card_issue_date`, `application_members.card_front_path/card_back_path/issue_date`), MinIO 실물 PNG(버킷명 `honorcard-storage-2026` — `.env`로 오버라이드된 실제값, docker-compose 기본값 `honor-citizen-local`이 아님) 전부 확인. 재생성 curl로 새 파일 생성+기존 파일이 MinIO에서 실제로 사라지는 것까지 실물로 확인. `AdminActivityLog.CARD_IMAGE_GENERATED` 기록도 확인. 없는 신청 ID curl로 `404 APPLICATION_NOT_FOUND` JSON 포맷 확인.
+  - **⚠️ 이번 세션에서 브랜치 실수 발견·정정**: 중간에 `feat/card-generation-minimal`이라는 별도 브랜치를 만들어 커밋했다가, `RULES.md` §1("2026-08-06부터 `main` 브랜치 하나만 계속 개발한다")과 어긋난다는 걸 뒤늦게 알아채고 로컬에서 `main`으로 fast-forward 병합 후 브랜치 삭제했다. **origin에는 아직 push 안 됨** — 다음 작업자가 이어받으려면 먼저 `git push`부터 해야 한다(또는 사용자가 직접 push).
+  - **⚠️ 미커버 항목**: `CardGenerationServiceTest`에 "DB 반영 실패 시 두 key 모두 보상삭제"·"준비 단계 이후 상태가 바뀐 경우 최종 재검증 실패" 2개 케이스는 진짜 동시 트랜잭션 경합 재현이 필요해 못 씀 — `TODO.md` 3-E에 명시.
+- **이전 세션들(2026-08-19~2026-08-27) 요약** — 전부 완료·커밋됨, 상세는 `docs/collab/CHANGELOG.md` 해당 날짜 항목 참고:
+  - 2-C 카드 미리보기 API(FRONT/BACK 계약 변경 포함) — 이번 세션 커밋에 같이 실려있음(위 참고).
+  - School 마스터 엔티티 + 검색select(schoolId 연동), 학생증 카드 정책 확정(TODO.md "4. 학생증(STUDENT)" 절, 4-B/4-C 미착수).
+  - 계정 복구(아이디 찾기·비밀번호 재설정), Event 협업 로고/갤러리 편집, 관리자 신청 목록·상세 조회, 회원탈퇴 하드삭제, Inquiry 도메인, 일반 이메일 인증·로그인.
+  - 배포 인프라(Postgres 전환, `.env` 시크릿 3단 분리, EC2 배포 시도) — EC2 쪽 마무리 여부는 확인 안 됨(아래 "다음에 할 일" 참고).
 
 ## 다음에 할 일
 
-- **Event 협업 로고·갤러리 프론트 연동(프론트 담당)**: `EventAdminPanel.tsx`에 회사명 입력·로고 업로드(유지/교체/삭제)·갤러리 유지/추가/삭제 UI, 관리자 전체목록(숨긴 글 포함) 화면 연결 필요. `eventToFeedPost()`에 `company: dto.companyName, logoUrl: dto.logoImageUrl` 매핑 2줄 추가도 필요(필드명이 다름, `FRONTEND_API_GAPS.md` §1.6 참고).
-- **Event 남은 테스트 보강(담당 미정)**: "신규 파일 업로드 중간 실패·DB 실패·기존 파일 삭제 실패의 예외 우선순위" 조합별 개별 테스트 — `docs/collab/TODO.md` EVENT-EXT-3 참고.
-- **계정 복구 남은 테스트 보강(담당 미정)**: 위 "⚠️ 의도적으로 안 한 것" 5가지(코드 만료·confirm 시점 계정삭제/OAuth전환·DB실패후 세션미복구·동시요청 cooldown우회·Redis장애 시 필터체인 HTTP 통합테스트) — `docs/collab/TODO.md` RECOVERY-1/2 체크리스트에 항목별로 남겨둠.
-- **계정 복구 프론트 연동(프론트 담당)**: `pages/AccountRecoveryPage`에 아이디 찾기 3단계(이름·전화 입력 → 확인코드 → 마스킹이메일), 비밀번호 재설정 2단계(이메일 입력 → 코드+새비밀번호 한 화면) 화면 신규 필요. `docs/FRONTEND_API_GAPS.md` §1.1-c.
-- **🔴 최우선(회귀 수정, 프론트 담당)**: `ApplyPage.tsx` `submit()`에 `schoolName` 필드 추가 — 안 하면 학생증 신청 전부 400. `docs/FRONTEND_API_GAPS.md` §1.9-b 참고.
-- **🔴 마이페이지 "제작 내역" 연동(프론트 담당)**: `MyPage.tsx`가 실 API를 안 부르고 있어 실제 신청 후에도 빈 목록만 뜬다. 백엔드는 이미 준비됨(`GET /api/my/applications`) — `FRONTEND_API_GAPS.md` §1.2에 상태 라벨/날짜 포맷 이슈까지 포함해 상세 기록해둠.
-- **EC2 배포 마무리**: EC2의 `.env`에 Google/Naver 자격증명(및 나머지 값 전체)이 다 채워졌는지 확인 → `docker compose up -d --no-deps backend`로 반영 → 브라우저로 실제 OAuth 로그인 완료까지 테스트. HTTPS(certbot)는 아직 미착수 — DNS·탄력적 IP는 사용자가 이미 설정 완료.
-- **프론트 작업 우선순위 전체**는 `docs/FRONTEND_API_GAPS.md` §6 표 참고(schoolName·마이페이지 신청목록 외에 회원가입 인증코드 UI, 로그인 연동, 문의 연동, 마이페이지 "내 정보" 표시 정리(회원유형 제거·전화번호 추가) 등 백엔드는 준비됐고 프론트만 남은 항목들).
-- **AWS 자격증명 보안 권장**: 지금 쓰고 있는 AWS 키가 IAM 사용자가 아니라 계정 루트 키로 확인됨(`arn:aws:iam::...:root`) — S3 버킷 하나에만 권한 준 전용 IAM 사용자로 교체 권장(급하지 않음, 사용자에게 이미 안내함).
-- **거래·상담 데이터 파기 스케줄러**: Inquiry 6개월, 결제·거래 이력 법정 보존기간 — 담당자 미정.
-- **개인정보처리방침 문안 확인(법무 대상)**: `docs/collab/user.md` §17.2/§17.3 — 코드 작업 아님.
-- **UserApplicationFlowTest 403 수정**: 담당자 미정.
-- 그 외 미착수 항목은 `TODO.md` 진행 보드 및 `docs/BACKEND_API_GAPS.md` 참고.
+- **🔴 이번 세션 커밋 push**: `git push`로 origin/main에 반영. 아직 아무도 안 함.
+- **§3 미커버 테스트**: 위 "⚠️ 미커버 항목" 2개 — 필요하면 진짜 동시 트랜잭션 테스트로 채울 것.
+- **TODO.md 3-F 착수 여부 결정**: 작명 API `NAME_EDITING` 제한, `startProducing`/`markCardReady` 집계 검증, 카드 생성 동시성 방어 재설계, `GlobalExceptionHandler`의 `ObjectOptimisticLockingFailureException` 전역 처리 부재 — 4개 항목 전부 코드 없음, 문서(근거 포함)만 있음. 필요성 판단 후 착수.
+- **STUDENT 카드 4-B/4-C 미착수**: `CardDesign` 학교 매칭, STUDENT `CardLayouts` 좌표 등록 — `TODO.md` "4. 학생증(STUDENT)" 절 참고. 이게 끝나야 §3 Generate API가 STUDENT도 지원한다(코드 변경 없이 자동 지원되도록 이미 설계됨).
+- **§3 프론트 연동 전혀 없음(프론트 담당)**: 카드 생성 버튼, 재생성 확인 다이얼로그, pending 중 버튼 비활성화(현재 백엔드에 동시성 방어가 없어 이게 사실상 유일한 중복 요청 방지선) — `TODO.md` 3-D, `docs/FRONTEND_API_GAPS.md` 참고.
+- 아래는 2026-08-24 이전 HANDOFF에서 이어져 온 항목으로, 이번 세션에서 상태를 재확인하지 않았다 — 여전히 열려있다고 가정하되 다음 작업자가 먼저 실제 상태를 확인할 것:
+  - **Event 협업 로고·갤러리 프론트 연동(프론트 담당)**.
+  - **계정 복구 남은 테스트 보강(담당 미정)** — `TODO.md` RECOVERY-1/2.
+  - **계정 복구 프론트 연동(프론트 담당)** — `pages/AccountRecoveryPage`.
+  - **schoolName 미전송 회귀(프론트 담당)** — `docs/FRONTEND_API_GAPS.md` §1.9-b. School 검색select 기능(2026-08-27, 커밋 `28e2141`)이 이미 들어갔으므로 이 항목은 해소됐을 가능성이 있다 — 다음 작업자가 프론트 코드로 직접 확인.
+  - **마이페이지 "제작 내역" 연동(프론트 담당)** — `docs/FRONTEND_API_GAPS.md` §1.2.
+  - **EC2 배포 마무리**: `.env` 값 확인, HTTPS(certbot) 미착수.
+  - **`UserApplicationFlowTest.fullUserApplicationFlow()` 403 기존 결함**: 여러 세션째 미수정, 담당자 미정, 이번 세션 변경과 무관함 재확인 안 함(이전에는 무관 확인됨).
+  - 그 외 `docs/collab/TODO.md` 진행 보드·`docs/BACKEND_API_GAPS.md` 참고.
 
 ## ❓ 확인 필요
 
-- 없음 — 이번 세션 질문들(고등학교 학번/학과 정책, address 정책, AWS 키 이름, SMTP 계정)은 사용자가 전부 확정해줬다.
+- 없음 — 이번 세션 질문(카드 생성 최소 스코프 vs 비동기 전체 설계, 정책 충돌 5개 재검토, 브랜치 전략)은 사용자가 전부 확정해줬다.
 
 ## 참고
 
-- **EC2/docker 배포 절차**: `DOCKER.md`의 "EC2 배포 — 시크릿 3단 분리 원칙" 절 — Dockerfile(무시크릿) → docker-compose.yml(변수명만) → EC2 `.env`(실값, git 미추적) 순서, 로컬 `.env`와 EC2 `.env`는 별개 파일이라는 점 꼭 기억할 것(오늘 실수 사례).
-- **엑셀 템플릿 재생성 방법**: `artifact-work/bulk-excel-templates-20260818/build_templates.py`(Python, openpyxl) — `python3 build_templates.py`로 `outputs/bulk-excel-templates-20260818/*.xlsx` 재생성. 이 스크립트 자체는 git 미추적(Codex도 안 커밋했던 관례 유지), 산출물 xlsx만 커밋.
-- 회원탈퇴 정책 스코프 분석 방법, 프론트-백엔드 갭 재점검 방법(문서 서술을 안 믿고 실제 코드 대조) 등 재사용 가능한 방법론은 이전 HANDOFF 버전 참고(git log로 조회 가능).
-- 관련 문서: `docs/collab/user.md`(회원탈퇴 source of truth), `docs/specs/application/requirements.md` §5-0/§5-2(schoolName), `docs/api/user.md`, `docs/FRONTEND_API_GAPS.md`, `docs/BACKEND_API_GAPS.md`, `DOCKER.md`, `docs/collab/TODO.md`, `docs/collab/CHANGELOG.md`, `docs/collab/RULES.md` §8.
+- **로컬 테스트 환경**: `honor-citizen-redis-test` 컨테이너(호스트 포트 **6400**) — `REDIS_PORT=6400 ./gradlew.bat test`. 별도 `docker compose`(저장소 루트)는 전체 스택(Postgres+Redis+MinIO+backend) 실동작 검증용 — 이번 세션에 이걸로 §3을 검증했다.
+- **MinIO 버킷명 함정**: docker-compose 기본값은 `honor-citizen-local`이지만 실제 `.env`가 `honorcard-storage-2026`로 오버라이드해뒀다 — `mc`로 직접 접근할 땐 `docker exec main-preview-backend-1 env | grep AWS_S3`로 실제 값부터 확인할 것. MinIO root 자격증명도 docker-compose 기본값(`minioadmin`)이 아니라 `.env`의 실제 값을 써야 한다(`docker exec main-preview-minio-1 env | grep MINIO_ROOT`).
+- **브랜치 규칙**: `RULES.md` §1에 따라 `main` 하나만 쓴다 — 별도 `feat/*` 브랜치를 만들지 말 것(이번 세션에 실수로 만들었다가 되돌림).
+- 관련 문서: `docs/collab/TODO.md`("3. 카드 생성·저장" 최소버전 절 + 3-F 후속강화 + "4. 학생증" + "5. 보류"), `docs/collab/CHANGELOG.md`, `docs/collab/RULES.md`, `docs/FRONTEND_API_GAPS.md`, `docs/specs/application/admin-saju.md`.
