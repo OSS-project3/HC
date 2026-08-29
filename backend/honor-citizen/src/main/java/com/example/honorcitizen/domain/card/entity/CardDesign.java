@@ -52,8 +52,21 @@ public class CardDesign extends BaseTimeEntity {
     @Column(nullable = false)
     private boolean active;
 
+    // 학생증(STUDENT)일 때만 값이 있다(4-B) — 그 외 카드종류는 항상 null. 학생증 디자인은
+    // 카드종류가 아니라 학교마다 다르므로, 조회 축이 cardTypeId 하나가 아니라 schoolId+orientation이
+    // 된다. 같은 schoolId+orientation의 활성 디자인은 1개만 존재해야 한다(운영자가 직접 DB에 넣는
+    // 로우라 이 불변조건은 애플리케이션 레벨 INSERT 게이트가 없음 — 운영 절차로 지켜야 한다).
+    private Long schoolId;
+
+    // 기존 호출부(학생증 아닌 카드종류) 하위 호환용 — schoolId 없이 호출하면 null로 생성한다.
     public static CardDesign create(Long cardTypeId, String name, int designNumber,
             CardDesignOrientation orientation, Long templateFrontId, Long templateBackId, boolean isDefault) {
+        return create(cardTypeId, name, designNumber, orientation, templateFrontId, templateBackId, isDefault, null);
+    }
+
+    public static CardDesign create(Long cardTypeId, String name, int designNumber,
+            CardDesignOrientation orientation, Long templateFrontId, Long templateBackId, boolean isDefault,
+            Long schoolId) {
         CardDesign design = new CardDesign();
         design.cardTypeId = cardTypeId;
         design.name = name;
@@ -63,6 +76,7 @@ public class CardDesign extends BaseTimeEntity {
         design.templateBackId = templateBackId;
         design.isDefault = isDefault;
         design.active = true;
+        design.schoolId = schoolId;
         return design;
     }
 

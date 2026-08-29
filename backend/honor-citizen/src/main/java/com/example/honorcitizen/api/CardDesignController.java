@@ -22,12 +22,15 @@ public class CardDesignController {
 
     private final CardDesignService cardDesignService;
 
+    // applicationId는 학생증(cardTypeId가 STUDENT)일 때만 필수 — 그 신청의 schoolId+orientation으로
+    // 디자인을 자동 확정하는 데 쓰인다(4-B). 비학생증 조회에는 영향 없음(무시된다).
     @GetMapping
     public ResponseEntity<ApiResponse<List<CardDesignResponse>>> list(
             @AuthenticationPrincipal Long adminId,
             @RequestParam Long cardTypeId,
-            @RequestParam(required = false) Boolean active) {
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
-                cardDesignService.listCardDesigns(adminId, cardTypeId, active)));
+                cardDesignService.listCardDesigns(adminId, cardTypeId, active, applicationId)));
     }
 }

@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-30 — Claude — `main` (4-B. `CardDesign` 학교 매칭 + 조회 API 개방)
+
+- 변경: `CardDesignService.listCardDesigns()`가 학생증(STUDENT)이면 `UNSUPPORTED_CARD_TYPE`으로 무조건 거절하던 걸 제거하고, `schoolId+orientation` 기준 자동 조회로 분기했다. `card-preview`/`card-generate`의 `cardDesignId` 요청 계약은 그대로 두고, 조회 API(`GET /api/admin/card-designs`)에만 옵션 파라미터 `applicationId`를 추가 — STUDENT일 때만 필수이며, 그 신청의 `schoolId`+`orientation`으로 디자인을 자동 필터링한다(결과가 사실상 0~1개, 관리자가 여러 개 중 고르는 구조가 아님). `schoolId`가 아직 없는 신청(직접입력, 관리자 연결 전)은 빈 목록을 반환(에러 아님).
+- 파일: `CardDesign.java`(`schoolId` nullable 필드 + `create(...)` 오버로드), `CardDesignRepository.java`(`findBySchoolIdAndOrientation...` 2개 신규), `CardDesignService.java`(`listCardDesigns`에 `applicationId` 파라미터 추가, `listStudentCardDesigns` 신규), `CardDesignController.java`(`applicationId` 쿼리 파라미터 추가), `CardDesignServiceTest.java`(기존 `rejectsStudentCardType` 제거하고 학생증 케이스 6개로 교체).
+- 사유: TODO.md "4. 학생증(STUDENT) 카드" 4-B 착수. 학생증은 다른 3종과 달리 디자인이 학교마다 다르고 "관리자가 목록에서 선택"이 아니라 "서버가 신청의 학교·방향으로 자동 확정"하는 구조라는 기존 확정 정책(정책 3번)을 반영했다.
+- **의도적으로 안 한 것**: "같은 schoolId+orientation에 활성 디자인 1개만" 불변조건을 Service/DB 수준에서 강제하는 로직 — 관리자 업로드 UI가 없어(운영자가 CardDesign row를 직접 DB INSERT) 검사할 Service 진입점 자체가 없다. DB 레벨(partial unique index)은 이 프로젝트의 Hibernate `ddl-auto` 방식과 안 맞아 마이그레이션 도구 도입이 별도로 필요 — 이번 범위 밖으로 남겼다(TODO.md 4-B에 명시).
+- 검증: `CardDesignServiceTest` 11개(6개 신규) 전부 통과. 전체 스위트 758개(+5) 중 skip 2(기존, 무관) 제외 전부 통과.
+- 관련: TODO "4. 학생증(STUDENT) 카드" 4-B
+
 ## 2026-08-30 — Claude — `main` (3. 카드 생성·저장 — 실제 Docker+MinIO+curl 검증, RULES.md §5 문서 갱신)
 
 - 변경(검증만, 코드 없음): 아래 3. 카드 생성·저장 커밋 2개(`3ab32f4`/`ac981e7`)를 실제로 검증했다. `docker compose build backend` 재빌드 → 실제 fixture(application 7/member 12, 기존 DB의 PRODUCTION_READY 데이터)로 `POST .../card-generate` curl 호출 → 응답 JSON 확인 → DB(`applications.card_design_id/card_issue_date`, `application_members.card_front_path/card_back_path/issue_date`) 실제 반영 확인 → MinIO 버킷(`honorcard-storage-2026`)에 실제 PNG 2개(front 539KiB/back 80KiB) 존재 확인 → 재생성 curl로 새 파일 생성 + 기존 파일이 MinIO에서 실제로 사라지는 것까지 확인 → `AdminActivityLog.CARD_IMAGE_GENERATED` 기록 확인 → 없는 신청 ID curl로 `404 APPLICATION_NOT_FOUND` JSON 확인.

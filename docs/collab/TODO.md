@@ -1385,12 +1385,13 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] (c) 개인 신청·단체 신청 두 진입점 모두에서 (a)(b) 반복 확인(폼이 분리돼 있어 한쪽만 고치고 다른 쪽을 빠뜨리는 실수 방지).
 - [ ] (d) PR diff 크기 확인 — 학교 검색select 관련 파일과 `api.ts` 외에 다른 스텝/로직 파일이 포함돼 있지 않은지.
 
-### 4-B. `CardDesign` 학교 매칭 + 조회 API 개방
+### 4-B. `CardDesign` 학교 매칭 + 조회 API 개방 — ✅ 완료(2026-08-30)
 
-- [ ] `CardDesign`에 `schoolId`(nullable — STUDENT 외 카드종류는 계속 null) 컬럼 추가, 학생증 조회 조건을 `schoolId + orientation`으로 한다.
-- [ ] 같은 `schoolId + orientation`에는 활성 STUDENT 디자인을 1개만 허용한다. 등록·활성화 동시성까지 Service/DB 수준에서 보장하고, 비활성 이력 row는 보존 가능하게 한다.
-- [ ] `CardDesignService`의 STUDENT 하드 거절(`UNSUPPORTED_CARD_TYPE`) 제거, STUDENT는 `schoolId` 기준 조회로 분기.
-- [ ] STUDENT 템플릿 등록은 운영자가 `CardDesign` row를 직접 insert(관리자 업로드 UI 없음 — 정책 4).
+- [x] `CardDesign`에 `schoolId`(nullable — STUDENT 외 카드종류는 계속 null) 컬럼 추가, 학생증 조회 조건을 `schoolId + orientation`으로 한다.
+- [x] `CardDesignService`의 STUDENT 하드 거절(`UNSUPPORTED_CARD_TYPE`) 제거, STUDENT는 `schoolId` 기준 조회로 분기. **설계 확정(2026-08-30, 사용자 확인)**: `card-preview`/`card-generate`의 `cardDesignId` 요청 계약은 그대로 두고, 이 조회 API(`GET /api/admin/card-designs`)에만 `applicationId`(옵션, STUDENT일 때 필수) 파라미터를 추가해 학생증이면 그 신청의 `schoolId+orientation`으로 자동 필터링(결과가 사실상 0~1개)한다 — "관리자가 목록에서 고르는 게 아니라 서버가 확정"이라는 정책 3번을 "목록에 사실상 선택지가 1개뿐"이라는 방식으로 만족시킨다. `schoolId`가 아직 없는 신청(직접입력, 관리자 연결 전)은 에러가 아니라 빈 목록 반환.
+- [x] STUDENT 템플릿 등록은 운영자가 `CardDesign` row를 직접 insert(관리자 업로드 UI 없음 — 정책 4) — 이번 구현은 그 전제로 `CardDesign.create(...)`에 `schoolId` 파라미터가 있는 오버로드만 추가했다.
+- [ ] **미완료(운영 절차로만 지켜지는 불변조건)**: "같은 `schoolId + orientation`에는 활성 STUDENT 디자인을 1개만 허용"을 Service/DB 수준에서 강제하는 로직은 넣지 않았다 — 관리자 업로드 UI 자체가 없어(운영자가 직접 DB INSERT) 애초에 이 불변조건을 검사할 Service 진입점이 없다. 지금은 운영자가 직접 확인하며 넣어야 한다. DB 레벨로 강제하려면 partial unique index(`WHERE active`)가 필요한데 이 프로젝트는 Hibernate `ddl-auto`라 마이그레이션 스크립트 도입이 별도로 필요해 이번 범위에서 뺐다 — 필요성이 확인되면 후속 항목으로.
+- **테스트**: `CardDesignServiceTest`에 6개 추가(applicationId 없이 STUDENT 조회 거절, 없는 applicationId 거절, schoolId 미연결 시 빈 목록, schoolId+orientation 정확히 매칭(다른 학교/다른 방향 디자인은 안 섞임), 디자인 미등록 학교는 빈 목록, active 필터도 학생증에 동일 적용) — 전부 통과(11/11). 전체 스위트 758개(+5) 전부 통과.
 
 ### 4-C. 카드 미리보기 렌더링(`CardLayouts`/`CardImageCompositor`)
 
