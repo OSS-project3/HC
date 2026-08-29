@@ -373,4 +373,43 @@ class CardPreviewServiceTest {
         verify(storageService).download("uploads/logo.png");
         verify(storageService).download("uploads/seal.png");
     }
+
+    // 2026-08-30: 카드 생성(3.)에서 Application.cardDesignId/cardIssueDate가 확정된 이후에는
+    // Preview도 다른 값을 거절한다(CardRenderPreparation 공유 검증) — 확정 전(null)에는 기존처럼
+    // 어떤 값이든 미리볼 수 있다(위 previewsFrontAndBackInOneCall이 이미 그 경우를 검증한다).
+    @Test
+    void rejectsMismatchedDesignAfterApplicationDesignConfirmed() {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        CardDesign otherDesign = cardDesignRepository.save(CardDesign.create(
+                honorKoreanTypeId, "디자인2", 2, CardDesignOrientation.LANDSCAPE, null, null, true));
+        application.confirmCardGeneration(otherDesign.getId(), LocalDate.now());
+        applicationRepository.save(application);
+
+        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request()))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_DESIGN_MISMATCH);
+    }
+
+    @Test
+    void rejectsMismatchedIssueDateAfterApplicationIssueDateConfirmed() {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        application.confirmCardGeneration(cardDesignId, LocalDate.now().minusDays(1));
+        applicationRepository.save(application);
+
+        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request()))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_ISSUE_DATE_MISMATCH);
+    }
+
+    @Test
+    void allowsSameDesignAndIssueDateAfterConfirmed() throws Exception {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        application.confirmCardGeneration(cardDesignId, LocalDate.now());
+        applicationRepository.save(application);
+
+        CardPreviewResponse response = cardPreviewService.preview(adminId, applicationId, memberId, request());
+
+        assertThat(decode(response.front())).isNotNull();
+        assertThat(decode(response.back())).isNotNull();
+    }
 }

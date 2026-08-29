@@ -214,4 +214,34 @@ class ApplicationMemberTest {
 
         assertThat(member.getPhotoPath()).isEqualTo("photos/new.jpg");
     }
+
+    // 3-B(2026-08-30): 카드 생성/재생성 확정 — assignCardImages는 검증 없이 그대로 덮어쓴다
+    // (호출 전 Service가 이미 필요한 검증을 끝냈다는 전제).
+    @Test
+    void assignCardImagesStoresFrontBackPathsAndIssueDate() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+        assertThat(member.isCardGenerated()).isFalse();
+
+        member.assignCardImages("cards/front-1.png", "cards/back-1.png", LocalDate.of(2026, 9, 1));
+
+        assertThat(member.getCardFrontPath()).isEqualTo("cards/front-1.png");
+        assertThat(member.getCardBackPath()).isEqualTo("cards/back-1.png");
+        assertThat(member.getIssueDate()).isEqualTo(LocalDate.of(2026, 9, 1));
+        assertThat(member.isCardGenerated()).isTrue();
+    }
+
+    @Test
+    void assignCardImagesOverwritesOnRegenerate() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+        member.assignCardImages("cards/front-1.png", "cards/back-1.png", LocalDate.of(2026, 9, 1));
+
+        member.assignCardImages("cards/front-2.png", "cards/back-2.png", LocalDate.of(2026, 9, 1));
+
+        assertThat(member.getCardFrontPath()).isEqualTo("cards/front-2.png");
+        assertThat(member.getCardBackPath()).isEqualTo("cards/back-2.png");
+    }
 }

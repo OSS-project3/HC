@@ -71,15 +71,12 @@ public class CardGenerationService {
             // 이번 요청에서 새로 올라간 key만 역순으로 보상 삭제 — 렌더링/업로드/DB반영 중 어느 단계가
             // 실패해도 실패 이전 상태(기존 카드 유무 포함)가 그대로 보존된다.
             deleteUploadedKeysReversed(uploadedKeys);
-            // 이번 최소 버전은 ApplicationMember에 낙관적 락이 없어(3-F "동시성 방어 재설계" 참고)
-            // ObjectOptimisticLockingFailureException을 여기서 잡을 이유가 없다 — 예상 못한
-            // RuntimeException은 그대로 전파한다(보상 삭제는 이미 수행됨).
-            if (!(e instanceof CustomException ce)) {
-                throw e;
-            }
+            // 검증 실패(CustomException)든 S3/DB 등 예상 못한 RuntimeException이든 실패는 전부
+            // 감사로그에 남긴다 — 실제 S3 장애 같은 흔한 실패 경로가 기록에서 빠지지 않도록.
+            String failureLabel = (e instanceof CustomException ce) ? ce.getErrorCode().name() : e.getClass().getSimpleName();
             adminActivityLogRepository.save(AdminActivityLog.create(adminId, AdminActivityLog.CARD_IMAGE_GENERATED,
-                    memberId, "카드 이미지 생성 실패(" + ce.getErrorCode() + "): " + applicationNumber));
-            throw ce;
+                    memberId, "카드 이미지 생성 실패(" + failureLabel + "): " + applicationNumber));
+            throw e;
         }
     }
 
