@@ -2,7 +2,6 @@ package com.example.honorcitizen.domain.card.service;
 
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.CardDesignOrientation;
-import com.example.honorcitizen.common.enums.CardSide;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
@@ -16,6 +15,7 @@ import com.example.honorcitizen.domain.application.entity.ApplicationMember;
 import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
 import com.example.honorcitizen.domain.card.dto.CardPreviewRequest;
+import com.example.honorcitizen.domain.card.dto.CardPreviewResponse;
 import com.example.honorcitizen.domain.card.entity.CardDesign;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardDesignRepository;
@@ -42,6 +42,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -132,11 +133,10 @@ class CardPreviewServiceTest {
         when(storageService.download(anyString())).thenReturn(samplePng());
     }
 
-    private CardPreviewRequest request(CardSide side) {
+    private CardPreviewRequest request() {
         CardPreviewRequest req = new CardPreviewRequest();
         ReflectionTestUtils.setField(req, "cardDesignId", cardDesignId);
         ReflectionTestUtils.setField(req, "issueDate", LocalDate.now());
-        ReflectionTestUtils.setField(req, "side", side);
         return req;
     }
 
@@ -151,18 +151,20 @@ class CardPreviewServiceTest {
         }
     }
 
-    @Test
-    void previewsFrontSuccessfully() throws Exception {
-        byte[] png = cardPreviewService.preview(adminId, applicationId, memberId, request(CardSide.FRONT));
-
-        assertThat(ImageIO.read(new java.io.ByteArrayInputStream(png))).isNotNull();
+    private BufferedImage decode(String base64Png) throws Exception {
+        return ImageIO.read(new java.io.ByteArrayInputStream(Base64.getDecoder().decode(base64Png)));
     }
 
+    // 2026-08-27 계약 변경 — 앞/뒤를 각각 요청하던 previewsFrontSuccessfully/previewsBackSuccessfully를
+    // 한 번의 호출로 둘 다 검증하는 테스트로 합쳤다(요청 자체가 이제 side를 구분하지 않음).
     @Test
-    void previewsBackSuccessfully() throws Exception {
-        byte[] png = cardPreviewService.preview(adminId, applicationId, memberId, request(CardSide.BACK));
+    void previewsFrontAndBackInOneCall() throws Exception {
+        CardPreviewResponse response = cardPreviewService.preview(adminId, applicationId, memberId, request());
 
-        assertThat(ImageIO.read(new java.io.ByteArrayInputStream(png))).isNotNull();
+        assertThat(response.front()).isNotBlank();
+        assertThat(response.back()).isNotBlank();
+        assertThat(decode(response.front())).isNotNull();
+        assertThat(decode(response.back())).isNotNull();
     }
 
     @Test
@@ -171,18 +173,20 @@ class CardPreviewServiceTest {
         long memberCountBefore = applicationMemberRepository.count();
         long manseryeokCountBefore = manseryeokResultRepository.count();
 
-        cardPreviewService.preview(adminId, applicationId, memberId, request(CardSide.FRONT));
+        cardPreviewService.preview(adminId, applicationId, memberId, request());
 
         assertThat(applicationRepository.count()).isEqualTo(applicationCountBefore);
         assertThat(applicationMemberRepository.count()).isEqualTo(memberCountBefore);
         assertThat(manseryeokResultRepository.count()).isEqualTo(manseryeokCountBefore);
+        // 앞/뒤를 한 번의 호출에서 같이 만들므로, 공통 S3 다운로드(사진)는 여전히 한 번만 일어나야 한다
+        // (예전에 side별로 나눠 호출할 때는 두 번 호출해야 두 번 다운로드됐던 것과 대조).
         verify(storageService).download(anyString());
         verifyNoMoreInteractions(storageService);
     }
 
     @Test
     void rejectsNonAdmin() {
-        assertThatThrownBy(() -> cardPreviewService.preview(userId, applicationId, memberId, request(CardSide.FRONT)))
+        assertThatThrownBy(() -> cardPreviewService.preview(userId, applicationId, memberId, request()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
@@ -194,7 +198,7 @@ class CardPreviewServiceTest {
         ReflectionTestUtils.setField(otherApplication, "status", ApplicationStatus.PRODUCTION_READY);
         Long otherApplicationId = applicationRepository.save(otherApplication).getId();
 
-        assertThatThrownBy(() -> cardPreviewService.preview(adminId, otherApplicationId, memberId, request(CardSide.FRONT)))
+        assertThatThrownBy(() -> cardPreviewService.preview(adminId, otherApplicationId, memberId, request()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }
@@ -205,14 +209,14 @@ class CardPreviewServiceTest {
         ReflectionTestUtils.setField(application, "status", ApplicationStatus.NAME_EDITING);
         applicationRepository.save(application);
 
-        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request(CardSide.FRONT)))
+        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_STATUS_TRANSITION);
     }
 
     @Test
     void rejectsUnknownCardDesign() {
-        CardPreviewRequest req = request(CardSide.FRONT);
+        CardPreviewRequest req = request();
         ReflectionTestUtils.setField(req, "cardDesignId", 999999L);
 
         assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, req))
@@ -226,7 +230,7 @@ class CardPreviewServiceTest {
                 CardType.create(CardTypeCode.VISITOR, "방문증-preview", null, BigDecimal.ZERO));
         CardDesign mismatched = cardDesignRepository.save(CardDesign.create(
                 visitor.getId(), "방문증 디자인1", 1, CardDesignOrientation.PORTRAIT, null, null, true));
-        CardPreviewRequest req = request(CardSide.FRONT);
+        CardPreviewRequest req = request();
         ReflectionTestUtils.setField(req, "cardDesignId", mismatched.getId());
 
         assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, req))
@@ -240,7 +244,7 @@ class CardPreviewServiceTest {
                 honorKoreanTypeId, "디자인2-미검수", 2, CardDesignOrientation.LANDSCAPE, null, null, false);
         inactive.deactivate();
         Long inactiveId = cardDesignRepository.save(inactive).getId();
-        CardPreviewRequest req = request(CardSide.FRONT);
+        CardPreviewRequest req = request();
         ReflectionTestUtils.setField(req, "cardDesignId", inactiveId);
 
         assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, req))
@@ -250,7 +254,7 @@ class CardPreviewServiceTest {
 
     @Test
     void rejectsIssueDateBeforeSubmission() {
-        CardPreviewRequest req = request(CardSide.FRONT);
+        CardPreviewRequest req = request();
         ReflectionTestUtils.setField(req, "issueDate", LocalDate.now().minusDays(1));
 
         assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, req))
@@ -260,7 +264,7 @@ class CardPreviewServiceTest {
 
     @Test
     void rejectsIssueDateBeyondThreeMonths() {
-        CardPreviewRequest req = request(CardSide.FRONT);
+        CardPreviewRequest req = request();
         ReflectionTestUtils.setField(req, "issueDate", LocalDate.now().plusMonths(3).plusDays(1));
 
         assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, req))
@@ -274,7 +278,7 @@ class CardPreviewServiceTest {
         ReflectionTestUtils.setField(member, "surname", null);
         applicationMemberRepository.save(member);
 
-        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request(CardSide.FRONT)))
+        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NAMING_INCOMPLETE);
     }
@@ -285,7 +289,7 @@ class CardPreviewServiceTest {
         ReflectionTestUtils.setField(member, "cardNumber", null);
         applicationMemberRepository.save(member);
 
-        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request(CardSide.FRONT)))
+        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_NOT_READY);
     }
@@ -309,7 +313,7 @@ class CardPreviewServiceTest {
                 "2026b", "test-v1", LocalDateTime.now(), adminId));
 
         Long groupId = group.getId();
-        CardPreviewRequest req = request(CardSide.FRONT);
+        CardPreviewRequest req = request();
         assertThatThrownBy(() -> cardPreviewService.preview(adminId, groupId, groupMemberId, req))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_ISSUER_ASSETS_MISSING);
@@ -319,7 +323,7 @@ class CardPreviewServiceTest {
     void rejectsWhenNoActiveManseryeokResult() {
         manseryeokResultRepository.deleteAll();
 
-        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request(CardSide.FRONT)))
+        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MANSERYEOK_NOT_CONFIRMED);
     }
@@ -332,7 +336,7 @@ class CardPreviewServiceTest {
                 "{}", "[\"year\",\"hour\"]", "{}",
                 "2026b", "test-v1", LocalDateTime.now(), adminId));
 
-        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request(CardSide.FRONT)))
+        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MANSERYEOK_NOT_CONFIRMED);
     }
@@ -361,9 +365,10 @@ class CardPreviewServiceTest {
                 "{\"year\":{\"stem\":\"갑\",\"branch\":\"술\"}}", "[]", "{}",
                 "2026b", "test-v1", LocalDateTime.now(), adminId));
 
-        byte[] png = cardPreviewService.preview(adminId, group.getId(), groupMember.getId(), request(CardSide.FRONT));
+        CardPreviewResponse response = cardPreviewService.preview(adminId, group.getId(), groupMember.getId(), request());
 
-        assertThat(ImageIO.read(new java.io.ByteArrayInputStream(png))).isNotNull();
+        assertThat(decode(response.front())).isNotNull();
+        assertThat(decode(response.back())).isNotNull();
         verify(storageService).download("photos/preview-group2.jpg");
         verify(storageService).download("uploads/logo.png");
         verify(storageService).download("uploads/seal.png");

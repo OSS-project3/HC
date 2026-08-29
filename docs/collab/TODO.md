@@ -1228,19 +1228,19 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 3. `card-templates/zodiac/`의 12지 아이콘 파일명·라벨이 부분적으로 어긋나 있음(`말.png`이 강아지 그림처럼 보이는 것 등) — 사용자가 실제 렌더링 이미지를 직접 확인하고 "정상"으로 확정(2026-08-26). 코드는 파일명 그대로 신뢰해서 그린다.
 4. 파일명 비표준 패턴이 예상보다 다양함을 추가로 확인 — `HONOR_KOREAN/3`은 로고.png, `VISITOR/6`은 "발행처 로고.png"(공백 포함), `HONOR_KOREAN/6`은 뒷면.png 대신 "대지 1 사본.png"+직인.png 대신 "아트보드 6.png". 전부 후보 리스트(`LOGO_CANDIDATES`/`SEAL_CANDIDATES`/`BACK_CANDIDATES`)에 반영해 처리했다.
 
-### 2-C. 저장 없는 미리보기 API — 🔵 백엔드 완료, 프론트 미착수 (Claude, 2026-08-26)
+### 2-C. 저장 없는 미리보기 API — 🔵 백엔드 완료, 프론트 미착수 (Claude, 2026-08-26, 계약 변경 2026-08-27)
 
 - [x] API 구현: `POST /api/admin/applications/{applicationId}/members/{memberId}/card-preview` — `CardPreviewService`(domain/card/service, `CardImageCompositor`/`CardMemberData`가 패키지 프라이빗이라 같은 패키지에 둠).
-- [x] 요청값: `cardDesignId`, `issueDate`, `side`(`CardSide` enum, FRONT/BACK).
+- [x] 요청값: `cardDesignId`, `issueDate`. ⚠️ **`side`(`CardSide` enum) 필드는 2026-08-27 계약 변경으로 제거됨** — 아래 참고.
 - [x] 발급일자는 신청일(`Application.createdAt`) 이상·신청일로부터 3개월 이하인지 검증(`CARD_ISSUE_DATE_OUT_OF_RANGE`).
 - [x] 검증 순서: 관리자 권한 → Application → 상태 → Member 소속 → 디자인(존재+카드종류 일치+active) → 작명 완료(`NAMING_INCOMPLETE`) → 실제 카드번호(`CARD_NOT_READY`) → 발행처(단체 로고·직인 필수, `CARD_ISSUER_ASSETS_MISSING`) → 만세력 확정 결과(연주 확정 여부, `MANSERYEOK_NOT_CONFIRMED`) → 렌더링.
 - [x] `PRODUCTION_READY`에서만 허용(`INVALID_STATUS_TRANSITION`).
 - [x] 실제 저장된 카드번호 사용(예시 번호 발급 없음 — `member.getCardNumber()`를 그대로 씀).
-- [x] 결과는 `image/png` byte로 반환(`ResponseEntity<byte[]>`, `ApiResponse` 미포장 — `export` 엔드포인트와 동일 패턴), DB row·S3 object 생성 없음(`@Transactional(readOnly = true)`, `StorageService.download`만 호출).
+- [x] **⚠️ 계약 변경(2026-08-27, 사용자 확인)**: 원래 `side`별로 호출을 나눠 `image/png` raw 바이너리 하나만 반환했으나(`ResponseEntity<byte[]>`, `ApiResponse` 미포장 — `export`와 동일 패턴), `preview()` 내부 검증·조회·S3다운로드(사진/로고/직인) 전체가 side와 무관하게 매번 중복 실행되는 낭비를 사용자가 지적 — **한 번의 호출에서 공통 작업을 1회만 수행하고 `composeFront()`/`composeBack()`을 둘 다 호출**해 `ApiResponse<CardPreviewResponse>`(JSON, `{front, back}` 각각 base64) 응답으로 변경. `CardPreviewRequest.side`/`CardSide` enum 삭제(다른 어디서도 안 쓰였음 — 4개 파일에만 존재했던 걸 확인 후 삭제).
 - [x] 에러 구분: `404`(디자인 없음/멤버 없음), `400`(상태·소속불일치·작명미완료·카드번호없음·날짜범위·디자인불일치·만세력미확정·발행처누락), `409`는 이번 범위에서 동시성 잠금을 안 걸어 해당 없음(읽기 전용 미리보기라 실사용상 충돌 여지가 낮다고 판단) — 422 대신 프로젝트 기존 관례대로 400 계열로 통일(다른 도메인도 전부 400/404/409만 씀).
 - [x] 응답에 S3 key·파일 경로·stack trace 노출 없음(기존 `GlobalExceptionHandler`가 `CustomException`을 errorCode+message로만 직렬화).
-- [x] `CardPreviewServiceTest` 17개: 앞/뒤 성공, DB·S3 무변경(Mockito verify), 소속 불일치, 상태, 카드번호 누락, 날짜(이전/3개월 초과), 디자인(없음/카드종류 불일치/비활성), 작명 미완료, 만세력 미확정/연주 불확실, 단체 발행처 누락, 로고·직인 UploadFile 경로 해석. "텍스트 초과"는 자동 검증 대상에서 제외(픽셀 단위 검증이 필요해 육안 확인 영역, 2-B와 동일 판단).
-- [x] **실제 API 검증(2026-08-26/27)**: docker 재빌드 후 실제 DB row(1건은 개인, 1건은 단체 Excel로 직접 생성)로 FRONT/BACK 둘 다 실제 렌더링 성공 — 이름/영문명/카드번호/주소/발급일자/띠가 전부 실제 저장값과 일치함을 육안 확인. 실패 케이스(존재하지 않는 디자인/카드종류 불일치/상태 미충족)도 실제 호출로 확인.
+- [x] `CardPreviewServiceTest` 18개(2026-08-27 갱신): 앞/뒤 성공은 `previewsFrontAndBackInOneCall` 하나로 병합(front/back 둘 다 존재+유효 PNG 디코딩 확인), 나머지 검증/거절 테스트(관리자 권한·소속 불일치·상태·카드번호 누락·날짜 범위·디자인 없음/카드종류 불일치/비활성·작명 미완료·만세력 미확정/연주 불확실·단체 발행처 누락·로고/직인 UploadFile 경로 해석)는 하나도 줄이지 않고 그대로 유지, DB·S3 무변경(Mockito verify, S3 다운로드가 여전히 1회만 발생하는지도 함께 확인 — side 통합으로 공통 작업이 중복되지 않는지의 실질 증거). "텍스트 초과"는 자동 검증 대상에서 제외(픽셀 단위 검증이 필요해 육안 확인 영역, 2-B와 동일 판단).
+- [x] **실제 API 검증(2026-08-26/27)**: docker 재빌드 후 실제 DB row(1건은 개인, 1건은 단체 Excel로 직접 생성)로 FRONT/BACK 둘 다 실제 렌더링 성공(계약 변경 전) — 이름/영문명/카드번호/주소/발급일자/띠가 전부 실제 저장값과 일치함을 육안 확인. 계약 변경 후에도 docker 재빌드 + curl로 새 JSON 에러 응답 경로(`APPLICATION_NOT_FOUND`) 확인 완료.
 
 완료 조건:
 
@@ -1250,71 +1250,78 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 **⚠️ 프론트 연동 상태(2026-08-27 통합 플로우 감사)**: 이 API를 부르는 프론트 코드가 전혀 없다(`api.ts`에 래퍼조차 없음). `card-designs` 조회 API(2-A)도 마찬가지로 미연동. 관리자 화면에 카드 디자인 선택·발급일자 입력·미리보기 UI 자체가 없어 이 3개(2-A 조회, 2-C resolve/confirm 계열, 2-C 미리보기)는 백엔드만 완성된 상태 — `docs/FRONTEND_API_GAPS.md`에 기록 필요.
 
-## 3. 비동기 전체 생성·원자적 저장·후속 상태 전이
+## 3. 카드 생성·저장 — 최소 버전 (현재 스코프, 2026-08-29 정책 확정)
 
-목표: 단체 최대 100명의 앞·뒷면을 비동기로 생성하고, 전원 성공했을 때만 DB 결과를 한 번에 반영한다.
+목표: 관리자가 Member 1명 단위로 카드 앞/뒷면을 실제로 생성해 S3에 보존하고 DB에 연결해서, 다운로드·후속 제작에 실제로 쓸 수 있는 수준까지만 만든다. 단체 최대 100명 비동기 일괄 생성·진행률 조회·재시도 체인은 이번 스코프가 아니다 — 기존 설계는 삭제하지 않고 "5. [보류 — 향후 확장]"으로 그대로 옮겨 보존했다. 실제 운영에서 대량 생성의 타임아웃·진행률·재시도 문제가 발생하면 그때 도입한다.
 
-### 3-A. CardGenerationJob과 비동기 실행 골격
+> **범위 재확정(2026-08-30, 구현 착수 후 스코프 재검토)**: 최초 구현 시도에서 §3과 함께 `applyNamingResult`/`assignMemberName`의 `NAME_EDITING` 제한, `startProducing`/`markCardReady` 집계 검증, `ApplicationMember` 낙관적 락(`@Version`)까지 같이 손댔었다. 재검토 결과 이 셋은 "카드를 렌더링해 S3에 저장하고 DB에 연결한다"는 §3의 핵심 동작에는 필수가 아니고, 각각 기존 도메인 API·상태머신·엔티티 동시성 의미를 §3 밖 범위까지 바꾸는 부수효과가 있어 **이번 구현에서 제외하고 "3-F. 후속 강화(이번 구현 제외)"로 이동**했다(코드도 함께 되돌릴 예정 — 이 갱신 시점 기준 아직 워킹트리에 구현 상태로 남아있다면 3-F 기준으로 되돌린다). §3-A~3-E만 이번 최소 버전의 실제 구현 대상이다.
 
-- [ ] `CardGenerationJob` Entity/Repository 추가.
-- [ ] 필드: applicationId, cardDesignId, issueDate, applicationVersion, status, totalCount, completedCount, failureCode/message, failedMemberId/stage, requestedBy, retryOfJobId, 요청·시작·완료 시각.
-- [ ] 상태: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`.
-- [ ] 생성 요청 API: `POST /api/admin/applications/{id}/card-generation` → `202 Accepted + jobId`.
-- [ ] 상태 조회 API: `GET /api/admin/applications/{id}/card-generation` 또는 jobId 조회 계약 확정·구현.
-- [ ] Job 생성 transaction에서 Application을 잠그고 `PENDING/PROCESSING` 중복 Job 거절.
-- [ ] Job DB commit 후에만 비동기 Worker 실행. `@Async` 자기 호출을 피하기 위해 Worker를 별도 Bean으로 분리.
-- [ ] bounded `TaskExecutor` 설정값 정의. 한 Job 내부 Member 처리는 우선 순차 실행.
-- [ ] 생성 성공 전 ApplicationStatus는 `PRODUCTION_READY` 유지.
-- [ ] 서버 재시작 등으로 장시간 `PROCESSING`인 Job을 설정형 기준시간 후 `FAILED`로 전환하는 복구 작업 설계.
-- [ ] Job 상태·중복 요청·after-commit 시작·재시작 복구 targeted tests.
+> **선행 작업(2026-08-29, Codex 검증 반영)**: 3-A의 "공유 준비 로직" 리팩터링(`CardPreviewService`를 건드리는 작업)을 시작하기 전에, 이미 구현·테스트·검증까지 끝났지만 아직 워킹트리에 미커밋 상태인 2-C Preview FRONT/BACK 계약 변경(`CardPreviewRequest`/`CardPreviewResponse`/`CardPreviewService`/`AdminApplicationController`/`CardPreviewServiceTest`)을 **먼저 별도 커밋**한다. 이미 안정된 변경과 이번 리팩터링을 한 커밋에 섞지 않기 위함 — git history를 bisect 가능하게 유지한다.
 
-완료 조건:
+### 3-A. 최소 카드 생성·저장 API — 분리·선행조건·공유 준비 로직
 
-- [ ] 실제 렌더링 없이도 생성 요청·비동기 선점·진행 조회·실패 전이가 독립적으로 동작.
-- [ ] 같은 Application에서 실행 Job 하나만 보장.
+- [ ] `POST /api/admin/applications/{applicationId}/members/{memberId}/card-generate` 신규 — Member 1명 단위 동기 처리(배치 API 없음, 단체는 관리자가 Member마다 반복 호출).
+- [ ] Preview(2-C)와 완전히 분리된 별도 엔드포인트. 관리자가 이 엔드포인트를 명시적으로 호출했을 때만 실행되고, 다른 어떤 API·상태 전이도 이 엔드포인트를 자동 트리거하지 않는다(2026-08-29 확정).
+- [ ] Request: `CardPreviewRequest`와 동일 계약 재사용(`cardDesignId`, `issueDate`) — 새 DTO 만들지 않음.
+- [ ] Response: 신규 `CardGenerateResponse(String cardFrontPath, String cardBackPath, LocalDate issueDate)` — 저장된 S3 key와 발급일자만 반환(이미지 바이트는 2-C Preview로 이미 확인했으므로 재전송하지 않음).
+- [ ] 선행조건(Preview와 100% 동일, 2026-08-29 재확인): 관리자 권한 → Application 존재 → 상태 게이트(아래) → Member 소속 → CardDesign(존재+카드종류 일치+active) → 발급일자 범위 → 작명 완료 → 카드번호 존재 → 발행처 자산 → 만세력 확정(연주 확정).
+- [ ] **공유 준비 로직(2026-08-29 확정)**: `CardPreviewService.preview()`의 "관리자 검증 ~ CardMemberData 조립"(현재 56~84행) 구간을 별도 컴포넌트(가칭 `CardRenderPreparation`)로 추출해 Preview·Generate 둘 다 이 컴포넌트로 검증·S3 다운로드·CardMemberData 조립을 수행한다. 검증 로직을 두 서비스에 복제하지 않는다. 유일한 차이는 허용 상태 집합(아래 상태 게이트)뿐 — 이를 파라미터로 넘긴다.
+- [ ] **상태 게이트(2026-08-30 Codex 검증 반영 — cardReadyAt 조건 추가)**: Generate는 `Application.status == PRODUCTION_READY`이거나 `(status == PRODUCING && cardReadyAt == null)`일 때만 허용한다. `COMPLETED`는 물론, `PRODUCING`이라도 이미 `markCardReady()`로 `cardReadyAt`이 찍힌 이후에는 거절한다(카드가 이미 "준비 완료"로 선언되어 사용자가 조회·다운로드할 수 있는 상태이므로 그 시점 이후의 재생성은 막는다 — `Application.cardReadyAt`은 `Application.java:88`에 이미 존재, `markCardReady()`는 `:329`). 나머지 상태는 기존 `INVALID_STATUS_TRANSITION`으로 거절. Preview는 기존대로 `PRODUCTION_READY` 단일값 유지(범위 변경 없음).
+- [ ] 렌더링은 기존 `CardImageCompositor.composeFront/composeBack`을 그대로 재사용.
+- [ ] **지원 카드종류 범위(2026-08-30 명시)**: 이번 Generate API는 일반 카드 3종(명예한국인증/명예시민증/방문증)만 지원한다. 학생증(STUDENT)은 4-B(CardDesign 학교 매칭)·4-C(STUDENT CardLayouts 등록)가 아직 미완료라 활성 STUDENT `CardDesign`이 하나도 없으므로, 기존 디자인 조회 검증(`CardDesignRepository.findById` → `CARD_DESIGN_NOT_FOUND`)에서 자연히 막힌다 — STUDENT를 위한 별도 조기 차단 분기를 새로 추가하지 않는다. 4-B/4-C가 끝나 STUDENT `CardDesign`이 등록되면 이 API는 코드 변경 없이 STUDENT도 자동으로 지원한다.
+- [ ] **서비스 구조 분리(2026-08-30 Codex 검증 반영)**: 단일 서비스에 렌더링·업로드·DB반영을 다 넣지 않는다. `ApplicationService`/`ApplicationPersistenceService` 분리와 같은 패턴으로 ① 오케스트레이션 서비스(가칭 `CardGenerationService`, 비-transactional: 준비 로직 호출 → 렌더링 → S3 업로드 → 실패 시 보상 삭제 → 성공 시 persistence 서비스 호출)와 ② 영속 전담 서비스(가칭 `CardGenerationPersistenceService`, `@Transactional`: DB 반영과 그 안에서의 최종 재검증만 담당)로 나눈다.
+- [ ] **준비 시점 이후 최종 재검증(2026-08-30 Codex 검증 반영, 2026-08-30 스코프 재검토로 문구 정정)**: 오케스트레이션 서비스가 준비 단계(렌더링 시작 전)에 조회한 Application/Member 상태를 기준으로 렌더링·S3 업로드를 마친 뒤, `CardGenerationPersistenceService`의 트랜잭션 진입 시점에 Application/Member를 **다시 조회**해 상태 게이트·소속·카드번호·작명 완료 여부·디자인·발급일자를 재검증한다(그 사이 관리자가 다른 요청으로 상태를 바꿨거나 이름을 재확정했을 수 있음). 이번 최소 버전은 `ApplicationMember`에 낙관적 락을 두지 않으므로(3-F 참고) 이 재조회·재검증이 stale 데이터 반영을 막는 **유일한** 방어선이다 — 완전 동시 요청까지 막지는 못한다(그 경우는 나중 commit이 조용히 덮어쓸 수 있음, 3-F에서 재설계 검토). 재검증 실패는 다른 실패와 동일하게 이번 요청의 신규 S3 key를 보상 삭제한다.
 
-### 3-B. 전체 렌더링·S3 보상·DB 일괄 확정
+### 3-B. S3 업로드·DB 반영·보상 삭제·재생성·동시성
 
-- [ ] Worker가 Application/Member/Design/만세력/파일 입력 snapshot을 다시 검증.
-- [ ] Job 전용 S3 prefix 사용: `cards/{applicationId}/jobs/{jobId}/{memberId}/front|back.png`.
-- [ ] Member별 앞·뒷면 순차 렌더링·업로드 후 `completedCount` 진행률 갱신.
-- [ ] 렌더링·업로드 도중 실패하면 신규 Job prefix 파일을 보상 삭제하고 Job `FAILED` 처리.
-- [ ] 모든 S3 업로드 성공 후 별도 `ApplicationCardPersistenceService`의 한 `@Transactional`에서 결과 확정.
-- [ ] 최종 transaction에서 Application status/version, Job status, 전 Member 결과 수와 소속을 재검증.
-- [ ] Application.cardDesignId, cardGeneratedAt과 모든 Member.issueDate/cardFrontPath/cardBackPath를 일괄 저장.
-- [ ] 카드번호는 기존 관리자 확정값을 유지하고 Worker가 새 번호를 생성하지 않음.
-- [ ] 최종 DB 저장 또는 commit 실패 시 DB 전체 rollback 및 신규 S3 파일 보상 삭제.
-- [ ] 재생성 성공 시 기존 카드 파일은 DB commit 이후에만 삭제.
-- [ ] 보상 삭제 실패는 원 실패를 덮지 않고 cleanupRequired와 Job prefix를 남겨 Scheduler가 재시도.
-- [ ] 프로세스 강제 종료로 메모리 추적 목록을 잃어도 FAILED/stale Job prefix로 고아 파일 정리 가능하게 구현.
-- [ ] 생성 성공·실패·재생성과 관리자 ID를 AdminActivityLog에 기록.
-- [ ] 통합 테스트: 개인/단체 성공, N번째 render/upload 실패, DB 실패, commit 실패, 기존 파일 보존, commit 후 삭제, cleanup 실패.
+- [ ] S3 key 형식: `applications/{applicationNumber}/members/{memberId}/card/{front|back}-{UUID}.png` — 매 생성마다 새 object(덮어쓰기 아님). 기존 `applications/.../cards/{UUID}.zip` 다운로드 키 패턴과 동일한 규칙을 재사용.
+- [ ] **업로드 방식(2026-08-30 Codex 검증 반영 — CARD_IMAGE 관련 서술 정정)**: `ApplicationMember.cardFrontPath`/`cardBackPath`는 `logoFileId`/`sealFileId`(Long, UploadFile row 참조)가 아니라 `photoPath`와 같은 `String` 경로 필드다. 따라서 `photoPath`가 쓰는 `storePhotoFile`과 동일한 패턴 — `StorageService.uploadBytes(key, bytes, "image/png")`를 직접 호출해 raw key 문자열만 반환받고, `UploadFile` entity row는 만들지 않는다. `UploadFileType.CARD_IMAGE`(선언만 되고 미사용인 enum 값)는 이번 스코프에서 쓰지 않는다 — `storeUploadFile`/`UploadFile` row 경로에만 의미가 있는 값이라 raw-key 저장에는 해당하지 않는다(계속 미사용 상태로 남는 게 맞음, 억지로 갖다 붙이지 않는다).
+- [ ] FRONT/BACK은 하나의 결과 세트로 취급한다: 둘 중 하나라도 렌더링 또는 업로드에 실패하면 전체 생성을 실패시킨다. 업로드된 key는 `ApplicationService`의 `uploadedKeys` 패턴과 동일하게 리스트에 누적하고, DB 반영 전 어느 단계(렌더링/업로드)든 실패하면 이번 요청에서 새로 올라간 key만 역순으로 즉시 삭제(`deleteUploadedFilesQuietlyReversed`와 동일한 조용한 삭제 — 삭제 실패가 원 예외를 덮지 않음).
+- [ ] **재현 가능성 데이터(2026-08-30 정책 갱신 — 발급일자도 Application 레벨 공유로 승격)**: `cardDesignId`는 이미 존재하는 `Application.cardDesignId`(현재 항상 null, 이번에 최초로 채워짐)를 재사용한다. `issueDate`는 신청서 전체에서 하나만 존재해야 한다는 정책에 맞춰 **신규 `Application.cardIssueDate`(`LocalDate`, nullable) 필드를 추가**하고, 개인별 기록용으로 기존 `ApplicationMember.issueDate`도 그대로 채운다(둘 다 유지 — Member.issueDate는 Application.cardIssueDate와 항상 같은 값이어야 하는 개인별 스냅샷). `Application.cardGeneratedAt`처럼 구 3-B 설계에만 있던 필드는 이번 최소 버전에서 만들지 않는다.
+- [ ] **디자인 충돌 정책(2026-08-30 정책 갱신 — Preview에도 동일 적용)**: 같은 Application 안의 모든 Member는 같은 디자인을 공유한다는 전제를 유지한다 — `Application.cardDesignId`가 이미 다른 값으로 채워져 있는데 요청의 `cardDesignId`가 다르면 기존 `CARD_DESIGN_MISMATCH` 에러로 거절한다(신규 에러코드 아님). null이면 Generate 최초 호출 값으로 확정한다. **이 규칙은 Generate뿐 아니라 Preview에도 동일하게 적용된다** — `CardRenderPreparation`(3-A 공유 준비 로직)에 이 검증을 넣어서 Preview·Generate 둘 다 같은 곳에서 걸리게 한다(Preview 쪽 별도 구현 금지). 확정 전(null)에는 Preview가 어떤 `cardDesignId`든 자유롭게 미리 볼 수 있다.
+- [ ] **발급일자 불일치 정책(2026-08-30 신규)**: `Application.cardIssueDate`가 이미 채워져 있는데 요청의 `issueDate`가 다르면 신규 `CARD_ISSUE_DATE_MISMATCH` 에러로 거절한다. null이면 Generate 최초 호출 값으로 확정한다. 디자인 충돌 정책과 대칭 — 역시 `CardRenderPreparation`에 넣어 Preview·Generate가 공유한다.
+- [ ] 두 파일 업로드가 모두 성공한 뒤에만 하나의 `@Transactional`에서 DB 반영: `ApplicationMember.assignCardImages(cardFrontPath, cardBackPath, issueDate)`(신규 mutator, `isCardGenerated()`가 그대로 `cardFrontPath != null` 기준으로 동작) + (최초 확정인 경우만) `Application.confirmCardGeneration(cardDesignId, cardIssueDate)`(신규 mutator, `cardDesignId`·`cardIssueDate`를 한 번에 확정 — 개별 setter 2개로 쪼개지 않는다, 둘은 항상 같은 시점에 함께 확정되므로).
+- [ ] DB 반영(commit) 자체가 실패하면 이번 요청에서 새로 올린 두 key를 보상 삭제.
+- [ ] **재생성(regenerate) — 멱등성 없이 항상 재실행(2026-08-30 명확화)**: 동일 Member·동일 요청을 다시 호출해도 "이전과 같은 요청이니 스킵" 같은 멱등 처리를 하지 않는다 — 매 호출은 상태 게이트를 통과하는 한 항상 새로 렌더링·업로드·재확정한다. 이미 `cardFrontPath`/`cardBackPath`가 있는 Member도 상태 게이트(`PRODUCTION_READY` 또는 `PRODUCING && cardReadyAt == null` — `PRODUCING && cardReadyAt != null`이면 재생성도 거절)를 통과하면 재생성할 수 있다. 새 두 파일을 먼저 올리고 DB commit이 성공한 이후에만 기존 두 파일을 삭제한다(성공 전에는 기존 파일을 지우지 않음 — 실패해도 기존 카드가 그대로 남는다). 기존 파일 삭제 실패는 조용히 무시(고아 파일 1건, 수동 정리 대상 — 자동 정리 재시도 큐는 이번 스코프에 없음). 재생성 전 "기존 카드 결과가 대체됩니다" 확인 경고는 프론트 책임(3-D 참고, 백엔드는 별도 확인 파라미터를 요구하지 않는다).
+- [ ] 카드번호는 이 API가 새로 생성하지 않고 기존 관리자 확정값을 그대로 사용(`isCardGenerated()` 이후 카드번호 변경 금지 로직에 영향 없음).
+- [ ] **동시성 방어는 이번 최소 버전에 없음(2026-08-30 스코프 재검토 — 최초엔 `ApplicationMember` `@Version`으로 구현했다가 제외)**: 상세 근거와 재설계 방향은 3-F 참고. 지금은 위 "준비 시점 이후 최종 재검증"(stale 상태 재확인)과 3-D의 프론트 버튼 비활성화(중복 클릭 방지)만으로 방어한다 — 완전 동시 요청(정확히 같은 순간 두 요청)까지는 막지 못한다.
+- [ ] **상태 자동전환 금지(2026-08-29 확정)**: 이 API는 `startProducing`/`markCardReady`/`markPhysicalDispatched` 등 어떤 `ApplicationStatus` 전이 메서드도 호출하지 않는다. 카드 생성/저장은 Member 카드 결과를 준비하는 책임만 지고, `PRODUCTION_READY → PRODUCING → COMPLETED` 전이는 기존 "관리자 신청 상태 전이 API"(별도 절, 861행)에서만 처리한다.
+- [ ] **AdminActivityLog 액션 상수(2026-08-30 재확인 — CARD_ISSUE는 실사용 중, 이전 서술 정정)**: `CARD_ISSUE`는 미사용이 아니라 이미 `ApplicationService.markCardReady()`(`:628`)에서 "카드 발급 완료"로 실사용 중이고 `ApplicationServiceAdminTransitionTest`(`:140`)가 검증한다 — 관리자가 Application 전체의 "카드 준비 완료"를 선언하는 이벤트다. Member 1명 단위로 반복 호출되는 "이미지 렌더링+S3 저장" 이벤트는 의미가 다르므로 `CARD_ISSUE`를 재사용하지 않는다(재사용하면 두 의미가 로그에서 섞인다). 신규 상수 `CARD_IMAGE_GENERATED`를 추가해 생성 성공/실패/충돌/재생성 여부와 관리자 ID를 기록한다. `CARD_ISSUE`는 그대로 두고 손대지 않는다.
 
-완료 조건:
+> (3-C는 없음 — "연관 기존 API 보강"으로 쓰던 자리였으나 2026-08-30 스코프 재검토로 전부 아래 "3-F. 후속 강화(이번 구현 제외)"로 이동했다. 문자 결번은 의도된 것.)
 
-- [ ] S3는 보상 방식, DB는 단일 transaction으로 전원 성공 또는 전원 미반영 보장.
-- [ ] 실패 후 기존 카드와 Application 상태가 유지되고 관리자가 다시 실행 가능.
+### 3-D. 프론트 연계 (참고 — 이번 백엔드 스코프 아님)
 
-### 3-C. 재시도·제작 전이·다운로드 소비 경로
+- [ ] 재생성 호출 전 "기존 카드 결과가 대체됩니다" 확인 경고 다이얼로그 표시.
+- [ ] 생성 버튼은 요청 진행 중(pending) 비활성화해 중복 클릭 자체를 예방한다 — **이번 최소 버전은 백엔드 동시성 방어가 없으므로(3-B "동시성 방어는 이번 최소 버전에 없음" 참고), 이 프론트 조치가 사실상 유일한 중복 요청 방지선이다.**
+- [ ] 프론트 미착수 시 `docs/FRONTEND_API_GAPS.md`에 Frontend NOT CONNECTED로 기록하고 백엔드 결과와 분리 판정한다(기존 STUDENT 절 판정표 패턴 재사용).
 
-- [ ] 실패 Job 재시도는 새 Job row로 생성하고 `retryOfJobId`로 이전 실패 이력 연결.
-- [ ] 재시도 사유 입력은 필수로 받지 않음. 수행 관리자·시각·실패 원인·결과는 감사 로그에 기록.
-- [ ] `startProducing` 선행조건 추가: `PRODUCTION_READY`, 결제 확인, `cardGeneratedAt`, 최근 Job COMPLETED, 전 Member 카드번호·발급일자·필수 카드 경로.
-- [ ] `cardReady`도 전 Member의 필수 카드 파일 존재 확인.
-- [ ] `MOBILE`은 cardReady 시 COMPLETED.
-- [ ] `MOBILE_AND_PHYSICAL`은 cardReady 후 PRODUCING 유지, 모바일 카드 조회 허용, dispatch 후 COMPLETED.
-- [ ] 사용자 다운로드 조건을 `COMPLETED` 단독 기준에서 `cardReadyAt != null && 필수 파일 존재` 기준으로 정리.
-- [ ] 관리자 제작 파일 다운로드 API 구현. 개인은 앞·뒷면, 단체는 전체 결과 ZIP 제공.
-- [ ] 단체 ZIP 임시 S3 object의 만료·정리 정책 적용.
-- [ ] 멱등 호출: 완료 Job 재조회, 중복 재시도, 중복 startProducing/cardReady가 기존 결과를 훼손하지 않도록 검증.
-- [ ] 통합 테스트: 재시도, 선행조건, MOBILE/MOBILE_AND_PHYSICAL 분기, 발송 전 모바일 다운로드, 관리자 다운로드, ZIP 정리.
+### 3-E. 테스트
+
+- [ ] `CardGenerateServiceTest`(신규): 신규 생성 성공, 재생성 성공(기존 파일 commit 후 삭제 확인), 동일 요청 반복 호출이 멱등 스킵 없이 매번 재실행되는지, 렌더링 실패 시 업로드 없음, front 업로드 성공+back 업로드 실패 시 front만 보상 삭제, DB 반영 실패 시 두 key 모두 보상 삭제, 디자인 충돌 시 `CARD_DESIGN_MISMATCH`, 발급일자 충돌 시 `CARD_ISSUE_DATE_MISMATCH`, 상태 게이트(`PRODUCTION_READY` 허용, `PRODUCING && cardReadyAt == null` 허용, `PRODUCING && cardReadyAt != null` 거절, `COMPLETED`/그 외 거절 — 재생성 케이스 포함), 준비 단계 이후 상태가 바뀐 경우 최종 재검증 실패, `CardPreviewService`와 공유하는 나머지 검증 실패 케이스(권한/Member소속/디자인/발급일자/작명/카드번호/발행처/만세력) 전부 재확인.
+- [ ] `CardPreviewServiceTest` 보강: `Application.cardDesignId`/`cardIssueDate`가 이미 확정된 상태에서 다른 값으로 Preview 요청 시 `CARD_DESIGN_MISMATCH`/`CARD_ISSUE_DATE_MISMATCH`로 거절되는지, 확정 전(null)에는 자유롭게 미리보기 가능한지.
+- [ ] `ApplicationMemberTest`/`ApplicationTest`: 신규 mutator(`ApplicationMember.assignCardImages`, `Application.confirmCardGeneration`) 단위 테스트.
+- [ ] 통합: 실제 Docker+테스트 스토리지 + curl로 개인 1건 생성 → S3 실제 파일 존재 → DB `cardFrontPath`/`cardBackPath` 확인.
+- [ ] 3-F로 이동한 항목(낙관적 락 통합 테스트, `startProducing`/`markCardReady` 집계 검증 테스트, 작명 API 상태 제한 테스트)은 이번 스코프의 테스트 대상이 아니다 — 3-F 착수 시 그때 작성한다.
 
 완료 조건:
 
-- [ ] 관리자가 카드 생성 요청부터 진행 확인·재시도·제작 시작·카드 준비까지 끊김 없이 수행 가능.
-- [ ] 사용자가 정책상 허용된 시점에 모바일 카드를 조회·다운로드 가능.
-- [ ] 1~3 전체 Application 관련 회귀 테스트 통과.
-- [ ] push 직전 전체 테스트를 로그 파일로 실행하고 종료 코드·전체 테스트 수·실패 이름·리포트 경로만 보고.
+- [ ] 관리자가 Member 1명씩 카드를 생성·재생성할 수 있고, 성공 시 S3와 DB가 항상 일치한다.
+- [ ] 렌더링/업로드/DB 반영 중 어떤 단계가 실패해도 이번 요청 이전 상태(기존 카드 유무 포함)가 그대로 보존된다. **보상 삭제 자체가 실패하면 그 파일(신규 업로드분이든, 재생성 시 기존 파일이든 동일하게)이 고아로 남을 수 있음을 명시적으로 인지한다(2026-08-30 Codex 검증 반영 — 재생성 케이스로만 한정하지 않음)** — 자동 정리 재시도 큐는 이번 스코프에 없고, 수동 정리 대상으로 기록에 남긴다.
+- [ ] 카드 생성 성공이 ApplicationStatus를 자동으로 바꾸지 않는다.
+- [ ] 같은 Application 안에서는 디자인·발급일자가 항상 하나로 수렴한다 — Preview·Generate 어느 쪽에서 다른 값을 보내도 확정된 값과 다르면 거절된다.
+- [ ] 이번 Generate API는 일반 카드 3종만 지원하고, 학생증은 4-B/4-C 완료 후 별도 코드 변경 없이 자동 지원된다.
+- [ ] **이번 최소 버전엔 동시성 방어·startProducing/markCardReady 집계 검증·작명 API 상태 제한이 없다(2026-08-30 스코프 재검토)** — 3-F로 이동, 필요성이 확인되면 그때 별도로 구현한다.
+- [ ] 단체 100명 동시 생성, 진행률 조회, PENDING/PROCESSING/FAILED 상태, `retryOfJobId` 재시도 체인은 이번 스코프에 없음 — 아래 "5. [보류 — 향후 확장]" 참고.
+
+### 3-F. 후속 강화 (이번 구현 제외, 2026-08-30 스코프 재검토)
+
+§3 구현을 진행하던 중 아래 4가지를 "카드가 실제로 저장되기 시작하면서 새로 의미가 생기는 안전장치"로 판단해 §3에 같이 넣었었다. 재검토 결과 전부 §3의 핵심 동작("카드를 렌더링해 S3에 저장하고 DB에 연결한다")과 독립적이고, 각각 §3 밖의 기존 도메인 API·상태머신·엔티티에 영향을 주는 부수효과가 있어 제외했다. 삭제가 아니라 근거를 남기고 후속 항목으로 미룬다 — 아래 각 항목은 왜 필요하다고 판단했는지와 왜 지금은 보류하는지를 같이 적는다.
+
+- [ ] **작명 수정 API(`applyNamingResult`, `assignMemberName`) `NAME_EDITING` 제한** — **왜 필요:** 둘 다(`ApplicationService.java` `:527`/`:481` 부근) 현재 `Application.status`를 전혀 검증하지 않아, 카드 이미지가 이미 생성된 이후(`PRODUCTION_READY`/`PRODUCING`)에도 관리자가 이름을 조용히 바꿀 수 있다 — 이미 렌더링된 카드 PNG와 DB 값이 어긋나는 gap. **왜 보류:** §3의 생성·저장·보상삭제·재생성 로직 어디도 이 두 API에 의존하지 않는다 — 카드가 아직 하나도 없던 지금까지는 이 gap이 실질적 피해가 없었고(정확히는 이 문제가 §3 도입 이전부터 있던 기존 gap), §3 자체의 정상 동작에는 영향이 없다. 두 API를 같이 막아야 우회를 막을 수 있으므로(하나만 제한하면 다른 쪽으로 우회 가능) 별도 작업 단위로 한 번에 처리한다.
+- [ ] **`startProducing`/`markCardReady` 카드 생성 완료 집계 검증** — **왜 필요:** 카드가 하나도 생성되지 않은(또는 일부만 생성된) Application도 관리자가 제작 시작·카드 발급완료를 눌러버릴 수 있다. 검증 항목(재검토 시점 기준): 실제 `ApplicationMember` 수 == `Application.totalQuantity`, `Application.cardDesignId`/`cardIssueDate` 존재, 모든 Member의 `cardNumber`/`cardFrontPath`/`cardBackPath` 존재, 모든 Member의 `issueDate == Application.cardIssueDate` — 하나라도 실패하면 신규 `CARD_GENERATION_INCOMPLETE` 에러로 거절(Entity 상태 전이 메서드는 그대로 쓰고 Service에서 집계만 선행). **왜 보류:** §3의 `CardGenerationService`/`CardGenerationPersistenceService`는 이 두 메서드를 호출하지도, 이 두 메서드에 의존하지도 않는다 — §3만 놓고 보면 없어도 정상 동작한다. "카드 없이 제작 전이"라는 시나리오 자체가 §3이 배포된 **이후에** 의미가 생기는 후속 방어라 별도 작업 단위로 분리한다.
+- [ ] **카드 생성 동시성 방어 재설계** — **왜 필요:** 사용자가 명시적으로 요구한 요구사항("동일 멤버에 대한 카드 생성 요청이 동시에 여러 개 처리되지 않도록... 백엔드 동시성 방어를 적용") 자체는 여전히 유효하다. **왜 지금 없음:** 최초 구현은 `ApplicationMember`에 `@Version`(낙관적 락)을 붙였는데, 이건 `ApplicationMember`를 쓰는 **다른 모든 기존 API**(작명 확정 2종, 카드번호 단건 지정, 사진 재업로드 등)에도 "동시 요청이 겹치면 `ObjectOptimisticLockingFailureException`이 발생할 수 있다"는, 지금까지 없던 실패 경로를 만든다 — 그런데 `GlobalExceptionHandler`에 이 예외의 전역 처리가 없어(바로 아래 항목) 그 다른 API들에서는 raw 500으로 노출된다. 카드 생성 기능 하나를 위해 기존 API 전체의 동시성 의미를 바꾸는 건 과하다고 판단해 제외했다. **재설계 방향(둘 중 선택 필요):** (a) 카드 생성 경로에만 한정된 방식으로 다시 설계(예: `CardGenerationPersistenceService.persist()` 트랜잭션 안에서 짧게 값을 재확인하는 지금의 재검증만으로 충분한지 먼저 판단, 부족하면 카드 생성 전용 락 컬럼/메커니즘 도입), 또는 (b) 초기 운영 규모(관리자 수·동시 접속 빈도)에서 필요성이 낮다고 보고 이번엔 보류 — 프론트의 "생성 중 버튼 비활성화"(3-D)가 실무적으로 대부분의 경합을 막아준다. **지금 없을 때 남는 리스크:** 완전 동시 요청 시 나중에 commit되는 쪽이 조용히 덮어쓴다(에러 없음) — 두 관리자가 정확히 같은 순간 같은 Member를 다시 생성하는 극히 드문 경우에만 발생.
+- [ ] **`GlobalExceptionHandler`의 `ObjectOptimisticLockingFailureException` 전역 처리 부재** — **왜 필요:** 이번 검토 중 발견 — `Application`에는 이미 `@Version`이 있지만(`Application.java:97`), 이 예외를 전역적으로 처리하는 핸들러가 없다. 실제로 지금까지 이 예외를 잡는 곳은 백그라운드 스케줄러(`ApplicationPaymentTimeoutScheduler`, 실패해도 로그만 남기고 조용히 넘어감) 하나뿐이라, HTTP 요청 경로에서 이 예외가 발생하면 `@ExceptionHandler(Exception.class)` catch-all로 떨어져 500 `INTERNAL_ERROR`로 나간다. **왜 보류:** 이건 §3이나 이번 카드 생성 기능이 만든 문제가 아니라 **기존에 이미 있던 gap**이고, 위 "동시성 방어 재설계" 항목의 결론(락을 어디에 어떻게 걸지)이 먼저 나와야 이 핸들러를 어떤 에러코드로 매핑할지도 정할 수 있어 함께 묶어 후속으로 남긴다.
 
 ---
 
@@ -1490,7 +1497,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 #### 2-B. 확정 DB 데이터로 학생증 Preview 생성 — 카드 렌더링
 
-- [ ] **기존 Preview API 재사용** — **확인 대상:** CardPreviewRequest, CardPreviewService, AdminApplicationController. **재사용:** cardDesignId·issueDate·side 요청, 관리자 권한, PRODUCTION_READY, Member 소속, 카드번호·발급일자·작명·만세력 검증, image/png 응답. **완료 조건:** 학생증 전용 Preview API를 만들지 않고 기존 엔드포인트가 STUDENT도 처리한다.
+- [ ] **기존 Preview API 재사용** — **확인 대상:** CardPreviewRequest, CardPreviewService, AdminApplicationController. **재사용:** cardDesignId·issueDate 요청(⚠️ 2026-08-27 계약 변경으로 `side` 필드는 없어지고 응답이 앞/뒤를 한 번에 반환하도록 바뀜, `ApiResponse<CardPreviewResponse>` JSON+base64 — 2-C 절 참고), 관리자 권한, PRODUCTION_READY, Member 소속, 카드번호·발급일자·작명·만세력 검증. **완료 조건:** 학생증 전용 Preview API를 만들지 않고 기존 엔드포인트가 STUDENT도 처리한다.
 - [ ] **실제 DB 값 매핑 검증** — **확인 대상:** CardPreviewService의 CardMemberData 구성부와 CardImageCompositor. **재사용:** 저장된 최종 데이터 우선 원칙. **완료 조건:** Excel 저장값, 확정 성씨·이름·한자·뜻, photoPath, 관리자 카드번호, 발급일자, Application.schoolName 스냅샷, 학번·학과, 로고·선택 직인, 띠 결과가 요청 임시값이나 현재 School.name이 아니라 DB 신청 스냅샷에서 전달된다.
 - [ ] **고등학교 × 세로 앞·뒷면 검증** — **확인 대상:** STUDENT HIGH_SCHOOL PORTRAIT layout과 CardImageCompositorTest. **재사용:** 공통 이미지 합성·빈 한자 영역 처리. **완료 조건:** 생년월일 등 고등학교 확정 필드는 표시되고 학번·학과는 표시되지 않으며 앞·뒷면 PNG가 정상 생성된다.
 - [ ] **고등학교 × 가로 앞·뒷면 검증** — **확인 대상:** STUDENT HIGH_SCHOOL LANDSCAPE layout. **재사용:** 동일. **완료 조건:** 세로형과 같은 DB 값이 가로형 확정 좌표에 렌더링되며 잘림·사진 겹침이 없다.
@@ -1539,3 +1546,73 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 | 3-A | 실제 Excel부터 Preview까지 Backend/Frontend/E2E 분리 판정 | Application·School·Manseryeok·Naming·Card 관련 묶음, 필요한 frontend build와 실제 HTTP E2E, 마지막 전체 테스트 1회 |
 
 **실행 규칙:** 각 단위는 정책 확인 → 기존 테스트 확인 → 필요한 실패 테스트 최소 보강 → 최소 구현 → targeted 회귀 → 문서 갱신 순서로 진행한다. 대량 출력 명령은 stdout/stderr를 로그 파일로 저장하고 종료 코드·테스트 집계·실패 이름·최초 원인·리포트 경로만 보고한다. 전체 테스트는 3-A 또는 push 직전 한 번 실행한다.
+
+---
+
+## 5. [보류 — 향후 확장] 비동기 전체 생성·원자적 저장·후속 상태 전이 (구 3-A~3-C)
+
+> **상태(2026-08-29): 보류.** 아래 `CardGenerationJob`/비동기 Worker/진행률 조회/`PENDING·PROCESSING·COMPLETED·FAILED` 상태 머신/`retryOfJobId` 재시도 체인은 현재 스코프에서는 과설계로 판단해 지금 구현하지 않는다. 지금은 "3. 카드 생성·저장 — 최소 버전"의 동기 버전(Member 1명 단위, 보상 삭제 포함)만 구현한다. 실제 운영에서 단체 대량 생성의 타임아웃·진행률·재시도 문제가 실제로 발생하면 그때 아래 설계를 다시 꺼내 도입한다. 내용은 삭제하지 않고 원문 그대로 보존했다(섹션 번호만 3→5로 이동, 하위 3-A/3-B/3-C 라벨은 원문 그대로 유지).
+
+목표: 단체 최대 100명의 앞·뒷면을 비동기로 생성하고, 전원 성공했을 때만 DB 결과를 한 번에 반영한다.
+
+### 3-A. CardGenerationJob과 비동기 실행 골격
+
+- [ ] `CardGenerationJob` Entity/Repository 추가.
+- [ ] 필드: applicationId, cardDesignId, issueDate, applicationVersion, status, totalCount, completedCount, failureCode/message, failedMemberId/stage, requestedBy, retryOfJobId, 요청·시작·완료 시각.
+- [ ] 상태: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`.
+- [ ] 생성 요청 API: `POST /api/admin/applications/{id}/card-generation` → `202 Accepted + jobId`.
+- [ ] 상태 조회 API: `GET /api/admin/applications/{id}/card-generation` 또는 jobId 조회 계약 확정·구현.
+- [ ] Job 생성 transaction에서 Application을 잠그고 `PENDING/PROCESSING` 중복 Job 거절.
+- [ ] Job DB commit 후에만 비동기 Worker 실행. `@Async` 자기 호출을 피하기 위해 Worker를 별도 Bean으로 분리.
+- [ ] bounded `TaskExecutor` 설정값 정의. 한 Job 내부 Member 처리는 우선 순차 실행.
+- [ ] 생성 성공 전 ApplicationStatus는 `PRODUCTION_READY` 유지.
+- [ ] 서버 재시작 등으로 장시간 `PROCESSING`인 Job을 설정형 기준시간 후 `FAILED`로 전환하는 복구 작업 설계.
+- [ ] Job 상태·중복 요청·after-commit 시작·재시작 복구 targeted tests.
+
+완료 조건:
+
+- [ ] 실제 렌더링 없이도 생성 요청·비동기 선점·진행 조회·실패 전이가 독립적으로 동작.
+- [ ] 같은 Application에서 실행 Job 하나만 보장.
+
+### 3-B. 전체 렌더링·S3 보상·DB 일괄 확정
+
+- [ ] Worker가 Application/Member/Design/만세력/파일 입력 snapshot을 다시 검증.
+- [ ] Job 전용 S3 prefix 사용: `cards/{applicationId}/jobs/{jobId}/{memberId}/front|back.png`.
+- [ ] Member별 앞·뒷면 순차 렌더링·업로드 후 `completedCount` 진행률 갱신.
+- [ ] 렌더링·업로드 도중 실패하면 신규 Job prefix 파일을 보상 삭제하고 Job `FAILED` 처리.
+- [ ] 모든 S3 업로드 성공 후 별도 `ApplicationCardPersistenceService`의 한 `@Transactional`에서 결과 확정.
+- [ ] 최종 transaction에서 Application status/version, Job status, 전 Member 결과 수와 소속을 재검증.
+- [ ] Application.cardDesignId, cardGeneratedAt과 모든 Member.issueDate/cardFrontPath/cardBackPath를 일괄 저장.
+- [ ] 카드번호는 기존 관리자 확정값을 유지하고 Worker가 새 번호를 생성하지 않음.
+- [ ] 최종 DB 저장 또는 commit 실패 시 DB 전체 rollback 및 신규 S3 파일 보상 삭제.
+- [ ] 재생성 성공 시 기존 카드 파일은 DB commit 이후에만 삭제.
+- [ ] 보상 삭제 실패는 원 실패를 덮지 않고 cleanupRequired와 Job prefix를 남겨 Scheduler가 재시도.
+- [ ] 프로세스 강제 종료로 메모리 추적 목록을 잃어도 FAILED/stale Job prefix로 고아 파일 정리 가능하게 구현.
+- [ ] 생성 성공·실패·재생성과 관리자 ID를 AdminActivityLog에 기록.
+- [ ] 통합 테스트: 개인/단체 성공, N번째 render/upload 실패, DB 실패, commit 실패, 기존 파일 보존, commit 후 삭제, cleanup 실패.
+
+완료 조건:
+
+- [ ] S3는 보상 방식, DB는 단일 transaction으로 전원 성공 또는 전원 미반영 보장.
+- [ ] 실패 후 기존 카드와 Application 상태가 유지되고 관리자가 다시 실행 가능.
+
+### 3-C. 재시도·제작 전이·다운로드 소비 경로
+
+- [ ] 실패 Job 재시도는 새 Job row로 생성하고 `retryOfJobId`로 이전 실패 이력 연결.
+- [ ] 재시도 사유 입력은 필수로 받지 않음. 수행 관리자·시각·실패 원인·결과는 감사 로그에 기록.
+- [ ] `startProducing` 선행조건 추가: `PRODUCTION_READY`, 결제 확인, `cardGeneratedAt`, 최근 Job COMPLETED, 전 Member 카드번호·발급일자·필수 카드 경로.
+- [ ] `cardReady`도 전 Member의 필수 카드 파일 존재 확인.
+- [ ] `MOBILE`은 cardReady 시 COMPLETED.
+- [ ] `MOBILE_AND_PHYSICAL`은 cardReady 후 PRODUCING 유지, 모바일 카드 조회 허용, dispatch 후 COMPLETED.
+- [ ] 사용자 다운로드 조건을 `COMPLETED` 단독 기준에서 `cardReadyAt != null && 필수 파일 존재` 기준으로 정리.
+- [ ] 관리자 제작 파일 다운로드 API 구현. 개인은 앞·뒷면, 단체는 전체 결과 ZIP 제공.
+- [ ] 단체 ZIP 임시 S3 object의 만료·정리 정책 적용.
+- [ ] 멱등 호출: 완료 Job 재조회, 중복 재시도, 중복 startProducing/cardReady가 기존 결과를 훼손하지 않도록 검증.
+- [ ] 통합 테스트: 재시도, 선행조건, MOBILE/MOBILE_AND_PHYSICAL 분기, 발송 전 모바일 다운로드, 관리자 다운로드, ZIP 정리.
+
+완료 조건:
+
+- [ ] 관리자가 카드 생성 요청부터 진행 확인·재시도·제작 시작·카드 준비까지 끊김 없이 수행 가능.
+- [ ] 사용자가 정책상 허용된 시점에 모바일 카드를 조회·다운로드 가능.
+- [ ] 1~3 전체 Application 관련 회귀 테스트 통과.
+- [ ] push 직전 전체 테스트를 로그 파일로 실행하고 종료 코드·전체 테스트 수·실패 이름·리포트 경로만 보고.

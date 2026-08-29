@@ -386,7 +386,7 @@ NAME_EDITING
 
 - 디자인은 Application 전체에서 하나를 공유합니다.
 - 발급일자는 Application 단위로 한 번 입력하고 모든 `ApplicationMember.issueDate`에 동일하게 저장합니다.
-- 미리보기는 Member 한 명과 `FRONT` 또는 `BACK` 한 면 단위로 동기 생성하며 DB와 S3에 저장하지 않습니다.
+- 미리보기는 Member 한 명 단위로 동기 생성하며 DB와 S3에 저장하지 않습니다. 앞/뒤는 한 번의 호출에서 함께 반환합니다(2026-08-27 계약 변경 — 이전엔 `FRONT`/`BACK`을 나눠 요청해야 했으나, 공통 검증·조회·S3다운로드가 매번 중복 실행되는 낭비가 있어 한 번에 반환하도록 바꿨습니다).
 - 최종 확정은 Application의 전체 Member를 한 작업으로 생성합니다.
 - 한 명이라도 실패하면 어떤 Member의 새 카드 경로도 DB에 반영하지 않습니다.
 - 카드번호는 관리자가 Member별로 입력·확정하며 최초 최종 생성 전에 저장합니다. 재생성할 때 기존 번호를 유지합니다.
@@ -452,7 +452,7 @@ NAME_EDITING
 | `GET /api/admin/card-designs?cardTypeId={id}&active=true` | 선택 가능한 디자인 조회 |
 | `PUT /api/admin/applications/{applicationId}/members/{memberId}/card-number` | 관리자가 실제 카드번호 입력·변경 |
 | `PUT /api/admin/applications/{applicationId}/card-numbers` | 사진 번호 기준 단체 카드번호 일괄 입력 |
-| `POST /api/admin/applications/{applicationId}/members/{memberId}/card-preview` | 단일 Member·단일 면 미리보기 |
+| `POST /api/admin/applications/{applicationId}/members/{memberId}/card-preview` | 단일 Member 미리보기 — 앞/뒤를 한 번의 호출로 함께 반환(`ApiResponse<{front,back}>` JSON, 각 base64 PNG. 2026-08-27 계약 변경: 원래 `side` 요청 필드로 한쪽씩 반환하던 걸, 공통 검증·조회·S3다운로드 중복 실행을 없애기 위해 한 번에 반환하도록 변경) |
 | `POST /api/admin/applications/{id}/card-generation` | 전체 카드 생성 작업 시작, `202 Accepted` |
 | `GET /api/admin/applications/{id}/card-generation` | 진행률·성공·실패 조회 |
 | `GET /api/admin/applications/{id}/cards/download` | 관리자 제작용 결과 다운로드 |

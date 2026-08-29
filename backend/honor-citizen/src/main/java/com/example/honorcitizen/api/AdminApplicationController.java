@@ -16,7 +16,10 @@ import com.example.honorcitizen.domain.application.dto.NameAssignRequest;
 import com.example.honorcitizen.domain.application.dto.NamingResultApplyResponse;
 import com.example.honorcitizen.domain.application.dto.RejectPhotoRequest;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
+import com.example.honorcitizen.domain.card.dto.CardGenerateResponse;
 import com.example.honorcitizen.domain.card.dto.CardPreviewRequest;
+import com.example.honorcitizen.domain.card.dto.CardPreviewResponse;
+import com.example.honorcitizen.domain.card.service.CardGenerationService;
 import com.example.honorcitizen.domain.card.service.CardPreviewService;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokActiveResultResponse;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokConfirmRequest;
@@ -53,6 +56,7 @@ public class AdminApplicationController {
     private final ApplicationService applicationService;
     private final ManseryeokService manseryeokService;
     private final CardPreviewService cardPreviewService;
+    private final CardGenerationService cardGenerationService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<MyApplicationListItemResponse>>> list(
@@ -156,15 +160,29 @@ public class AdminApplicationController {
                 manseryeokService.getActiveManseryeokResult(adminId, applicationId, memberId)));
     }
 
-    // 저장 없는 카드 미리보기(2-C) — DB row·S3 object를 만들지 않고 실제 신청 데이터로 PNG만 반환한다.
+    // 저장 없는 카드 미리보기(2-C) — DB row·S3 object를 만들지 않고 실제 신청 데이터로 앞/뒤 PNG를
+    // 한 번에 base64로 반환한다(2026-08-27: side별 raw image/png 응답에서 JSON 응답으로 계약 변경 —
+    // CardPreviewService.preview() 참고).
     @PostMapping("/{applicationId}/members/{memberId}/card-preview")
-    public ResponseEntity<byte[]> cardPreview(
+    public ResponseEntity<ApiResponse<CardPreviewResponse>> cardPreview(
             @AuthenticationPrincipal Long adminId,
             @PathVariable Long applicationId,
             @PathVariable Long memberId,
             @Valid @RequestBody CardPreviewRequest request) {
-        byte[] png = cardPreviewService.preview(adminId, applicationId, memberId, request);
-        return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).body(png);
+        return ResponseEntity.ok(ApiResponse.success(
+                cardPreviewService.preview(adminId, applicationId, memberId, request)));
+    }
+
+    // 3. 카드 생성·저장 — 최소 버전(2026-08-30). Preview와 완전히 분리된 엔드포인트 — 관리자가
+    // 이걸 명시적으로 호출했을 때만 실제로 S3에 저장하고 DB에 연결한다. 상태 전이는 트리거하지 않는다.
+    @PostMapping("/{applicationId}/members/{memberId}/card-generate")
+    public ResponseEntity<ApiResponse<CardGenerateResponse>> generateCard(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody CardPreviewRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                cardGenerationService.generate(adminId, applicationId, memberId, request)));
     }
 
     // 상태 전이 — 전이 규칙 자체는 Application 엔티티에 있고, 여기·Service는 호출·인가·감사로그만 담당한다.

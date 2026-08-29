@@ -252,4 +252,13 @@ public class ApplicationMember extends BaseTimeEntity {
         }
         this.cardNumber = cardNumber;
     }
+
+    // 카드 생성/재생성(3-B) 확정 — 앞·뒷면 S3 key와 발급일자를 함께 저장한다. 재생성이어도 그대로
+    // 덮어쓴다 — 기존 파일 삭제는 이 메서드가 아니라 호출부(CardGenerationPersistenceService)가
+    // 트랜잭션 커밋 이후에 처리한다(신규 파일 선저장 → commit → 기존 파일 후삭제 정책).
+    public void assignCardImages(String cardFrontPath, String cardBackPath, LocalDate issueDate) {
+        this.cardFrontPath = cardFrontPath;
+        this.cardBackPath = cardBackPath;
+        this.issueDate = issueDate;
+    }
 }

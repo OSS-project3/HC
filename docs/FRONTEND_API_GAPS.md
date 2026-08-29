@@ -223,11 +223,13 @@
 
 #### (f) 저장 없는 카드 미리보기 — `POST /api/admin/applications/{applicationId}/members/{memberId}/card-preview`
 - **용도**: DB row·S3 object를 전혀 만들지 않고, 실제 저장된 신청 데이터(이름·한자·주소·카드번호·발급일자·만세력 확정 연주→띠 캐릭터)로 카드 앞/뒷면 PNG를 즉시 렌더링해 반환한다. 관리자가 최종 발급 전 눈으로 확인하는 용도.
-- **요청 바디** (`CardPreviewRequest`): `{ cardDesignId(필수, (e)에서 고른 id), issueDate: "YYYY-MM-DD"(필수), side: "FRONT"|"BACK"(필수) }`.
-- **응답**: `image/png` 바이너리(JSON 아님 — `ApiResponse` 래핑 없이 raw PNG bytes, `export`(명단 엑셀) 엔드포인트와 동일 패턴).
-- **검증 순서(실패하면 여기서 막힘, 프론트가 각 단계별 안내 문구를 준비해야 함)**: 관리자 권한 → Application 존재 → **상태가 정확히 `PRODUCTION_READY`가 아니면 거절**(`INVALID_STATUS_TRANSITION` — §1.4의 `completeNaming` 이후 상태) → Member가 해당 Application 소속인지 → 카드 디자인 존재+카드종류 일치+`active=true`(`CARD_DESIGN_NOT_FOUND`/`CARD_DESIGN_MISMATCH`) → **발급일자가 신청일(`createdAt`) 이상·신청일+3개월 이하**(`CARD_ISSUE_DATE_OUT_OF_RANGE`) → 작명 완료(surname/name/nameMeaning 전부 non-blank, 아니면 `NAMING_INCOMPLETE`) → 카드번호 존재(`CARD_NOT_READY`) → **단체 신청은 로고+직인 둘 다 필수**(`CARD_ISSUER_ASSETS_MISSING`, `Application.isIndividual()`로 판정 — 개인은 이 검사 자체를 건너뜀) → **만세력 확정 결과 존재 + 연주(year)가 `uncertainPillars`에 없어야 함**(`MANSERYEOK_NOT_CONFIRMED` — (c)가 선행돼야 한다는 뜻).
+- **요청 바디** (`CardPreviewRequest`): `{ cardDesignId(필수, (e)에서 고른 id), issueDate: "YYYY-MM-DD"(필수) }`.
+- **⚠️ 계약 변경(2026-08-27)**: 원래 `side: "FRONT"|"BACK"`를 받아 한쪽만 반환했으나(호출 2번 필요), 공통 DB조회·검증·만세력조회·S3다운로드(사진/로고/직인)가 side와 무관하게 매번 중복 실행되는 낭비가 있어 **한 번의 호출로 앞/뒤를 함께 반환**하도록 바꿨다. 요청에서 `side` 필드 삭제, `CardSide` enum도 삭제(다른 어디서도 안 쓰였음).
+- **응답** (`ApiResponse<CardPreviewResponse>`, JSON): `{ front: string(base64 PNG), back: string(base64 PNG) }`. 예전엔 `image/png` raw 바이너리(`ApiResponse` 미포장)였으나, 이미지 2개를 한 응답에 담아야 해서 이 API 전체가 원래 쓰는 JSON envelope 패턴으로 통일했다(`export`처럼 다운로드가 목적이 아니라 화면에 바로 보여주는 미리보기라 base64+`<img src="data:image/png;base64,...">`가 자연스럽다).
+- **검증 순서(실패하면 여기서 막힘, 프론트가 각 단계별 안내 문구를 준비해야 함, side 제거와 무관하게 그대로)**: 관리자 권한 → Application 존재 → **상태가 정확히 `PRODUCTION_READY`가 아니면 거절**(`INVALID_STATUS_TRANSITION` — §1.4의 `completeNaming` 이후 상태) → Member가 해당 Application 소속인지 → 카드 디자인 존재+카드종류 일치+`active=true`(`CARD_DESIGN_NOT_FOUND`/`CARD_DESIGN_MISMATCH`) → **발급일자가 신청일(`createdAt`) 이상·신청일+3개월 이하**(`CARD_ISSUE_DATE_OUT_OF_RANGE`) → 작명 완료(surname/name/nameMeaning 전부 non-blank, 아니면 `NAMING_INCOMPLETE`) → 카드번호 존재(`CARD_NOT_READY`) → **단체 신청은 로고+직인 둘 다 필수**(`CARD_ISSUER_ASSETS_MISSING`, `Application.isIndividual()`로 판정 — 개인은 이 검사 자체를 건너뜀) → **만세력 확정 결과 존재 + 연주(year)가 `uncertainPillars`에 없어야 함**(`MANSERYEOK_NOT_CONFIRMED` — (c)가 선행돼야 한다는 뜻).
 - **띠 캐릭터 자동 삽입**: 이 API가 (c)에서 저장된 연주 지지(예: "사")를 읽어 12간지 동물 PNG를 카드에 자동으로 그린다(생년월일에서 직접 계산하는 게 아니라 **확정된 만세력 결과 경유** — 그래서 (c)가 먼저 끝나 있어야 함).
-- **프론트가 필요한 것**: `getCardPreview(applicationId, memberId, body)` 래퍼(응답이 PNG 바이너리라 `blob()`/`Object URL` 처리 필요, 기존 `exportApplications`의 바이너리 다운로드 패턴 재사용 가능) + 미리보기 버튼·이미지 표시 UI. 전혀 없음.
+- **프론트가 필요한 것**: `getCardPreview(applicationId, memberId, body)` 래퍼(JSON 응답이라 다른 API와 동일한 `request()` 헬퍼 그대로 사용 가능 — base64 문자열을 `<img src="data:image/png;base64,${front}">`에 바로 꽂으면 됨, blob/Object URL 처리 불필요) + 미리보기 버튼·이미지 표시 UI. 전혀 없음.
+- **검증(2026-08-27)**: `CardPreviewServiceTest` 18개(계약 변경으로 앞/뒤 성공 테스트 2개→1개로 병합, 나머지 검증/거절 테스트 전부 유지) 전부 통과. 실제 docker 재빌드 후 curl로 JSON 에러 응답 경로(`APPLICATION_NOT_FOUND`)까지 확인.
 
 **정리하면 이 순서가 실제 관리자 사용 흐름이다**: (a) 도시명 검색 → (b) timezone 판정(DST 중복이면 후보 선택 후 재호출) → 프론트가 `manseryeok` 패키지로 진태양시 보정 사주 계산 → (c) 결과 저장 → (e) 디자인 선택 → (f) 발급일자 입력 후 미리보기. **6개 API 모두 백엔드는 실제 curl 검증까지 끝났지만 프론트는 어느 하나도 시작 전이다.**
 

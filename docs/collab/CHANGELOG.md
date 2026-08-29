@@ -15,6 +15,23 @@
 
 ---
 
+## 2026-08-30 — Claude — `feat/card-generation-minimal` (3. 카드 생성·저장 — 최소 버전 신규 구현)
+
+- 변경: `POST /api/admin/applications/{applicationId}/members/{memberId}/card-generate`를 신규 구현했다. Member 1명 단위로 카드 앞/뒤를 렌더링해 S3에 저장하고 `ApplicationMember.cardFrontPath/cardBackPath/issueDate`, `Application.cardDesignId/cardIssueDate`에 연결한다(동기, 배치·비동기 Job 없음). 검증·S3 다운로드·렌더링 로직을 `CardPreviewService.preview()`에서 `CardRenderPreparation`으로 추출해 Preview·Generate가 공유하도록 리팩터했고, 여기에 "Application에 이미 확정된 cardDesignId/cardIssueDate와 다른 값이 오면 Preview도 거절"하는 검증을 추가했다(신규 `CARD_ISSUE_DATE_MISMATCH`, 기존 `CARD_DESIGN_MISMATCH` 재사용). 렌더링·S3 업로드·DB 반영은 `CardGenerationService`(오케스트레이션, 비-transactional)와 `CardGenerationPersistenceService`(`@Transactional`, 최종 재검증 후 반영)로 분리했다. FRONT/BACK 중 하나라도 실패하면 이번 요청에서 새로 올라간 S3 key를 역순 보상 삭제한다(기존 `ApplicationService`의 `uploadedKeys` 패턴 재사용). 재생성은 새 파일 선업로드 → DB commit 성공 → 기존 파일 후삭제 순서로 처리한다. 상태 게이트는 `PRODUCTION_READY` 또는 (`PRODUCING && cardReadyAt == null`)만 허용 — `cardReadyAt`이 찍힌 이후와 `COMPLETED`는 재생성도 거절한다. 카드 생성 성공은 어떤 `ApplicationStatus` 전이도 트리거하지 않는다.
+- 파일: `CardGenerateResponse.java`/`CardRenderPreparation.java`/`CardGenerationService.java`/`CardGenerationPersistenceService.java`(신규), `CardPreviewService.java`(`CardRenderPreparation` 위임으로 리팩터), `Application.java`(`cardIssueDate` 필드+`confirmCardGeneration()`), `ApplicationMember.java`(`assignCardImages()`), `ErrorCode.java`(`CARD_ISSUE_DATE_MISMATCH`), `AdminApplicationController.java`(엔드포인트 추가), `docs/collab/TODO.md`("3. 카드 생성·저장 — 최소 버전" 신규 절 + "5. [보류 — 향후 확장]"으로 async Job 설계 이동).
+- 사유: 기존 TODO의 3-A~3-C(비동기 `CardGenerationJob`/Worker/진행률/재시도)는 현재 스코프에서 과설계라고 판단해, 렌더링→S3 저장→DB 연결까지만 하는 동기 최소 버전으로 축소해 구현했다(사용자 확정 정책). 구현 중 Codex 검증에서 나온 제안(공유 준비 로직 추출, 서비스 구조 분리, 상태 게이트에 `cardReadyAt` 조건 추가, CARD_IMAGE 미사용 확인, 보상삭제 실패도 고아 가능성 인지)을 반영했다.
+- **스코프에서 제외(별도 리뷰 후 결정)**: 최초 구현 시도에서 `applyNamingResult`/`assignMemberName`의 `NAME_EDITING` 제한, `startProducing`/`markCardReady`의 카드 생성 완료 집계 검증, `ApplicationMember`에 대한 동시성 방어(`@Version`)까지 함께 구현했으나, §3의 핵심 동작(렌더링·저장·DB연결)과 독립적이고 각각 §3 밖의 기존 도메인 API·상태머신·엔티티 동시성 의미에 영향을 주는 부수효과가 있어 재검토 후 코드를 되돌리고 `TODO.md` "3-F. 후속 강화(이번 구현 제외)"로 이동했다(근거 포함). `ApplicationService.java`는 이 되돌리기 결과 커밋된 원본과 diff 0.
+- 검증: `CardPreviewServiceTest` 16개, `ApplicationServiceAdminTransitionTest` 11개 전부 통과(`REDIS_PORT=6400 ./gradlew.bat test`) — `startProducing`/`markCardReady` 되돌리기와 `CardRenderPreparation` 리팩터 둘 다 회귀 없음 확인. `compileJava`/`compileTestJava` 통과. 신규 기능(`CardGenerationService`/`CardGenerationPersistenceService`) 자체의 targeted test는 이 커밋에 미포함 — 후속 커밋에서 추가 예정.
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 3
+
+## 2026-08-27 — Claude — `main` (2-C 카드 미리보기 API — FRONT/BACK 계약 변경)
+
+- 변경: `POST .../card-preview`가 `side`(FRONT/BACK)별로 나눠 호출해야 하던 걸, 한 번의 호출에서 앞/뒤를 모두 반환하도록 바꿨다. `preview()` 내부의 공통 작업(관리자 권한·Application/Member/CardDesign 조회, 발급일자·작명·카드번호·발행처 검증, 만세력 조회+파싱, 사진·로고·직인 S3 다운로드)이 side와 무관하게 매 호출마다 전부 중복 실행되고 있었는데 — 실제로 이 API를 부르는 프론트 코드가 아직 하나도 없어 지금이 계약을 바꾸기 가장 부담 없는 시점이라는 사용자 판단으로 진행했다. 마지막 한 줄만 `composeFront()`/`composeBack()` 둘 다 호출하도록 바꾸고, 결과는 `ApiResponse<CardPreviewResponse>`(JSON, `{front, back}` 각각 base64 PNG)로 응답 형식도 함께 바꿨다(이전엔 `image/png` raw 바이너리, `ApiResponse` 미포장).
+- 파일: `CardPreviewRequest.java`(`side` 필드 삭제), `CardPreviewResponse.java`(신규 record), `CardSide.java`(삭제 — 다른 어디서도 안 쓰여서 확인 후 제거), `CardPreviewService.java`(반환 타입 `CardPreviewResponse`로 변경, 공통 작업 1회+앞뒤 합성 2회), `AdminApplicationController.java`(`ResponseEntity<byte[]>` → `ResponseEntity<ApiResponse<CardPreviewResponse>>`), `CardPreviewServiceTest.java`(FRONT/BACK 성공 테스트 2개→1개 병합, 나머지 검증/거절 테스트 17개는 그대로 유지, 총 18개), `docs/collab/TODO.md`/`docs/FRONTEND_API_GAPS.md`/`docs/specs/application/admin-saju.md`(계약 설명 갱신).
+- 사유: 프론트가 이 API를 관리자 화면에 연결하기 직전 정책 논의 중, "FRONT/BACK을 왜 따로 호출하게 만들었는지" 사용자가 근거를 요청 — 코드를 다시 읽어보니 성능상 이유가 전혀 없고 오히려 중복 낭비만 있었음을 확인, 아직 아무도 이 API를 안 쓰고 있어 지금 고치는 게 가장 저렴하다고 판단해 계약을 변경했다.
+- 검증: `CardPreviewServiceTest` 18개 전부 통과(`REDIS_PORT=6400 ./gradlew.bat test --tests CardPreviewServiceTest`). docker 재빌드 후 실제 curl로 새 JSON 에러 응답 경로(`APPLICATION_NOT_FOUND`, 404) 확인 — Spring context가 DTO/엔드포인트 변경 후에도 정상 기동하는지까지 실증.
+- 관련: TODO "관리자 작명 확정·카드 제작 구현 계획" 2-C
+
 ## 2026-08-26 — Claude — `main` (관리자 작명 확정·카드 제작 구현 계획 2-C — 저장 없는 카드 미리보기 API)
 
 - 변경: `POST /api/admin/applications/{id}/members/{memberId}/card-preview`를 신규 구현했다. 실제 Application/ApplicationMember/CardDesign/ManseryeokResult/UploadFile을 조회해 `CardMemberData`를 조립하고 `CardImageCompositor`를 호출해 PNG를 반환한다 — DB row·S3 object는 생성하지 않는다(읽기 전용). 검증 순서는 관리자 권한 → Application → 상태(PRODUCTION_READY) → Member 소속 → 디자인(존재+카드종류 일치+active) → 작명 완료 → 카드번호 → 발행처(단체 로고·직인 필수) → 만세력 확정(연주 확정 여부) → 렌더링.

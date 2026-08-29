@@ -61,4 +61,7 @@ public class AdminActivityLog {
     // KOREAN_NAME_REGISTER/KOREAN_NAME_UPDATE(applyNamingResult)가 별도로 남기므로 중복 기록하지 않는다.
     public static final String NAMING_COMPLETE       = "NAMING_COMPLETE";
     public static final String MANSERYEOK_CONFIRMED  = "MANSERYEOK_CONFIRMED";
+    // Member 1명 단위 카드 이미지 렌더링+S3 저장(카드 생성·재생성 최소 버전) — CARD_ISSUE(=markCardReady,
+    // Application 전체의 "카드 준비 완료" 선언)와는 의미가 달라 별도 상수로 둔다.
+    public static final String CARD_IMAGE_GENERATED  = "CARD_IMAGE_GENERATED";
 }

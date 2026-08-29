@@ -69,6 +69,7 @@ public enum ErrorCode {
     CARD_ISSUE_DATE_OUT_OF_RANGE(400, "발급일자는 신청일 이후, 신청일로부터 3개월 이내여야 합니다."),
     MANSERYEOK_NOT_CONFIRMED(400, "만세력 결과가 확정되지 않아 띠 이미지를 결정할 수 없습니다."),
     CARD_ISSUER_ASSETS_MISSING(400, "단체 신청은 로고와 직인 이미지가 모두 있어야 합니다."),
+    CARD_ISSUE_DATE_MISMATCH(400, "이미 확정된 발급일자와 다릅니다."),
 
     // Review
     REVIEW_NOT_FOUND(404, "존재하지 않는 후기입니다."),

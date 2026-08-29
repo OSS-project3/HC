@@ -24,6 +24,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 // 신청의 중심 엔티티. Applicant/ApplicationMember/Receiver는 JPA 연관관계(@OneToMany 등) 없이
@@ -115,6 +116,11 @@ public class Application extends BaseTimeEntity {
 
     // 관리자가 심사 후 배정하는 카드 디자인 — 신청 시점엔 항상 null(이번 리팩터링 범위 밖)
     private Long cardDesignId;
+
+    // 카드 생성(3. 카드 생성·저장) 최초 호출에서 확정되는, 신청서 전체가 공유하는 발급일자 —
+    // cardDesignId와 함께 confirmCardGeneration()에서만 채워진다. 그 전까지는 null.
+    // 개인별 기록용 ApplicationMember.issueDate는 이 값과 항상 같아야 한다(Service가 강제).
+    private LocalDate cardIssueDate;
 
     // 로고 UploadFile FK — 의미가 카드종류/신청유형에 따라 다르다.
     //   개인+학생증: 학교 로고(선택 안 하면 null). 개인+비학생증: 로고 자체가 없어 항상 null.
@@ -400,6 +406,14 @@ public class Application extends BaseTimeEntity {
         }
         this.refundedAt = refundedAt;
         return true;
+    }
+
+    // 카드 생성 최초 호출에서 디자인·발급일자를 함께 확정한다(항상 같은 시점에 확정되므로 setter를
+    // 둘로 쪼개지 않는다). 다른 값으로 덮어쓰지 못하게 막는 것은 이 메서드의 책임이 아니다 — 호출 전
+    // Service가 이미 확정값과의 불일치를 CARD_DESIGN_MISMATCH/CARD_ISSUE_DATE_MISMATCH로 걸러낸다.
+    public void confirmCardGeneration(Long cardDesignId, LocalDate cardIssueDate) {
+        this.cardDesignId = cardDesignId;
+        this.cardIssueDate = cardIssueDate;
     }
 
     public void clearManagedFileReferences() {
