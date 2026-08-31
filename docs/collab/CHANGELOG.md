@@ -24,6 +24,13 @@
 - 검증: `CardDesignServiceTest` 11개(6개 신규) 전부 통과. 전체 스위트 758개(+5) 중 skip 2(기존, 무관) 제외 전부 통과.
 - 관련: TODO "4. 학생증(STUDENT) 카드" 4-B
 
+## 2026-08-31 — Claude — `main` (4. 학생증 정책 4번 정정 — 템플릿 S3화 + 관리자 업로드 API 4-D 신규, TODO만)
+
+- 변경(문서만, 코드 없음): 정책 4번("템플릿은 UploadFile(S3) 기반... 관리자 업로드 UI는 만들지 않는다")을 실제 코드와 대조하다가, 기존 3종 카드 템플릿이 실제로는 S3가 아니라 classpath 리소스(저장소 커밋+배포)로 동작하고 `CardDesign.templateFrontId/templateBackId`가 어디서도 안 읽힌다는 걸 발견 — 사용자 확인 후 "학생증은 진짜 S3 기반으로 가고 관리자 업로드 API도 만든다"로 정책을 뒤집었다. 4-B의 관련 체크박스 2개(운영자 직접 INSERT 전제, 활성 디자인 1개 제약이 "검사할 진입점이 없다") 정정, 4-C에 STUDENT 전용 레이아웃 레코드·S3 템플릿 로딩 설계 추가, **4-D(신규)**에 관리자 업로드 API 계약(GET 미리보기 조회 + POST 등록·교체, 검증 5단계, 보상삭제 원칙, designNumber 자동채번) 작성. 기존 3종은 이번 변경과 무관(계속 classpath).
+- 파일: `docs/collab/TODO.md`("4. 학생증" 절 — 정책 4번, 4-B, 4-C, 4-D, 완료조건).
+- 사유: 관리자가 배포 없이 학교별 템플릿을 등록·교체해야 한다는 요구사항 확인(사용자, 2026-08-31) — 원래 "관리자 업로드 UI 없음" 전제가 이 요구와 맞지 않아 정책 자체를 바꿈.
+- 관련: TODO "4. 학생증(STUDENT) 카드" 4-D
+
 ## 2026-08-30 — Claude — `main` (3. 카드 생성·저장 — 실제 Docker+MinIO+curl 검증, RULES.md §5 문서 갱신)
 
 - 변경(검증만, 코드 없음): 아래 3. 카드 생성·저장 커밋 2개(`3ab32f4`/`ac981e7`)를 실제로 검증했다. `docker compose build backend` 재빌드 → 실제 fixture(application 7/member 12, 기존 DB의 PRODUCTION_READY 데이터)로 `POST .../card-generate` curl 호출 → 응답 JSON 확인 → DB(`applications.card_design_id/card_issue_date`, `application_members.card_front_path/card_back_path/issue_date`) 실제 반영 확인 → MinIO 버킷(`honorcard-storage-2026`)에 실제 PNG 2개(front 539KiB/back 80KiB) 존재 확인 → 재생성 curl로 새 파일 생성 + 기존 파일이 MinIO에서 실제로 사라지는 것까지 확인 → `AdminActivityLog.CARD_IMAGE_GENERATED` 기록 확인 → 없는 신청 ID curl로 `404 APPLICATION_NOT_FOUND` JSON 확인.

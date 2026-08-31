@@ -1325,7 +1325,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 ---
 
-## 4. 학생증(STUDENT) 카드 — 작명~카드 제작 확장 계획 (2026-08-27, 정책 확정)
+## 4. 학생증(STUDENT) 카드 — 작명~카드 제작 확장 계획 (2026-08-27 정책 확정, 2026-08-31 정책 4번 정정 — 템플릿 S3화+관리자 업로드 API 추가)
 
 > 위 "관리자 작명 확정·카드 제작 구현 계획"(1~3)은 "범위 제외"에 학생증 카드 렌더링을 명시적으로 뺐다(1085행). 이 절은 그 후속으로, 신청~작명~카드번호까지는 1~3에서 이미 만든 흐름을 그대로 타고 카드 디자인·미리보기만 학생증 전용으로 확장하는 계획이다. **전체 레포 재분석·과거 정책 재검토는 하지 않고, 아래 확정된 정책 기준으로 남은 기능 단위만 정리한다.**
 
@@ -1338,7 +1338,8 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 1. **`School` 마스터 엔티티 신설** — `id, name, schoolType(고정)`. 템플릿(`CardDesign`) 등록 여부와 무관하게 지원 대상 학교 전부 포함. `active` 플래그는 이번 범위 생략.
 2. **⚠️ 정정(2026-08-27) — 등록 학교 선택 시에만 `schoolType`이 School에서 파생, 직접입력은 사용자가 그대로 선택**: 검색select로 등록된 학교(`schoolId` 있음)를 고르면 `schoolType`은 School 값으로 서버가 확정(사용자가 뭘 보내든 무시하고 School 값으로 덮어써 위변조 차단). 목록에 없어 **직접입력**(`schoolId=null`)으로 넘어가면, 기존처럼 `schoolName`(자유텍스트)+`schoolType`(사용자 선택) 그대로 받는다 — 이 경로는 기존 로직을 대체하는 게 아니라 **그대로 유지**하고, 그 위에 "등록 학교 검색select"라는 새 경로를 얹는 구조.
 3. **학생증 디자인은 학교마다 다르며, 같은 `schoolId + orientation`에 활성 `CardDesign`은 최대 1개만 허용**한다. 템플릿 등록 전에는 0개일 수 있지만 Preview/최종 생성 시에는 정확히 1개가 필요하다. `schoolType`은 School에 종속되므로 매칭축에서 제외한다. 관리자가 여러 디자인 중 선택하는 구조가 아니라 신청의 학교와 방향으로 활성 디자인 1개를 서버가 확정한다.
-4. **템플릿은 `UploadFile`(S3) 기반** — 관리자 업로드 UI는 이번 범위에서 만들지 않는다. 신규 학교 템플릿은 개발/운영자가 S3에 직접 등록 후 `CardDesign.templateFrontId`/`templateBackId`에 연결.
+4. **⚠️ 정정(2026-08-31) — 템플릿은 진짜 `UploadFile`(S3) 기반으로 구현하고, 관리자 업로드 화면도 만든다.** 기존엔 "S3 기반"이라고 문서만 그렇게 쓰고 실제로는 다른 3종과 동일하게 classpath 리소스(저장소에 파일 커밋+배포)로 구현할 계획이었는데(제자리에서 발견·보고 후 사용자가 재확정), 실제로 관리자가 **배포 없이** 학교별 템플릿을 등록·교체할 수 있어야 한다는 요구로 방향을 바꿨다. 관리자 화면(학교+방향 선택 → 현재 앞/뒷면 미리보기 → "파일 변경"으로 새 파일 2장 선택 → 등록)은 이번에 프론트까지 만들지 않고 **백엔드 API 계약만 확정**한다(프론트는 `docs/FRONTEND_API_GAPS.md`로 전달) — 상세는 4-D.
+   - **기존 3종(명예한국인증/명예시민증/방문증)은 이번에 안 건드린다** — 여전히 classpath 리소스 그대로 유지, `CardImageCompositor`의 기존 `composeFront`/`composeBack` 경로는 변경 없음. STUDENT만 새 S3 기반 경로를 탄다(4-D/4-C 참고) — 두 경로가 한 클래스 안에 공존하게 된다.
 5. **`School` 마스터 목록도 관리자 UI 없이 운영자가 직접 DB 등록**(템플릿과 동일 패턴).
 6. **⚠️ 신청 접수 단계부터 변경 필요** — `schoolName`은 지금도 개인/단체 신청서 **제출 시점**(비로그인/일반 사용자용 공개 폼)에 자유텍스트로 받고 있어, 검색select를 추가하려면 관리자 화면이 아니라 **신청 접수 API 자체**를 고쳐야 한다. 학교 검색 API는 다른 학생증 관련 API(전부 `/api/admin/**`)와 달리 **인증 없이 접근 가능한 공개 API**여야 한다(신청서 작성자가 관리자가 아니므로) — `SecurityConfig`에 `permitAll` 경로 추가 필요, `/api/applications/lookup` 패턴 재사용.
 7. **⚠️ 정정(2026-08-27) — 마스터 목록에 없는 학교는 접수를 막지 않고 직접입력으로 받는다.** 검색select에 "찾는 학교가 없나요? 직접 입력" 폴백을 두고, 이 경우 `schoolId=null` + `schoolName`(자유텍스트) + `schoolType`(사용자 선택)을 그대로 저장한다. 문의(Inquiry) 유도로 접수를 막는 이전 결정은 폐기.
@@ -1389,15 +1390,39 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 - [x] `CardDesign`에 `schoolId`(nullable — STUDENT 외 카드종류는 계속 null) 컬럼 추가, 학생증 조회 조건을 `schoolId + orientation`으로 한다.
 - [x] `CardDesignService`의 STUDENT 하드 거절(`UNSUPPORTED_CARD_TYPE`) 제거, STUDENT는 `schoolId` 기준 조회로 분기. **설계 확정(2026-08-30, 사용자 확인)**: `card-preview`/`card-generate`의 `cardDesignId` 요청 계약은 그대로 두고, 이 조회 API(`GET /api/admin/card-designs`)에만 `applicationId`(옵션, STUDENT일 때 필수) 파라미터를 추가해 학생증이면 그 신청의 `schoolId+orientation`으로 자동 필터링(결과가 사실상 0~1개)한다 — "관리자가 목록에서 고르는 게 아니라 서버가 확정"이라는 정책 3번을 "목록에 사실상 선택지가 1개뿐"이라는 방식으로 만족시킨다. `schoolId`가 아직 없는 신청(직접입력, 관리자 연결 전)은 에러가 아니라 빈 목록 반환.
-- [x] STUDENT 템플릿 등록은 운영자가 `CardDesign` row를 직접 insert(관리자 업로드 UI 없음 — 정책 4) — 이번 구현은 그 전제로 `CardDesign.create(...)`에 `schoolId` 파라미터가 있는 오버로드만 추가했다.
-- [ ] **미완료(운영 절차로만 지켜지는 불변조건)**: "같은 `schoolId + orientation`에는 활성 STUDENT 디자인을 1개만 허용"을 Service/DB 수준에서 강제하는 로직은 넣지 않았다 — 관리자 업로드 UI 자체가 없어(운영자가 직접 DB INSERT) 애초에 이 불변조건을 검사할 Service 진입점이 없다. 지금은 운영자가 직접 확인하며 넣어야 한다. DB 레벨로 강제하려면 partial unique index(`WHERE active`)가 필요한데 이 프로젝트는 Hibernate `ddl-auto`라 마이그레이션 스크립트 도입이 별도로 필요해 이번 범위에서 뺐다 — 필요성이 확인되면 후속 항목으로.
+- [x] `CardDesign.create(...)`에 `schoolId` 파라미터가 있는 오버로드 추가(4-D 업로드 API가 이걸 사용).
+- [x] **⚠️ 정정(2026-08-31)**: "STUDENT 템플릿 등록은 운영자가 CardDesign row를 직접 insert(관리자 업로드 UI 없음)"이라고 썼던 건 정책 4번 변경으로 무효 — 4-D의 업로드 API가 유일한 등록 경로가 된다.
+- [x] **정정(2026-08-31) — "활성 디자인 1개만" 불변조건도 4-D에서 자동으로 보장됨**: 업로드 API가 "이 schoolId+orientation에 기존 CardDesign이 있으면 UPDATE, 없으면 CREATE"로만 동작해서(4-D 참고) 애초에 2개가 생기는 경로 자체가 없다 — Service/DB 수준 별도 unique 강제는 여전히 없지만(운영자가 직접 DB를 만지는 경로도 남아있을 수 있어 100% 보장은 아님), 정상 경로(API)로는 항상 1개로 수렴한다.
 - **테스트**: `CardDesignServiceTest`에 6개 추가(applicationId 없이 STUDENT 조회 거절, 없는 applicationId 거절, schoolId 미연결 시 빈 목록, schoolId+orientation 정확히 매칭(다른 학교/다른 방향 디자인은 안 섞임), 디자인 미등록 학교는 빈 목록, active 필터도 학생증에 동일 적용) — 전부 통과(11/11). 전체 스위트 758개(+5) 전부 통과.
 
 ### 4-C. 카드 미리보기 렌더링(`CardLayouts`/`CardImageCompositor`)
 
-- [ ] `CardLayouts.FRONT`/`BACK`에 STUDENT 4개 조합(고등학교/대학교 × 가로/세로) 레이아웃 등록 — 좌표값은 이미 확정돼 있음(이 계획 범위에서 좌표 자체는 다루지 않음).
-- [ ] `CardImageCompositor`가 `schoolType`에 따라 필드 표시 분기(고등학교=생년월일 표시·학번/학과 숨김, 대학교=반대) — `CardMemberData`에 필요한 값 추가.
-- [ ] `CardPreviewService`는 4-A/4-B 완료 시 코드 변경 없이 그대로 동작 확인(현재 STUDENT 거절은 `CardImageCompositor`가 담당).
+- [ ] STUDENT 전용 레이아웃 레코드 신규(가칭 `CardStudentFrontLayout`) — 기존 3종의 `CardLayout`은 `cardNumber`/`address` 필드를 쓰는데 학생증은 학번/생년월일/학과로 필드 구성 자체가 달라 재사용하지 않는다. `Map<CardDesignOrientation, CardStudentFrontLayout>`로 LANDSCAPE/PORTRAIT 2세트 등록 — 좌표값은 이미 확정돼 있음(탐색 렌더링으로 조정·검증 완료, 이 계획에서 좌표 자체를 새로 정하지 않는다).
+  - 학번(대학교)과 생년월일(고등학교) 칸은 세로형에서 좌표가 다르다(생년월일 문자열이 길어 학번 칸 좌표를 그대로 쓰면 캔버스 밖으로 잘림, 실측 확인됨) — 두 필드를 별도 offset으로 둔다.
+  - 사진 슬롯은 다른 3종처럼 디자인별 참고 파일(`사진.png`)로 크기를 재지 않는다 — 학생증 디자인엔 이 참고 파일이 없다(에셋 자체가 없음). 고정 크기(임시값, 디자이너 확인 전까지 잠정)로 처리.
+- [ ] 뒷면은 기존 `CardBackLayout`/`CardBackVariant` 타입을 그대로 재사용(이름/한자/영문/풀이 — 한자뜻음 줄만 없어서 그 offset을 null로 둠, `hasHanja()` 여부와 무관하게 좌표가 안 바뀌어 `hanjaVariant`/`noHanjaVariant`에 같은 인스턴스를 쓴다). 뒷면 타이틀은 다른 3종과 동일하게 **텍스트**("학 생 증", 기존 `titleFallbackText()`에 이미 있는 값)로 — 이미지 에셋 새로 안 만든다.
+- [ ] `CardImageCompositor`에 STUDENT 전용 `composeFront`/`composeBack` 분기 추가 — `schoolType`에 따라 필드 표시(고등학교=생년월일 표시·학번/학과 숨김, 대학교=반대), `CardMemberData`에 `schoolType`/`studentOrientation`/`studentId`/`department`/`birthDate` 필드 추가(신규).
+- [ ] **⚠️ 정정(2026-08-31, 정책 4 변경 반영)**: STUDENT 템플릿은 classpath가 아니라 **S3에서 읽는다**(4-D 참고) — `CardRenderPreparation`이 STUDENT일 때 `design.getTemplateFrontId()`/`getTemplateBackId()`를 `UploadFileRepository`+`StorageService.download()`로 내려받아(기존 로고/직인과 동일한 `downloadUploadFile()` 헬퍼 재사용) STUDENT 전용 compose 메서드에 바이트로 전달한다. 기존 3종은 이 변경과 무관 — 계속 `ClassPathResource`로 읽는다.
+- [ ] `CardPreviewService`/`CardGenerationService`는 `CardRenderPreparation`을 그대로 통해서 위 변경을 자동으로 반영받는다 — 두 서비스 자체는 수정하지 않는다.
+
+### 4-D. 학생증 템플릿 업로드 API (관리자, S3 기반, 2026-08-31 신규)
+
+**배경**: 정책 4번 변경 — 학생증은 학교마다 디자이너가 완성된 앞/뒤 이미지를 따로 주고 그 위에 데이터를 매핑하는 구조라(4-A~4-C와 다른 3종의 "공유 빈 템플릿" 구조 자체가 다름), 새 학교가 추가될 때마다 개발자가 파일을 커밋·배포하는 건 비효율적이다. 관리자가 배포 없이 학교별 템플릿을 등록·교체할 수 있어야 한다. **이번 구현은 백엔드 API 계약까지만** — 실제 관리자 화면(미리보기+파일변경 버튼)은 프론트 스코프라 이 세션에서 만들지 않고 `docs/FRONTEND_API_GAPS.md`에 계약을 남긴다.
+
+**요청 계약(안, 구현 시 확정)**:
+- `GET /api/admin/schools/{schoolId}/card-template?orientation=LANDSCAPE|PORTRAIT` — 이 학교+방향의 현재 등록된 템플릿 조회(관리자 화면의 미리보기 박스용). 등록된 게 없으면 에러가 아니라 `data: null`(관리자 화면이 "미등록" 상태를 정상적으로 매번 마주치므로 — 신규 학교는 항상 이 상태로 시작). 등록돼 있으면 `{ cardDesignId, frontPreviewUrl, backPreviewUrl }`(presigned URL, 기존 카드다운로드와 동일 패턴).
+- `POST /api/admin/schools/{schoolId}/card-template`(multipart) — `orientation`(필수) + `front`(파일, 필수) + `back`(파일, 필수). 앞/뒤를 한 번에 같이 받는다(한쪽만 교체하는 흐름은 없음 — 사용자 확정: "파일 두 장 선택하고 등록하면 끝").
+- 처리 순서(사용자가 지정한 5단계 그대로):
+  1. **검증**: School 존재, orientation 유효, 두 파일 다 존재, MIME(PNG만 — 기존 카드템플릿 전부 PNG인 것과 통일), 크기(≤10MB, 기존 `FILE_TOO_LARGE` 재사용), **해상도**(카드 비율 235:156≈1.5064 기준 ±5% 이내인지 — LANDSCAPE는 가로가 더 길어야 하고 PORTRAIT는 반대, 최소 해상도는 장변 800px 이상 — 전부 잠정값, 실제 디자이너 산출물 기준 조정 가능).
+  2. **S3 업로드**: 새 UploadFile 2개(front/back) — `UploadFileType.CARD_IMAGE`(선언만 되고 미사용이던 값, 최초 실사용) 재사용, 신규 값 추가 안 함.
+  3. **UploadFile 생성**: 2개 row 저장.
+  4. **CardDesign 생성 또는 갱신**: 이 `schoolId`+`orientation`에 이미 활성 `CardDesign`이 있으면 **그 row의 templateFrontId/templateBackId만 새 UploadFile id로 교체**(CardDesign.id는 안 바뀜 — 이미 이 디자인으로 카드 생성된 멤버가 있어도 그 멤버들의 결과물(구운 PNG)엔 영향 없음, 앞으로 새로 생성하는 것부터 새 템플릿 적용). 없으면 신규 `CardDesign` 생성(`designNumber`는 STUDENT 내에서 자동 채번 — 기존 `(card_type_id, design_number)` unique 제약 유지, `CardDesignRepository`에 `MAX(designNumber)` 조회 메서드 추가 필요).
+  5. **front/back 연결**: 위 4번에 포함.
+- **보상삭제(§3과 동일 원칙)**: 새 파일 2장을 먼저 업로드하고 DB 반영이 성공한 뒤에만 "교체 전" 기존 UploadFile 2개의 S3 오브젝트를 삭제한다(신규 선업로드→commit→기존 후삭제). 검증/업로드/DB 반영 중 어디서 실패해도 이번 요청에서 새로 올라간 파일만 보상 삭제하고 기존 템플릿은 그대로 유지.
+- **동시성**: 이번 최소 버전엔 낙관적 락 등 별도 동시성 방어를 넣지 않는다(§3-F와 같은 판단 — 관리자 수·충돌 빈도가 낮다고 보고 보류, 필요성 확인되면 후속).
+- **인가**: 다른 `/api/admin/**`와 동일하게 `hasRole("ADMIN")` + `validateAdmin()`.
+
+**프론트가 필요한 것(이번 세션 범위 아님, `docs/FRONTEND_API_GAPS.md`에 계약 전달)**: 관리자 화면에서 학교+방향 선택 → 위 GET으로 현재 앞/뒤 미리보기 표시(없으면 빈 박스) → "파일 변경" 클릭 시 파일 2장 선택 → POST로 등록 → 성공 시 미리보기 갱신.
 
 완료 조건:
 
@@ -1405,6 +1430,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] 템플릿 미등록 학교와 직접입력 학교는 신청~작명까지 진행되며, Preview/최종 생성 전에는 등록 School 연결과 `schoolId + orientation` 활성 디자인 1개가 필수다.
 - [ ] 직접입력 신청을 School에 연결한 뒤에도 카드 표시 학교명은 검토 단계에서 확정한 `Application.schoolName`을 사용하고 School.name 변경은 소급 적용되지 않는다.
 - [ ] 템플릿 등록 학교는 실제 카드 렌더링까지 성공하고, 고등학교/대학교 필드 표시 분기가 육안으로 맞다.
+- [ ] 관리자가 배포 없이 `POST .../card-template`로 학교별 템플릿을 등록·교체할 수 있고, 교체해도 이미 생성된 멤버 카드(구운 PNG)는 그대로 유지된다(새로 생성하는 것부터만 새 템플릿 적용).
 - [ ] Application 관련 회귀 테스트 통과.
 - [ ] `requirements.md`, `data-model.md`, `api.md`, `admin-saju.md`, TODO, CHANGELOG, HANDOFF 최종 정합성 검증.
 
