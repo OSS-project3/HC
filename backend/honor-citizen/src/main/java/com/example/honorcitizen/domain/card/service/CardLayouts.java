@@ -143,18 +143,24 @@ final class CardLayouts {
                     mm(-27.031, 22.499),
                     mm(30.48, 1.856)));
 
-    // 뒷면. 원문 위치값.jpg 표 그대로(아직 실제 렌더링으로 육안 검증은 안 함 — 4-C 구현 시 처음
-    // 렌더링해서 확인). 이름/한자/영문/풀이 4개뿐이라 다른 3종의 한자뜻음(hanjaVariant의
-    // hanjaMeaning) 줄이 없다 — 그 offset을 null로 둔다. 한자 유무와 무관하게 좌표가 안 바뀌므로
-    // (표에 "한자 있을 때/없을 때" 구분이 없음) hanjaVariant/noHanjaVariant에 같은 인스턴스를 쓴다.
-    // 뒷면 타이틀은 다른 3종과 동일하게 이미지가 아니라 텍스트("학 생 증", titleFallbackText() 재사용)로
-    // 그린다 — 이미지 에셋을 새로 안 만든다.
+    // 뒷면. 원문 위치값.jpg 표 그대로(4-C 구현 시 처음 렌더링해서 확인). 이름/한자/영문/풀이 4개뿐이라
+    // 다른 3종의 한자뜻음(hanjaVariant의 hanjaMeaning) 줄이 없다 — 그 offset을 null로 둔다. 한자
+    // 유무와 무관하게 좌표가 안 바뀌므로(표에 "한자 있을 때/없을 때" 구분이 없음) hanjaVariant/
+    // noHanjaVariant에 동일한 좌표값을 쓴다. 뒷면 타이틀은 다른 3종과 동일하게 이미지가 아니라
+    // 텍스트("학 생 증", titleFallbackText() 재사용)로 그린다 — 이미지 에셋을 새로 안 만든다.
+    //
+    // ⚠️ PORTRAIT 영문명 y좌표는 원문(-12.866) 그대로가 아니다 — 한자·영문명이 같은 폰트크기(9pt)를
+    // 쓰는데 원문 간격(한자 -15.268 → 영문명 -12.866, 2.402mm)이 그 폰트 한 줄 높이보다 좁아 한자
+    // 있는 학생 렌더링 시 두 줄이 겹친다(실측 확인, 2026-08-31). 아래로 여유 공간이 넉넉해(영문명
+    // 다음 풀이 줄까지 30mm 이상 비어있음) 영문명만 아래로 옮겼다 — 이동폭(약 5.8mm)은 같은 폰트
+    // 크기 조합이 실제로 안 겹치는 LANDSCAPE의 한자→영문명 간격(5.844mm)을 그대로 참고했다. 이름/
+    // 한자/풀이 좌표는 원문 그대로 안 건드림(앞면 세로형 생년월일 보정과 같은 성격의 실측 보정).
     static final Map<CardDesignOrientation, CardBackLayout> STUDENT_BACK = Map.of(
             CardDesignOrientation.PORTRAIT, new CardBackLayout(
                     156, 235,
                     mm(0, -32.292),
-                    new CardBackVariant(mm(0, -19.439), mm(0, -15.268), mm(0, -12.866), null, mm(0, 17.436)),
-                    new CardBackVariant(mm(0, -19.439), mm(0, -15.268), mm(0, -12.866), null, mm(0, 17.436))),
+                    new CardBackVariant(mm(0, -19.439), mm(0, -15.268), mm(0, -9.5), null, mm(0, 17.436)),
+                    new CardBackVariant(mm(0, -19.439), mm(0, -15.268), mm(0, -9.5), null, mm(0, 17.436))),
             CardDesignOrientation.LANDSCAPE, new CardBackLayout(
                     235, 156,
                     mm(0, -20.615),

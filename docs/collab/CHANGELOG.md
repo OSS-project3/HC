@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-31 — Claude — `main` (4-C 후속 — 세로형 뒷면 한자/영문명 겹침 버그 수정)
+
+- 변경: `CardLayouts.STUDENT_BACK`의 PORTRAIT 좌표에서 영문명 y offset을 -12.866mm → -9.5mm로 보정. 사용자가 "세로는 이름뜻풀이 위치 안 정해져있냐"고 물어봐서 재확인하는 과정에서, 세로형+한자 조합을 처음으로 실제 렌더링해보니 한자 줄과 영문명 줄이 겹치는 걸 발견(직전 커밋의 1차 검증에선 세로형 두 샘플이 우연히 둘 다 한자 없음이라 못 잡았음). 이름풀이(interpretation) 좌표 자체는 처음부터 정의돼 있었고 위치도 정상이었음 — 다만 그 위 줄(한자/영문명)이 겹쳐서 안 보였을 뿐.
+- 파일: `domain/card/service/CardLayouts.java`, `docs/collab/TODO.md`(4-C 버그 목록에 3번째 항목 추가).
+- 사유: 실측 렌더링으로만 발견 가능한 좌표 결함 — 원문 디자이너 표의 두 줄 간격이 실제 폰트 크기 기준으로 너무 좁았음. `domain.card`/`domain.application` 테스트 재실행 통과, 4개 조합 재렌더링으로 겹침 해소 확인.
+- 관련: TODO 4-C
+
+---
+
 ## 2026-08-31 — Claude — `main` (4-C 학생증 카드 앞/뒷면 렌더링 구현)
 
 - 변경: TODO.md 4-C(STUDENT 카드 렌더링) 구현. `CardStudentFrontLayout` 신규 레코드 + `CardLayouts.STUDENT_FRONT`/`STUDENT_BACK`(mm→pt 변환, 탐색 렌더링으로 검증된 좌표값 그대로 이식). `CardMemberData`에 STUDENT 전용 필드 7개 추가(기존 13-인자 생성자는 하위 호환 유지). `CardImageCompositor`에 `composeStudentFront`/`composeStudentBack` 추가하고, `CardLayout` 전용이던 그리기 primitive 6종을 `(baseWidth,baseHeight)` 기반 `*Generic` 버전으로 추출해 위임하도록 리팩터(로직 중복 없음). `CardRenderPreparation.studentMemberData()`가 STUDENT일 때 `CardDesign.templateFrontId`/`templateBackId`를 기존 `downloadUploadFile()`로 S3에서 내려받아 전달. 구현 중 발견한 버그 2건도 수정: (1) `validateIssuerAssets`가 STUDENT 그룹 신청에도 로고·직인을 잘못 요구하던 것, (2) `Map.of(...).get(null)`이 null이 아니라 NPE를 던지는 것을 방치해 `studentOrientation` 누락 시 `INVALID_INPUT` 대신 raw NPE가 새던 것.
