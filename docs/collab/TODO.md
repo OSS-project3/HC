@@ -1275,7 +1275,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 ### 3-B. S3 업로드·DB 반영·보상 삭제·재생성·동시성
 
 - [ ] S3 key 형식: `applications/{applicationNumber}/members/{memberId}/card/{front|back}-{UUID}.png` — 매 생성마다 새 object(덮어쓰기 아님). 기존 `applications/.../cards/{UUID}.zip` 다운로드 키 패턴과 동일한 규칙을 재사용.
-- [ ] **업로드 방식(2026-08-30 Codex 검증 반영 — CARD_IMAGE 관련 서술 정정)**: `ApplicationMember.cardFrontPath`/`cardBackPath`는 `logoFileId`/`sealFileId`(Long, UploadFile row 참조)가 아니라 `photoPath`와 같은 `String` 경로 필드다. 따라서 `photoPath`가 쓰는 `storePhotoFile`과 동일한 패턴 — `StorageService.uploadBytes(key, bytes, "image/png")`를 직접 호출해 raw key 문자열만 반환받고, `UploadFile` entity row는 만들지 않는다. `UploadFileType.CARD_IMAGE`(선언만 되고 미사용인 enum 값)는 이번 스코프에서 쓰지 않는다 — `storeUploadFile`/`UploadFile` row 경로에만 의미가 있는 값이라 raw-key 저장에는 해당하지 않는다(계속 미사용 상태로 남는 게 맞음, 억지로 갖다 붙이지 않는다).
+- [ ] **업로드 방식(2026-08-30 Codex 검증 반영, 2026-08-31 CARD_IMAGE 용도 정리로 보강)**: `ApplicationMember.cardFrontPath`/`cardBackPath`는 `logoFileId`/`sealFileId`(Long, UploadFile row 참조)가 아니라 `photoPath`와 같은 `String` 경로 필드다. 따라서 `photoPath`가 쓰는 `storePhotoFile`과 동일한 패턴 — `StorageService.uploadBytes(key, bytes, "image/png")`를 직접 호출해 raw key 문자열만 반환받고, `UploadFile` entity row는 만들지 않는다. **`UploadFileType.CARD_IMAGE`는 "카드 관련 이미지"를 가리키는 공통 타입이지만, 이 §3 경로(Member 생성 결과물)에서는 `UploadFile` row 자체를 안 만드니 이 타입도 안 붙는다** — CARD_IMAGE가 실제로 DB에 나타나는 건 4-D(학생증 템플릿 원본, `CardDesign.templateFrontId`/`templateBackId`가 참조)뿐이다. 두 용도(템플릿 원본 vs 렌더링 결과물)를 나중에 구분해야 하면 ① 어느 필드/테이블이 참조하는지(`CardDesign.templateFrontId`/`templateBackId` vs `ApplicationMember.cardFrontPath`/`cardBackPath`)와 ② S3 key namespace(`card-templates/...` vs `applications/{applicationNumber}/members/{memberId}/card/...`)로 구분한다 — enum 값 자체를 더 쪼개지 않는다.
 - [ ] FRONT/BACK은 하나의 결과 세트로 취급한다: 둘 중 하나라도 렌더링 또는 업로드에 실패하면 전체 생성을 실패시킨다. 업로드된 key는 `ApplicationService`의 `uploadedKeys` 패턴과 동일하게 리스트에 누적하고, DB 반영 전 어느 단계(렌더링/업로드)든 실패하면 이번 요청에서 새로 올라간 key만 역순으로 즉시 삭제(`deleteUploadedFilesQuietlyReversed`와 동일한 조용한 삭제 — 삭제 실패가 원 예외를 덮지 않음).
 - [ ] **재현 가능성 데이터(2026-08-30 정책 갱신 — 발급일자도 Application 레벨 공유로 승격)**: `cardDesignId`는 이미 존재하는 `Application.cardDesignId`(현재 항상 null, 이번에 최초로 채워짐)를 재사용한다. `issueDate`는 신청서 전체에서 하나만 존재해야 한다는 정책에 맞춰 **신규 `Application.cardIssueDate`(`LocalDate`, nullable) 필드를 추가**하고, 개인별 기록용으로 기존 `ApplicationMember.issueDate`도 그대로 채운다(둘 다 유지 — Member.issueDate는 Application.cardIssueDate와 항상 같은 값이어야 하는 개인별 스냅샷). `Application.cardGeneratedAt`처럼 구 3-B 설계에만 있던 필드는 이번 최소 버전에서 만들지 않는다.
 - [ ] **디자인 충돌 정책(2026-08-30 정책 갱신 — Preview에도 동일 적용)**: 같은 Application 안의 모든 Member는 같은 디자인을 공유한다는 전제를 유지한다 — `Application.cardDesignId`가 이미 다른 값으로 채워져 있는데 요청의 `cardDesignId`가 다르면 기존 `CARD_DESIGN_MISMATCH` 에러로 거절한다(신규 에러코드 아님). null이면 Generate 최초 호출 값으로 확정한다. **이 규칙은 Generate뿐 아니라 Preview에도 동일하게 적용된다** — `CardRenderPreparation`(3-A 공유 준비 로직)에 이 검증을 넣어서 Preview·Generate 둘 다 같은 곳에서 걸리게 한다(Preview 쪽 별도 구현 금지). 확정 전(null)에는 Preview가 어떤 `cardDesignId`든 자유롭게 미리 볼 수 있다.
@@ -1358,6 +1358,16 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - 직접입력: `schoolId=null`(또는 필드 자체 생략) + `schoolName`(자유텍스트, 기존 5~20자 검증 그대로) + `schoolType`(필수, 사용자 선택) 그대로 저장.
 - 즉 `schoolId`는 nullable — null이면 직접입력 경로, 값이 있으면 등록 학교 경로로 분기.
 
+**직접입력 학교 처리 원칙(명시, 2026-08-31 확정 — 정책 7·8·13번의 직접입력 부분을 4-A 안에서 명확히 재정리)**:
+1. 직접입력 `schoolName`으로 `School`을 **자동 생성하지 않는다.**
+2. 직접입력 신청은 `Application.schoolId=null`을 **정상 상태로 허용**한다(에러 아님) — `schoolName`+`schoolType`만 snapshot으로 저장.
+3. 이 상태로 **신청·검토·작명까지 진행 가능**하다.
+4. **Preview/최종 생성 전에는 반드시 기존(이미 등록된) `School`과 연결**되어 `Application.schoolId`가 채워져야 한다.
+5. 연결할 `School`이 아직 마스터 목록에 없다면, **운영자가 기존 정책 5번대로 먼저 DB에 `School` row를 직접 등록**한다(관리자 API 없음, 변경 없음).
+6. **관리자 학교 연결 기능(아래 미착수 체크박스)은 "기존 School 지정"만 담당**한다 — 이 자리에서 새 School을 만들면서 동시에 연결하는 기능은 **이번 범위에 포함하지 않는다**(사용자 확정, 2026-08-31 — 옵션 (a): 기존 유지).
+7. **School 생성/수정 관리 API·UI는 이번 범위에 없다**(정책 5번 그대로 — 운영자 DB 직접 등록만).
+8. 학교 연결 후에도 **카드 표시 학교명은 계속 `Application.schoolName` snapshot을 사용**한다(정책 13번과 동일, 재확인).
+
 **백엔드**
 - [x] `School` 엔티티/Repository 신규(`id, name, schoolType, createdAt` — `active` 생략). `domain/school/entity/School.java`, `domain/school/repository/SchoolRepository.java`.
 - [x] `GET /api/schools/search?query=`(공개, `permitAll`) — 이름 부분일치 검색, 페이지네이션 없음. `SchoolController`/`SchoolService`. `SecurityConfig`에 permitAll 추가 완료.
@@ -1365,7 +1375,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] `Application` 엔티티에 `schoolId`(nullable) 컬럼 추가. 기존 `schoolName`/`schoolType` 컬럼 구조는 그대로 유지. `createIndividual`/`createGroup`에 schoolId 포함 새 오버로드 추가(기존 호출부 하위호환 유지).
 - [x] `ApplicationService.resolveSchool()` 신설 — `schoolId` 있으면 School 존재 검증(없으면 `INVALID_INPUT`) 후 `schoolName`/`schoolType`을 School 값으로 강제 확정(클라이언트 값 무시). `schoolId` 없으면 기존 직접입력 검증(`isValidSchoolName` 등) 그대로. 개인(`createIndividual`)·단체(`createGroup`) 둘 다 적용, `BulkExcelParser` 호출도 resolvedSchool 기준으로 교체(학번/학과 열 파싱 분기가 School의 실제 schoolType을 따르도록).
 - [x] `BulkExcelParser` 자체는 변경 없음(학번/학과만 여전히 엑셀 컬럼).
-- [ ] 직접입력 신청의 카드 제작 전환을 위한 관리자 학교 연결 기능 추가 — Application.schoolType과 같은 유형의 등록된 School만 지정할 수 있고 Application.schoolId만 연결하며 Application.schoolName 스냅샷을 자동 변경하지 않는다.
+- [ ] 직접입력 신청의 카드 제작 전환을 위한 관리자 학교 연결 기능 추가(위 "직접입력 학교 처리 원칙" 4·6번 그대로) — Application.schoolType과 같은 유형의 **이미 등록된** School만 지정할 수 있고(신규 School 생성은 이 기능에 없음, 정책 5번의 별도 경로), Application.schoolId만 연결하며 Application.schoolName 스냅샷을 자동 변경하지 않는다.
 - [ ] 관리자 학교명 오타 정정 기능 추가 — REVIEWING까지 Application.schoolName만 수정 가능하고 NAME_EDITING 이후에는 거절한다. School 마스터 이름은 이 기능으로 수정하지 않는다.
 - [ ] 학교 연결·학교명 정정은 관리자 권한, Application 잠금/version, AdminActivityLog를 적용하고 카드 생성 이후 변경을 금지한다.
 - [ ] `docs/specs/application/data-model.md`/`api.md`에 `School` 테이블·`schoolId` 필드 계약 반영 — 아직 미기록.
@@ -1414,11 +1424,15 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - `POST /api/admin/schools/{schoolId}/card-template`(multipart) — `orientation`(필수) + `front`(파일, 필수) + `back`(파일, 필수). 앞/뒤를 한 번에 같이 받는다(한쪽만 교체하는 흐름은 없음 — 사용자 확정: "파일 두 장 선택하고 등록하면 끝").
 - 처리 순서(사용자가 지정한 5단계 그대로):
   1. **검증**: School 존재, orientation 유효, 두 파일 다 존재, MIME(PNG만 — 기존 카드템플릿 전부 PNG인 것과 통일), 크기(≤10MB, 기존 `FILE_TOO_LARGE` 재사용), **해상도**(카드 비율 235:156≈1.5064 기준 ±5% 이내인지 — LANDSCAPE는 가로가 더 길어야 하고 PORTRAIT는 반대, 최소 해상도는 장변 800px 이상 — 전부 잠정값, 실제 디자이너 산출물 기준 조정 가능).
-  2. **S3 업로드**: 새 UploadFile 2개(front/back) — `UploadFileType.CARD_IMAGE`(선언만 되고 미사용이던 값, 최초 실사용) 재사용, 신규 값 추가 안 함.
-  3. **UploadFile 생성**: 2개 row 저장.
+  2. **S3 업로드**: 새 파일 2개(front/back)를 S3에 올린다.
+  3. **UploadFile 생성**: 새 S3 key마다 `UploadFile` row 2개 신규 저장 — `UploadFileType.CARD_IMAGE`(카드 관련 이미지 공통 타입, 지금까지 선언만 되고 미사용이었음)를 여기서 처음 실사용한다. 신규 enum 값은 추가 안 함 — §3(`ApplicationMember.cardFrontPath`/`cardBackPath`, 렌더링 **결과물**)은 계속 `UploadFile` row 자체를 안 만들어서 이 타입이 안 붙고, 여기(`CardDesign.templateFrontId`/`templateBackId`, 렌더링용 원본 **템플릿**)만 `UploadFile` row로 저장돼 CARD_IMAGE가 실제로 나타난다. 두 용도는 참조하는 필드(위 §3 부분 참고)와 S3 key namespace로 구분되고, enum을 더 쪼개지 않는다.
   4. **CardDesign 생성 또는 갱신**: 이 `schoolId`+`orientation`에 이미 활성 `CardDesign`이 있으면 **그 row의 templateFrontId/templateBackId만 새 UploadFile id로 교체**(CardDesign.id는 안 바뀜 — 이미 이 디자인으로 카드 생성된 멤버가 있어도 그 멤버들의 결과물(구운 PNG)엔 영향 없음, 앞으로 새로 생성하는 것부터 새 템플릿 적용). 없으면 신규 `CardDesign` 생성(`designNumber`는 STUDENT 내에서 자동 채번 — 기존 `(card_type_id, design_number)` unique 제약 유지, `CardDesignRepository`에 `MAX(designNumber)` 조회 메서드 추가 필요).
-  5. **front/back 연결**: 위 4번에 포함.
-- **보상삭제(§3과 동일 원칙)**: 새 파일 2장을 먼저 업로드하고 DB 반영이 성공한 뒤에만 "교체 전" 기존 UploadFile 2개의 S3 오브젝트를 삭제한다(신규 선업로드→commit→기존 후삭제). 검증/업로드/DB 반영 중 어디서 실패해도 이번 요청에서 새로 올라간 파일만 보상 삭제하고 기존 템플릿은 그대로 유지.
+  5. **front/back 연결**: 위 4번에 포함 — 그리고 **교체(2번째 이후 등록)인 경우, 방금 안 쓰게 된 기존 UploadFile row 2개를 같은 트랜잭션 안에서 DB에서 삭제**한다(정정, 2026-08-31 — S3 오브젝트만 지우고 이 DB row를 안 지우면 이미 없는 S3 파일을 가리키는 고아 row가 남는다). CardDesign 갱신 전에 기존 `templateFrontId`/`templateBackId` 값을 스냅샷으로 먼저 떠 둔다(row를 지우면 더 못 읽으므로).
+- **보상삭제/정리는 `ApplicationService.registerS3CleanupAfterTransaction()`과 완전히 같은 패턴을 그대로 재사용한다**(신규 헬퍼를 새로 만들지 않고 같은 방식을 이 서비스에도 적용, 필요시 공용으로 추출 여부는 구현 시 판단):
+  - `TransactionSynchronizationManager.registerSynchronization(...)`으로 등록.
+  - `afterCommit()`: **DB 반영(=4번 CardDesign 갱신 + 기존 UploadFile row 삭제)이 실제로 커밋된 뒤에만** 기존(교체 전) S3 오브젝트 2개를 조용히 삭제 시도한다.
+  - **이 S3 삭제가 실패해도 API 응답은 그대로 성공으로 반환한다** — DB는 이미 정합 상태(새 파일로 연결 완료, 기존 row도 이미 삭제됨)이므로 실패를 사용자에게 알릴 이유가 없다. warning/error 레벨로 로그만 남기고, 그 오브젝트는 고아로 남아 필요하면 나중에 수동/배치로 정리한다(자동 재시도 큐는 이번 스코프에 없음 — §3 3-F와 같은 판단).
+  - `afterCompletion(status != COMMITTED)`: DB 반영 자체가 실패했으면(검증 실패, 유니크 제약 위반 등) 이번 요청에서 **새로 올린** S3 오브젝트 2개만 보상 삭제한다(기존 템플릿·기존 UploadFile row는 안 건드렸으므로 그대로 유지됨 — 애초에 실패 시점엔 기존 row 삭제도 안 실행됐음).
 - **동시성**: 이번 최소 버전엔 낙관적 락 등 별도 동시성 방어를 넣지 않는다(§3-F와 같은 판단 — 관리자 수·충돌 빈도가 낮다고 보고 보류, 필요성 확인되면 후속).
 - **인가**: 다른 `/api/admin/**`와 동일하게 `hasRole("ADMIN")` + `validateAdmin()`.
 
