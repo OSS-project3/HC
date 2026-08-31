@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-08-31 — Claude — `main` (4-C 학생증 카드 앞/뒷면 렌더링 구현)
+
+- 변경: TODO.md 4-C(STUDENT 카드 렌더링) 구현. `CardStudentFrontLayout` 신규 레코드 + `CardLayouts.STUDENT_FRONT`/`STUDENT_BACK`(mm→pt 변환, 탐색 렌더링으로 검증된 좌표값 그대로 이식). `CardMemberData`에 STUDENT 전용 필드 7개 추가(기존 13-인자 생성자는 하위 호환 유지). `CardImageCompositor`에 `composeStudentFront`/`composeStudentBack` 추가하고, `CardLayout` 전용이던 그리기 primitive 6종을 `(baseWidth,baseHeight)` 기반 `*Generic` 버전으로 추출해 위임하도록 리팩터(로직 중복 없음). `CardRenderPreparation.studentMemberData()`가 STUDENT일 때 `CardDesign.templateFrontId`/`templateBackId`를 기존 `downloadUploadFile()`로 S3에서 내려받아 전달. 구현 중 발견한 버그 2건도 수정: (1) `validateIssuerAssets`가 STUDENT 그룹 신청에도 로고·직인을 잘못 요구하던 것, (2) `Map.of(...).get(null)`이 null이 아니라 NPE를 던지는 것을 방치해 `studentOrientation` 누락 시 `INVALID_INPUT` 대신 raw NPE가 새던 것.
+- 파일: `domain/card/service/CardStudentFrontLayout.java`(신규), `CardLayouts.java`, `CardMemberData.java`, `CardImageCompositor.java`, `CardRenderPreparation.java`, `domain/card/service/CardImageCompositorTest.java`(STUDENT 성공 경로 6건 + 실패 케이스 추가, 기존 STUDENT 실패 테스트 2건 이름·주석 정정), `docs/collab/TODO.md`(4-C 체크리스트 완료 표시).
+- 사유: §3 카드 생성 API가 STUDENT `CardDesign`이 있으면 코드 변경 없이 자동 지원하도록 이미 설계돼 있었음(4-B에서 CardDesign 매칭 완료) — 남은 건 실제 렌더링 로직뿐이었음. 좌표는 이전 세션에서 실제 렌더링 후 육안으로 조정·검증된 값을 그대로 프로덕션 코드로 이식(이번 세션에서 좌표를 새로 정하지 않음). 프로덕션 `composeStudentFront/Back`을 직접 호출하는 임시 검증 테스트로 4개 조합(고등학교/대학교×가로/세로) 앞+뒷면을 실제 렌더링해 육안 확인 후 임시 파일은 삭제 — 앞면은 기존 확정 좌표와 동일하게 나옴(재확인), 뒷면은 이번이 처음 렌더링이며 이름/한자/영문명/풀이 4줄이 겹침 없이 배치됨을 확인(단, 실제 디자이너 배경 에셋은 아직 없어 흰 캔버스 위에서 배치만 확인 — 4-D 완료 후 실제 디자인 위 재확인 필요).
+- 관련: TODO 4-C, 4-D(다음 작업, 미착수)
+
+---
+
 ## 2026-08-31 — Claude — `main` (런타임 콘텐츠 영어 번역 — Accept-Language: en 시 서버 측 한→영 기계번역)
 
 - 변경: 프론트가 모든 API 호출에 싣는 `Accept-Language` 헤더의 기본 태그가 en이면, 공개/사용자 API 응답의 자유 텍스트를 Google Cloud Translation v2로 한→영 번역해 응답한다. 새 패키지 `infra/translation`에 `TranslationClient`(인터페이스)·`GoogleTranslationClient`(키 미설정·API 실패 시 원문 패스스루 — 번역 실패가 사용자 요청을 실패시키지 않음)·`TranslationCache`(엔티티, `translation_cache` 테이블: source_hash SHA-256 유니크 + 원문/번역문 TEXT)·`ContentTranslationService`(인메모리 ConcurrentHashMap → DB 캐시 → 남은 문자열 전체 1회 배치 API 호출, 한글([가-힣]) 없는/공백 문자열 스킵, 동시 삽입 유니크 경합 무시)·`AcceptLanguages`(언어 감지 유틸)를 추가하고, `api/EnglishResponseTranslator`가 DTO별 `withTranslated(...)` 사본 생성으로 응답을 재조립한다. 적용 지점: Board 목록/상세(title·content·next.title), Review·MyReview 목록/상세(title·content·next.title — authorName 제외), Event 목록/상세(title·eventDateText·place·host·content — cardLabel·company 제외), MyInquiry 목록/상세(title·content·answer — category·연락처 제외), MyApplication 상세·Application lookup(photoRejectReason만). `/api/admin/**`는 미적용(관리자 UI는 한국어 유지).

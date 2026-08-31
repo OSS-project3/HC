@@ -1405,15 +1405,22 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] **정정(2026-08-31) — "활성 디자인 1개만" 불변조건도 4-D에서 자동으로 보장됨**: 업로드 API가 "이 schoolId+orientation에 기존 CardDesign이 있으면 UPDATE, 없으면 CREATE"로만 동작해서(4-D 참고) 애초에 2개가 생기는 경로 자체가 없다 — Service/DB 수준 별도 unique 강제는 여전히 없지만(운영자가 직접 DB를 만지는 경로도 남아있을 수 있어 100% 보장은 아님), 정상 경로(API)로는 항상 1개로 수렴한다.
 - **테스트**: `CardDesignServiceTest`에 6개 추가(applicationId 없이 STUDENT 조회 거절, 없는 applicationId 거절, schoolId 미연결 시 빈 목록, schoolId+orientation 정확히 매칭(다른 학교/다른 방향 디자인은 안 섞임), 디자인 미등록 학교는 빈 목록, active 필터도 학생증에 동일 적용) — 전부 통과(11/11). 전체 스위트 758개(+5) 전부 통과.
 
-### 4-C. 카드 미리보기 렌더링(`CardLayouts`/`CardImageCompositor`)
+### 4-C. 카드 미리보기 렌더링(`CardLayouts`/`CardImageCompositor`) — ✅ 구현 완료(2026-08-31)
 
-- [ ] STUDENT 전용 레이아웃 레코드 신규(가칭 `CardStudentFrontLayout`) — 기존 3종의 `CardLayout`은 `cardNumber`/`address` 필드를 쓰는데 학생증은 학번/생년월일/학과로 필드 구성 자체가 달라 재사용하지 않는다. `Map<CardDesignOrientation, CardStudentFrontLayout>`로 LANDSCAPE/PORTRAIT 2세트 등록 — 좌표값은 이미 확정돼 있음(탐색 렌더링으로 조정·검증 완료, 이 계획에서 좌표 자체를 새로 정하지 않는다).
-  - 학번(대학교)과 생년월일(고등학교) 칸은 세로형에서 좌표가 다르다(생년월일 문자열이 길어 학번 칸 좌표를 그대로 쓰면 캔버스 밖으로 잘림, 실측 확인됨) — 두 필드를 별도 offset으로 둔다.
-  - 사진 슬롯은 다른 3종처럼 디자인별 참고 파일(`사진.png`)로 크기를 재지 않는다 — 학생증 디자인엔 이 참고 파일이 없다(에셋 자체가 없음). 고정 크기(임시값, 디자이너 확인 전까지 잠정)로 처리.
-- [ ] 뒷면은 기존 `CardBackLayout`/`CardBackVariant` 타입을 그대로 재사용(이름/한자/영문/풀이 — 한자뜻음 줄만 없어서 그 offset을 null로 둠, `hasHanja()` 여부와 무관하게 좌표가 안 바뀌어 `hanjaVariant`/`noHanjaVariant`에 같은 인스턴스를 쓴다). 뒷면 타이틀은 다른 3종과 동일하게 **텍스트**("학 생 증", 기존 `titleFallbackText()`에 이미 있는 값)로 — 이미지 에셋 새로 안 만든다.
-- [ ] `CardImageCompositor`에 STUDENT 전용 `composeFront`/`composeBack` 분기 추가 — `schoolType`에 따라 필드 표시(고등학교=생년월일 표시·학번/학과 숨김, 대학교=반대), `CardMemberData`에 `schoolType`/`studentOrientation`/`studentId`/`department`/`birthDate` 필드 추가(신규).
-- [ ] **⚠️ 정정(2026-08-31, 정책 4 변경 반영)**: STUDENT 템플릿은 classpath가 아니라 **S3에서 읽는다**(4-D 참고) — `CardRenderPreparation`이 STUDENT일 때 `design.getTemplateFrontId()`/`getTemplateBackId()`를 `UploadFileRepository`+`StorageService.download()`로 내려받아(기존 로고/직인과 동일한 `downloadUploadFile()` 헬퍼 재사용) STUDENT 전용 compose 메서드에 바이트로 전달한다. 기존 3종은 이 변경과 무관 — 계속 `ClassPathResource`로 읽는다.
-- [ ] `CardPreviewService`/`CardGenerationService`는 `CardRenderPreparation`을 그대로 통해서 위 변경을 자동으로 반영받는다 — 두 서비스 자체는 수정하지 않는다.
+- [x] STUDENT 전용 레이아웃 레코드 신규(`CardStudentFrontLayout`) — 기존 3종의 `CardLayout`은 `cardNumber`/`address` 필드를 쓰는데 학생증은 학번/생년월일/학과로 필드 구성 자체가 달라 재사용하지 않는다. `Map<CardDesignOrientation, CardStudentFrontLayout>`(`CardLayouts.STUDENT_FRONT`)로 LANDSCAPE/PORTRAIT 2세트 등록 — 좌표값은 탐색 렌더링으로 조정·검증 완료된 값을 그대로 옮겼다(mm→pt 변환은 `CardLayouts.mm()`, `MM_TO_PT=2.8346`).
+  - 학번(대학교)과 생년월일(고등학교) 칸은 세로형에서 좌표가 다르다(생년월일 문자열이 길어 학번 칸 좌표를 그대로 쓰면 캔버스 밖으로 잘림, 실측 확인됨) — 두 필드를 별도 offset으로 뒀다(`studentId`/`birthDate`).
+  - 사진 슬롯은 다른 3종처럼 디자인별 참고 파일(`사진.png`)로 크기를 재지 않는다 — 학생증 디자인엔 이 참고 파일이 없다(에셋 자체가 없음). 고정 크기(50×66pt, 임시값, 디자이너 확인 전까지 잠정)로 cover-fit 처리(`drawStudentPhoto`).
+- [x] 뒷면은 기존 `CardBackLayout`/`CardBackVariant` 타입을 그대로 재사용(`CardLayouts.STUDENT_BACK`, 이름/한자/영문/풀이 — 한자뜻음 줄만 없어서 그 offset을 null로 둠, `hasHanja()` 여부와 무관하게 좌표가 안 바뀌어 `hanjaVariant`/`noHanjaVariant`에 같은 인스턴스를 쓴다). 뒷면 타이틀은 다른 3종과 동일하게 **텍스트**("학 생 증", 기존 `titleFallbackText()`에 이미 있는 값)로 — 이미지 에셋 새로 안 만들었다.
+- [x] `CardImageCompositor`에 STUDENT 전용 `composeStudentFront`/`composeStudentBack` 분기 추가(`composeFront`/`composeBack` 최상단에서 `cardType==STUDENT`면 조기 분기) — `schoolType`에 따라 필드 표시(고등학교=생년월일 표시·학번/학과 숨김, 대학교=반대), `CardMemberData`에 `schoolType`/`studentOrientation`/`studentId`/`department`/`birthDate`/`templateFront`/`templateBack` 필드 추가(기존 13-인자 생성자는 하위 호환용으로 유지, 나머지 3종 호출부는 무변경).
+  - 짝을 이루는 줄(이름↔영문명, 학번↔학과)은 위 줄의 왼쪽 픽셀 끝에 맞춰 왼쪽 정렬한다(각자 중앙정렬하면 문자열 길이 차이로 왼쪽 끝이 어긋남, 탐색 렌더링에서 실측 확인) — `leftEdgeXGeneric`/`drawTextAtPixelXGeneric` 신규.
+  - `CardStudentFrontLayout`은 기존 `CardLayout`과 구조가 달라 `drawTitle`/`drawZodiac`/`drawImageCentered`/`drawText`/`leftEdgeX`/`drawTextAtPixelX`를 `(baseWidth, baseHeight)` 원시값 기반 `*Generic` 버전으로 추출했다 — 기존 `CardLayout` 기반 메서드는 이 Generic 버전에 얇게 위임(로직 중복 없음).
+- [x] STUDENT 템플릿은 classpath가 아니라 **S3에서 읽는다**(4-D 연동) — `CardRenderPreparation.studentMemberData()`가 STUDENT일 때 `design.getTemplateFrontId()`/`getTemplateBackId()`를 기존 `downloadUploadFile()` 헬퍼(로고/직인과 동일 패턴)로 내려받아 STUDENT 전용 compose 메서드에 바이트로 전달한다. 기존 3종은 이 변경과 무관 — 계속 `ClassPathResource`로 읽는다. 4-D(실제 업로드 API)는 아직 미구현이라, 현재는 `CardDesign.templateFrontId`/`templateBackId`가 null이면 `CARD_DESIGN_NOT_FOUND`로 막힌다(정상 동작 — 4-D 완료 전까지 STUDENT `CardDesign`은 아직 실제로 만들 방법이 없음).
+- [x] `CardPreviewService`/`CardGenerationService`는 `CardRenderPreparation`을 그대로 통해서 위 변경을 자동으로 반영받는다 — 두 서비스 자체는 수정하지 않았다.
+- [x] **구현 중 발견·수정한 버그 2건**(둘 다 최소 STUDENT 케이스로만 발현, 다른 3종 무영향):
+  1. `validateIssuerAssets`가 STUDENT 그룹 신청에도 로고·직인 업로드를 요구하고 있었다(STUDENT는 로고·직인을 아예 렌더링하지 않는데도) — `cardType != STUDENT` 가드 추가.
+  2. `Map.of(...).get(null)`은 다른 불변 컬렉션과 달리 `null`을 반환하지 않고 `NullPointerException`을 던진다(`ImmutableCollections$MapN`) — `studentOrientation`이 null인 입력(예: 학생증 아닌 카드종류가 실수로 STUDENT 경로를 타는 경우는 없지만, 방어적으로)에 `composeStudentFront`/`composeStudentBack`가 이 NPE를 그대로 흘려보내고 있었다. `.get()` 호출 전에 null 체크를 추가해 기존 다른 실패 케이스와 동일하게 `CustomException(INVALID_INPUT)`으로 정규화했다.
+- [x] **테스트**: `CardImageCompositorTest`에 STUDENT 성공 경로 6건(대학교/고등학교 × 가로/세로 앞면, 한자 유무별 뒷면) + 템플릿 누락 실패 케이스 추가, 기존 STUDENT 실패 테스트 2건은 이름·주석을 실제 실패 사유(레이아웃 없음이 아니라 studentOrientation/템플릿 없음)에 맞게 정정. `./gradlew.bat test`로 `domain.card`/`domain.application` 패키지 전체 통과 확인.
+- [x] **실 렌더링 육안 검증(2026-08-31)**: 프로덕션 `CardImageCompositor.composeStudentFront/Back`을 직접 호출하는 임시 검증 테스트로 4개 조합(고등학교/대학교 × 가로/세로) 앞면+뒷면을 실제 렌더링해 화면에 띄워 확인했다(검증 후 파일은 삭제, `StudentCardExploratoryRenderTest.java`와 별개). 앞면은 이전 세션에서 확정한 좌표와 동일하게 나옴(재확인), 뒷면은 이번이 처음 렌더링 — 이름/한자/영문명/풀이 4줄이 겹침 없이 순서대로(위→아래) 배치되는 것 확인. 단, 뒷면 배경은 디자이너 원본 에셋이 아직 없어(4-D 업로드 전) 흰 캔버스로 대체 렌더링했다 — 배치 좌표만 검증된 상태이고 실제 디자인 위 육안 확인은 4-D 완료 후 필요.
 
 ### 4-D. 학생증 템플릿 업로드 API (관리자, S3 기반, 2026-08-31 신규)
 

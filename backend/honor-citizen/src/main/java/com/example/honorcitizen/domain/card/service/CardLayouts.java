@@ -1,12 +1,13 @@
 package com.example.honorcitizen.domain.card.service;
 
+import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 
 import java.util.Map;
 
-// 카드종류별 필드 배치(디자이너 제공 위치값.jpg/카드사이즈 및 위치값.jpg 원문 그대로). STUDENT는
-// 시안 미제공이라 없음. 발행처(텍스트) 좌표는 표에 있지만 쓰지 않는다 — 1-A 확정 정책(관리자 작명
-// 확정·카드 제작 구현 계획)상 발행처는 별도 텍스트 없이 신청자가 업로드한 로고 이미지만으로 표기한다.
+// 카드종류별 필드 배치(디자이너 제공 위치값.jpg/카드사이즈 및 위치값.jpg 원문 그대로). 발행처(텍스트)
+// 좌표는 표에 있지만 쓰지 않는다 — 1-A 확정 정책(관리자 작명 확정·카드 제작 구현 계획)상 발행처는
+// 별도 텍스트 없이 신청자가 업로드한 로고 이미지만으로 표기한다.
 final class CardLayouts {
 
     static final Map<CardTypeCode, CardLayout> FRONT = Map.of(
@@ -101,6 +102,64 @@ final class CardLayouts {
                             new CardFieldOffset(0, -36.2307),
                             null,
                             new CardFieldOffset(0, 62.9722))));
+
+    // 학생증 좌표(4-C, `학생증_위치값.jpg`)는 mm 단위로 주어졌다 — 다른 3종처럼 이미 pt/px 단위인
+    // 표와 달리 여기만 변환이 필요하다(디자이너 표 형식이 카드종류마다 다름, 2026-08-26 탐색
+    // 렌더링에서 확인). 72dpi 기준 1mm=2.8346pt이고, 카드 물리 크기(83×55mm)를 이 배율로 환산하면
+    // 235×156(다른 3종의 LANDSCAPE baseWidth/baseHeight와 정확히 일치)이 나와 이 환산이 맞음을
+    // 교차 확인했다.
+    private static final double MM_TO_PT = 2.8346;
+
+    private static CardFieldOffset mm(double x, double y) {
+        return new CardFieldOffset(x * MM_TO_PT, y * MM_TO_PT);
+    }
+
+    // 앞면. 좌표는 탐색 렌더링(4개 조합 실제 렌더링 후 육안 비교)으로 조정·검증 완료된 값 — 원문
+    // 위치값.jpg 그대로가 아니라 세로형 학번/생년월일 칸처럼 실측으로 보정된 부분이 있다(아래 참고).
+    static final Map<CardDesignOrientation, CardStudentFrontLayout> STUDENT_FRONT = Map.of(
+            CardDesignOrientation.PORTRAIT, new CardStudentFrontLayout(
+                    156, 235,
+                    mm(0, -31.592),
+                    mm(0, 7.471),
+                    mm(0, 12.418),
+                    mm(0, -10.353), 50, 66,
+                    mm(-16.078, 17.046),
+                    // 세로형 생년월일 전용 보정 — 원래 학번 칸 x(-16.078)를 그대로 쓰면 "생년월일
+                    // YYYY.MM.DD" 문자열이 캔버스 밖으로 잘려(실측 확인) 발급일자 x(-12.055) 근처로
+                    // 옮겼다. 대학교(학번) 쪽 좌표는 원문 그대로 안 건드림.
+                    mm(-12.055, 17.046),
+                    mm(-13.197, 21.068),
+                    mm(-12.055, 29.988),
+                    mm(17.253, 15.935)),
+            CardDesignOrientation.LANDSCAPE, new CardStudentFrontLayout(
+                    235, 156,
+                    mm(0, -20.629),
+                    mm(-3.373, -4.766),
+                    mm(-1.198, -0.279),
+                    mm(-27.077, 2.95), 50, 66,
+                    mm(-3.278, 7.022),
+                    mm(-3.278, 7.022), // 가로형은 학번/생년월일 칸 좌표가 같다(캔버스 밖으로 안 잘림).
+                    mm(-1.867, 11.028),
+                    mm(-27.031, 22.499),
+                    mm(30.48, 1.856)));
+
+    // 뒷면. 원문 위치값.jpg 표 그대로(아직 실제 렌더링으로 육안 검증은 안 함 — 4-C 구현 시 처음
+    // 렌더링해서 확인). 이름/한자/영문/풀이 4개뿐이라 다른 3종의 한자뜻음(hanjaVariant의
+    // hanjaMeaning) 줄이 없다 — 그 offset을 null로 둔다. 한자 유무와 무관하게 좌표가 안 바뀌므로
+    // (표에 "한자 있을 때/없을 때" 구분이 없음) hanjaVariant/noHanjaVariant에 같은 인스턴스를 쓴다.
+    // 뒷면 타이틀은 다른 3종과 동일하게 이미지가 아니라 텍스트("학 생 증", titleFallbackText() 재사용)로
+    // 그린다 — 이미지 에셋을 새로 안 만든다.
+    static final Map<CardDesignOrientation, CardBackLayout> STUDENT_BACK = Map.of(
+            CardDesignOrientation.PORTRAIT, new CardBackLayout(
+                    156, 235,
+                    mm(0, -32.292),
+                    new CardBackVariant(mm(0, -19.439), mm(0, -15.268), mm(0, -12.866), null, mm(0, 17.436)),
+                    new CardBackVariant(mm(0, -19.439), mm(0, -15.268), mm(0, -12.866), null, mm(0, 17.436))),
+            CardDesignOrientation.LANDSCAPE, new CardBackLayout(
+                    235, 156,
+                    mm(0, -20.615),
+                    new CardBackVariant(mm(0, -13.247), mm(0, -8.145), mm(0, -2.301), null, mm(0, 12.91)),
+                    new CardBackVariant(mm(0, -13.247), mm(0, -8.145), mm(0, -2.301), null, mm(0, 12.91))));
 
     private CardLayouts() {
     }

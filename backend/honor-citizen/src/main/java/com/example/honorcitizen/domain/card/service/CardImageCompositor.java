@@ -73,6 +73,9 @@ class CardImageCompositor {
     }
 
     byte[] composeFront(CardTypeCode cardType, int design, CardMemberData data) {
+        if (cardType == CardTypeCode.STUDENT) {
+            return composeStudentFront(data);
+        }
         CardLayout layout = CardLayouts.FRONT.get(cardType);
         if (layout == null || isUnverifiedDesign(cardType, design)) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
@@ -136,6 +139,9 @@ class CardImageCompositor {
     // 뒷면(한국이름풀이) — 배경 위에 이름·(있으면)한자·영문명·(있으면)한자뜻음·풀이를 얹는다.
     // 배경 자체(뒷면.png)는 신청자 정보와 무관한 디자인 고정 그래픽이라 필드가 없다.
     byte[] composeBack(CardTypeCode cardType, int design, CardMemberData data) {
+        if (cardType == CardTypeCode.STUDENT) {
+            return composeStudentBack(data);
+        }
         CardBackLayout layout = CardLayouts.BACK.get(cardType);
         if (layout == null || isUnverifiedDesign(cardType, design)) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
@@ -170,21 +176,129 @@ class CardImageCompositor {
         return toPngBytes(bg);
     }
 
-    // 세 카드종류 모두 뒷면 타이틀은 "한국이름풀이"로 동일하다(HONOR_KOREAN/HONOR_CITIZEN/VISITOR
-    // 시안_최종.jpg 전부 육안 확인). STUDENT는 CardLayouts.BACK에 없어 이 메서드까지 오지 않는다.
-    private String titleFallbackBackText() {
-        return "한 국 이 름 풀 이";
+    // 4-C: 학생증 앞면 — 다른 3종과 달리 배경(templateFront)이 classpath가 아니라 S3에서 온
+    // 원본 바이트다(CardRenderPreparation이 UploadFile 경유로 미리 받아 data에 실어 보낸다, 4-D).
+    // 레이아웃도 카드종류가 아니라 orientation으로 고른다(같은 STUDENT 안에서 세로/가로 2세트).
+    private byte[] composeStudentFront(CardMemberData data) {
+        // Map.of()는 불변 맵이라 get(null)이 null을 반환하지 않고 NPE를 던진다(다른 3종의
+        // CardLayouts.FRONT.get(cardType)은 cardType이 항상 non-null이라 안 걸렸던 함정) —
+        // studentOrientation null을 먼저 걸러야 아래 .get() 호출이 안전하다.
+        if (data.studentOrientation() == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        CardStudentFrontLayout layout = CardLayouts.STUDENT_FRONT.get(data.studentOrientation());
+        if (layout == null || data.templateFront() == null || data.templateFront().length == 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        BufferedImage bg = copy(readPhoto(data.templateFront()));
+        double scaleX = bg.getWidth() / layout.baseWidth();
+        double scaleY = bg.getHeight() / layout.baseHeight();
+
+        Graphics2D g = bg.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        try {
+            double bw = layout.baseWidth();
+            double bh = layout.baseHeight();
+            drawTitleGeneric(g, CardTypeCode.STUDENT, layout.title(), bw, bh, scaleX, scaleY);
+            drawStudentPhoto(g, data.photo(), layout, scaleX, scaleY);
+            drawTextGeneric(g, data.fullName(), batangBold, 12.11f, Color.BLACK, layout.name(), bw, bh, scaleX, scaleY);
+            // 이름/영문명, 학번/학과처럼 짝을 이루는 줄은 각자 표 좌표로 따로 중앙정렬하면 문자열
+            // 길이가 다를 때 왼쪽 끝이 어긋난다(탐색 렌더링에서 실측 확인 — 예: "Jo Grinnarae"가
+            // "조그린나래"보다 오른쪽으로 밀림). 위 줄의 왼쪽 끝에 맞춰 아래 줄을 왼쪽 정렬한다.
+            double nameLeftEdge = leftEdgeXGeneric(data.fullName(), batangBold, 12.11f, layout.name(), bw, scaleX);
+            drawTextAtPixelXGeneric(g, data.englishName(), dotumBold, 6.7f, Color.DARK_GRAY, nameLeftEdge,
+                    layout.englishName(), bh, scaleX, scaleY);
+            if (data.isUniversity()) {
+                drawTextGeneric(g, data.studentId(), dotumMedium, 7.6f, Color.BLACK, layout.studentId(), bw, bh, scaleX, scaleY);
+                double studentIdLeftEdge = leftEdgeXGeneric(data.studentId(), dotumMedium, 7.6f, layout.studentId(), bw, scaleX);
+                drawTextAtPixelXGeneric(g, data.department(), dotumMedium, 7.6f, Color.BLACK, studentIdLeftEdge,
+                        layout.department(), bh, scaleX, scaleY);
+            } else {
+                drawTextGeneric(g, "생년월일 " + formatIssueDate(data.birthDate()), dotumMedium, 7.6f, Color.BLACK,
+                        layout.birthDate(), bw, bh, scaleX, scaleY);
+            }
+            drawTextGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, Color.BLACK,
+                    layout.issueDate(), bw, bh, scaleX, scaleY);
+            drawZodiacGeneric(g, data.zodiacBranch(), layout.zodiac(), bw, bh, scaleX, scaleY);
+        } finally {
+            g.dispose();
+        }
+        return toPngBytes(bg);
     }
 
-    // 방문증/1은 앞면.png/뒷면.png가 없고 "대지 1.png" 파일 하나뿐이라 그게 앞면인지 뒷면인지
-    // 확인이 안 됐다(TODO.md 참고). FRONT_CANDIDATES에 "대지 1.png"가 있어 이 디자인도 별다른
-    // 오류 없이 "성공"해버리므로, 잘못된 이미지로 카드가 만들어지는 걸 막기 위해 명시적으로 막는다.
-    private boolean isUnverifiedDesign(CardTypeCode cardType, int design) {
-        return cardType == CardTypeCode.VISITOR && design == 1;
+    // 4-C: 학생증 뒷면 — 배경도 S3(templateBack). 필드 구성은 이름/한자/영문/풀이 4개뿐이라
+    // 한자뜻음 줄이 없는 것 빼고는 다른 3종의 뒷면 합성과 로직이 같다(공용 drawBackText 재사용).
+    // 타이틀은 이미지가 아니라 텍스트("학 생 증")로 — 다른 3종의 "한국이름풀이" 텍스트 타이틀과 동일 패턴.
+    private byte[] composeStudentBack(CardMemberData data) {
+        // composeStudentFront와 동일한 이유(Map.of().get(null) NPE) — null 먼저 거른다.
+        if (data.studentOrientation() == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        CardBackLayout layout = CardLayouts.STUDENT_BACK.get(data.studentOrientation());
+        if (layout == null || data.templateBack() == null || data.templateBack().length == 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        BufferedImage bg = copy(readPhoto(data.templateBack()));
+        double scaleX = bg.getWidth() / layout.baseWidth();
+        double scaleY = bg.getHeight() / layout.baseHeight();
+        CardBackVariant variant = data.hasHanja() ? layout.hanjaVariant() : layout.noHanjaVariant();
+
+        Graphics2D g = bg.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        try {
+            drawBackText(g, titleFallbackText(CardTypeCode.STUDENT), batangBold, 8f, Color.BLACK,
+                    layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            drawBackText(g, data.fullName(), batangBold, 12.11f, Color.BLACK,
+                    variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            drawBackText(g, data.englishName(), batangBold, 9f, Color.DARK_GRAY,
+                    variant.englishName(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            if (data.hasHanja()) {
+                drawBackText(g, "(" + data.chineseName() + ")", batangBold, 9f, Color.DARK_GRAY,
+                        variant.hanja(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            }
+            drawBackText(g, data.nameInterpretation(), dotumMedium, 8f, Color.DARK_GRAY,
+                    variant.interpretation(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+        } finally {
+            g.dispose();
+        }
+        return toPngBytes(bg);
     }
 
-    private void drawZodiac(Graphics2D g, String zodiacBranch, CardFieldOffset offset, CardLayout layout,
+    // 학생증 사진 슬롯 — 다른 3종처럼 디자인별 참고 파일(사진.png)로 크기를 재지 않는다(학생증
+    // 디자인엔 그 참고 파일 자체가 없다, 에셋 누락). 대신 레이아웃에 박아둔 고정 크기(잠정값)로
+    // cover-fit한다.
+    private void drawStudentPhoto(Graphics2D g, byte[] photoBytes, CardStudentFrontLayout layout,
             double scaleX, double scaleY) {
+        if (photoBytes == null || photoBytes.length == 0) {
+            return;
+        }
+        int w = (int) Math.round(layout.photoWidth() * scaleX);
+        int h = (int) Math.round(layout.photoHeight() * scaleY);
+        BufferedImage fitted = coverFit(readPhoto(photoBytes), w, h);
+        drawImageCenteredGeneric(g, fitted, layout.photo(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+    }
+
+    // --- 아래는 기존 CardLayout 전용 primitive를 (baseWidth, baseHeight) 원시값 기반으로 일반화한
+    // 버전이다. 학생증 레이아웃(CardStudentFrontLayout)이 CardLayout과 다른 레코드 타입이라 기존
+    // primitive를 그대로 재사용할 수 없어서 추출했다 — 기존 CardLayout 기반 메서드는 이 일반화
+    // 버전에 위임하도록 바꿔서 로직 중복은 없다. drawBackText는 이미 이 형태였다(원래도 baseWidth/
+    // baseHeight를 직접 받음).
+
+    private void drawTitleGeneric(Graphics2D g, CardTypeCode cardType, CardFieldOffset offset,
+            double baseWidth, double baseHeight, double scaleX, double scaleY) {
+        String titlePath = TEMPLATE_ROOT + cardType.name() + "/타이틀.png";
+        if (resourceExists(titlePath)) {
+            drawImageCenteredGeneric(g, copy(loadImage(titlePath)), offset, baseWidth, baseHeight, scaleX, scaleY);
+        } else {
+            drawTextGeneric(g, titleFallbackText(cardType), batangBold, 9f, Color.WHITE, offset, baseWidth, baseHeight, scaleX, scaleY);
+        }
+    }
+
+    private void drawZodiacGeneric(Graphics2D g, String zodiacBranch, CardFieldOffset offset,
+            double baseWidth, double baseHeight, double scaleX, double scaleY) {
         if (zodiacBranch == null || offset == null) {
             return;
         }
@@ -201,7 +315,74 @@ class CardImageCompositor {
         sg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         sg.drawImage(icon, 0, 0, targetW, targetH, null);
         sg.dispose();
-        drawImageCentered(g, scaled, offset, layout, scaleX, scaleY);
+        drawImageCenteredGeneric(g, scaled, offset, baseWidth, baseHeight, scaleX, scaleY);
+    }
+
+    private void drawImageCenteredGeneric(Graphics2D g, BufferedImage img, CardFieldOffset offset,
+            double baseWidth, double baseHeight, double scaleX, double scaleY) {
+        double cx = (baseWidth / 2 + offset.x()) * scaleX;
+        double cy = (baseHeight / 2 + offset.y()) * scaleY;
+        int x = (int) Math.round(cx - img.getWidth() / 2.0);
+        int y = (int) Math.round(cy - img.getHeight() / 2.0);
+        g.drawImage(img, x, y, null);
+    }
+
+    private void drawTextGeneric(Graphics2D g, String text, Font baseFont, float sizeAtBaseScale, Color color,
+            CardFieldOffset offset, double baseWidth, double baseHeight, double scaleX, double scaleY) {
+        if (text == null || text.isBlank() || offset == null) {
+            return;
+        }
+        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
+        g.setFont(font);
+        g.setColor(color);
+        FontRenderContext frc = g.getFontRenderContext();
+        Rectangle2D bounds = font.getStringBounds(text, frc);
+        double cx = (baseWidth / 2 + offset.x()) * scaleX;
+        double cy = (baseHeight / 2 + offset.y()) * scaleY;
+        double x = cx - bounds.getWidth() / 2.0;
+        double y = cy + bounds.getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
+        g.drawString(text, (float) x, (float) y);
+    }
+
+    private double leftEdgeXGeneric(String text, Font baseFont, float sizeAtBaseScale, CardFieldOffset offset,
+            double baseWidth, double scaleX) {
+        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
+        FontRenderContext frc = new FontRenderContext(null, true, true);
+        Rectangle2D bounds = font.getStringBounds(text == null ? "" : text, frc);
+        double cx = (baseWidth / 2 + offset.x()) * scaleX;
+        return cx - bounds.getWidth() / 2.0;
+    }
+
+    private void drawTextAtPixelXGeneric(Graphics2D g, String text, Font baseFont, float sizeAtBaseScale,
+            Color color, double pixelX, CardFieldOffset offset, double baseHeight, double scaleX, double scaleY) {
+        if (text == null || text.isBlank() || offset == null) {
+            return;
+        }
+        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
+        g.setFont(font);
+        g.setColor(color);
+        FontRenderContext frc = g.getFontRenderContext();
+        double cy = (baseHeight / 2 + offset.y()) * scaleY;
+        double y = cy + font.getStringBounds(text, frc).getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
+        g.drawString(text, (float) pixelX, (float) y);
+    }
+
+    // 세 카드종류 모두 뒷면 타이틀은 "한국이름풀이"로 동일하다(HONOR_KOREAN/HONOR_CITIZEN/VISITOR
+    // 시안_최종.jpg 전부 육안 확인). STUDENT는 CardLayouts.BACK에 없어 이 메서드까지 오지 않는다.
+    private String titleFallbackBackText() {
+        return "한 국 이 름 풀 이";
+    }
+
+    // 방문증/1은 앞면.png/뒷면.png가 없고 "대지 1.png" 파일 하나뿐이라 그게 앞면인지 뒷면인지
+    // 확인이 안 됐다(TODO.md 참고). FRONT_CANDIDATES에 "대지 1.png"가 있어 이 디자인도 별다른
+    // 오류 없이 "성공"해버리므로, 잘못된 이미지로 카드가 만들어지는 걸 막기 위해 명시적으로 막는다.
+    private boolean isUnverifiedDesign(CardTypeCode cardType, int design) {
+        return cardType == CardTypeCode.VISITOR && design == 1;
+    }
+
+    private void drawZodiac(Graphics2D g, String zodiacBranch, CardFieldOffset offset, CardLayout layout,
+            double scaleX, double scaleY) {
+        drawZodiacGeneric(g, zodiacBranch, offset, layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
     }
 
     // 로고·직인은 신청자가 업로드한 이미지를 슬롯 크기에 coverFit해서 그린다. bytes가 null이면(정책상
@@ -242,13 +423,7 @@ class CardImageCompositor {
     }
 
     private void drawTitle(Graphics2D g, CardTypeCode cardType, CardLayout layout, double scaleX, double scaleY) {
-        String titlePath = TEMPLATE_ROOT + cardType.name() + "/타이틀.png";
-        if (resourceExists(titlePath)) {
-            drawImageCentered(g, copy(loadImage(titlePath)), layout.title(), layout, scaleX, scaleY);
-        } else {
-            // 명예한국인증은 앞면 타이틀 그래픽(로고+텍스트)이 시안에서 아직 누락돼 텍스트로 대체한다.
-            drawText(g, titleFallbackText(cardType), batangBold, 9f, Color.WHITE, layout.title(), layout, scaleX, scaleY);
-        }
+        drawTitleGeneric(g, cardType, layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
     }
 
     private String titleFallbackText(CardTypeCode cardType) {
@@ -288,28 +463,12 @@ class CardImageCompositor {
 
     private void drawImageCentered(Graphics2D g, BufferedImage img, CardFieldOffset offset,
             CardLayout layout, double scaleX, double scaleY) {
-        double cx = (layout.baseWidth() / 2 + offset.x()) * scaleX;
-        double cy = (layout.baseHeight() / 2 + offset.y()) * scaleY;
-        int x = (int) Math.round(cx - img.getWidth() / 2.0);
-        int y = (int) Math.round(cy - img.getHeight() / 2.0);
-        g.drawImage(img, x, y, null);
+        drawImageCenteredGeneric(g, img, offset, layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
     }
 
     private void drawText(Graphics2D g, String text, Font baseFont, float sizeAtBaseScale, Color color,
             CardFieldOffset offset, CardLayout layout, double scaleX, double scaleY) {
-        if (text == null || text.isBlank()) {
-            return;
-        }
-        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
-        g.setFont(font);
-        g.setColor(color);
-        FontRenderContext frc = g.getFontRenderContext();
-        Rectangle2D bounds = font.getStringBounds(text, frc);
-        double cx = (layout.baseWidth() / 2 + offset.x()) * scaleX;
-        double cy = (layout.baseHeight() / 2 + offset.y()) * scaleY;
-        double x = cx - bounds.getWidth() / 2.0;
-        double y = cy + bounds.getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
-        g.drawString(text, (float) x, (float) y);
+        drawTextGeneric(g, text, baseFont, sizeAtBaseScale, color, offset, layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
     }
 
     // 가운데 정렬(drawText)로 그렸을 때의 왼쪽 끝 픽셀 x를 계산한다 — 짝을 이루는 아래 줄들을 그
@@ -318,27 +477,14 @@ class CardImageCompositor {
     // 렌더링 후 발견).
     private double leftEdgeX(String text, Font baseFont, float sizeAtBaseScale, CardFieldOffset offset,
             CardLayout layout, double scaleX) {
-        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
-        FontRenderContext frc = new FontRenderContext(null, true, true);
-        Rectangle2D bounds = font.getStringBounds(text, frc);
-        double cx = (layout.baseWidth() / 2 + offset.x()) * scaleX;
-        return cx - bounds.getWidth() / 2.0;
+        return leftEdgeXGeneric(text, baseFont, sizeAtBaseScale, offset, layout.baseWidth(), scaleX);
     }
 
     // 짝을 이루는 위 줄(이름)의 왼쪽 끝에 맞춰 왼쪽 정렬로 그린다. y좌표·폰트 크기는 이 필드 자신의
     // 값을 그대로 쓰고, x만 pixelX로 고정한다.
     private void drawTextAtPixelX(Graphics2D g, String text, Font baseFont, float sizeAtBaseScale, Color color,
             double pixelX, CardFieldOffset offset, CardLayout layout, double scaleX, double scaleY) {
-        if (text == null || text.isBlank()) {
-            return;
-        }
-        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
-        g.setFont(font);
-        g.setColor(color);
-        FontRenderContext frc = g.getFontRenderContext();
-        double cy = (layout.baseHeight() / 2 + offset.y()) * scaleY;
-        double y = cy + font.getStringBounds(text, frc).getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
-        g.drawString(text, (float) pixelX, (float) y);
+        drawTextAtPixelXGeneric(g, text, baseFont, sizeAtBaseScale, color, pixelX, offset, layout.baseHeight(), scaleX, scaleY);
     }
 
     private BufferedImage resolveImage(String dir, List<String> candidates) {

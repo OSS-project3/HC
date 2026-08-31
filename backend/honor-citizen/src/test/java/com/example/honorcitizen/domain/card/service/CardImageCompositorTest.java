@@ -1,6 +1,8 @@
 package com.example.honorcitizen.domain.card.service;
 
+import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.exception.CustomException;
 import org.junit.jupiter.api.Test;
 
@@ -35,10 +37,32 @@ class CardImageCompositorTest {
     }
 
     private byte[] samplePhoto() {
-        BufferedImage img = new BufferedImage(300, 400, BufferedImage.TYPE_INT_RGB);
+        return solidPng(300, 400, Color.LIGHT_GRAY);
+    }
+
+    // 4-C: 학생증은 배경(템플릿)이 classpath가 아니라 S3에서 온 바이트라(4-D 업로드 API 결과),
+    // 여기서는 실제 학교 이미지 대신 단색 캔버스로 구조(유효 PNG·크기·필드 배치)만 검증한다 — 다른
+    // 3종과 동일하게 픽셀 단위 정확성은 육안 확인으로 별도 보완한다(실제 렌더링은 4-C 작업 중 확인).
+    // 980×650/650×980은 기존 3종 실제 템플릿 해상도(기준 캔버스의 ~4.17배)와 동일한 비율.
+    private CardMemberData studentData(SchoolType schoolType, CardDesignOrientation orientation, boolean hanja) {
+        boolean landscape = orientation == CardDesignOrientation.LANDSCAPE;
+        byte[] template = solidPng(landscape ? 980 : 650, landscape ? 650 : 980, Color.WHITE);
+        return new CardMemberData(
+                "김", "학생", "Kim Hak-saeng", hanja ? "學生" : null,
+                hanja ? "배울 학(學) 날 생(生)" : null, hanja ? "배우고 익히며 성장하는 삶을 산다." : null,
+                samplePhoto(), "ROK-12345-6789", "대한민국 전라북도 전주시", LocalDate.of(2026, 8, 25), "인",
+                null, null, schoolType, orientation,
+                schoolType == SchoolType.UNIVERSITY ? "202500225" : null,
+                schoolType == SchoolType.UNIVERSITY ? "인문대학 사회복지학과" : null,
+                schoolType == SchoolType.HIGH_SCHOOL ? LocalDate.of(2009, 12, 8) : null,
+                template, template);
+    }
+
+    private byte[] solidPng(int width, int height, Color color) {
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
-        g.setColor(Color.LIGHT_GRAY);
-        g.fillRect(0, 0, 300, 400);
+        g.setColor(color);
+        g.fillRect(0, 0, width, height);
         g.dispose();
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -108,7 +132,11 @@ class CardImageCompositorTest {
     }
 
     @Test
-    void throwsForCardTypeWithoutLayout() {
+    void throwsForStudentFrontWithoutStudentSpecificData() {
+        // 4-C: STUDENT는 이제 실제 레이아웃(CardLayouts.STUDENT_FRONT)이 있다 — 이 테스트가 예외를
+        // 검증하는 이유는 "레이아웃 없음"이 아니라 sampleData()(학생증 전용 필드 없는 구식 13-인자
+        // 생성자)가 studentOrientation=null/templateFront=null로 만들어져서다. 실제 STUDENT 성공
+        // 경로는 아래 composesStudent*() 테스트들이 studentData()로 검증한다.
         assertThatThrownBy(() -> compositor.composeFront(CardTypeCode.STUDENT, 1, sampleData()))
                 .isInstanceOf(CustomException.class);
     }
@@ -211,8 +239,84 @@ class CardImageCompositorTest {
     }
 
     @Test
-    void throwsBackForCardTypeWithoutLayout() {
+    void throwsBackForStudentWithoutStudentSpecificData() {
+        // 위 throwsForStudentFrontWithoutStudentSpecificData와 동일한 이유(구식 sampleDataWithHanja()엔
+        // studentOrientation/templateBack이 없음) — STUDENT_BACK 레이아웃 자체는 이제 존재한다.
         assertThatThrownBy(() -> compositor.composeBack(CardTypeCode.STUDENT, 1, sampleDataWithHanja()))
+                .isInstanceOf(CustomException.class);
+    }
+
+    @Test
+    void composesStudentUniversityLandscapeFrontAsValidPng() throws Exception {
+        byte[] png = compositor.composeFront(CardTypeCode.STUDENT, 1,
+                studentData(SchoolType.UNIVERSITY, CardDesignOrientation.LANDSCAPE, false));
+
+        BufferedImage result = ImageIO.read(new ByteArrayInputStream(png));
+        assertThat(result).isNotNull();
+        assertThat(result.getWidth()).isEqualTo(980);
+        assertThat(result.getHeight()).isEqualTo(650);
+    }
+
+    @Test
+    void composesStudentHighSchoolPortraitFrontAsValidPng() throws Exception {
+        byte[] png = compositor.composeFront(CardTypeCode.STUDENT, 1,
+                studentData(SchoolType.HIGH_SCHOOL, CardDesignOrientation.PORTRAIT, false));
+
+        BufferedImage result = ImageIO.read(new ByteArrayInputStream(png));
+        assertThat(result).isNotNull();
+        assertThat(result.getWidth()).isEqualTo(650);
+        assertThat(result.getHeight()).isEqualTo(980);
+    }
+
+    @Test
+    void composesStudentUniversityPortraitFrontAsValidPng() throws Exception {
+        // 세로형 학번 칸은 원문 좌표를 그대로 쓴다(생년월일만 보정 대상) — 대학교 케이스로 확인.
+        byte[] png = compositor.composeFront(CardTypeCode.STUDENT, 1,
+                studentData(SchoolType.UNIVERSITY, CardDesignOrientation.PORTRAIT, false));
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void composesStudentHighSchoolLandscapeFrontAsValidPng() throws Exception {
+        byte[] png = compositor.composeFront(CardTypeCode.STUDENT, 1,
+                studentData(SchoolType.HIGH_SCHOOL, CardDesignOrientation.LANDSCAPE, false));
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void composesStudentBackWithHanjaVariant() throws Exception {
+        byte[] png = compositor.composeBack(CardTypeCode.STUDENT, 1,
+                studentData(SchoolType.UNIVERSITY, CardDesignOrientation.LANDSCAPE, true));
+
+        BufferedImage result = ImageIO.read(new ByteArrayInputStream(png));
+        assertThat(result).isNotNull();
+        assertThat(result.getWidth()).isEqualTo(980);
+        assertThat(result.getHeight()).isEqualTo(650);
+    }
+
+    @Test
+    void composesStudentBackWithoutHanjaVariant() throws Exception {
+        byte[] png = compositor.composeBack(CardTypeCode.STUDENT, 1,
+                studentData(SchoolType.HIGH_SCHOOL, CardDesignOrientation.PORTRAIT, false));
+
+        BufferedImage result = ImageIO.read(new ByteArrayInputStream(png));
+        assertThat(result).isNotNull();
+        assertThat(result.getWidth()).isEqualTo(650);
+        assertThat(result.getHeight()).isEqualTo(980);
+    }
+
+    @Test
+    void throwsForStudentFrontWhenTemplateMissing() {
+        CardMemberData data = studentData(SchoolType.UNIVERSITY, CardDesignOrientation.LANDSCAPE, false);
+        CardMemberData withoutTemplate = new CardMemberData(
+                data.surname(), data.name(), data.englishName(), data.chineseName(), data.nameMeaning(),
+                data.nameInterpretation(), data.photo(), data.cardNumber(), data.address(), data.issueDate(),
+                data.zodiacBranch(), data.logo(), data.seal(), data.schoolType(), data.studentOrientation(),
+                data.studentId(), data.department(), data.birthDate(), null, null);
+
+        assertThatThrownBy(() -> compositor.composeFront(CardTypeCode.STUDENT, 1, withoutTemplate))
                 .isInstanceOf(CustomException.class);
     }
 }

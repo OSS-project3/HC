@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.card.service;
 
+import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
@@ -84,23 +85,49 @@ class CardRenderPreparation {
         }
         validateNamingComplete(member);
         validateCardNumber(member);
-        validateIssuerAssets(application);
+        validateIssuerAssets(application, cardType.getCode());
 
         String zodiacBranch = resolveZodiacBranch(member);
         byte[] photo = member.getPhotoPath() != null ? storageService.download(member.getPhotoPath()) : null;
         byte[] logo = downloadUploadFile(application.getLogoFileId());
         byte[] seal = downloadUploadFile(application.getSealFileId());
 
-        CardMemberData data = new CardMemberData(
-                member.getSurname(), member.getName(), member.getEnglishName(), member.getChineseName(),
-                member.getNameMeaning(), member.getNameInterpretation(), photo, member.getCardNumber(),
-                member.getAddress(), request.getIssueDate(), zodiacBranch, logo, seal);
+        CardMemberData data = cardType.getCode() == CardTypeCode.STUDENT
+                ? studentMemberData(application, member, design, request, photo, zodiacBranch)
+                : new CardMemberData(
+                        member.getSurname(), member.getName(), member.getEnglishName(), member.getChineseName(),
+                        member.getNameMeaning(), member.getNameInterpretation(), photo, member.getCardNumber(),
+                        member.getAddress(), request.getIssueDate(), zodiacBranch, logo, seal);
 
         CardTypeCode code = cardType.getCode();
         byte[] front = compositor.composeFront(code, design.getDesignNumber(), data);
         byte[] back = compositor.composeBack(code, design.getDesignNumber(), data);
 
         return new CardRenderResult(application, member, design, front, back);
+    }
+
+    // 4-C: 학생증 전용 CardMemberData 조립 — 카드번호/주소 대신 학번/생년월일/학과를 채우고, 배경
+    // 템플릿(templateFront/templateBack)을 다른 3종과 달리 classpath가 아니라 CardDesign이 가리키는
+    // UploadFile(S3, 4-D 업로드 API가 등록)에서 내려받는다.
+    private CardMemberData studentMemberData(Application application, ApplicationMember member, CardDesign design,
+            CardPreviewRequest request, byte[] photo, String zodiacBranch) {
+        byte[] templateFront = downloadUploadFile(design.getTemplateFrontId());
+        byte[] templateBack = downloadUploadFile(design.getTemplateBackId());
+        if (templateFront == null || templateBack == null) {
+            // 4-D 업로드 API로 등록되지 않은 CardDesign(운영자가 row만 만들고 템플릿을 아직 안 올린
+            // 경우) — 기존 CARD_DESIGN_NOT_FOUND를 재사용한다(STUDENT 전용 에러코드 신설 안 함, 정책 9번).
+            throw new CustomException(ErrorCode.CARD_DESIGN_NOT_FOUND);
+        }
+        // Application.orientation(Orientation)과 CardDesignOrientation은 각자 다른 기능에서 독립적으로
+        // 추가된 별개 enum이라 타입은 다르지만 값(LANDSCAPE/PORTRAIT)은 같다 — 이름으로 변환한다
+        // (CardDesignService.listStudentCardDesigns()와 동일한 변환).
+        CardDesignOrientation orientation = CardDesignOrientation.valueOf(application.getOrientation().name());
+        return new CardMemberData(
+                member.getSurname(), member.getName(), member.getEnglishName(), member.getChineseName(),
+                member.getNameMeaning(), member.getNameInterpretation(), photo, member.getCardNumber(),
+                member.getAddress(), request.getIssueDate(), zodiacBranch, null, null,
+                application.getSchoolType(), orientation, member.getStudentId(), member.getDepartment(),
+                member.getBirthDate(), templateFront, templateBack);
     }
 
     private ApplicationMember findMember(Long applicationId, Long memberId) {
@@ -132,10 +159,13 @@ class CardRenderPreparation {
         }
     }
 
-    // 정책 매트릭스(1-A): 단체 일반카드는 로고·직인 둘 다 필수. 개인 일반카드는 없는 게 정상이라
-    // 검증하지 않는다(학생증은 이 API에 오면 CardImageCompositor가 자체적으로 거절한다).
-    private void validateIssuerAssets(Application application) {
-        if (!application.isIndividual()
+    // 정책 매트릭스(1-A): 단체 일반카드(HONOR_KOREAN/HONOR_CITIZEN/VISITOR)는 로고·직인 둘 다 필수.
+    // 개인 일반카드는 없는 게 정상이라 검증하지 않는다. 학생증(STUDENT)은 4-C 확정대로 카드에
+    // 로고·직인을 아예 그리지 않으므로(학교 크레스트는 학교별 템플릿 이미지 자체에 이미 포함) 이
+    // 검증 자체를 건너뛴다(2026-08-31 정정 — 예전엔 "CardImageCompositor가 자체 거절"이 근거였는데
+    // 이제 학생증 렌더링이 실제로 구현돼 있어 그 전제가 더 이상 맞지 않는다).
+    private void validateIssuerAssets(Application application, CardTypeCode cardType) {
+        if (cardType != CardTypeCode.STUDENT && !application.isIndividual()
                 && (application.getLogoFileId() == null || application.getSealFileId() == null)) {
             throw new CustomException(ErrorCode.CARD_ISSUER_ASSETS_MISSING);
         }
