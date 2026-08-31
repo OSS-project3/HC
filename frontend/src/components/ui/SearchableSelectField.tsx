@@ -2,6 +2,7 @@
 // box and a filtered, scrollable option list. Reuses the .select-field* styling
 // so it matches the plain SelectField, plus .select-field__search / __empty.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 
 export interface SearchableOption {
   value: string;
@@ -32,6 +33,9 @@ export function SearchableSelectField({
   className,
   triggerClassName = "field__select",
 }: SearchableSelectFieldProps) {
+  // Option labels and placeholders arrive as Korean source strings; translate at
+  // render (t() is a no-op for strings that are already translated or unknown).
+  const { t, language } = useLanguage();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -45,9 +49,11 @@ export function SearchableSelectField({
     if (!q) return options;
     return options.filter(
       (option) =>
-        option.label.toLowerCase().includes(q) || (option.keywords ?? "").toLowerCase().includes(q),
+        option.label.toLowerCase().includes(q) ||
+        t(option.label).toLowerCase().includes(q) ||
+        (option.keywords ?? "").toLowerCase().includes(q),
     );
-  }, [options, query]);
+  }, [options, query, t]);
 
   // Close on outside click / Escape.
   useEffect(() => {
@@ -107,10 +113,10 @@ export function SearchableSelectField({
         className={`${triggerClassName} select-field__trigger${selected ? "" : " select-field__trigger--placeholder"}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={ariaLabel}
+        aria-label={ariaLabel ? t(ariaLabel) : undefined}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span>{selected ? selected.label : placeholder}</span>
+        <span>{selected ? t(selected.label) : placeholder ? t(placeholder) : undefined}</span>
         <b className="select-field__caret" aria-hidden="true">⌄</b>
       </button>
       {open && (
@@ -119,9 +125,15 @@ export function SearchableSelectField({
             ref={inputRef}
             type="text"
             className="select-field__search"
-            placeholder={searchPlaceholder}
+            placeholder={t(searchPlaceholder)}
             value={query}
-            aria-label={ariaLabel ? `${ariaLabel} 검색` : "검색"}
+            aria-label={
+              ariaLabel
+                ? language === "en"
+                  ? `Search: ${t(ariaLabel)}`
+                  : `${ariaLabel} 검색`
+                : t("검색")
+            }
             onChange={(e) => {
               setQuery(e.target.value);
               setActiveIndex(0);
@@ -129,9 +141,9 @@ export function SearchableSelectField({
             onKeyDown={onSearchKeyDown}
           />
           {filtered.length === 0 ? (
-            <p className="select-field__empty">검색 결과가 없습니다.</p>
+            <p className="select-field__empty">{t("검색 결과가 없습니다.")}</p>
           ) : (
-            <ul className="select-field__options select-field__options--scroll" role="listbox" aria-label={ariaLabel} ref={listRef}>
+            <ul className="select-field__options select-field__options--scroll" role="listbox" aria-label={ariaLabel ? t(ariaLabel) : undefined} ref={listRef}>
               {filtered.map((option, index) => (
                 <li key={option.value}>
                   <button
@@ -142,7 +154,7 @@ export function SearchableSelectField({
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => commit(option.value)}
                   >
-                    <span>{option.label}</span>
+                    <span>{t(option.label)}</span>
                     {option.value === value && <b aria-hidden="true">✓</b>}
                   </button>
                 </li>

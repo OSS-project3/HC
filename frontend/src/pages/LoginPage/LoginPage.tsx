@@ -3,10 +3,12 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { useAuth } from "../../features/auth/AuthContext";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import { api, ApiError } from "../../services/api";
 import "./LoginPage.css";
 
 export function LoginPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("returnTo");
@@ -50,11 +52,11 @@ export function LoginPage() {
   return (
     <section className="auth page-container">
       <div className="auth__card">
-        <h1 className="auth__title">로그인</h1>
+        <h1 className="auth__title">{t("로그인")}</h1>
 
         <form className="auth__form" onSubmit={submit}>
           <label className="field">
-            <span className="field__label">이메일 <span className="req">*</span></span>
+            <span className="field__label">{t("이메일")} <span className="req">*</span></span>
             <input
               className="field__input"
               type="email"
@@ -66,42 +68,42 @@ export function LoginPage() {
               aria-invalid={Boolean(errors.email)}
               aria-describedby={errors.email ? "login-email-error" : undefined}
             />
-            {errors.email && <span id="login-email-error" className="field-error" role="alert">{errors.email}</span>}
+            {errors.email && <span id="login-email-error" className="field-error" role="alert">{t(errors.email)}</span>}
           </label>
           <label className="field">
-            <span className="field__label">비밀번호 <span className="req">*</span></span>
-            <input className="field__input" type="password" autoComplete="current-password" placeholder="비밀번호" value={password} onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors((current) => ({ ...current, password: undefined })); }} required aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "login-password-error" : undefined} />
-            {errors.password && <span id="login-password-error" className="field-error" role="alert">{errors.password}</span>}
+            <span className="field__label">{t("비밀번호")} <span className="req">*</span></span>
+            <input className="field__input" type="password" autoComplete="current-password" placeholder={t("비밀번호")} value={password} onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors((current) => ({ ...current, password: undefined })); }} required aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "login-password-error" : undefined} />
+            {errors.password && <span id="login-password-error" className="field-error" role="alert">{t(errors.password)}</span>}
           </label>
-          {formError && <p className="auth__form-error" role="alert">{formError}</p>}
+          {formError && <p className="auth__form-error" role="alert">{t(formError)}</p>}
           <Button type="submit" block disabled={submitting}>
-            {submitting ? "로그인 중…" : "로그인"}
+            {submitting ? t("로그인 중…") : t("로그인")}
           </Button>
         </form>
 
-        <div className="auth__recovery-links" aria-label="계정 찾기">
-          <Link to="/account-recovery?type=id">아이디 찾기</Link>
+        <div className="auth__recovery-links" aria-label={t("계정 찾기")}>
+          <Link to="/account-recovery?type=id">{t("아이디 찾기")}</Link>
           <i aria-hidden="true" />
-          <Link to="/account-recovery?type=password">비밀번호 찾기</Link>
+          <Link to="/account-recovery?type=password">{t("비밀번호 찾기")}</Link>
         </div>
 
         <div className="auth__divider">
-          <span>소셜 계정으로 간편 로그인</span>
+          <span>{t("소셜 계정으로 간편 로그인")}</span>
         </div>
 
         <div className="auth__social">
           <button className="auth__social-button auth__social-button--google" type="button" onClick={() => { window.location.href = api.oauthUrl("google"); }}>
             <span className="auth__social-logo auth__social-logo--google" aria-hidden="true"><GoogleLogo /></span>
-            <span>Google로 계속하기</span>
+            <span>{t("Google로 계속하기")}</span>
           </button>
           <button className="auth__social-button auth__social-button--naver" type="button" onClick={() => { window.location.href = api.oauthUrl("naver"); }}>
             <span className="auth__social-logo" aria-hidden="true"><NaverLogo /></span>
-            <span>네이버로 계속하기</span>
+            <span>{t("네이버로 계속하기")}</span>
           </button>
         </div>
 
         <p className="auth__switch">
-          아직 계정이 없으신가요? <Link to="/signup">회원가입</Link>
+          {t("아직 계정이 없으신가요?")} <Link to="/signup">{t("회원가입")}</Link>
         </p>
       </div>
     </section>

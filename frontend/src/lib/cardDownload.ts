@@ -1,13 +1,14 @@
 // 모바일 카드 이미지 다운로드 유틸.
 // - buildCompositeCardBlob: 앞·뒷면을 브랜드 배경/타이틀과 함께 한 장으로 합성한 PNG 생성.
 // - downloadImageFile: 개별 원본 이미지(앞면/뒷면)를 파일로 저장.
+import { translateText } from "../features/i18n/LanguageContext";
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous"; // /public 정적 파일은 동일 출처라 문제 없음.
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`이미지를 불러오지 못했습니다: ${src}`));
+    img.onerror = () => reject(new Error(`${translateText("이미지를 불러오지 못했습니다:")} ${src}`));
     img.src = src;
   });
 }
@@ -53,7 +54,7 @@ export async function buildCompositeCardBlob(
   backUrl: string,
   options: CompositeOptions = {},
 ): Promise<Blob> {
-  const { title = "모바일 신분증" } = options;
+  const { title = translateText("모바일 신분증") } = options;
   const [front, back] = await Promise.all([loadImage(frontUrl), loadImage(backUrl)]);
 
   const aspect = front.naturalWidth / front.naturalHeight || 1.58;
@@ -76,7 +77,7 @@ export async function buildCompositeCardBlob(
   canvas.width = canvasW * scale;
   canvas.height = canvasH * scale;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("캔버스를 사용할 수 없습니다.");
+  if (!ctx) throw new Error(translateText("캔버스를 사용할 수 없습니다."));
   ctx.scale(scale, scale);
 
   // 배경 그라디언트.
@@ -113,7 +114,7 @@ export async function buildCompositeCardBlob(
   }
 
   return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("이미지 생성에 실패했습니다."))), "image/png");
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(translateText("이미지 생성에 실패했습니다.")))), "image/png");
   });
 }
 

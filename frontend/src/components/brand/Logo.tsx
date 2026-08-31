@@ -1,6 +1,7 @@
 // Brand logo lockup: symbol mark, wordmark, and 이팝나무 tree.
 import { Link } from "react-router-dom";
 import { companyInfo, siteNameKo } from "../../config/company";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import "./Logo.css";
 
 interface LogoProps {
@@ -14,13 +15,14 @@ interface LogoProps {
  * (public/images/logo/); the wordmark is real text.
  */
 export function Logo({ withTree = false, size = "md" }: LogoProps) {
+  const { t } = useLanguage();
   return (
-    <Link to="/" className={`logo logo--${size}`} aria-label={siteNameKo}>
+    <Link to="/" className={`logo logo--${size}`} aria-label={t(siteNameKo)}>
       <span className="logo__lockup">
         {/* Mark + tree are decorative — the Link already carries the brand name. */}
         <span className="logo__mark" aria-hidden="true" />
         <span className="logo__words">
-          <span className="logo__ko">{siteNameKo}</span>
+          <span className="logo__ko">{t(siteNameKo)}</span>
           <span className="logo__en">{companyInfo.nameEn}</span>
         </span>
         {withTree && <span className="logo__tree" aria-hidden="true" />}

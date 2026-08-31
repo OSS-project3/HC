@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import "./Modal.css";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 
 interface ModalProps {
   open: boolean;
@@ -23,6 +24,7 @@ const FOCUSABLE =
  * click / ESC / close button, traps focus and restores it on close.
  */
 export function Modal({ open, onClose, title, children, onPrev, onNext, className }: ModalProps) {
+  const { t } = useLanguage();
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
@@ -80,24 +82,24 @@ export function Modal({ open, onClose, title, children, onPrev, onNext, classNam
         className={`modal__dialog${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={t(title)}
         ref={dialogRef}
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {onPrev && (
-          <button className="modal__nav modal__nav--prev" onClick={onPrev} aria-label="이전 문서">
+          <button className="modal__nav modal__nav--prev" onClick={onPrev} aria-label={t("이전 문서")}>
             ‹
           </button>
         )}
         {onNext && (
-          <button className="modal__nav modal__nav--next" onClick={onNext} aria-label="다음 문서">
+          <button className="modal__nav modal__nav--next" onClick={onNext} aria-label={t("다음 문서")}>
             ›
           </button>
         )}
         <header className="modal__header">
-          <h2 className="modal__title">{title}</h2>
-          <button className="modal__close" onClick={onClose} aria-label="닫기">
+          <h2 className="modal__title">{t(title)}</h2>
+          <button className="modal__close" onClick={onClose} aria-label={t("닫기")}>
             ✕
           </button>
         </header>

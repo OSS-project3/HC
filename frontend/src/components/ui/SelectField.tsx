@@ -1,6 +1,7 @@
 // Custom select: replaces the native <select> so the opened dropdown options
 // render in the site's own design instead of the browser/OS default.
 import { useEffect, useRef, useState } from "react";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 
 export interface SelectOption {
   value: string;
@@ -19,6 +20,9 @@ interface SelectFieldProps {
 }
 
 export function SelectField({ value, onChange, options, placeholder, ariaLabel, className, triggerClassName = "field__select" }: SelectFieldProps) {
+  // Option labels and placeholders arrive as Korean source strings; translate at
+  // render (t() is a no-op for strings that are already translated or unknown).
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = options.find((option) => option.value === value);
@@ -46,14 +50,14 @@ export function SelectField({ value, onChange, options, placeholder, ariaLabel, 
         className={`${triggerClassName} select-field__trigger${selected ? "" : " select-field__trigger--placeholder"}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={ariaLabel}
+        aria-label={ariaLabel ? t(ariaLabel) : undefined}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span>{selected ? selected.label : placeholder}</span>
+        <span>{selected ? t(selected.label) : placeholder ? t(placeholder) : undefined}</span>
         <b className="select-field__caret" aria-hidden="true">⌄</b>
       </button>
       {open && (
-        <ul className="select-field__options" role="listbox" aria-label={ariaLabel}>
+        <ul className="select-field__options" role="listbox" aria-label={ariaLabel ? t(ariaLabel) : undefined}>
           {options.map((option) => (
             <li key={option.value}>
               <button
@@ -66,7 +70,7 @@ export function SelectField({ value, onChange, options, placeholder, ariaLabel, 
                   setOpen(false);
                 }}
               >
-                <span>{option.label}</span>
+                <span>{t(option.label)}</span>
                 {option.value === value && <b aria-hidden="true">✓</b>}
               </button>
             </li>

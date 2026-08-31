@@ -4,9 +4,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { api, ApiError } from "../../services/api";
 import { showToast } from "../../components/ui/toast";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import "../LoginPage/LoginPage.css";
 
 export function SignupPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirm: "" });
   const [error, setError] = useState<string | null>(null);
@@ -84,12 +86,12 @@ export function SignupPage() {
   return (
     <section className="auth page-container">
       <div className="auth__card">
-        <h1 className="auth__title">회원가입</h1>
-        <p className="auth__lead">이메일 인증 후 가입할 수 있습니다.</p>
+        <h1 className="auth__title">{t("회원가입")}</h1>
+        <p className="auth__lead">{t("이메일 인증 후 가입할 수 있습니다.")}</p>
 
         <form className="auth__form" onSubmit={submit}>
           <label className="field">
-            <span className="field__label">이메일 <span className="req">*</span></span>
+            <span className="field__label">{t("이메일")} <span className="req">*</span></span>
             <div className="field__with-btn">
               <input
                 className="field__input"
@@ -103,63 +105,63 @@ export function SignupPage() {
                 aria-invalid={Boolean(errors.email)}
               />
               <button type="button" className="postal-btn" onClick={requestCode} disabled={busy || verified || !emailValid}>
-                {verified ? "인증완료" : codeSent ? "재발송" : "인증코드 받기"}
+                {verified ? t("인증완료") : codeSent ? t("재발송") : t("인증코드 받기")}
               </button>
             </div>
-            {errors.email && <span className="field-error" role="alert">{errors.email}</span>}
+            {errors.email && <span className="field-error" role="alert">{t(errors.email)}</span>}
           </label>
 
           {!verified && (
             <label className="field">
-              <span className="field__label">인증 코드 <span className="req">*</span></span>
+              <span className="field__label">{t("인증 코드")} <span className="req">*</span></span>
               <div className="field__with-btn">
                 <input
                   className="field__input"
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder={codeSent ? "이메일로 받은 6자리 코드" : "먼저 '인증코드 받기'를 눌러주세요"}
+                  placeholder={codeSent ? t("이메일로 받은 6자리 코드") : t("먼저 '인증코드 받기'를 눌러주세요")}
                   inputMode="numeric"
                   maxLength={6}
                   disabled={!codeSent}
                 />
-                <button type="button" className="postal-btn" onClick={confirmCode} disabled={busy || !codeSent}>확인</button>
+                <button type="button" className="postal-btn" onClick={confirmCode} disabled={busy || !codeSent}>{t("확인")}</button>
               </div>
               <small className="auth__field-hint">
-                {codeSent ? "이메일로 받은 6자리 코드를 10분 안에 입력해 주세요." : "이메일 입력 후 '인증코드 받기'를 누르면 인증 코드가 발송됩니다."}
+                {codeSent ? t("이메일로 받은 6자리 코드를 10분 안에 입력해 주세요.") : t("이메일 입력 후 '인증코드 받기'를 누르면 인증 코드가 발송됩니다.")}
               </small>
             </label>
           )}
-          {verified && <p className="auth__field-hint auth__field-hint--ok">✓ 이메일 인증 완료</p>}
+          {verified && <p className="auth__field-hint auth__field-hint--ok">✓ {t("이메일 인증 완료")}</p>}
 
           <label className="field">
-            <span className="field__label">이름 <span className="req">*</span></span>
-            <input className="field__input" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="이름" required aria-invalid={Boolean(errors.name)} />
-            {errors.name && <span className="field-error" role="alert">{errors.name}</span>}
+            <span className="field__label">{t("이름")} <span className="req">*</span></span>
+            <input className="field__input" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder={t("이름")} required aria-invalid={Boolean(errors.name)} />
+            {errors.name && <span className="field-error" role="alert">{t(errors.name)}</span>}
           </label>
           <label className="field">
-            <span className="field__label">비밀번호 <span className="req">*</span></span>
-            <input className="field__input" type="password" autoComplete="new-password" value={form.password} onChange={(e) => set({ password: e.target.value })} placeholder="비밀번호" required aria-invalid={Boolean(errors.password)} />
-            <small className="auth__field-hint">8~72자</small>
-            {errors.password && <span className="field-error" role="alert">{errors.password}</span>}
+            <span className="field__label">{t("비밀번호")} <span className="req">*</span></span>
+            <input className="field__input" type="password" autoComplete="new-password" value={form.password} onChange={(e) => set({ password: e.target.value })} placeholder={t("비밀번호")} required aria-invalid={Boolean(errors.password)} />
+            <small className="auth__field-hint">{t("8~72자")}</small>
+            {errors.password && <span className="field-error" role="alert">{t(errors.password)}</span>}
           </label>
           <label className="field">
-            <span className="field__label">비밀번호 확인 <span className="req">*</span></span>
-            <input className="field__input" type="password" autoComplete="new-password" value={form.confirm} onChange={(e) => set({ confirm: e.target.value })} placeholder="비밀번호 확인" required aria-invalid={Boolean(errors.confirm)} />
-            {errors.confirm && <span className="field-error" role="alert">{errors.confirm}</span>}
+            <span className="field__label">{t("비밀번호 확인")} <span className="req">*</span></span>
+            <input className="field__input" type="password" autoComplete="new-password" value={form.confirm} onChange={(e) => set({ confirm: e.target.value })} placeholder={t("비밀번호 확인")} required aria-invalid={Boolean(errors.confirm)} />
+            {errors.confirm && <span className="field-error" role="alert">{t(errors.confirm)}</span>}
           </label>
           <label className="field">
-            <span className="field__label">전화번호 <span className="req">*</span></span>
+            <span className="field__label">{t("전화번호")} <span className="req">*</span></span>
             <input className="field__input" type="tel" autoComplete="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="010-1234-5678" required inputMode="numeric" aria-invalid={Boolean(errors.phone)} />
-            {errors.phone && <span className="field-error" role="alert">{errors.phone}</span>}
+            {errors.phone && <span className="field-error" role="alert">{t(errors.phone)}</span>}
           </label>
 
-          {error && <p className="field-error">{error}</p>}
+          {error && <p className="field-error">{t(error)}</p>}
 
-          <Button type="submit" block>회원가입</Button>
+          <Button type="submit" block>{t("회원가입")}</Button>
         </form>
 
         <p className="auth__switch">
-          이미 계정이 있으신가요? <Link to="/login">로그인</Link>
+          {t("이미 계정이 있으신가요?")} <Link to="/login">{t("로그인")}</Link>
         </p>
       </div>
     </section>

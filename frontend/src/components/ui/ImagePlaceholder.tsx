@@ -1,6 +1,7 @@
 // Black-box placeholder standing in for not-yet-delivered images.
 import clsx from "clsx";
 import type { CSSProperties } from "react";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import "./ImagePlaceholder.css";
 
 interface ImagePlaceholderProps {
@@ -18,15 +19,16 @@ interface ImagePlaceholderProps {
  * the content and layout are finalised; images are dropped in later.
  */
 export function ImagePlaceholder({ label, className, style, children }: ImagePlaceholderProps) {
+  const { t } = useLanguage();
   return (
     <div
       className={clsx("img-ph", className)}
       style={style}
       role="img"
-      aria-label={label ? `${label} — 이미지 추가 필요` : "이미지 추가 필요"}
+      aria-label={label ? `${label} — ${t("이미지 추가 필요")}` : t("이미지 추가 필요")}
     >
       {label && <span className="img-ph__label">{label}</span>}
-      <span className="img-ph__tag">추가 필요</span>
+      <span className="img-ph__tag">{t("추가 필요")}</span>
       {children}
     </div>
   );

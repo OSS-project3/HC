@@ -7,15 +7,17 @@ import { MerchandiseSection } from "../../components/home/MerchandiseSection";
 import { ContactSection } from "../../components/home/ContactSection";
 import { PartnersSection } from "../../components/home/PartnersSection";
 import { companyInfo } from "../../config/company";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import "../../components/home/home.css";
 
 export function HomePage() {
+  const { t } = useLanguage();
   const [zodiacIndex, setZodiacIndex] = useState(0);
 
   return (
     <div className="home">
       {/* Tagline: its own strip flush under the header (not part of the header). */}
-      <p className="home-tagline page-container">{companyInfo.tagline}</p>
+      <p className="home-tagline page-container">{t(companyInfo.tagline)}</p>
 
       <HeroSection zodiacIndex={zodiacIndex} onZodiacSelect={setZodiacIndex} />
       <MainDesignsSection zodiacIndex={zodiacIndex} onZodiacChange={setZodiacIndex} />

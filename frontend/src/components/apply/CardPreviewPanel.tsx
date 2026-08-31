@@ -1,5 +1,6 @@
 // Apply flow: sample preview panel shown alongside the application form.
 import type { CardDesign } from "../../data/cards";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 
 interface CardPreviewPanelProps {
   design: CardDesign;
@@ -45,6 +46,7 @@ const studentSamples: Record<"landscape" | "portrait", SampleImage[]> = {
 
 /** Right-hand sample preview shown alongside the application form. */
 export function CardPreviewPanel({ design, orientation }: CardPreviewPanelProps) {
+  const { t, language } = useLanguage();
   // 학생증은 선택한 방향(기본 가로)에 맞는 견본을 보여준다.
   const resolvedOrientation = orientation ?? "landscape";
   const isStudent = design.cardType === "student";
@@ -62,19 +64,23 @@ export function CardPreviewPanel({ design, orientation }: CardPreviewPanelProps)
         : "";
 
   return (
-    <aside className="apply-preview" aria-label="예시 카드">
-      <p className="apply-preview__note-top">※ 특허출원에 의한 견본품</p>
+    <aside className="apply-preview" aria-label={t("예시 카드")}>
+      <p className="apply-preview__note-top">{t("※ 특허출원에 의한 견본품")}</p>
       <div className={`apply-preview__row${rowModifier}`}>
         {images.map((image) => (
           <div className="apply-preview__card" key={image.src}>
-            <img className="apply-preview__img" src={image.src} alt={`${design.name} 견본품 ${image.side}`} />
+            <img
+              className="apply-preview__img"
+              src={image.src}
+              alt={language === "en" ? `${design.name} sample (${t(image.side)})` : `${design.name} 견본품 ${image.side}`}
+            />
           </div>
         ))}
       </div>
       <p className="apply-preview__caption">
-        이해를 돕기 위한 예시 이미지 입니다
+        {t("이해를 돕기 위한 예시 이미지 입니다")}
         <br />
-        실제 발급의 디자인과 구성은 변경될 수 있습니다
+        {t("실제 발급의 디자인과 구성은 변경될 수 있습니다")}
       </p>
     </aside>
   );

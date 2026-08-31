@@ -1,5 +1,6 @@
 // Renders one zodiac sign as its delivered image (or a black-box placeholder).
 import type { ZodiacSign } from "../../data/zodiac";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import { ImagePlaceholder } from "../ui/ImagePlaceholder";
 
 interface ZodiacIconProps {
@@ -14,9 +15,10 @@ interface ZodiacIconProps {
  * still enlarges + rings the active slot so the rotation behaviour is visible.
  */
 export function ZodiacIcon({ sign, size = 88, highlighted = false }: ZodiacIconProps) {
+  const { language } = useLanguage();
   if (sign.image) {
     return (
-      <img src={sign.image} alt={`${sign.nameKo} (${sign.nameEn})`} style={{ width: size, height: size, objectFit: "contain" }} />
+      <img src={sign.image} alt={language === "en" ? sign.nameEn : `${sign.nameKo} (${sign.nameEn})`} style={{ width: size, height: size, objectFit: "contain" }} />
     );
   }
 
@@ -32,7 +34,7 @@ export function ZodiacIcon({ sign, size = 88, highlighted = false }: ZodiacIconP
         borderRadius: 6,
       }}
     >
-      <ImagePlaceholder label={sign.nameKo} />
+      <ImagePlaceholder label={language === "en" ? sign.nameEn : sign.nameKo} />
     </span>
   );
 }
