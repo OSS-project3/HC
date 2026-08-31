@@ -1,5 +1,7 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
+> **갱신: 2026-08-31(9차, Claude 세션).** §1.15(c)를 정밀 재조사 — `computeMemberSaju()`가 `manseryeok` 라이브러리에 `trueSolarTime`을 안 넘겨서 "입력 시각=KST"로 가정하고 계산한다는 걸 라이브러리 타입 문서 원문으로 확인했고(`true-solar-time.d.ts`), 이건 미완성이 아니라 **한국 외 출생 신청자에게 틀린 사주가 나올 수 있는 정확도 버그**임을 확정했다. 또한 이 보정에 필요한 `longitude`가 `BirthRegionCandidateResponse`/`ManseryeokResolveResponse`/`ManseryeokResult`/`ManseryeokActiveResultResponse` 4곳 모두에 **이미 존재·API로 이미 반환 중**이라는 것도 확인 — 즉 백엔드 작업 없이 프론트만 고치면 되는 상태다. 파일 단위 필요 변경사항을 §1.15(c)에 표로 정리했다. 코드는 수정하지 않았다(백엔드 세션 스코프 — `docs/collab/RULES.md`).
+>
 > **갱신: 2026-08-27(8차, Claude 세션).** §1.9(b) 학생증 `schoolName` 갭을 완전히 해결 — 원래 `submit()` 한 줄 추가면 끝나는 작업이었으나, 자유텍스트 학교명이 카드 디자인 매칭 오타·예외처리 복잡도와 관리자 수작업 정정 부담을 유발한다는 이유로 School 마스터 엔티티+검색select(+직접입력 폴백) 구조로 스코프를 넓혀 구현했다. 이 프론트 작업은 원래 사용자(백엔드 담당) 범위가 아니었으나 위 이유로 승인받아 함께 진행했다 — 수정한 클래스 전체 목록은 §1.9(b) 참고. 실 브라우저(Playwright) E2E로 개인·단체 양쪽 다 검증했고, 단체 경로는 실제 "신청 제출" 클릭 → 실 API 응답 → DB 반영까지 확인했다. 이 과정에서 단체+학생증 화면의 기존 "학교명" 필드가 실제로는 `Applicant.organizationName`(다른 필드)에 저장되고 있어 단체 학생증 신청이 애초에 화면상으로 불가능했던 버그도 함께 발견·수정했다.
 >
 > **갱신: 2026-08-27(7차, Claude 세션).** §1.4를 실제 코드 대조로 대폭 정정 — 관리자 신청 조회·상태전이(결제확인/검토시작/작명승인/작명완료/제작시작/카드준비/사진반려/배송)·인앱작명·엑셀작명반영·카드번호 단건·일괄은 **이미 `services/api.ts`에 바인딩되어 `ApplicationsSection.tsx`가 실제로 호출 중**이었다(과거 버전의 "❌ 아직 없음"은 낡은 정보). 반면 실제 관리자 전체 플로우를 처음부터 끝까지 태워보는 통합 검증(2026-08-26~27) 중, 만세력(출생지역검색·timezone판정·확정저장·조회)·카드디자인목록·카드미리보기 6개 API는 백엔드가 실 curl 검증까지 끝났는데도 프론트에 래퍼 함수조차 없다는 걸 신규로 확인해 **§1.15**로 상세 기록했다(요청/응답 필드, 검증 순서, 에러코드까지). 이 감사 과정에서 백엔드의 이름 뜻풀이/훈음 필드 스왑 버그(카드 렌더링 결과로 실제 발견)도 별도로 수정·커밋됨(이 문서 범위 밖, `docs/collab/CHANGELOG.md` 참고).
@@ -28,7 +30,7 @@
 | **내 신청 목록·상세(마이페이지)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료(`b5f6140`) | **🔴 연동 안 돼 있어 실사용 불가**("제작 신청 내역이 없습니다" 표시) — API 실 호출로 교체 필요, 상태 라벨·날짜 포맷도 같이 손봐야 함 (§1.2) |
 | **1:1 문의(Inquiry)** | ❌ 목(localStorage), 2026-08-24 관리자 화면 UI만 손봄(여전히 mock) | ✅ 구현·`main` 반영 완료(사용자 작성 API·관리자 답변 API 둘 다) | **연동 가능(단, `privacyConsent` 필드 프론트 추가 전송 필요)** — 관리자 답변 화면(`AdminPage.tsx`)도 `api.ts` import 자체가 없어 여전히 mock (§1.3, §1.4) |
 | 관리자 신청관리(조회·상태전이·작명·카드번호) | ✅ 실 API | ✅ 구현 | **연동 완료(2026-08-27 재확인)** — 통계(`GET /api/admin/stats`)만 백엔드 자체가 미구현 (§1.4) |
-| **관리자 작명 확정·카드 제작(만세력·카드디자인·카드미리보기)** | ❌ 래퍼 자체 없음 | ✅ 구현·실 API 검증 완료 | **🔴 프론트 미착수** — 출생지역검색·만세력resolve/confirm/조회·카드디자인목록·카드미리보기 6개 API 전부 진입점 UI 없음. 사주 계산 로직(진태양시 보정)도 프론트에 아직 없음 (§1.15) |
+| **관리자 작명 확정·카드 제작(만세력·카드디자인·카드미리보기)** | ❌ 래퍼 자체 없음 | ✅ 구현·실 API 검증 완료 | **🔴 프론트 미착수 + 정확도 버그**(2026-08-31 재확인) — 6개 API 진입점 UI 전부 없음. 그냥 안 뜨는 게 아니라 `computeMemberSaju()`가 진태양시 보정 없이 "입력 시각=KST"로 가정한 **틀릴 수 있는 결과를 정상처럼** 관리자 화면에 보여주고 있음(한국 외 출생자 다수 상정하는 서비스라 실사용 영향 큼). 필요한 `longitude` 값은 백엔드가 이미 API로 내려주고 있어 백엔드 작업 없이 프론트만 고치면 됨 (§1.15(c)) |
 | **신청 취소** | ⚠️ 진입점만 | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.5) |
 | 공지 서버 검색 | ⚠️ 클라 검색 | ❌ keyword 파라미터 없음 | 필요 시 검색 파라미터 추가 (§1.7) |
 | 회원정보 address 수정 | ⚠️ 화면엔 없음(정책상 제거된 상태) | ❌ 미지원(확정 정책) | **갭 아님** — 조회는 이름·전화번호·이메일만, 수정도 이름·전화번호만(§1.9-a) |
@@ -209,6 +211,25 @@
 - **요청 바디** (`ManseryeokConfirmRequest`): `{ timezoneId(필수), longitude(필수), selectedOffset?, utcInstant?(EXACT일 때 필수), timeAccuracy: "EXACT"|"PARTIAL"|"UNKNOWN"(필수), confirmedPillars: {year:{stem,branch}, month:{...}, day:{...}, hour:{...}}(필수, 확정된 주만), uncertainPillars?: string[](확정 못한 주 이름, 예 ["hour"]), elementCounts?: {목,화,토,금,수}, calculationEngineVersion(필수, 예 "manseryeok@2.0.0"), inputHash(필수, 재계산 입력 동일성 추적용) }`.
 - **정책**: 재확정 시 기존 활성 결과는 `active=false`로 비활성화되고 새 row가 활성으로 저장된다(이력 보존, 덮어쓰지 않음). `EXACT`가 아니면 무결성 재검증을 하지 않고 그대로 신뢰해 저장한다.
 - **프론트가 필요한 것**: 이 흐름 전체를 태우려면 프론트가 **`manseryeok` 패키지로 실제 사주를 계산하는 코드부터 새로 있어야 한다** — 현재 유일하게 있는 `frontend/src/lib/saju.ts`의 `computeMemberSaju()`는 (b)의 `utcInstant`/경도를 전혀 받지 않고 로컬 시각만으로 계산하는 **작명 추천 화면 전용 mock 미리보기 함수**라 이 API에 그대로 이어붙일 수 없다(진태양시 보정 없음, timezone 확정 결과 미반영). 즉 단순 API 바인딩 문제가 아니라 **계산 로직 자체를 새로 작성**해야 하는 항목.
+
+- **⚠️ 갱신(2026-08-31) — (c)가 왜 "나중에 정교화" 항목이 아니라 지금 당장 고쳐야 하는 정확도 버그인지, 정확한 근거와 함께 정리**:
+
+  **버그 자체(확인된 사실, 추정 아님)**: `computeMemberSaju()`(`frontend/src/lib/saju.ts:9-44`)가 `calculateFourPillars()`를 호출할 때 `trueSolarTime` 옵션을 아예 안 넘긴다. `manseryeok` 라이브러리 타입 문서(`frontend/node_modules/manseryeok/dist/time/true-solar-time.d.ts:10-11`)에 원문 그대로 이렇게 적혀 있다: **"진태양시 옵션을 주지 않으면(기본) longitude=135, 균시차=0, 서머타임 미적용이 되어 결과적으로 '입력 벽시계 = KST 표준시'로 동작한다."** 즉 지금 `ApplicationsSection.tsx:400`이 관리자 화면에 보여주는 `realSaju`는 **신청자가 어느 나라에서 태어났든 그 시각을 한국 표준시로 취급해서 계산한 결과**다. 게다가 백엔드가 이미 구현해둔 (a)~(d) 흐름(출생지역검색→timezone/DST 판정→확정저장) 자체도 이 화면에서 호출되지 않는다(§1.15 상단 배경 문단 참고) — 즉 타임존 판정도, 진태양시 보정도 둘 다 안 거친 값이다.
+
+  **왜 "언젠가 정교화"가 아니라 지금 문제인지**: 이 서비스의 핵심 기능이 "출생지역 검색"이라는 것 자체가, 신청자 다수가 한국이 아닌 다른 나라·타임존에서 태어났다는 것을 전제한다. 그런 신청자에게 이 계산은 단순히 "덜 정밀한" 수준이 아니라 **연주(년) 경계·일주(日) 경계·시주(時) 경계가 실제와 다르게 나올 수 있는 오답**이다 — 절기(節氣)가 걸치는 시점 근처의 출생이면 월주까지도 바뀔 수 있다. 이 값이 그대로 오행 결핍 판정(→이름 추천 점수)과 카드 뒷면 "이름풀이"·띠 이미지까지 흘러간다. "만세력 mock" 배지(`ApplicationsSection.tsx:452`)가 화면에 뜨긴 하지만, `computeMemberSaju()`가 값을 반환하는 한(계산 자체는 "성공"하므로) 이 배지는 절대 안 뜬다 — 관리자 입장에선 **틀린 값이 "정상 계산됨"으로 보인다.**
+
+  **왜 진태양시 보정을 백엔드가 아니라 프론트가 맡아야 하는지, 그리고 왜 지금 그게 어렵지 않은지**:
+  - 사주 산출(간지 계산) 자체가 이미 100% 프론트 책임으로 확정된 아키텍처다(`admin-saju.md`) — 진태양시는 별도 계산 단계가 아니라 이미 프론트가 호출 중인 `calculateFourPillars()`에 옵션 하나(`trueSolarTime: {longitude}`)를 더 넘기는 것뿐이다. 백엔드가 떠맡으려면 `manseryeok`이 내장한 절기·균시차·음력변환 계산을 Java로 통째로 재구현/포팅해야 해서, 이미 존재하는 로직을 언어만 바꿔 이중 유지보수하는 데다 두 구현이 같은 입력에 다른 결과를 낼 위험까지 생긴다.
+  - **필요한 데이터는 이미 백엔드에 전부 있다** — 신규 백엔드 작업이 필요 없다: `BirthRegionCandidateResponse.longitude`((a) 응답), `ManseryeokResolveResponse.longitude`((b) 응답), `ManseryeokResult.longitude`(DB 컬럼), `ManseryeokActiveResultResponse.longitude`((d) 응답) — 넷 다 이미 존재하고 API로 이미 내려주고 있다. `ManseryeokResult.inputHash`의 주석조차 "계산 입력(생년월일시+timezoneId+**longitude**+엔진 버전)의 해시"라고 되어 있어,애초에 이 값이 계산에 쓰일 것으로 설계돼 있었다. 즉 프론트가 (b) 또는 (d) 응답의 `longitude`를 그대로 `trueSolarTime`에 넣기만 하면 된다 — 새 API도, 새 필드도 필요 없다.
+
+  **지금 당장 필요한 변경(파일 단위, 이게 "diff"에 해당)**:
+  | 파일 | 지금 | 바뀌어야 하는 것 |
+  |---|---|---|
+  | `services/api.ts` | (a)~(d) 4개 API 래퍼 자체가 없음 | `searchBirthRegion`/`resolveManseryeokBirthTime`/`confirmManseryeokResult`/`getActiveManseryeokResult` 4개 추가(§1.15 (a)~(d) 계약 그대로) |
+  | `lib/saju.ts` | `computeMemberSaju(birthDate, birthTime)` — `trueSolarTime` 미사용, 로컬 시각을 KST로 취급 | (b)/(d) 응답의 `longitude`(+`utcInstant`)를 받아 `calculateFourPillars(..., trueSolarTime: { longitude })`로 계산하는 새 함수로 교체(또는 병행) — 지금처럼 `birthDate`/`birthTime`만으로 즉석 계산하는 경로는 백엔드 확정 흐름 없이는 호출되지 않게 정리 |
+  | `components/admin/sections/ApplicationsSection.tsx` | `NamingCard`가 `computeMemberSaju()`(mock 폴백 포함)만 사용, (a)~(d) API 호출·UI 진입점 전혀 없음 | 출생지역 검색창 → timezone 판정(DST 후보 선택) → 확정 저장 → 활성 결과 조회까지 이어지는 실제 흐름 UI 추가, `realSaju`/`mockSaju` 폴백 로직 제거(또는 "미확정" 상태로 명확히 구분 표시) |
+
+  **결론**: 이건 "미연동"이 아니라 "**연동 안 된 채로 틀린 값을 정상처럼 보여주고 있다**"는 차이가 있다 — 값이 아예 안 뜨는 게 아니라 그럴듯한 오답이 뜬다는 점에서 우선순위를 다시 볼 필요가 있다.
 
 #### (d) 활성 만세력 결과 조회 — `GET /api/admin/applications/{applicationId}/members/{memberId}/manseryeok`
 - **용도**: 현재 활성(active=true)인 확정 결과를 다시 읽어온다. 화면에 "이미 확정된 만세력" 표시, 또는 카드 미리보기 전 확정 여부 확인 용도.
