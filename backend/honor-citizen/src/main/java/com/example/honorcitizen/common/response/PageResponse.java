@@ -35,4 +35,9 @@ public class PageResponse<T> {
         return new PageResponse<>(page.getContent().stream().map(mapper).toList(), page.getNumber(), page.getSize(),
                 page.getTotalElements(), page.getTotalPages());
     }
+
+    // 페이징 메타는 그대로 두고 content만 바꾼 사본 — 영어 번역 응답(EnglishResponseTranslator)용.
+    public <R> PageResponse<R> withContent(List<R> newContent) {
+        return new PageResponse<>(newContent, page, size, totalElements, totalPages);
+    }
 }

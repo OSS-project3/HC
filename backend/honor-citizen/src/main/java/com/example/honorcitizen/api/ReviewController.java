@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -33,6 +34,7 @@ import java.util.List;
 public class ReviewController {
 
     private final ReviewService reviewService;
+    private final EnglishResponseTranslator englishResponseTranslator;
 
     @PostMapping
     public ResponseEntity<ApiResponse<ReviewCreateResponse>> create(
@@ -51,16 +53,19 @@ public class ReviewController {
             @RequestParam(required = false) ReviewSearchType searchType,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "9") int size) {
-        return ResponseEntity.ok(ApiResponse.success(
-                reviewService.list(cardTypeId, hasPhoto, searchType, keyword, page, size)));
+            @RequestParam(defaultValue = "9") int size,
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return ResponseEntity.ok(ApiResponse.success(englishResponseTranslator.translateReviews(
+                reviewService.list(cardTypeId, hasPhoto, searchType, keyword, page, size), acceptLanguage)));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ReviewDetailResponse>> detail(
             @AuthenticationPrincipal Long userId,
-            @PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success(reviewService.detail(id, userId)));
+            @PathVariable Long id,
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return ResponseEntity.ok(ApiResponse.success(
+                englishResponseTranslator.translateReview(reviewService.detail(id, userId), acceptLanguage)));
     }
 
     @DeleteMapping("/{id}")

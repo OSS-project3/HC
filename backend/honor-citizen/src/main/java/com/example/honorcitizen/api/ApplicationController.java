@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class ApplicationController {
 
     private final ApplicationService applicationService;
+    private final EnglishResponseTranslator englishResponseTranslator;
 
     @PostMapping
     public ResponseEntity<ApiResponse<ApplicationCreateResponse>> createIndividual(
@@ -60,10 +62,13 @@ public class ApplicationController {
                         applicationService.createGroup(userId, request, logo, seal, submitFile)));
     }
 
+    // Accept-Language: en이면 photoRejectReason(자유 텍스트)만 영어로 번역한다(cardType·status는 그대로).
     @PostMapping("/lookup")
     public ResponseEntity<ApiResponse<ApplicationLookupResponse>> lookup(
-            @Valid @RequestBody ApplicationLookupRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(applicationService.lookup(request)));
+            @Valid @RequestBody ApplicationLookupRequest request,
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return ResponseEntity.ok(ApiResponse.success(
+                englishResponseTranslator.translateLookup(applicationService.lookup(request), acceptLanguage)));
     }
 
     @PostMapping("/{applicationId}/cancel")

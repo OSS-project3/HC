@@ -27,4 +27,9 @@ public class BoardListItemResponse {
         return new BoardListItemResponse(
                 board.getId(), board.getBoardType(), board.getTitle(), board.getContent(), board.getCreatedAt());
     }
+
+    // 영어 응답용 — 번역된 title/content로 바꾼 사본(EnglishResponseTranslator 참고).
+    public BoardListItemResponse withTranslated(String title, String content) {
+        return new BoardListItemResponse(id, boardType, title, content, createdAt);
+    }
 }
