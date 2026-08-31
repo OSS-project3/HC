@@ -5,12 +5,14 @@ import clsx from "clsx";
 import { cardCategories, type CardCategory } from "../../data/cards";
 import { CardCarousel } from "../../components/gallery/CardCarousel";
 import { ChevronLeft, ChevronRight } from "../../components/ui/icons";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import "./DesignPage.css";
 
 const PAIRS_PER_PAGE = 3; // 앞면 3 + 뒷면 3 = 한 페이지당 3쌍
 
 export function DesignPage() {
   const { hash } = useLocation();
+  const { t } = useLanguage();
 
   useEffect(() => {
     const id = hash.slice(1);
@@ -23,9 +25,9 @@ export function DesignPage() {
   return (
     <div className="design">
       <header className="design__hero subpage-hero page-container">
-        <p className="eyebrow">디자인</p>
-        <h1 className="design__title subpage-hero__title">카드 디자인</h1>
-        <p className="section-lead design__lead">한국의 결을 따라 전통과 현재를 담다</p>
+        <p className="eyebrow">{t("디자인")}</p>
+        <h1 className="design__title subpage-hero__title">{t("카드 디자인")}</h1>
+        <p className="section-lead design__lead">{t("한국의 결을 따라 전통과 현재를 담다")}</p>
       </header>
 
       {cardCategories.map((cat) => (
@@ -38,6 +40,7 @@ export function DesignPage() {
 /** One card category. Each page displays the next three delivered card pairs. */
 function DesignCategory({ cat }: { cat: CardCategory }) {
   const [page, setPage] = useState(1);
+  const { t, language } = useLanguage();
   const orientation = cat.cards[0].orientation;
   const firstId = cat.cards[0]?.id ?? "";
   const isStudent = cat.cardType === "student";
@@ -57,19 +60,19 @@ function DesignCategory({ cat }: { cat: CardCategory }) {
           footer all align to the cards' left/right edges. */}
       <div className="design__cat-inner">
         <div className="design__cat-head">
-          <h2 className="design__cat-title">{cat.title}</h2>
+          <h2 className="design__cat-title">{t(cat.title)}</h2>
         </div>
 
         {/* Long rule below the title, with the pager pinned to its right. */}
         <div className="design__cat-bar">
           <span className="design__cat-line" aria-hidden="true" />
-          <nav className="design__pager" aria-label={`${cat.title} 페이지`}>
+          <nav className="design__pager" aria-label={language === "en" ? `${t(cat.title)} pages` : `${cat.title} 페이지`}>
             <button
               type="button"
               className="design__pager-arrow"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              aria-label="이전 페이지"
+              aria-label={t("이전 페이지")}
             >
               <ChevronLeft width={18} height={18} />
             </button>
@@ -81,7 +84,7 @@ function DesignCategory({ cat }: { cat: CardCategory }) {
               className="design__pager-arrow"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              aria-label="다음 페이지"
+              aria-label={t("다음 페이지")}
             >
               <ChevronRight width={18} height={18} />
             </button>
@@ -96,9 +99,9 @@ function DesignCategory({ cat }: { cat: CardCategory }) {
         />
 
         <div className="design__cat-foot">
-          <p className="design__note">※ 위 증은 특허출원에 의한 견본품입니다</p>
+          <p className="design__note">{t("※ 위 증은 특허출원에 의한 견본품입니다")}</p>
           <Link className="design__apply-btn" to={`/apply?designId=${firstId}`}>
-            제작 신청
+            {t("제작 신청")}
           </Link>
         </div>
       </div>

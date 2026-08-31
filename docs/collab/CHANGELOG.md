@@ -15,6 +15,13 @@
 
 ---
 
+## 2026-08-31 — Claude — `main` (런타임 콘텐츠 영어 번역 — Accept-Language: en 시 서버 측 한→영 기계번역)
+
+- 변경: 프론트가 모든 API 호출에 싣는 `Accept-Language` 헤더의 기본 태그가 en이면, 공개/사용자 API 응답의 자유 텍스트를 Google Cloud Translation v2로 한→영 번역해 응답한다. 새 패키지 `infra/translation`에 `TranslationClient`(인터페이스)·`GoogleTranslationClient`(키 미설정·API 실패 시 원문 패스스루 — 번역 실패가 사용자 요청을 실패시키지 않음)·`TranslationCache`(엔티티, `translation_cache` 테이블: source_hash SHA-256 유니크 + 원문/번역문 TEXT)·`ContentTranslationService`(인메모리 ConcurrentHashMap → DB 캐시 → 남은 문자열 전체 1회 배치 API 호출, 한글([가-힣]) 없는/공백 문자열 스킵, 동시 삽입 유니크 경합 무시)·`AcceptLanguages`(언어 감지 유틸)를 추가하고, `api/EnglishResponseTranslator`가 DTO별 `withTranslated(...)` 사본 생성으로 응답을 재조립한다. 적용 지점: Board 목록/상세(title·content·next.title), Review·MyReview 목록/상세(title·content·next.title — authorName 제외), Event 목록/상세(title·eventDateText·place·host·content — cardLabel·company 제외), MyInquiry 목록/상세(title·content·answer — category·연락처 제외), MyApplication 상세·Application lookup(photoRejectReason만). `/api/admin/**`는 미적용(관리자 UI는 한국어 유지).
+- 파일: `TranslationClient.java`/`GoogleTranslationClient.java`/`TranslationCache.java`/`TranslationCacheRepository.java`/`ContentTranslationService.java`/`AcceptLanguages.java`(신규, infra/translation), `EnglishResponseTranslator.java`(신규, api), `BoardController.java`/`EventController.java`/`ReviewController.java`/`MyReviewController.java`/`MyInquiryController.java`/`MyApplicationController.java`/`ApplicationController.java`(Accept-Language 배선), DTO 7종 `withTranslated` 추가(`BoardListItemResponse`/`BoardDetailResponse`/`EventListItemResponse`/`EventDetailResponse`/`ReviewListItemResponse`/`ReviewDetailResponse`/`InquiryListItemResponse`/`InquiryDetailResponse`/`MyApplicationDetailResponse`/`ApplicationLookupResponse`), `PageResponse.java`(`withContent` 추가), `application.properties`(`app.translation.*`), `docker-compose.yml`(`GOOGLE_TRANSLATE_API_KEY` 전달), 테스트 4클래스 신규(`ContentTranslationServiceTest` 8개, `GoogleTranslationClientTest` 2개, `AcceptLanguagesTest` 2개, `BoardControllerTranslationTest` 3개).
+- 사유: 영어 사용자 지원 — 고정 문구는 프론트 사전이 처리하지만 DB에 저장되는 운영 콘텐츠(공지·후기·행사·문의답변·반려사유)는 서버 측 기계번역이 필요.
+- 검증: 신규 15개 포함 전체 스위트 통과. 실 번역은 환경변수 `GOOGLE_TRANSLATE_API_KEY`(Cloud Translation API 활성화 필요) 설정 시에만 동작하며, 없으면 한국어 원문 그대로 응답한다.
+
 ## 2026-08-30 — Claude — `main` (4-B. `CardDesign` 학교 매칭 + 조회 API 개방)
 
 - 변경: `CardDesignService.listCardDesigns()`가 학생증(STUDENT)이면 `UNSUPPORTED_CARD_TYPE`으로 무조건 거절하던 걸 제거하고, `schoolId+orientation` 기준 자동 조회로 분기했다. `card-preview`/`card-generate`의 `cardDesignId` 요청 계약은 그대로 두고, 조회 API(`GET /api/admin/card-designs`)에만 옵션 파라미터 `applicationId`를 추가 — STUDENT일 때만 필수이며, 그 신청의 `schoolId`+`orientation`으로 디자인을 자동 필터링한다(결과가 사실상 0~1개, 관리자가 여러 개 중 고르는 구조가 아님). `schoolId`가 아직 없는 신청(직접입력, 관리자 연결 전)은 빈 목록을 반환(에러 아님).

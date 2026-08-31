@@ -3,8 +3,10 @@ import type { ApplicationDraft } from "../../../features/apply/types";
 import type { CardDesign } from "../../../data/cards";
 import { cardTypeLabels } from "../../../data/cards";
 import { birthCitiesFor, formatUtcOffset } from "../../../data/birthCities";
+import { countries } from "../../../data/countries";
 import { Button } from "../../ui/Button";
 import { ChevronLeft, ChevronRight } from "../../ui/icons";
+import { useLanguage } from "../../../features/i18n/LanguageContext";
 
 interface StepReviewProps {
   draft: ApplicationDraft;
@@ -17,29 +19,37 @@ interface StepReviewProps {
 const dash = "—";
 
 export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepReviewProps) {
+  const { t, language } = useLanguage();
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
   const isOrg = draft.applicantType === "organization";
   const isStudent = draft.cardType === "student";
-  const orgLabel = isStudent ? "학교명" : "법인·단체명";
-  const issuanceLabel = isPhysical ? "모바일 + 실물 발급" : "모바일 발급";
-  const typeLabel = isOrg ? "법인·단체 신청" : "개인 신청";
-  const cardLabel = design ? cardTypeLabels[design.cardType] : draft.cardType ? cardTypeLabels[draft.cardType] : dash;
+  const orgLabel = t(isStudent ? "학교명" : "법인·단체명");
+  const issuanceLabel = t(isPhysical ? "모바일 + 실물 발급" : "모바일 발급");
+  const typeLabel = t(isOrg ? "법인·단체 신청" : "개인 신청");
+  const cardLabel = design ? t(cardTypeLabels[design.cardType]) : draft.cardType ? t(cardTypeLabels[draft.cardType]) : dash;
+  // 영어 모드에서는 국적(한국어 국가명)을 영문 국가명으로 바꿔 보여준다.
+  const nationalityLabel = draft.applicant.nationality
+    ? language === "en"
+      ? countries.find((c) => c.ko === draft.applicant.nationality)?.en ?? draft.applicant.nationality
+      : draft.applicant.nationality
+    : dash;
 
   // 출생지역: 저장값(도시명)에 국적 기준 시차를 붙여 입력 화면과 동일하게 "서울 (UTC +9:00)"으로 표기.
   // 시차 데이터가 없는 국적(자유 입력 폴백)은 도시명만 노출한다.
   const birthCity = birthCitiesFor(draft.applicant.nationality ?? "").find(
     (city) => city.ko === draft.applicant.birthPlace,
   );
+  const birthCityName = birthCity && language === "en" ? birthCity.en : draft.applicant.birthPlace;
   const birthPlaceLabel = draft.applicant.birthPlace
     ? birthCity
-      ? `${draft.applicant.birthPlace} (UTC ${formatUtcOffset(birthCity.offset)})`
+      ? `${birthCityName} (UTC ${formatUtcOffset(birthCity.offset)})`
       : draft.applicant.birthPlace
     : dash;
 
   return (
     <div className="step">
       <p className="step__eyebrow">{typeLabel}</p>
-      <h2 className="step__heading">최종 확인</h2>
+      <h2 className="step__heading">{t("최종 확인")}</h2>
 
       {/* Built from the same draft data — no re-typed values, so nothing is lost. */}
       {/* 디자인은 랜덤 배정이므로 최종 확인에 노출하지 않는다. */}
@@ -47,7 +57,7 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
         <Item label="신청 유형" value={typeLabel} />
         <Item label="카드 종류" value={cardLabel} />
         <Item label="발급 유형" value={issuanceLabel} />
-        {isOrg && <Item label="수량" value="엑셀 인원 수로 자동 산정" />}
+        {isOrg && <Item label="수량" value={t("엑셀 인원 수로 자동 산정")} />}
       </ReviewSection>
 
       <ReviewSection title="신청인 정보" onEdit={() => onEdit(1)}>
@@ -62,16 +72,16 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
         ) : (
           <>
             <Item label="영문 이름" value={draft.applicant.englishName || dash} />
-            <Item label="국적" value={draft.applicant.nationality || dash} />
+            <Item label="국적" value={nationalityLabel} />
             <Item label="출생지역" value={birthPlaceLabel} />
             <Item label="생년월일" value={draft.applicant.birthDate || dash} />
             <Item
               label="출생시간"
-              value={draft.applicant.birthTimeUnknown ? "모름" : draft.applicant.birthTime || dash}
+              value={draft.applicant.birthTimeUnknown ? t("모름") : draft.applicant.birthTime || dash}
             />
             <Item
               label="성별"
-              value={draft.applicant.gender === "male" ? "남성" : draft.applicant.gender === "female" ? "여성" : dash}
+              value={draft.applicant.gender === "male" ? t("남성") : draft.applicant.gender === "female" ? t("여성") : dash}
             />
             {isStudent &&
               ((draft.applicant.schoolLevel ?? "university") === "highschool" ? (
@@ -99,7 +109,12 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
           <Item
             label="주소"
             value={
-              [draft.recipient.postalCode && `(우 ${draft.recipient.postalCode})`, draft.recipient.address, draft.recipient.addressDetail]
+              [
+                draft.recipient.postalCode &&
+                  (language === "en" ? `(ZIP ${draft.recipient.postalCode})` : `(우 ${draft.recipient.postalCode})`),
+                draft.recipient.address,
+                draft.recipient.addressDetail,
+              ]
                 .filter(Boolean)
                 .join(" ") || dash
             }
@@ -136,10 +151,10 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
 
       <div className="step__actions">
         <Button variant="soft" onClick={onPrev}>
-          <ChevronLeft width={16} height={16} /> 이전
+          <ChevronLeft width={16} height={16} /> {t("이전")}
         </Button>
         <Button onClick={onSubmit}>
-          신청 제출 <ChevronRight width={16} height={16} />
+          {t("신청 제출")} <ChevronRight width={16} height={16} />
         </Button>
       </div>
     </div>
@@ -155,12 +170,13 @@ function ReviewSection({
   onEdit: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useLanguage();
   return (
     <section className="review">
       <div className="review__head">
-        <h3 className="review__title">{title}</h3>
+        <h3 className="review__title">{t(title)}</h3>
         <button type="button" className="review__edit" onClick={onEdit}>
-          수정 <span aria-hidden="true">›</span>
+          {t("수정")} <span aria-hidden="true">›</span>
         </button>
       </div>
       <dl className="review__grid">{children}</dl>
@@ -169,18 +185,20 @@ function ReviewSection({
 }
 
 function Item({ label, value }: { label: string; value: string }) {
+  const { t } = useLanguage();
   return (
     <div className="review__item">
-      <dt>{label}</dt>
+      <dt>{t(label)}</dt>
       <dd>{value}</dd>
     </div>
   );
 }
 
 function FileItem({ label, name, preview }: { label: string; name?: string; preview?: string }) {
+  const { t } = useLanguage();
   return (
     <div className="review__item review__item--file">
-      <dt>{label}</dt>
+      <dt>{t(label)}</dt>
       <dd>
         {name ? (
           <span className="review__file">

@@ -1,3 +1,5 @@
+import { translateText } from "../features/i18n/LanguageContext";
+
 interface KakaoPostcodeResult {
   zonecode: string;
   roadAddress: string;
@@ -52,7 +54,7 @@ export async function openPostcodeSearch(onComplete: (postalCode: string, addres
       onComplete(data.zonecode, address);
     },
   }).open({
-    popupTitle: "한글과 세종 우편번호 검색",
+    popupTitle: translateText("한글과 세종 우편번호 검색"),
     width,
     height,
     left: Math.round(viewportLeft),

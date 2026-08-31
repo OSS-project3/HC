@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 
 interface NameResult {
   number: number;
@@ -13,16 +14,17 @@ interface NameResult {
  * hover/focus to reveal the label, echoing the mock-up's 창문 style.
  */
 export function ServiceCoreSection() {
+  const { t } = useLanguage();
   return (
     <section className="service-core page-container">
-      <p className="eyebrow">서비스 핵심</p>
+      <p className="eyebrow">{t("서비스 핵심")}</p>
       <h2 className="section-title service-core__title">
-        한국 이름과 명예한국인증·명예시민증·학생증·방문증을 한 번에
+        {t("한국 이름과 명예한국인증·명예시민증·학생증·방문증을 한 번에")}
       </h2>
       <p className="section-lead service-core__lead">
-        정보 입력, 한국 이름 추천, 명예 한국인증·명예 시민증·학생증·방문증 미리보기까지 하나의 흐름으로 구성했습니다.
+        {t("정보 입력, 한국 이름 추천, 명예 한국인증·명예 시민증·학생증·방문증 미리보기까지 하나의 흐름으로 구성했습니다.")}
         <br />
-        관광객이 한국 문화 체험을 개인화된 기념 콘텐츠로 남길 수 있습니다.
+        {t("관광객이 한국 문화 체험을 개인화된 기념 콘텐츠로 남길 수 있습니다.")}
       </p>
 
       <div className="service-core__windows">
@@ -34,6 +36,7 @@ export function ServiceCoreSection() {
 }
 
 function WindowCard({ label, variant }: { label: string; variant: "names" | "principles" }) {
+  const { t } = useLanguage();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
@@ -79,7 +82,7 @@ function WindowCard({ label, variant }: { label: string; variant: "names" | "pri
     <button
       ref={buttonRef}
       className={`window window--${variant}${isOpen ? " is-open" : ""}${hasOpened ? " has-opened" : ""}`}
-      aria-label={`${label} — ${hasOpened ? "열림" : "열어보기"}`}
+      aria-label={`${t(label)} — ${hasOpened ? t("열림") : t("열어보기")}`}
       onMouseEnter={open}
       onFocus={open}
       onClick={toggle}
@@ -102,7 +105,7 @@ function WindowCard({ label, variant }: { label: string; variant: "names" | "pri
           </span>
         </span>
       )}
-      <span className="window__label">{label}</span>
+      <span className="window__label">{t(label)}</span>
       <span
         className="window__shutter window__shutter--left"
         aria-hidden="true"

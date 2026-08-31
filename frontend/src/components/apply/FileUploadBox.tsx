@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import clsx from "clsx";
 import type { UploadFileInfo } from "../../features/apply/types";
 import { ImageIcon } from "../ui/icons";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 
 interface FileUploadBoxProps {
   label: string;
@@ -24,6 +25,7 @@ function formatSize(bytes: number) {
 }
 
 export function FileUploadBox({ label, accept, hint, variant = "image", file, onChange, error, id }: FileUploadBoxProps) {
+  const { t } = useLanguage();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -80,7 +82,7 @@ export function FileUploadBox({ label, accept, hint, variant = "image", file, on
             <span className="upload__icon">
               {variant === "archive" ? <span className="upload__zip">ZIP</span> : <ImageIcon width={40} height={40} />}
             </span>
-            <span className="upload__cta">클릭하여 업로드</span>
+            <span className="upload__cta">{t("클릭하여 업로드")}</span>
             <span className="upload__hint">{hint}</span>
           </div>
         )}
@@ -96,7 +98,7 @@ export function FileUploadBox({ label, accept, hint, variant = "image", file, on
       {file && (
         <div className="upload__controls">
           <button type="button" onClick={() => inputRef.current?.click()}>
-            교체
+            {t("교체")}
           </button>
           <button
             type="button"
@@ -106,7 +108,7 @@ export function FileUploadBox({ label, accept, hint, variant = "image", file, on
               if (inputRef.current) inputRef.current.value = "";
             }}
           >
-            삭제
+            {t("삭제")}
           </button>
         </div>
       )}

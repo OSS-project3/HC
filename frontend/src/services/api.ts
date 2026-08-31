@@ -1,3 +1,6 @@
+import { getLanguage } from "../features/i18n/LanguageContext";
+import { resolveServerErrorMessage } from "../features/i18n/serverErrors";
+
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 /** Bean-Validation / bulk-Excel field error detail (see spec §2.3). */
@@ -22,11 +25,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Language header so the backend can localize translatable content (boards, events, reviews …). */
+function languageHeaders(init: RequestInit): HeadersInit {
+  const base: Record<string, string> = { "Accept-Language": getLanguage() };
+  if (!(init.body instanceof FormData)) base["Content-Type"] = "application/json";
+  return { ...base, ...init.headers };
+}
+
 async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: "include",
-    headers: init.body instanceof FormData ? init.headers : { "Content-Type": "application/json", ...init.headers },
+    headers: languageHeaders(init),
   });
   if (response.status === 401 && !retried && path !== "/api/auth/refresh") {
     const refreshed = await fetch(`${API_BASE_URL}/api/auth/refresh`, { method: "POST", credentials: "include" });
@@ -34,7 +44,9 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
   }
   const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!response.ok || !payload?.success) {
-    throw new ApiError(payload?.errorMessage || `API 요청에 실패했습니다. (${response.status})`, response.status, payload?.errorCode, payload?.errors);
+    const language = getLanguage();
+    const fallback = language === "en" ? `The request failed. (${response.status})` : `API 요청에 실패했습니다. (${response.status})`;
+    throw new ApiError(resolveServerErrorMessage(language, payload?.errorCode, payload?.errorMessage, fallback), response.status, payload?.errorCode, payload?.errors);
   }
   return payload.data;
 }
@@ -44,7 +56,7 @@ async function requestFile(path: string, init: RequestInit = {}, retried = false
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: "include",
-    headers: init.body instanceof FormData ? init.headers : { "Content-Type": "application/json", ...init.headers },
+    headers: languageHeaders(init),
   });
   if (response.status === 401 && !retried && path !== "/api/auth/refresh") {
     const refreshed = await fetch(`${API_BASE_URL}/api/auth/refresh`, { method: "POST", credentials: "include" });
@@ -52,7 +64,9 @@ async function requestFile(path: string, init: RequestInit = {}, retried = false
   }
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as ApiEnvelope<unknown> | null;
-    throw new ApiError(payload?.errorMessage || `파일 요청에 실패했습니다. (${response.status})`, response.status, payload?.errorCode, payload?.errors);
+    const language = getLanguage();
+    const fallback = language === "en" ? `The file request failed. (${response.status})` : `파일 요청에 실패했습니다. (${response.status})`;
+    throw new ApiError(resolveServerErrorMessage(language, payload?.errorCode, payload?.errorMessage, fallback), response.status, payload?.errorCode, payload?.errors);
   }
   const disposition = response.headers.get("Content-Disposition") || "";
   const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);

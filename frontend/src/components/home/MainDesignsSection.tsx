@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { zodiacSigns } from "../../data/zodiac";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 
 const DESIGN_CHANGE_DELAY = 7000;
 
@@ -41,6 +42,7 @@ interface DesignPreviewCardProps {
 }
 
 function DesignPreviewCard({ files, folder, animalName }: DesignPreviewCardProps) {
+  const { language } = useLanguage();
   const [flipped, setFlipped] = useState(false);
   const [visibleFlipped, setVisibleFlipped] = useState(false);
   const [turnPhase, setTurnPhase] = useState<"idle" | "out" | "swap">("idle");
@@ -61,12 +63,16 @@ function DesignPreviewCard({ files, folder, animalName }: DesignPreviewCardProps
       type="button"
       className="design-group__card-button"
       onClick={() => turnPhase === "idle" && setFlipped((value) => !value)}
-      aria-label={`${animalName} 카드 ${flipped ? "앞면" : "뒷면"} 보기`}
+      aria-label={
+        language === "en"
+          ? `View the ${flipped ? "front" : "back"} of the ${animalName} card`
+          : `${animalName} 카드 ${flipped ? "앞면" : "뒷면"} 보기`
+      }
       aria-pressed={flipped}
       aria-busy={turnPhase !== "idle"}
     >
       <span className={`design-group__flip design-group__flip--${turnPhase}`}>
-        <img className="design-group__img" src={`/images/cards/${folder}/${files[visibleFlipped ? 1 : 0]}`} alt={`${animalName} 카드 ${visibleFlipped ? "뒷면" : "앞면"}`} loading="lazy" decoding="async" />
+        <img className="design-group__img" src={`/images/cards/${folder}/${files[visibleFlipped ? 1 : 0]}`} alt={language === "en" ? `${visibleFlipped ? "Back" : "Front"} of the ${animalName} card` : `${animalName} 카드 ${visibleFlipped ? "뒷면" : "앞면"}`} loading="lazy" decoding="async" />
       </span>
     </button>
   );
@@ -78,6 +84,7 @@ interface MainDesignsSectionProps {
 }
 
 export function MainDesignsSection({ zodiacIndex, onZodiacChange }: MainDesignsSectionProps) {
+  const { t, language } = useLanguage();
   useEffect(() => {
     const id = window.setInterval(() => {
       onZodiacChange((zodiacIndex + 1) % zodiacSigns.length);
@@ -93,35 +100,35 @@ export function MainDesignsSection({ zodiacIndex, onZodiacChange }: MainDesignsS
     });
   }, [zodiacIndex]);
 
-  const animalName = zodiacSigns[zodiacIndex].nameKo;
+  const animalName = language === "en" ? zodiacSigns[zodiacIndex].nameEn : zodiacSigns[zodiacIndex].nameKo;
 
   return (
     <section className="main-designs page-container">
       <div className="main-designs__head">
-        <h2 className="main-designs__title">주요 디자인</h2>
-        <Link className="main-designs__all" to="/design">전체 보기 <span className="main-designs__arrow" aria-hidden="true">-&gt;</span></Link>
+        <h2 className="main-designs__title">{t("주요 디자인")}</h2>
+        <Link className="main-designs__all" to="/design">{t("전체 보기")} <span className="main-designs__arrow" aria-hidden="true">-&gt;</span></Link>
       </div>
       <div className="main-designs__grid">
         <div className="design-group">
-          <p className="design-group__label">명예한국인증 · 명예시민증 · 학생증</p>
+          <p className="design-group__label">{t("명예한국인증 · 명예시민증 · 학생증")}</p>
           <div className="design-group__card design-group__card--landscape" key={`landscape-${zodiacIndex}`}>
             <DesignPreviewCard files={LANDSCAPE_CARDS[zodiacIndex]} folder="width" animalName={animalName} />
           </div>
           <div className="design-group__buttons">
-            <Link className="design-chip" to="/apply?designId=honorary-korean-01">명예한국인증 신청</Link>
-            <Link className="design-chip" to="/apply?designId=honorary-citizen-01">명예시민증 신청</Link>
-            <Link className="design-chip" to="/apply?designId=student-01">학생증 신청</Link>
+            <Link className="design-chip" to="/apply?designId=honorary-korean-01">{t("명예한국인증 신청")}</Link>
+            <Link className="design-chip" to="/apply?designId=honorary-citizen-01">{t("명예시민증 신청")}</Link>
+            <Link className="design-chip" to="/apply?designId=student-01">{t("학생증 신청")}</Link>
           </div>
         </div>
         <div className="main-designs__divider" aria-hidden="true" />
         <div className="design-group">
-          <p className="design-group__label">방문증 · 학생증</p>
+          <p className="design-group__label">{t("방문증 · 학생증")}</p>
           <div className="design-group__card design-group__card--portrait" key={`portrait-${zodiacIndex}`}>
             <DesignPreviewCard files={PORTRAIT_CARDS[zodiacIndex]} folder="length" animalName={animalName} />
           </div>
           <div className="design-group__buttons">
-            <Link className="design-chip" to="/apply?designId=visitor-01">방문증 신청</Link>
-            <Link className="design-chip" to="/apply?designId=student-01">학생증 신청</Link>
+            <Link className="design-chip" to="/apply?designId=visitor-01">{t("방문증 신청")}</Link>
+            <Link className="design-chip" to="/apply?designId=student-01">{t("학생증 신청")}</Link>
           </div>
         </div>
       </div>

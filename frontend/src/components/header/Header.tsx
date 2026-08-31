@@ -14,7 +14,7 @@ export function Header() {
   const location = useLocation();
   const isHome = location.pathname === "/";
   const { user, isAdmin, logout } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
   // Transparent at the very top; gains a backdrop once the page is scrolled so
   // the header stays legible over content passing underneath.
@@ -47,7 +47,7 @@ export function Header() {
         <div className="header__inner">
         <Logo withTree={isHome} size="sm" />
 
-        <nav className="header__nav" aria-label="주요 메뉴">
+        <nav className="header__nav" aria-label={t("주요 메뉴")}>
           {navItems.map((item) =>
             item.to === "/company" ? (
               <CompanyNavItem key={item.to} />
@@ -73,7 +73,7 @@ export function Header() {
           <LanguageSelector />
           {user ? (
             <div className="header__account">
-              <NavLink to="/mypage" className="header__username">{user.name}님</NavLink>
+              <NavLink to="/mypage" className="header__username">{language === "en" ? user.name : `${user.name}님`}</NavLink>
               <button className="header__logout" onClick={logout}>
                 {t("로그아웃")}
               </button>
@@ -85,7 +85,7 @@ export function Header() {
           )}
           <button
             className="header__burger"
-            aria-label="메뉴 열기"
+            aria-label={t("메뉴 열기")}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
           >
@@ -386,7 +386,7 @@ function MobileDrawer({
     <div className={clsx("drawer", open && "drawer--open")} aria-hidden={!open}>
       <div className="drawer__backdrop" onClick={onClose} />
       <div className="drawer__panel">
-        <nav aria-label="모바일 메뉴">
+        <nav aria-label={t("모바일 메뉴")}>
           {navItems.map((item) =>
             item.to === "/company" ? (
               <div key="company" className="drawer__group">

@@ -44,4 +44,10 @@ public class InquiryDetailResponse {
                 inquiry.getEmail(), inquiry.getPhone(), inquiry.getTitle(), inquiry.getContent(),
                 inquiry.getStatus(), inquiry.getAnswer(), inquiry.getAnsweredAt(), inquiry.getCreatedAt());
     }
+
+    // 영어 응답용 사본 — category(한글값 enum, 프론트 계약)·name/email/phone(개인정보)은 번역하지 않는다.
+    public InquiryDetailResponse withTranslated(String title, String content, String answer) {
+        return new InquiryDetailResponse(id, category, name, email, phone, title, content,
+                status, answer, answeredAt, createdAt);
+    }
 }

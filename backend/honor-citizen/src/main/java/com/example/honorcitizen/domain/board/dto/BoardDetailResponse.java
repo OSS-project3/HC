@@ -34,6 +34,12 @@ public class BoardDetailResponse {
                 board.getCreatedAt(), attachments, next);
     }
 
+    // 영어 응답용 — 번역된 title/content/next.title로 바꾼 사본. 첨부파일명은 번역하지 않는다.
+    public BoardDetailResponse withTranslated(String title, String content, String nextTitle) {
+        NextBoard translatedNext = next == null ? null : new NextBoard(next.id, nextTitle);
+        return new BoardDetailResponse(id, boardType, title, content, createdAt, attachments, translatedNext);
+    }
+
     @Getter
     public static class NextBoard {
         private final Long id;

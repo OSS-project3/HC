@@ -50,6 +50,13 @@ public class ReviewDetailResponse {
                 safe, review.getCreatedAt(), next, canEdit, canDelete);
     }
 
+    // 영어 응답용 사본 — authorName(사람 이름)은 번역하지 않는다.
+    public ReviewDetailResponse withTranslated(String title, String content, String nextTitle) {
+        NextReview translatedNext = next == null ? null : new NextReview(next.id, nextTitle);
+        return new ReviewDetailResponse(id, title, content, authorName, applicationType, cardType, imageUrl,
+                images, createdAt, translatedNext, canEdit, canDelete);
+    }
+
     @Getter
     public static class NextReview {
         private final Long id;

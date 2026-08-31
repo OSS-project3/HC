@@ -6,6 +6,7 @@ import { FlipCard } from "../../components/ui/FlipCard";
 import { showToast } from "../../components/ui/toast";
 import { api } from "../../services/api";
 import { downloadCompositeCard, downloadImageFile } from "../../lib/cardDownload";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import "./LookupPage.css";
 
 type LookupMethod = "contact" | "card";
@@ -40,6 +41,7 @@ function backFromFront(frontUrl: string) {
 }
 
 export function LookupPage() {
+  const { t, language } = useLanguage();
   const [method, setMethod] = useState<LookupMethod>("contact");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -66,7 +68,7 @@ export function LookupPage() {
     if (!card || downloading) return;
     setDownloading(true);
     try {
-      await downloadCompositeCard(card.frontUrl, card.backUrl, "모바일카드.png");
+      await downloadCompositeCard(card.frontUrl, card.backUrl, t("모바일카드.png"));
     } catch {
       showToast("이미지를 만드는 중 문제가 발생했습니다. 다시 시도해 주세요.");
     } finally {
@@ -79,7 +81,7 @@ export function LookupPage() {
     if (!card) return;
     const url = side === "front" ? card.frontUrl : card.backUrl;
     try {
-      await downloadImageFile(url, `모바일카드-${side === "front" ? "앞면" : "뒷면"}.${extOf(url)}`);
+      await downloadImageFile(url, language === "en" ? `mobile-card-${side}.${extOf(url)}` : `모바일카드-${side === "front" ? "앞면" : "뒷면"}.${extOf(url)}`);
     } catch {
       showToast("다운로드 중 문제가 발생했습니다. 다시 시도해 주세요.");
     }
@@ -137,9 +139,9 @@ export function LookupPage() {
   return (
     <section className="lookup page-container">
       <header className="subpage-hero lookup__hero">
-        <p className="eyebrow">조회</p>
-        <h1 className="subpage-hero__title">모바일 카드 조회</h1>
-        <p className="section-lead">발급받은 본인의 모바일 카드를 확인할 수 있습니다.</p>
+        <p className="eyebrow">{t("조회")}</p>
+        <h1 className="subpage-hero__title">{t("모바일 카드 조회")}</h1>
+        <p className="section-lead">{t("발급받은 본인의 모바일 카드를 확인할 수 있습니다.")}</p>
       </header>
 
       {card ? (
@@ -147,25 +149,25 @@ export function LookupPage() {
           <FlipCard frontUrl={card.frontUrl} backUrl={card.backUrl} />
           <div className="lookup__downloads">
             <button type="button" className="lookup__download-btn" onClick={downloadComposite} disabled={downloading}>
-              {downloading ? "이미지 생성 중…" : "카드 이미지 다운로드"}
+              {downloading ? t("이미지 생성 중…") : t("카드 이미지 다운로드")}
             </button>
             <div className="lookup__download-split">
               <button type="button" className="lookup__download-link" onClick={() => downloadSide("front")}>
-                앞면 다운로드
+                {t("앞면 다운로드")}
               </button>
               <span className="lookup__download-sep" aria-hidden="true">·</span>
               <button type="button" className="lookup__download-link" onClick={() => downloadSide("back")}>
-                뒷면 다운로드
+                {t("뒷면 다운로드")}
               </button>
             </div>
           </div>
           <button type="button" className="lookup__reset" onClick={resetLookup}>
-            다른 카드 조회하기
+            {t("다른 카드 조회하기")}
           </button>
         </div>
       ) : (
         <div className="lookup__panel">
-          <div className="lookup__tabs" role="tablist" aria-label="모바일 카드 조회 방법">
+          <div className="lookup__tabs" role="tablist" aria-label={t("모바일 카드 조회 방법")}>
             <button
               type="button"
               role="tab"
@@ -173,7 +175,7 @@ export function LookupPage() {
               className={`lookup__tab${method === "contact" ? " lookup__tab--active" : ""}`}
               onClick={() => changeMethod("contact")}
             >
-              전화번호 · 이메일
+              {t("전화번호 · 이메일")}
             </button>
             <button
               type="button"
@@ -182,7 +184,7 @@ export function LookupPage() {
               className={`lookup__tab${method === "card" ? " lookup__tab--active" : ""}`}
               onClick={() => changeMethod("card")}
             >
-              카드번호
+              {t("카드번호")}
             </button>
           </div>
 
@@ -190,7 +192,7 @@ export function LookupPage() {
             {method === "contact" ? (
               <>
                 <label className="field">
-                  <span className="field__label">전화번호<span className="req">*</span></span>
+                  <span className="field__label">{t("전화번호")}<span className="req">*</span></span>
                   <input
                     className="field__input"
                     value={phone}
@@ -203,7 +205,7 @@ export function LookupPage() {
                   />
                 </label>
                 <label className="field">
-                  <span className="field__label">이메일<span className="req">*</span></span>
+                  <span className="field__label">{t("이메일")}<span className="req">*</span></span>
                   <input
                     className="field__input"
                     type="email"
@@ -217,7 +219,7 @@ export function LookupPage() {
               </>
             ) : (
               <label className="field">
-                <span className="field__label">발급 카드번호<span className="req">*</span></span>
+                <span className="field__label">{t("발급 카드번호")}<span className="req">*</span></span>
                 <input
                   className="field__input"
                   value={cardNumber}
@@ -229,13 +231,13 @@ export function LookupPage() {
               </label>
             )}
 
-            {error && <p className="field-error" role="alert">{error}</p>}
+            {error && <p className="field-error" role="alert">{t(error)}</p>}
 
-            <Button type="submit" block>모바일 카드 확인</Button>
+            <Button type="submit" block>{t("모바일 카드 확인")}</Button>
             <p className="lookup__note">
               {method === "contact"
-                ? "발급 시 등록한 전화번호와 이메일을 모두 입력해 주세요."
-                : "발급받은 카드에 표시된 카드번호를 입력해 주세요."}
+                ? t("발급 시 등록한 전화번호와 이메일을 모두 입력해 주세요.")
+                : t("발급받은 카드에 표시된 카드번호를 입력해 주세요.")}
             </p>
           </form>
         </div>

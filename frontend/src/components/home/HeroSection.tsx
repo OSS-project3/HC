@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { companyInfo } from "../../config/company";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import { zodiacSigns } from "../../data/zodiac";
 import { ZodiacIcon } from "../brand/ZodiacIcon";
 import { Trigram } from "./Trigram";
@@ -25,6 +26,7 @@ interface FlipCardProps {
 }
 
 function FlipCard({ files, orientation, flipped, onFlip }: FlipCardProps) {
+  const { language } = useLanguage();
   const folder = orientation === "landscape" ? "width" : "length";
   const [visibleFlipped, setVisibleFlipped] = useState(flipped);
   const [turnPhase, setTurnPhase] = useState<"idle" | "out" | "swap">("idle");
@@ -45,12 +47,16 @@ function FlipCard({ files, orientation, flipped, onFlip }: FlipCardProps) {
       type="button"
       className={`hero__card-float hero__card-float--${orientation}`}
       onClick={() => turnPhase === "idle" && onFlip()}
-      aria-label={`${orientation === "landscape" ? "가로" : "세로"} 카드 ${flipped ? "앞면" : "뒷면"} 보기`}
+      aria-label={
+        language === "en"
+          ? `View the ${flipped ? "front" : "back"} of the ${orientation} card`
+          : `${orientation === "landscape" ? "가로" : "세로"} 카드 ${flipped ? "앞면" : "뒷면"} 보기`
+      }
       aria-pressed={flipped}
       aria-busy={turnPhase !== "idle"}
     >
       <span className={`hero__card-flip hero__card-flip--${turnPhase}`}>
-        <img className="hero__card-face" src={`/images/cards/${folder}/${files[visibleFlipped ? 1 : 0]}`} alt={`${orientation === "landscape" ? "가로" : "세로"} 카드 ${visibleFlipped ? "뒷면" : "앞면"}`} decoding="async" fetchPriority="high" />
+        <img className="hero__card-face" src={`/images/cards/${folder}/${files[visibleFlipped ? 1 : 0]}`} alt={language === "en" ? `${visibleFlipped ? "Back" : "Front"} of the ${orientation} card` : `${orientation === "landscape" ? "가로" : "세로"} 카드 ${visibleFlipped ? "뒷면" : "앞면"}`} decoding="async" fetchPriority="high" />
       </span>
     </button>
   );
@@ -62,6 +68,7 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ zodiacIndex, onZodiacSelect }: HeroSectionProps) {
+  const { t, language } = useLanguage();
   const [landscapeIndex, setLandscapeIndex] = useState(0);
   const [portraitIndex, setPortraitIndex] = useState(0);
   const [landscapeFlipped, setLandscapeFlipped] = useState(false);
@@ -95,13 +102,13 @@ export function HeroSection({ zodiacIndex, onZodiacSelect }: HeroSectionProps) {
       <div className="hero__inner page-container">
         <div className="hero__sejong" aria-hidden="true" />
         <div className="hero__copy">
-          <p className="hero__eyebrow">한글 오행으로 만나는</p>
-          <h1 className="hero__title">명예한국인증·명예시민증<br />학생증·방문증</h1>
-          <p className="hero__lead">외국인을 위한 한국 이름 작명 발급 시스템</p>
-          <p className="hero__patent">특허 출원 번호 {companyInfo.patentNumber}</p>
+          <p className="hero__eyebrow">{t("한글 오행으로 만나는")}</p>
+          <h1 className="hero__title">{t("명예한국인증·명예시민증")}<br />{t("학생증·방문증")}</h1>
+          <p className="hero__lead">{t("외국인을 위한 한국 이름 작명 발급 시스템")}</p>
+          <p className="hero__patent">{t("특허 출원 번호")} {t(companyInfo.patentNumber)}</p>
         </div>
         <div className="hero__stage">
-          <div className="hero__cards" aria-label="카드 예시" {...pauseHandlers}>
+          <div className="hero__cards" aria-label={t("카드 예시")} {...pauseHandlers}>
             <FlipCard key={`landscape-${landscapeIndex}`} files={HERO_LANDSCAPE[landscapeIndex]} orientation="landscape" flipped={landscapeFlipped} onFlip={() => setLandscapeFlipped((value) => !value)} />
             <FlipCard key={`portrait-${portraitIndex}`} files={HERO_PORTRAIT[portraitIndex]} orientation="portrait" flipped={portraitFlipped} onFlip={() => setPortraitFlipped((value) => !value)} />
           </div>
@@ -115,7 +122,7 @@ export function HeroSection({ zodiacIndex, onZodiacSelect }: HeroSectionProps) {
           <ul className="hero__zodiac-row">
             {zodiacSigns.map((sign, index) => (
               <li key={sign.id} className="hero__zodiac-item">
-                <button className="hero__zodiac-btn" onClick={() => onZodiacSelect(index)} aria-pressed={index === zodiacIndex} aria-label={`${sign.nameKo} (${sign.nameEn})`}>
+                <button className="hero__zodiac-btn" onClick={() => onZodiacSelect(index)} aria-pressed={index === zodiacIndex} aria-label={language === "en" ? sign.nameEn : `${sign.nameKo} (${sign.nameEn})`}>
                   <ZodiacIcon sign={sign} size={72} highlighted={index === zodiacIndex} />
                 </button>
               </li>

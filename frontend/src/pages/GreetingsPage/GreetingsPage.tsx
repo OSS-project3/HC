@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import { useScrollReveal } from "../../lib/useScrollReveal";
 import "../../styles/ContentPages.css";
 import "./GreetingsPage.css";
@@ -39,29 +40,30 @@ const messages = [
 
 export function GreetingsPage() {
   const rootRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
   useScrollReveal(rootRef);
 
   return (
     <div className="content-page greetings-page" ref={rootRef}>
       <header className="greetings-hero subpage-hero page-container">
-        <p className="eyebrow">회사 소개 · 인사말</p>
-        <h1 className="subpage-hero__title">한글과 세종</h1>
+        <p className="eyebrow">{t("회사 소개 · 인사말")}</p>
+        <h1 className="subpage-hero__title">{t("한글과 세종")}</h1>
       </header>
 
       <div className="greetings-page__messages page-container">
         {messages.map((message) => (
           <section className="greeting-block reveal-group" key={message.role}>
-            <h2 className="greeting-block__label reveal-item">{message.sectionTitle}</h2>
+            <h2 className="greeting-block__label reveal-item">{t(message.sectionTitle)}</h2>
             <div className="greeting-block__body">
               <div className="greeting-block__photo reveal-item">
-                <img src={message.photo} alt={message.photoAlt} />
+                <img src={message.photo} alt={t(message.photoAlt)} />
               </div>
               <div className="greeting-block__copy">
-                <h3 className="reveal-item">{message.title}</h3>
-                {message.paragraphs.map((paragraph) => <p className="reveal-item" key={paragraph}>{paragraph}</p>)}
+                <h3 className="reveal-item">{t(message.title)}</h3>
+                {message.paragraphs.map((paragraph) => <p className="reveal-item" key={paragraph}>{t(paragraph)}</p>)}
                 <div className="greeting-block__signature reveal-item">
-                  <strong>{message.organization}</strong>
-                  <span>{message.name}</span>
+                  <strong>{t(message.organization)}</strong>
+                  <span>{t(message.name)}</span>
                 </div>
               </div>
             </div>

@@ -36,4 +36,10 @@ public class ReviewListItemResponse {
         return new ReviewListItemResponse(review.getId(), imageUrl, review.getApplicationType(), cardType,
                 review.getTitle(), review.getContent(), review.getAuthorDisplayName(), review.getCreatedAt());
     }
+
+    // 영어 응답용 사본 — authorName(사람 이름)은 번역하지 않는다.
+    public ReviewListItemResponse withTranslated(String title, String content) {
+        return new ReviewListItemResponse(id, imageUrl, applicationType, cardType, title, content,
+                authorName, createdAt);
+    }
 }

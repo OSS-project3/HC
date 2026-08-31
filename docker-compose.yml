@@ -80,6 +80,8 @@ services:
       NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-docker-local-naver-client}
       NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-docker-local-naver-secret}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      # 비어 있으면 번역 없이 한국어 원문 응답(Cloud Translation API 활성화된 키 필요).
+      GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY:-}
       # 로컬은 MinIO를 쓴다. 자격증명은 minio 서비스의 root 계정과 반드시 일치해야 한다.
       # region은 MinIO 기본(us-east-1)에 맞춰 presigned URL 서명 스코프가 어긋나지 않게 한다.
       AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-minioadmin}

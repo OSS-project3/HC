@@ -37,4 +37,9 @@ public class InquiryListItemResponse {
         return new InquiryListItemResponse(inquiry.getId(), inquiry.getCategory(), inquiry.getTitle(),
                 inquiry.getName(), inquiry.getEmail(), inquiry.getPhone(), inquiry.getStatus(), inquiry.getCreatedAt());
     }
+
+    // 영어 응답용 사본 — category(한글값 enum, 프론트 계약)·name/email/phone(개인정보)은 번역하지 않는다.
+    public InquiryListItemResponse withTranslated(String title) {
+        return new InquiryListItemResponse(id, category, title, name, email, phone, status, createdAt);
+    }
 }

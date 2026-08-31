@@ -89,6 +89,14 @@ public class MyApplicationDetailResponse {
                 application.getDepositorName(), application.getVersion());
     }
 
+    // 영어 응답용 사본 — 자유 텍스트인 photoRejectReason만 번역한다(cardTypeName·status 등은 그대로).
+    public MyApplicationDetailResponse withTranslated(String photoRejectReason) {
+        return new MyApplicationDetailResponse(applicationId, applicationNumber, applicationType, cardTypeId,
+                cardTypeName, issueType, totalQuantity, status, paymentStatus, paymentGuidedAt, paymentDueAt,
+                cancelledAt, cancellationType, cancellationReason, refundedAt, cardReadyAt, physicalDispatchedAt,
+                photoRejectReason, applicant, receiver, memberCount, createdAt, depositorName, version);
+    }
+
     @Getter
     public static class ApplicantSummary {
         private final String name;

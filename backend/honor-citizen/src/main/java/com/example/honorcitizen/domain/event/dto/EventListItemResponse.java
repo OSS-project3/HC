@@ -49,4 +49,11 @@ public class EventListItemResponse {
                 eventPost.getCardLabel(), eventPost.getContent(), thumbnailImageUrl, eventPost.getCompanyName(),
                 logoUrl, eventPost.getDisplayOrder());
     }
+
+    // 영어 응답용 사본 — cardLabel(프론트 고정 사전 처리)·company(고유명사)는 번역하지 않는다.
+    public EventListItemResponse withTranslated(String title, String eventDateText, String place, String host,
+            String content) {
+        return new EventListItemResponse(id, eventType, title, eventDate, eventDateText, place, host,
+                cardLabel, content, thumbnailImageUrl, company, logoUrl, displayOrder);
+    }
 }

@@ -4,6 +4,7 @@ import type { ApplicationDraft } from "../../../features/apply/types";
 import { Button } from "../../ui/Button";
 import { ChevronLeft, ChevronRight } from "../../ui/icons";
 import { FileUploadBox } from "../FileUploadBox";
+import { useLanguage } from "../../../features/i18n/LanguageContext";
 
 interface StepFilesProps {
   draft: ApplicationDraft;
@@ -13,6 +14,7 @@ interface StepFilesProps {
 }
 
 export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
+  const { t } = useLanguage();
   const isOrg = draft.applicantType === "organization";
   const isStudent = draft.cardType === "student";
 
@@ -42,16 +44,16 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
 
   const desc = isStudent
     ? isOrg
-      ? "학교 로고와 직인, 그리고 학생별 프로필 사진 및 사주 정보 파일을 등록해 주세요."
-      : "학생증에 사용할 본인 프로필 사진과 학교 로고 및 직인을 등록해 주세요."
+      ? t("학교 로고와 직인, 그리고 학생별 프로필 사진 및 사주 정보 파일을 등록해 주세요.")
+      : t("학생증에 사용할 본인 프로필 사진과 학교 로고 및 직인을 등록해 주세요.")
     : isOrg
-      ? "법인·단체 로고와 직인, 그리고 개인별 프로필 사진 및 사주 정보 파일을 등록해 주세요."
-      : "카드에 사용할 본인 프로필 사진을 등록해 주세요.";
+      ? t("법인·단체 로고와 직인, 그리고 개인별 프로필 사진 및 사주 정보 파일을 등록해 주세요.")
+      : t("카드에 사용할 본인 프로필 사진을 등록해 주세요.");
 
   return (
     <div className="step">
-      <p className="step__eyebrow">{isOrg ? "법인·단체 신청" : "개인 신청"}</p>
-      <h2 className="step__heading">사진 및 파일 등록</h2>
+      <p className="step__eyebrow">{isOrg ? t("법인·단체 신청") : t("개인 신청")}</p>
+      <h2 className="step__heading">{t("사진 및 파일 등록")}</h2>
       <p className="step__desc">{desc}</p>
 
       {isStudent ? (
@@ -59,9 +61,9 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
           <>
             <div className="upload-row">
               <FileUploadBox
-                label="학교 로고"
+                label={t("학교 로고")}
                 accept="image/png,image/jpeg"
-                hint="PNG, JPG 이미지"
+                hint={t("PNG, JPG 이미지")}
                 variant="image"
                 file={draft.logoFile}
                 error={hasError("logoFile")}
@@ -69,18 +71,18 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
                 onChange={(f) => update({ logoFile: f })}
               />
               <FileUploadBox
-                label="학교 직인 (선택)"
+                label={t("학교 직인 (선택)")}
                 accept="image/png,image/jpeg"
-                hint="PNG, JPG 이미지"
+                hint={t("PNG, JPG 이미지")}
                 variant="image"
                 file={draft.sealFile}
                 onChange={(f) => update({ sealFile: f })}
               />
             </div>
             <FileUploadBox
-              label="첨부파일"
+              label={t("첨부파일")}
               accept=".zip,application/zip"
-              hint="ZIP (학생별 프로필 사진과 사주 정보 파일)"
+              hint={t("ZIP (학생별 프로필 사진과 사주 정보 파일)")}
               variant="archive"
               file={draft.archiveFile}
               error={hasError("archiveFile")}
@@ -91,9 +93,9 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
         ) : (
           <>
             <FileUploadBox
-              label="본인 프로필 사진"
+              label={t("본인 프로필 사진")}
               accept="image/png,image/jpeg"
-              hint="PNG, JPG 이미지 1개"
+              hint={t("PNG, JPG 이미지 1개")}
               variant="image"
               file={draft.faceFile}
               error={hasError("faceFile")}
@@ -102,9 +104,9 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
             />
             <div className="upload-row">
               <FileUploadBox
-                label="학교 로고"
+                label={t("학교 로고")}
                 accept="image/png,image/jpeg"
-                hint="PNG, JPG 이미지"
+                hint={t("PNG, JPG 이미지")}
                 variant="image"
                 file={draft.logoFile}
                 error={hasError("logoFile")}
@@ -112,9 +114,9 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
                 onChange={(f) => update({ logoFile: f })}
               />
               <FileUploadBox
-                label="학교 직인 (선택)"
+                label={t("학교 직인 (선택)")}
                 accept="image/png,image/jpeg"
-                hint="PNG, JPG 이미지"
+                hint={t("PNG, JPG 이미지")}
                 variant="image"
                 file={draft.sealFile}
                 onChange={(f) => update({ sealFile: f })}
@@ -126,9 +128,9 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
         <>
           <div className="upload-row">
             <FileUploadBox
-              label="법인·단체 로고 이미지"
+              label={t("법인·단체 로고 이미지")}
               accept="image/png,image/jpeg"
-              hint="PNG, JPG 이미지"
+              hint={t("PNG, JPG 이미지")}
               variant="image"
               file={draft.logoFile}
               error={hasError("logoFile")}
@@ -136,9 +138,9 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
               onChange={(f) => update({ logoFile: f })}
             />
             <FileUploadBox
-              label="법인·단체 직인 이미지"
+              label={t("법인·단체 직인 이미지")}
               accept="image/png,image/jpeg"
-              hint="PNG, JPG 이미지"
+              hint={t("PNG, JPG 이미지")}
               variant="image"
               file={draft.sealFile}
               error={hasError("sealFile")}
@@ -148,9 +150,9 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
           </div>
 
           <FileUploadBox
-            label="첨부파일"
+            label={t("첨부파일")}
             accept=".zip,application/zip"
-            hint="ZIP (개인별 프로필 사진과 사주 정보 파일)"
+            hint={t("ZIP (개인별 프로필 사진과 사주 정보 파일)")}
             variant="archive"
             file={draft.archiveFile}
             error={hasError("archiveFile")}
@@ -160,9 +162,9 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
         </>
       ) : (
         <FileUploadBox
-          label="프로필 사진"
+          label={t("프로필 사진")}
           accept="image/png,image/jpeg"
-          hint="PNG, JPG 이미지 1개"
+          hint={t("PNG, JPG 이미지 1개")}
           variant="image"
           file={draft.faceFile}
           error={hasError("faceFile")}
@@ -173,10 +175,10 @@ export function StepFiles({ draft, update, onNext, onPrev }: StepFilesProps) {
 
       <div className="step__actions">
         <Button variant="soft" onClick={onPrev}>
-          <ChevronLeft width={16} height={16} /> 이전
+          <ChevronLeft width={16} height={16} /> {t("이전")}
         </Button>
         <Button onClick={handleNext} className={isComplete ? undefined : "btn--pending"}>
-          다음 <ChevronRight width={16} height={16} />
+          {t("다음")} <ChevronRight width={16} height={16} />
         </Button>
       </div>
     </div>

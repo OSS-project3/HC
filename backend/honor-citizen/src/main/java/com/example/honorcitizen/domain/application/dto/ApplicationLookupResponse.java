@@ -30,4 +30,10 @@ public class ApplicationLookupResponse {
         this.photoRejectReason = photoRejectReason;
         this.submittedAt = submittedAt;
     }
+
+    // 영어 응답용 사본 — 자유 텍스트인 photoRejectReason만 번역한다(cardType·status는 그대로).
+    public ApplicationLookupResponse withTranslated(String photoRejectReason) {
+        return new ApplicationLookupResponse(applicationId, applicationType, applicationNumber,
+                applicantNameMasked, cardType, status, photoRejectReason, submittedAt);
+    }
 }

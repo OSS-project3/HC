@@ -4,6 +4,7 @@ import { companyInfo } from "../../config/company";
 import { PhoneIcon, MailIcon, DocIcon, ChatIcon, ArrowUpRight } from "../../components/ui/icons";
 import { Modal } from "../../components/ui/Modal";
 import { useAuth } from "../../features/auth/AuthContext";
+import { useLanguage } from "../../features/i18n/LanguageContext";
 import { api } from "../../services/api";
 import "./SupportPage.css";
 
@@ -49,6 +50,7 @@ export function SupportPage() {
   const { hash } = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const inquiryPath = user ? "/inquiry" : `/login?returnTo=${encodeURIComponent("/inquiry")}`;
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
   // FAQ는 /faq 화면과 동일한 소스(GET /api/boards?type=FAQ)를 쓴다. 실패/빈 응답이면 폴백 유지.
@@ -60,7 +62,7 @@ export function SupportPage() {
       .then((page) => { if (!cancelled && page.content.length) setFaqs(page.content.map((b) => ({ q: b.title, a: b.content }))); })
       .catch(() => { /* 폴백 유지 */ });
     return () => { cancelled = true; };
-  }, []);
+  }, [language]); // Accept-Language가 응답 언어를 바꾸므로 언어 전환 시 재조회
 
   useEffect(() => {
     const id = hash.replace("#", "");
@@ -74,22 +76,22 @@ export function SupportPage() {
     <div className="support">
       <header className="support__hero support__hero--art subpage-hero page-container">
         <div className="support__hero-copy">
-          <p className="eyebrow">고객지원</p>
-          <h1 className="support__title subpage-hero__title">고객지원</h1>
+          <p className="eyebrow">{t("고객지원")}</p>
+          <h1 className="support__title subpage-hero__title">{t("고객지원")}</h1>
         </div>
         <img className="support__hero-art" src="/images/support/support-bg.png" alt="" aria-hidden="true" />
       </header>
 
       <section id="notice" className="support__section page-container">
         <div className="notice-summary__head">
-          <h2>공지사항</h2>
-          <button onClick={() => navigate("/notices")}>더보기 <span aria-hidden="true">›</span></button>
+          <h2>{t("공지사항")}</h2>
+          <button onClick={() => navigate("/notices")}>{t("더보기")} <span aria-hidden="true">›</span></button>
         </div>
         <div className="notice-table">
           {notices.slice(0, 4).map((notice) => (
             <article className="notice-table__row" key={notice.title}>
-              <span className="notice-table__badge">공지</span>
-              <Link className="notice-table__title" to={`/notices/${notice.id}`}>{notice.title}</Link>
+              <span className="notice-table__badge">{t("공지")}</span>
+              <Link className="notice-table__title" to={`/notices/${notice.id}`}>{t(notice.title)}</Link>
               <time>{notice.date}</time>
             </article>
           ))}
@@ -99,14 +101,14 @@ export function SupportPage() {
       <section id="faq" className="support__section page-container">
         <SectionRule plain />
         <div className="notice-summary__head">
-          <h2>자주 묻는 질문</h2>
-          <button onClick={() => navigate("/faq")}>더보기 <span aria-hidden="true">›</span></button>
+          <h2>{t("자주 묻는 질문")}</h2>
+          <button onClick={() => navigate("/faq")}>{t("더보기")} <span aria-hidden="true">›</span></button>
         </div>
         <div className="faq">
           {faqs.map((faq, index) => (
             <details key={faq.q} className="faq__item" open={index === 0 ? true : undefined}>
-              <summary className="faq__q"><b>Q.</b><span>{faq.q}</span></summary>
-              <p className="faq__a"><b>A.</b><span>{faq.a}</span></p>
+              <summary className="faq__q"><b>Q.</b><span>{t(faq.q)}</span></summary>
+              <p className="faq__a"><b>A.</b><span>{t(faq.a)}</span></p>
             </details>
           ))}
         </div>
@@ -114,11 +116,11 @@ export function SupportPage() {
 
       <section id="story" className="support__section page-container">
         <SectionRule plain />
-        <h2 className="support__heading">제작 이야기</h2>
+        <h2 className="support__heading">{t("제작 이야기")}</h2>
         <div className="story-grid">
           {stories.map((story, index) => (
             <button className="story-card" key={story.title} onClick={() => setStoryIndex(index)}>
-              <span>{story.title}</span><b aria-hidden="true">+</b>
+              <span>{t(story.title)}</span><b aria-hidden="true">+</b>
             </button>
           ))}
         </div>
@@ -126,20 +128,20 @@ export function SupportPage() {
 
       <section id="contact" className="support__section support__section--contact page-container">
         <SectionRule plain />
-        <h2 className="support__heading">상담·문의</h2>
+        <h2 className="support__heading">{t("상담·문의")}</h2>
         <div className="support__contact">
-          <ContactCard icon={<PhoneIcon />} title="전화 상담" lines={[companyInfo.businessHours, `(${companyInfo.lunchHours})`]}>
+          <ContactCard icon={<PhoneIcon />} title={t("전화 상담")} lines={[t(companyInfo.businessHours), `(${t(companyInfo.lunchHours)})`]}>
             <a href={`tel:${companyInfo.phone.replace(/\D/g, "")}`} className="support__link">{companyInfo.phone}</a>
           </ContactCard>
-          <ContactCard icon={<MailIcon />} title="이메일 문의" lines={["문의를 남겨주시면", "영업일 기준 1~2일 내 답변 드립니다"]}>
+          <ContactCard icon={<MailIcon />} title={t("이메일 문의")} lines={[t("문의를 남겨주시면"), t("영업일 기준 1~2일 내 답변 드립니다")]}>
             <a href={`mailto:${companyInfo.email}`} className="support__link">{companyInfo.email}</a>
           </ContactCard>
-          <ContactCard icon={<DocIcon />} title="1:1 문의" lines={["문의를 남겨주시면", "영업일 기준 1~2일 내 답변 드립니다"]}>
-            <button className="support__link" onClick={() => navigate(inquiryPath)}>1:1 문의하기　›</button>
+          <ContactCard icon={<DocIcon />} title={t("1:1 문의")} lines={[t("문의를 남겨주시면"), t("영업일 기준 1~2일 내 답변 드립니다")]}>
+            <button className="support__link" onClick={() => navigate(inquiryPath)}>{t("1:1 문의하기")}　›</button>
           </ContactCard>
-          <ContactCard icon={<ChatIcon />} title="카카오톡 문의" lines={[companyInfo.businessHours, `(${companyInfo.lunchHours})`]}>
+          <ContactCard icon={<ChatIcon />} title={t("카카오톡 문의")} lines={[t(companyInfo.businessHours), `(${t(companyInfo.lunchHours)})`]}>
             <a href="https://pf.kakao.com/" target="_blank" rel="noreferrer noopener" className="support__link">
-              한글과 세종 <ArrowUpRight width={14} height={14} />
+              {t("한글과 세종")} <ArrowUpRight width={14} height={14} />
             </a>
           </ContactCard>
         </div>
@@ -148,10 +150,10 @@ export function SupportPage() {
       <Modal
         open={storyIndex !== null}
         onClose={() => setStoryIndex(null)}
-        title={storyIndex === null ? "제작 이야기" : stories[storyIndex].title.replace(/\n/g, " ")}
+        title={storyIndex === null ? t("제작 이야기") : t(stories[storyIndex].title).replace(/\n/g, " ")}
         className="story-modal"
       >
-        <p>{storyIndex === null ? "" : stories[storyIndex].body}</p>
+        <p>{storyIndex === null ? "" : t(stories[storyIndex].body)}</p>
       </Modal>
     </div>
   );

@@ -1,6 +1,7 @@
 // Toast notifications: provider, hook, and toaster outlet.
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { translateText } from "../../features/i18n/LanguageContext";
 import "./toast.css";
 
 type Listener = (message: string) => void;
@@ -42,7 +43,7 @@ export function Toaster() {
     <div className="toaster" role="status" aria-live="polite">
       {items.map((t) => (
         <div key={t.id} className="toast">
-          {t.message}
+          {translateText(t.message)}
         </div>
       ))}
     </div>,
