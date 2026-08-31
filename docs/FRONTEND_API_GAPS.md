@@ -1,5 +1,7 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
+> **갱신: 2026-08-31(10차, Claude 세션).** §1.15(c)에 실제 검증 결과 추가 — 뉴욕 1995-06-15 15:00 출생 예시로 실제 백엔드 API(`manseryeok/resolve`)를 호출해 정확한 `utcInstant`/`selectedOffset`(서머타임 포함)을 확정받은 뒤, 같은 `manseryeok` 패키지로 지금 프론트 방식(버그)과 올바른 방식을 각각 계산해 비교했다 — 시주가 달라지고 오행 결핍 판정이 뒤집히면서 실제 700개 추천 데이터셋 채점 결과 상위 5개가 **0/5 겹침**으로 완전히 달라짐을 실증했다(saju 레포의 기준 구현 `computeSajuAtBirthplace()`도 함께 확인). 신규로 **§1.16 관리자 작명 성씨(surname) 필드 누락**도 추가 — §1.4에서 "연동 완료"로 분류했던 인앱 작명·엑셀 작명 반영 둘 다 성씨를 저장하지 않아, 이름을 다 골라도 `completeNaming()`에서 멤버 전원이 거절되는 걸 코드로 확인했다(§1.4도 이 내용으로 갱신). 코드는 수정하지 않았다(백엔드 세션 스코프 — `docs/collab/RULES.md`).
+>
 > **갱신: 2026-08-31(9차, Claude 세션).** §1.15(c)를 정밀 재조사 — `computeMemberSaju()`가 `manseryeok` 라이브러리에 `trueSolarTime`을 안 넘겨서 "입력 시각=KST"로 가정하고 계산한다는 걸 라이브러리 타입 문서 원문으로 확인했고(`true-solar-time.d.ts`), 이건 미완성이 아니라 **한국 외 출생 신청자에게 틀린 사주가 나올 수 있는 정확도 버그**임을 확정했다. 또한 이 보정에 필요한 `longitude`가 `BirthRegionCandidateResponse`/`ManseryeokResolveResponse`/`ManseryeokResult`/`ManseryeokActiveResultResponse` 4곳 모두에 **이미 존재·API로 이미 반환 중**이라는 것도 확인 — 즉 백엔드 작업 없이 프론트만 고치면 되는 상태다. 파일 단위 필요 변경사항을 §1.15(c)에 표로 정리했다. 코드는 수정하지 않았다(백엔드 세션 스코프 — `docs/collab/RULES.md`).
 >
 > **갱신: 2026-08-27(8차, Claude 세션).** §1.9(b) 학생증 `schoolName` 갭을 완전히 해결 — 원래 `submit()` 한 줄 추가면 끝나는 작업이었으나, 자유텍스트 학교명이 카드 디자인 매칭 오타·예외처리 복잡도와 관리자 수작업 정정 부담을 유발한다는 이유로 School 마스터 엔티티+검색select(+직접입력 폴백) 구조로 스코프를 넓혀 구현했다. 이 프론트 작업은 원래 사용자(백엔드 담당) 범위가 아니었으나 위 이유로 승인받아 함께 진행했다 — 수정한 클래스 전체 목록은 §1.9(b) 참고. 실 브라우저(Playwright) E2E로 개인·단체 양쪽 다 검증했고, 단체 경로는 실제 "신청 제출" 클릭 → 실 API 응답 → DB 반영까지 확인했다. 이 과정에서 단체+학생증 화면의 기존 "학교명" 필드가 실제로는 `Applicant.organizationName`(다른 필드)에 저장되고 있어 단체 학생증 신청이 애초에 화면상으로 불가능했던 버그도 함께 발견·수정했다.
@@ -29,7 +31,7 @@
 | **계정 복구(아이디/비밀번호 찾기)** | ✅ 실 API(2026-08-24) | ✅ 구현 | **연동 완료** — `AccountRecoveryPage.tsx`가 요청→확인(마스킹 이메일/비밀번호 재설정)까지 4개 API 전부 호출 (§1.1) |
 | **내 신청 목록·상세(마이페이지)** | ❌ 목(localStorage) | ✅ 구현·`main` 반영 완료(`b5f6140`) | **🔴 연동 안 돼 있어 실사용 불가**("제작 신청 내역이 없습니다" 표시) — API 실 호출로 교체 필요, 상태 라벨·날짜 포맷도 같이 손봐야 함 (§1.2) |
 | **1:1 문의(Inquiry)** | ❌ 목(localStorage), 2026-08-24 관리자 화면 UI만 손봄(여전히 mock) | ✅ 구현·`main` 반영 완료(사용자 작성 API·관리자 답변 API 둘 다) | **연동 가능(단, `privacyConsent` 필드 프론트 추가 전송 필요)** — 관리자 답변 화면(`AdminPage.tsx`)도 `api.ts` import 자체가 없어 여전히 mock (§1.3, §1.4) |
-| 관리자 신청관리(조회·상태전이·작명·카드번호) | ✅ 실 API | ✅ 구현 | **연동 완료(2026-08-27 재확인)** — 통계(`GET /api/admin/stats`)만 백엔드 자체가 미구현 (§1.4) |
+| 관리자 신청관리(조회·상태전이·작명·카드번호) | ✅ 실 API | ✅ 구현 | **🔴 작명은 절반만 연동(2026-08-31 재확인)** — 조회·상태전이·카드번호는 정상, 인앱 작명·엑셀 작명 반영 둘 다 **성씨(surname) 미전송**이라 `completeNaming()`에서 멤버 전원 거절됨(§1.16). 통계(`GET /api/admin/stats`)는 백엔드 자체가 미구현 (§1.4) |
 | **관리자 작명 확정·카드 제작(만세력·카드디자인·카드미리보기)** | ❌ 래퍼 자체 없음 | ✅ 구현·실 API 검증 완료 | **🔴 프론트 미착수 + 정확도 버그**(2026-08-31 재확인) — 6개 API 진입점 UI 전부 없음. 그냥 안 뜨는 게 아니라 `computeMemberSaju()`가 진태양시 보정 없이 "입력 시각=KST"로 가정한 **틀릴 수 있는 결과를 정상처럼** 관리자 화면에 보여주고 있음(한국 외 출생자 다수 상정하는 서비스라 실사용 영향 큼). 필요한 `longitude` 값은 백엔드가 이미 API로 내려주고 있어 백엔드 작업 없이 프론트만 고치면 됨 (§1.15(c)) |
 | **신청 취소** | ⚠️ 진입점만 | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.5) |
 | 공지 서버 검색 | ⚠️ 클라 검색 | ❌ keyword 파라미터 없음 | 필요 시 검색 파라미터 추가 (§1.7) |
@@ -101,6 +103,7 @@
 ### 1.4 관리자 신청관리·통계 — 조회·상태전이·작명·카드번호는 이미 연동됨, 만세력·카드디자인·카드미리보기만 미연동 (2026-08-27 재대조로 대폭 정정)
 - **프론트 사용처**: `pages/AdminPage`, `components/admin/sections/ApplicationsSection.tsx`.
 - **✅ 실제로는 이미 연동돼 있음 — 위 "❌ 아직 없음" 기재는 낡은 정보였다.** `services/api.ts`(206~232행)에 아래 API들이 전부 바인딩돼 있고 `ApplicationsSection.tsx`/`AdminPage.tsx`가 실제로 호출한다: 목록/상세(`listAdminApplications`/`getAdminApplicationDetail`), 구성원 목록(`getAdminApplicationMembers`), 상태전이 7종(`confirmApplicationPayment`/`startApplicationReview`/`approveApplicationNaming`/`completeNaming`/`startProducing`/`markCardReady`/`rejectApplicationPhoto`/`dispatchApplication`), 인앱 작명(`saveMemberName`), 엑셀 작명 반영(`applyNamingResult`), 카드번호 단건/일괄(`assignCardNumber`/`assignCardNumbersBatch`), 명단 엑셀 내보내기(`exportApplications`). **§1.15에 정리한 4종(출생지역 검색·만세력 resolve/confirm/조회·카드디자인 조회·카드미리보기)만 여전히 미연동이다.**
+- **⚠️ 갱신(2026-08-31) — 위 "인앱 작명"/"엑셀 작명 반영"은 "연동됨"이라 부르기엔 불완전하다**: 성씨(`surname`) 필드를 이 둘 다 전송하지 않는다. `completeNaming()`(작명 완료 처리)이 멤버마다 성씨 필수로 검증하므로, 지금 상태로는 이름을 다 골라도 최종 "작명 완료 처리"에서 전원 거절된다. 상세는 §1.16.
 - **❌ 여전히 없음**: `GET /api/admin/stats`(통계 대시보드) — 백엔드 자체가 미구현.
 - **⚠️ status enum 재확인 필요**: 프론트가 이제 실 API를 쓰므로 옛 `adminMock.ts` enum(`SUBMITTED/CONSULTING/PAYMENT_PENDING/IN_PRODUCTION/COMPLETED/CANCELLED`) 라벨 테이블이 실제로 백엔드 enum(`SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING/COMPLETED/CANCELLED`, 결제상태 별도 `WAITING/CONFIRMED`)으로 완전히 교체됐는지는 `ApplicationsSection.tsx`의 라벨 매핑 코드를 다시 대조해서 확인 필요(이번 대조 범위 밖 — §1.2와 동일한 종류의 리스크).
 - **인가**: `/api/admin/**`는 SecurityConfig에서 `hasRole("ADMIN")`으로 라우트 레벨 강제, 각 API도 `validateAdmin()`으로 이중 검증.
@@ -231,6 +234,19 @@
 
   **결론**: 이건 "미연동"이 아니라 "**연동 안 된 채로 틀린 값을 정상처럼 보여주고 있다**"는 차이가 있다 — 값이 아예 안 뜨는 게 아니라 그럴듯한 오답이 뜬다는 점에서 우선순위를 다시 볼 필요가 있다.
 
+  **참고할 기준 구현이 이미 있음**: `saju` 레포(`saju/web/src/lib/saju.ts`)의 `computeSajuAtBirthplace()`가 정확히 이 문제(해외 출생 대응)를 풀어둔 함수다 — "① 현지 벽시계+timezone → 절대 UTC, ② 그 절대 순간을 KST 벽시계로 재표현해 라이브러리에 넣고(`applyHistoricalDst:false`로 라이브러리 자체 보정은 끔), ③ longitude로 진태양시(시주)만 보정" 3단계로 처리한다. `frontend/src/lib/saju.ts`엔 이 함수의 대응물이 없다 — ①은 백엔드가 이미 대신 해주므로(`ManseryeokResolveResponse.utcInstant`), 프론트는 ②③만 이식하면 된다.
+
+  **⚠️ 실제로 검증함(2026-08-31, 실제 백엔드 API + 같은 `manseryeok` 패키지 + 실제 700개 추천 데이터셋으로 재현, 프론트 코드는 안 건드림)**: 신청자를 뉴욕 1995-06-15 15:00 출생으로 두고 실제 `POST .../manseryeok/resolve`에 뉴욕 좌표(위 (a) 검색으로 얻은 실제 값)를 보냈더니 `{"timezoneId":"America/New_York","selectedOffset":"-04:00","utcInstant":"1995-06-15T19:00:00Z","status":"EXACT"}` — 1995년 6월 서머타임까지 정확히 반영해서 확정됨. 이 값을 기준으로 지금 프론트 방식(입력을 그냥 KST로 취급)과 올바른 방식(`utcInstant`를 KST로 재표현 + longitude 진태양시 보정)을 같은 `manseryeok` 패키지로 각각 계산해 비교:
+
+  | | 지금 프론트 방식 | 올바른 방식(백엔드 확정값 적용) |
+  |---|---|---|
+  | 사주 | 을해연주 임오월주 정축일주 **무신시주** | 을해연주 임오월주 정축일주 **정미시주** |
+  | 오행 결핍 | 없음 | **금(金) 결핍** |
+  | 실제 700개 데이터셋 채점 상위 5개(`adminNamingMock.ts`의 `scoreName`과 동일 알고리즘) | 건중·경재·경진·석진·찬경(최고점 3.20) | 산·진성·찬·강석·재겸(최고점 9.00) |
+  | 두 목록 겹침 | **0/5개 — 완전히 다른 이름이 추천됨** | |
+
+  즉 이 갭은 "덜 정확한 정도"가 아니라 **관리자가 신청자에게 실제로 다른 이름을 추천하게 만드는 수준의 차이**다. (연·월·일주가 이 사례에서 우연히 같게 나온 것도 절기 경계 근처가 아니었기 때문 — 경계 근처 출생이면 월주까지 달라질 수 있음, `admin-saju.md` 참고.)
+
 #### (d) 활성 만세력 결과 조회 — `GET /api/admin/applications/{applicationId}/members/{memberId}/manseryeok`
 - **용도**: 현재 활성(active=true)인 확정 결과를 다시 읽어온다. 화면에 "이미 확정된 만세력" 표시, 또는 카드 미리보기 전 확정 여부 확인 용도.
 - **응답** (`ManseryeokActiveResultResponse`): `{ timezoneId, longitude, selectedOffset, utcInstant, timeAccuracy, confirmedPillars, uncertainPillars, elementCounts, tzdbVersion, calculationEngineVersion, calculatedAt }`. 활성 결과가 없으면 `404 NOT_FOUND`.
@@ -253,6 +269,22 @@
 - **검증(2026-08-27)**: `CardPreviewServiceTest` 18개(계약 변경으로 앞/뒤 성공 테스트 2개→1개로 병합, 나머지 검증/거절 테스트 전부 유지) 전부 통과. 실제 docker 재빌드 후 curl로 JSON 에러 응답 경로(`APPLICATION_NOT_FOUND`)까지 확인.
 
 **정리하면 이 순서가 실제 관리자 사용 흐름이다**: (a) 도시명 검색 → (b) timezone 판정(DST 중복이면 후보 선택 후 재호출) → 프론트가 `manseryeok` 패키지로 진태양시 보정 사주 계산 → (c) 결과 저장 → (e) 디자인 선택 → (f) 발급일자 입력 후 미리보기. **6개 API 모두 백엔드는 실제 curl 검증까지 끝났지만 프론트는 어느 하나도 시작 전이다.**
+
+### 1.16 관리자 인앱 작명·엑셀 작명 반영 — 성씨(surname) 필드 누락 (2026-08-31 신규)
+
+- **배경**: §1.4에서 "연동 완료"로 분류했던 인앱 작명(`saveMemberName`)과 엑셀 작명 반영(`applyNamingResult`) 둘 다, 실제로는 **성씨를 저장하지 않는다**. 관리자가 이름을 다 확정해도 `completeNaming()`(작명 완료 처리)에서 전원 거절되는 결과로 이어진다.
+- **백엔드는 성씨를 "추천 이름 선택과 한 번에" 받도록 이미 설계돼 있다** — 성씨를 추천해주는 게 아니라(추천 데이터셋 자체에 성씨가 없음, 아래 참고), **API 계약이 이름 확정과 성씨 확정을 한 호출로 같이 받게 되어 있다**는 뜻이다. `NameAssignRequest`(`POST /api/admin/applications/{applicationId}/members/{memberId}/name`)는 `{ surname?, name(필수), hanja?, reading?, meaning(필수) }`로 다섯 필드를 한 번에 받는다. `ApplicationMember.assignKoreanName(surname, name, chineseName, nameMeaning, nameInterpretation)`도 다섯 값을 한꺼번에 저장한다.
+- **근데 프론트는 이 계약을 절반만 쓴다**:
+  - `services/api.ts`의 `saveMemberName` 타입에 `surname`이 아예 없다: `(applicationId, memberId, body: { name: string; hanja?: string; reading?: string; meaning?: string })`.
+  - 추천 이름 데이터셋(`frontend/src/data/sajuNames.json`, 700개)에도 성씨 필드가 없다(`{"name":"가헌","hanja":"佳憲",...}` — 이름만) — 성씨는 애초에 알고리즘이 추천할 대상이 아니라 **관리자가 직접 입력해야 하는 값**이다(백엔드 검증도 `validateSurnameFormat`: 그냥 한글 1~2자 형식 확인뿐, 점수·추천 없음).
+  - `frontend/src` 전체에 `surname`/`성씨`를 다루는 코드가 **0건**이다(무관한 회사소개 페이지 문구 1건 제외, 전체 grep 확인).
+  - 단체 엑셀 업로드 경로(`applyNamingResult`)도 동일 — 백엔드가 이 경로에서 호출하는 `ApplicationMember.assignKoreanName(name, chineseName)`은 surname을 안 받는 **2-인자 오버로드**다. 엑셀 서식 자체에 성씨 열이 있는지도 이번에 같이 확인 필요(미확인).
+- **실제로 발생하는 문제(코드로 확인)**: `ApplicationsSection.tsx`의 `NamingCard`가 "작명 완료" 배지를 `member.assignedName`(주어진 이름 존재 여부)만으로 띄운다(`:408,429`) — 성씨는 체크하지 않는다. 그래서 관리자 눈엔 멤버마다 "작명 완료"로 보이는데, 정작 최종 "작명 완료 처리" 버튼(`completeNaming`)을 누르면 `ApplicationService.java:663-666`의 집계 검증이 성씨 없는 멤버 전원을 `NAMING_INCOMPLETE`(`{field:"surname", code:"REQUIRED"}`)로 한꺼번에 거절한다 — 개별 카드 표시와 실제 서버 판정이 어긋나는 UX 결함이기도 하다.
+- **프론트가 필요한 것**:
+  1. `services/api.ts`의 `saveMemberName` 타입에 `surname?: string` 추가.
+  2. `NamingCard`(또는 그 상위)에 **성씨 입력용 텍스트 필드 신규**(한글 1~2자) — 추천 목록엔 없으니 관리자가 직접 타이핑. "이 이름 선택" 클릭 시 이 값을 `surname`으로 같이 전송.
+  3. "작명 완료" 배지 조건에 성씨 존재 여부도 포함(지금은 주어진 이름만 봄) — 그래야 화면 표시와 `completeNaming()` 실제 판정이 일치한다.
+  4. 단체 엑셀 경로: 서식에 성씨 열이 있는지 확인 후, 없으면 열 추가 여부부터 정책 결정 필요(이건 프론트만의 문제가 아니라 엑셀 양식+백엔드 파서까지 걸친 별도 결정 사항).
 
 ### 1.11 신청 폼이 수집하나 백엔드가 저장하지 않는 입력 (프론트 유지 · 백엔드 보강)
 프론트 화면에는 입력/표시가 있으나 백엔드 request DTO·도메인에 대응이 없어 값이 서버에 남지 않는 항목. **프론트 UI는 그대로 유지**하고 백엔드 보강 시 연결한다. 상세·조치는 `BACKEND_API_GAPS.md P1-4`.
