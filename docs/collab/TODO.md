@@ -1470,7 +1470,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] Application 관련 회귀 테스트 통과.
 - [ ] `requirements.md`, `data-model.md`, `api.md`, `admin-saju.md`, TODO, CHANGELOG, HANDOFF 최종 정합성 검증.
 
-### 4-E. 카드 렌더링 CJK 폰트 fallback (전 카드종류 공통, 2026-09-01 정책 확정, 미구현)
+### 4-E. 카드 렌더링 CJK 폰트 fallback (전 카드종류 공통, 2026-09-01 구현 완료)
 
 **배경**: 4-C 학생증 뒷면 검증 중 현재 폰트(KoPub Batang/Dotum, `card-templates/fonts/`)가 지원하지 않는 한자 글리프(예: 緑, U+7DD1)가 네모(□)로 깨지는 걸 발견했다(2026-08-31). `Font.createFont(TRUETYPE_FONT, ...)`로 읽는 물리 폰트라 미지원 문자에 대한 자동 대체가 없다 — STUDENT만의 문제가 아니라 `chineseName`을 그리는 4종 카드 전체(`drawText`/`drawTextGeneric`/`drawBackText` 등 공용 primitive)에 잠재하는 문제다. 분석 결과와 사용자 결정은 다음과 같다:
 
@@ -1480,12 +1480,15 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - **중앙정렬/문자폭 계산은 실제 사용된 폰트(주 폰트만 쓰는 경우와 fallback이 섞이는 경우 둘 다) 기준으로 다시 계산한다** — 지금의 `font.getStringBounds(전체 문자열)` 단일 호출로는 mixed-font 폭을 못 재므로, `Font.canDisplayUpTo()`로 필요한 경우에만 `TextLayout`/`AttributedString` 기반 계산으로 분기(주 폰트가 전부 지원하면 지금 로직 그대로 — no-op 보장).
 - **STUDENT 전용이 아니라 `drawText`/`drawTextGeneric`/`drawBackText`/`leftEdgeX` 등 4종 카드가 공유하는 draw primitive 레벨의 공통 처리로 구현한다.**
 
-완료 조건(구현 시):
+완료 조건:
 
-- [ ] fallback CJK 폰트 1개를 `card-templates/fonts/`에 리소스로 추가(라이선스 확인 — OFL 등 재배포 가능한 폰트).
-- [ ] 주 폰트가 전부 지원하는 기존 카드 렌더링(4종 전체, 기존 `CardImageCompositorTest` 스위트)이 fallback 도입 전후로 동일하게 통과(회귀 없음 보장).
-- [ ] 오늘 발견한 실제 미지원 문자(緑 등)로 `Font.canDisplayUpTo()` 단위 테스트 — 회귀 방지 pin.
-- [ ] 미지원 문자 포함 이름으로 실제 렌더링(예외 없이 유효 PNG, mixed-font 폭 계산이 좌우 정렬을 안 깨는지) 확인 — 자동화(구조)+육안(가독성) 병행, 기존 프로젝트 검증 관례와 동일.
+- [x] fallback CJK 폰트 1개를 `card-templates/fonts/`에 리소스로 추가 — `NotoSansKR-Regular.otf`(notofonts/noto-cjk `Sans/SubsetOTF/KR`, 정적 OTF, 4.6MB). 라이선스는 SIL OFL 1.1(google/fonts의 `ofl/notosanskr/OFL.txt` 확인) — `NotoSansKR-OFL.txt`로 같이 저장. 처음엔 google/fonts의 가변폰트(variable font, `NotoSansKR[wght].ttf`, 10.4MB)를 고려했으나, `Font.createFont()`로 안전하게 로드된다는 보장이 약해(플랫폼 의존 위험) 정적 단일 굵기 파일로 선택 — 굵게 그려야 할 땐 `Font.deriveFont(BOLD, size)`로 합성 볼드 처리(진짜 Bold 파일 안 받음).
+  - ⚠️ 다만 완전한 커버리지는 아니다(실측 확인) — Noto Sans KR 한국어 서브셋도 `娍`(U+5A4D), CJK 확장A 일부(예: `㬢`) 등은 여전히 못 그린다. `KoPub`도 fallback도 둘 다 못 그리는 극희귀 글자는 여전히 □로 남는다 — 애초 목표가 100% 커버리지가 아니라 KoPub 단독보다 넓히는 것이었음(정책 문단 참고).
+- [x] 주 폰트가 전부 지원하는 기존 카드 렌더링(4종 전체, 기존 `CardImageCompositorTest` 스위트)이 fallback 도입 전후로 동일하게 통과 — `font.canDisplayUpTo(text) == -1`이면 기존 `getStringBounds` 경로를 그대로 타는 분기(`measure`/`drawMeasured` 헬퍼)로 구현해 기존 검증된 렌더링과 코드 경로 자체가 동일하다. `domain.card`/`domain.application` 전체 재실행 통과 확인.
+- [x] 실제 미지원 문자로 `Font.canDisplay()` 단위 테스트 — `primaryFontCannotDisplayRareHanjaButFallbackDoes`(회귀 방지 pin, 실제 이름 한자 `昡` U+6621로 검증 — 원래 발견했던 `緑` U+7DD1은 확인해보니 일본 신자체라 애초에 한국 한자 표준(`綠` U+7DA0)이 아니었음, 더 현실적인 예시로 교체).
+- [x] 미지원 문자 포함 이름으로 실제 렌더링 확인 — `composesStudentBackWithHanjaNotSupportedByPrimaryFont`(HONOR_KOREAN)/`...Student`(STUDENT) 둘 다 추가해 STUDENT 전용이 아니라 공용 `drawBackText`에서 두 카드종류 모두 혜택받는지 확인. 실제 육안 렌더링(임시 검증, 파일은 삭제)에서 `(김昡수)`처럼 지원/미지원/지원 문자가 섞인 문자열이 진짜 글리프로(네모 아님) 자연스럽게 이어지는 것 확인.
+
+**구현 파일**: `CardImageCompositor.java`(생성자에 `cjkFallback` 필드 추가, `drawTextGeneric`/`leftEdgeXGeneric`/`drawTextAtPixelXGeneric`/`drawBackText` 4개 primitive에 `measure()`/`drawMeasured()`/`buildMixedLayout()` 헬퍼 도입 — 계획대로 호출부(`composeFront`/`composeBack`/`composeStudentFront`/`composeStudentBack`)는 전혀 안 바뀜), `card-templates/fonts/NotoSansKR-Regular.otf`+`NotoSansKR-OFL.txt`(신규), `CardImageCompositorTest.java`(테스트 3개 추가).
 
 ### 단계별 실행 체크리스트 — 학생증 단체 Excel부터 카드 Preview까지
 

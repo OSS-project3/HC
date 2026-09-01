@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-09-01 — Claude — `main` (4-E 카드 렌더링 CJK 폰트 fallback 구현 완료)
+
+- 변경: 4-C에서 발견한 한자 글리프 깨짐(KoPub 폰트가 KS X 1001 위주라 이름에 쓰이는 희귀 한자가 빠져 있음) 문제를 primary+fallback 방식으로 해결. `CardImageCompositor`의 4개 텍스트 primitive(`drawTextGeneric`/`leftEdgeXGeneric`/`drawTextAtPixelXGeneric`/`drawBackText`)에 `Font.canDisplayUpTo()` 기반 분기를 추가 — 주 폰트가 문자열 전체를 지원하면 기존 `getStringBounds` 경로 그대로(회귀 없음 보장), 못 그리는 글자가 있으면 `TextLayout`/`AttributedString` 기반 mixed-font 경로로 그 글자만 fallback 폰트(`NotoSansKR-Regular.otf`, SIL OFL, 서버 OS 폰트에 의존하지 않고 앱 리소스로 번들)로 그린다. `composeFront`/`composeBack`/`composeStudentFront`/`composeStudentBack` 등 호출부는 시그니처·호출 코드 전혀 안 바뀜(4개 primitive 내부로 완전히 캡슐화됨) — 4종 카드 전체가 공통으로 혜택받는다(STUDENT 전용 아님).
+- 파일: `domain/card/service/CardImageCompositor.java`, `card-templates/fonts/NotoSansKR-Regular.otf`+`NotoSansKR-OFL.txt`(신규), `domain/card/service/CardImageCompositorTest.java`(테스트 3개 추가), `docs/collab/TODO.md`(4-E 완료 표시).
+- 사유: 실제 신청자 이름에 KoPub이 지원 못 하는 한자가 나오면 지금까지는 네모(□)로 깨져서 나갔음 — 실서비스 발급 카드 품질 문제. 폰트 전면 교체 대신 primary+fallback을 택한 이유는 4종 카드 전체가 이미 시안_최종.jpg 대조로 육안 검증된 KoPub 룩을 유지하면서(전면 교체 시 폰트 폭 변화로 좌우 정렬 전부 재검증 필요), 실제 지원 문자열은 기존 코드 경로를 그대로 타 회귀 위험을 없앤 것. 완전한 유니코드 커버리지가 목표는 아니고(실측 확인: fallback 폰트도 CJK 확장A 일부 등은 여전히 못 그림), KoPub 단독보다 실질적으로 넓히는 것이 목표.
+- 관련: TODO 4-E
+
+---
+
 ## 2026-09-01 — Claude — `main` (4-D 나머지 결정 확정 + isDefault 정정, 4-E 폰트 fallback 정책 신규)
 
 - 변경: 4-D "구현 착수 전 검토" 5개 항목을 전부 확정했다 — ① CardDesign 학교 불변조건은 DB Partial Unique Index로 강제(`card_type_id, school_id, orientation` 조건부 유니크), ② `designNumber` 채번은 `MAX+1` 대신 DB Sequence, ③ `isDefault`는 직전 커밋의 `true` 결정을 **`false`로 정정**(근거 보강: `GET /api/admin/card-designs` 자체를 프론트가 호출하지 않는다는 것까지 확인됨 — `frontend/src/` 전체에서 `isDefault` 검색 0건, `services/api.ts`에 해당 엔드포인트 호출 함수 없음, 완전히 죽은 필드), ④ POST 성공 응답은 GET과 동일 DTO+200 OK, ⑤ MIME/해상도 검증 실패는 `INVALID_INPUT` 재사용 대신 전용 에러코드로 분리. 추가로 새 **4-E 절**(카드 렌더링 CJK 폰트 fallback, 전 카드종류 공통)을 신설 — 4-C 검증 중 발견한 한자 글리프 깨짐(緑 등) 문제의 해결 방향(주 폰트 유지+`Font.canDisplay` 기반 부분 fallback+애플리케이션 리소스 번들+공통 primitive 처리)을 정책으로 확정, 아직 미구현.

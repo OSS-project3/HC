@@ -15,12 +15,15 @@ import java.awt.Panel;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.font.FontRenderContext;
+import java.awt.font.TextAttribute;
+import java.awt.font.TextLayout;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.AttributedString;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -64,12 +67,20 @@ class CardImageCompositor {
     private final Font dotumMedium;
     private final Font dotumBold;
     private final Font batangBold;
+    // 4-E: CJK fallback — KoPub 3종은 KS X 1001 위주라 이름에 드물게 쓰이는 한자(예: 昀, 妸)가
+    // 빠져 있다(실측 확인, 2026-09-01). 이 폰트는 못 바꾸고(4종 카드 전체가 이미 이 룩으로
+    // 시안_최종.jpg 대조 검증돼 있어 전면 교체 시 재검증 범위가 너무 커짐), KoPub이 못 그리는
+    // 글자만 이 폰트로 대신 그린다 — Noto Sans KR(SIL OFL, notofonts/noto-cjk 정적 OTF), 한국어
+    // 문맥 기준 서브셋이라 완전한 유니코드 한자 커버리지는 아니지만(예: 娍, CJK 확장A 일부는
+    // 이것도 못 그림) KoPub 단독보다 실측으로 커버리지가 넓다.
+    private final Font cjkFallback;
     private final ConcurrentHashMap<String, BufferedImage> imageCache = new ConcurrentHashMap<>();
 
     CardImageCompositor() {
         this.dotumMedium = loadFont("KoPub Dotum_Pro Medium.otf");
         this.dotumBold = loadFont("KoPub Dotum_Pro Bold.otf");
         this.batangBold = loadFont("KoPub Batang_Pro Bold.otf");
+        this.cjkFallback = loadFont("NotoSansKR-Regular.otf");
     }
 
     byte[] composeFront(CardTypeCode cardType, int design, CardMemberData data) {
@@ -333,24 +344,23 @@ class CardImageCompositor {
             return;
         }
         Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
-        g.setFont(font);
         g.setColor(color);
         FontRenderContext frc = g.getFontRenderContext();
-        Rectangle2D bounds = font.getStringBounds(text, frc);
+        TextMetrics metrics = measure(text, font, frc);
         double cx = (baseWidth / 2 + offset.x()) * scaleX;
         double cy = (baseHeight / 2 + offset.y()) * scaleY;
-        double x = cx - bounds.getWidth() / 2.0;
-        double y = cy + bounds.getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
-        g.drawString(text, (float) x, (float) y);
+        double x = cx - metrics.width() / 2.0;
+        double y = cy + metrics.height() / 2.0 - metrics.descent();
+        drawMeasured(g, text, font, frc, (float) x, (float) y);
     }
 
     private double leftEdgeXGeneric(String text, Font baseFont, float sizeAtBaseScale, CardFieldOffset offset,
             double baseWidth, double scaleX) {
         Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
         FontRenderContext frc = new FontRenderContext(null, true, true);
-        Rectangle2D bounds = font.getStringBounds(text == null ? "" : text, frc);
+        double width = measure(text == null ? "" : text, font, frc).width();
         double cx = (baseWidth / 2 + offset.x()) * scaleX;
-        return cx - bounds.getWidth() / 2.0;
+        return cx - width / 2.0;
     }
 
     private void drawTextAtPixelXGeneric(Graphics2D g, String text, Font baseFont, float sizeAtBaseScale,
@@ -359,12 +369,58 @@ class CardImageCompositor {
             return;
         }
         Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
-        g.setFont(font);
         g.setColor(color);
         FontRenderContext frc = g.getFontRenderContext();
+        TextMetrics metrics = measure(text, font, frc);
         double cy = (baseHeight / 2 + offset.y()) * scaleY;
-        double y = cy + font.getStringBounds(text, frc).getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
-        g.drawString(text, (float) pixelX, (float) y);
+        double y = cy + metrics.height() / 2.0 - metrics.descent();
+        drawMeasured(g, text, font, frc, (float) pixelX, (float) y);
+    }
+
+    // 4-E: 문자열 폭/높이/descent — font가 text 전체를 지원하면(canDisplayUpTo == -1) 기존
+    // getStringBounds 경로 그대로(호출부 전체의 기존 렌더링 결과를 1픽셀도 안 바꾸기 위해 이 경로는
+    // 손대지 않는다). 못 그리는 글자가 하나라도 있을 때만 mixed-font 경로(TextLayout)로 잰다.
+    private record TextMetrics(double width, double height, double descent) {
+    }
+
+    private TextMetrics measure(String text, Font font, FontRenderContext frc) {
+        if (font.canDisplayUpTo(text) == -1) {
+            Rectangle2D bounds = font.getStringBounds(text, frc);
+            return new TextMetrics(bounds.getWidth(), bounds.getHeight(), font.getLineMetrics(text, frc).getDescent());
+        }
+        TextLayout layout = buildMixedLayout(text, font, frc);
+        return new TextMetrics(layout.getAdvance(), layout.getAscent() + layout.getDescent(), layout.getDescent());
+    }
+
+    // measure()와 반드시 같은 분기 조건을 써야 좌표 계산과 실제 그리기가 어긋나지 않는다.
+    private void drawMeasured(Graphics2D g, String text, Font font, FontRenderContext frc, float x, float y) {
+        if (font.canDisplayUpTo(text) == -1) {
+            g.setFont(font);
+            g.drawString(text, x, y);
+        } else {
+            buildMixedLayout(text, font, frc).draw(g, x, y);
+        }
+    }
+
+    // 주 폰트(font)가 표시 못 하는 글자만 cjkFallback으로 바꿔 그리는 AttributedString을 만든다.
+    // 주 폰트가 굵게(Bold)면 fallback도 합성 볼드(deriveFont(BOLD, size))로 맞춰 굵기 차이가 눈에
+    // 덜 띄게 한다 — Noto Sans KR은 이 프로젝트엔 Regular 하나만 있어 진짜 Bold 파일이 없다.
+    private TextLayout buildMixedLayout(String text, Font font, FontRenderContext frc) {
+        AttributedString attributed = new AttributedString(text);
+        attributed.addAttribute(TextAttribute.FONT, font);
+        Font fallbackStyled = font.isBold()
+                ? cjkFallback.deriveFont(Font.BOLD, font.getSize2D())
+                : cjkFallback.deriveFont(font.getSize2D());
+        int i = 0;
+        while (i < text.length()) {
+            int codePoint = text.codePointAt(i);
+            int codePointLength = Character.charCount(codePoint);
+            if (!font.canDisplay(codePoint)) {
+                attributed.addAttribute(TextAttribute.FONT, fallbackStyled, i, i + codePointLength);
+            }
+            i += codePointLength;
+        }
+        return new TextLayout(attributed.getIterator(), frc);
     }
 
     // 세 카드종류 모두 뒷면 타이틀은 "한국이름풀이"로 동일하다(HONOR_KOREAN/HONOR_CITIZEN/VISITOR
@@ -407,15 +463,14 @@ class CardImageCompositor {
             return;
         }
         Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
-        g.setFont(font);
         g.setColor(color);
         FontRenderContext frc = g.getFontRenderContext();
-        Rectangle2D bounds = font.getStringBounds(text, frc);
+        TextMetrics metrics = measure(text, font, frc);
         double cx = (baseWidth / 2 + offset.x()) * scaleX;
         double cy = (baseHeight / 2 + offset.y()) * scaleY;
-        double x = cx - bounds.getWidth() / 2.0;
-        double y = cy + bounds.getHeight() / 2.0 - font.getLineMetrics(text, frc).getDescent();
-        g.drawString(text, (float) x, (float) y);
+        double x = cx - metrics.width() / 2.0;
+        double y = cy + metrics.height() / 2.0 - metrics.descent();
+        drawMeasured(g, text, font, frc, (float) x, (float) y);
     }
 
     private String formatIssueDate(LocalDate issueDate) {

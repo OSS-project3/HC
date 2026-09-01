@@ -319,4 +319,61 @@ class CardImageCompositorTest {
         assertThatThrownBy(() -> compositor.composeFront(CardTypeCode.STUDENT, 1, withoutTemplate))
                 .isInstanceOf(CustomException.class);
     }
+
+    // 4-E: CJK fallback. KoPub 3종은 KS X 1001 위주라 실제 이름에 드물게 쓰이는 한자가 빠져 있다
+    // (실측 확인, 2026-09-01 — 昡(U+6621)/妸(U+59B8) 등, 반대로 娍(U+5A4D) 등은 fallback도 못 그림 —
+    // 완전한 커버리지가 목표가 아니라 KoPub 단독보다 넓히는 것이 목표).
+    @Test
+    void primaryFontCannotDisplayRareHanjaButFallbackDoes() throws Exception {
+        // compositor 내부 필드에 직접 접근하지 않고, 같은 클래스패스 리소스를 독립적으로 로드해
+        // "이 버그가 실제로 존재한다"는 전제 자체를 코드로 못박아둔다(회귀 방지 pin).
+        java.awt.Font primary;
+        try (var in = new org.springframework.core.io.ClassPathResource(
+                "card-templates/fonts/KoPub Batang_Pro Bold.otf").getInputStream()) {
+            primary = java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, in);
+        }
+        java.awt.Font fallback;
+        try (var in = new org.springframework.core.io.ClassPathResource(
+                "card-templates/fonts/NotoSansKR-Regular.otf").getInputStream()) {
+            fallback = java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, in);
+        }
+
+        int rareHanja = 0x6621; // 昡
+        assertThat(primary.canDisplay(rareHanja)).isFalse();
+        assertThat(fallback.canDisplay(rareHanja)).isTrue();
+    }
+
+    @Test
+    void composesStudentBackWithHanjaNotSupportedByPrimaryFont() throws Exception {
+        // 昡(U+6621) — 주 폰트(batangBold)가 못 그리는 실제 이름 한자. fallback 없이는 이 위치에
+        // 네모(□)가 그려지지만, 여기서는 "예외 없이 유효 PNG가 나오는지"까지만 구조적으로 검증한다
+        // (픽셀이 실제 글리프인지는 이 클래스의 다른 테스트들과 동일하게 육안 확인으로 보완).
+        CardMemberData data = new CardMemberData(
+                "김", "학생", "Kim Hak-saeng", "학昡", "배울 학(學) 밝을 안(昡)",
+                "배우고 익히며 성장하는 삶을 산다.", samplePhoto(),
+                "ROK-12345-6789", "대한민국 전라북도 전주시",
+                LocalDate.of(2026, 8, 25), "인", null, null);
+
+        byte[] png = compositor.composeBack(CardTypeCode.HONOR_KOREAN, 1, data);
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void composesStudentBackWithHanjaNotSupportedByPrimaryFontStudent() throws Exception {
+        // 같은 문자를 STUDENT 경로로도 확인 — fallback이 STUDENT 전용이 아니라 공용 primitive
+        // (drawBackText)에 있어 두 카드종류 모두 똑같이 혜택을 받는지 확인한다.
+        CardMemberData base = studentData(SchoolType.UNIVERSITY, CardDesignOrientation.LANDSCAPE, false);
+        CardMemberData data = new CardMemberData(
+                base.surname(), base.name(), base.englishName(), "학昡",
+                "배울 학(學) 밝을 안(昡)",
+                "배우고 익히며 성장하는 삶을 산다.", base.photo(),
+                base.cardNumber(), base.address(), base.issueDate(), base.zodiacBranch(), null, null,
+                base.schoolType(), base.studentOrientation(), base.studentId(), base.department(), base.birthDate(),
+                base.templateFront(), base.templateBack());
+
+        byte[] png = compositor.composeBack(CardTypeCode.STUDENT, 1, data);
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
 }
