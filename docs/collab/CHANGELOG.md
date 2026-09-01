@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-09-01 — Claude — `main` (4-D 나머지 결정 확정 + isDefault 정정, 4-E 폰트 fallback 정책 신규)
+
+- 변경: 4-D "구현 착수 전 검토" 5개 항목을 전부 확정했다 — ① CardDesign 학교 불변조건은 DB Partial Unique Index로 강제(`card_type_id, school_id, orientation` 조건부 유니크), ② `designNumber` 채번은 `MAX+1` 대신 DB Sequence, ③ `isDefault`는 직전 커밋의 `true` 결정을 **`false`로 정정**(근거 보강: `GET /api/admin/card-designs` 자체를 프론트가 호출하지 않는다는 것까지 확인됨 — `frontend/src/` 전체에서 `isDefault` 검색 0건, `services/api.ts`에 해당 엔드포인트 호출 함수 없음, 완전히 죽은 필드), ④ POST 성공 응답은 GET과 동일 DTO+200 OK, ⑤ MIME/해상도 검증 실패는 `INVALID_INPUT` 재사용 대신 전용 에러코드로 분리. 추가로 새 **4-E 절**(카드 렌더링 CJK 폰트 fallback, 전 카드종류 공통)을 신설 — 4-C 검증 중 발견한 한자 글리프 깨짐(緑 등) 문제의 해결 방향(주 폰트 유지+`Font.canDisplay` 기반 부분 fallback+애플리케이션 리소스 번들+공통 primitive 처리)을 정책으로 확정, 아직 미구현.
+- 파일: `docs/collab/TODO.md`.
+- 사유: 4-D 실제 구현 착수 전 남은 모든 미정 항목을 사용자가 한 번에 결정 — 코드는 아직 없음(문서만).
+- 관련: TODO 4-D, 4-E(신규)
+
+---
+
 ## 2026-08-31 — Claude — `main` (4-D — CardDesign.name/isDefault 결정)
 
 - 변경: 4-D 미정 지점 중 `CardDesign.name`/`isDefault` 자동생성 규칙을 확정. `name`은 `"{School.name} 학생증({세로형|가로형})"`(기존 시더의 `디자인{번호}` 관례는 STUDENT의 전역 채번 방식상 식별력이 없어서 안 씀). `isDefault`는 코드 전수 조사 결과 프로젝트 전체에서 실제로 읽어 쓰는 곳이 전혀 없는 죽은 필드임을 확인(쓰기·DTO 통과만 있고, `CardDesignService` 조회/필터링은 전부 `active`만 봄; `docs/api/card-design.md`가 이 필드를 위해 설계했던 범용 관리자 CRUD API 자체가 "미구현"으로 표시돼 있음) — STUDENT는 학교+orientation당 활성 디자인이 항상 0~1개라 "기본값 선택"이라는 상황 자체가 없으므로 그냥 `true`로 저장하기로 함. 필드 자체를 없애는 스키마 정리는 다른 3종 카드까지 얽혀 이번 스코프 밖이라 후속 정리 후보로만 남김.

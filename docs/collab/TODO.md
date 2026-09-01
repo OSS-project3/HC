@@ -1448,13 +1448,13 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 **구현 착수 전 검토 필요(2026-08-31, 실제 구현 시작 전 확인)** — 위 계약·순서는 확정이지만, 아래는 이 문서에 값이 안 정해져 있어 구현하면서 임의로 정하게 되는 지점들이다. 코드 짜기 전에 결정해두는 게 낫다고 판단해 적어둔다:
 
-1. **CardDesign 학교 불변조건을 실제로 어디서 강제할지** — 2-A 체크리스트에도 미완료로 남겨뒀듯, "같은 schoolId+orientation 활성 디자인은 1개만"을 지금은 DB unique 제약도 Service 레벨 명시적 락도 없이 "업로드 API가 없으면 CREATE·있으면 UPDATE로만 동작해서 절차적으로 우회 보장"하는 상태다. 4-D가 바로 그 유일한 등록 경로이므로, 여기서 최소한 `findByCardTypeAndSchoolIdAndOrientation` 조회 후 분기하는 코드 자체가 이 불변조건의 유일한 방어선이 된다 — 별도 DB unique index(`card_type_id, school_id, orientation` 부분 유니크)까지 추가할지, 아니면 이번에도 코드 레벨 조회-후-분기만으로 충분하다고 볼지 결정 필요.
-2. **`designNumber` 동시 채번 경쟁** — `MAX(designNumber)+1` 방식은 서로 다른 두 학교가 동시에 신규 등록하면 같은 번호를 계산해 DB unique 제약(`card_type_id, design_number`) 위반으로 한쪽이 500 에러를 받을 수 있다. §3-F/4-D "동시성 미방어" 결정과 같은 급으로 보고 이번엔 그냥 감수할지, 아니면 최소한의 `synchronized`/비관적 락 정도는 넣을지 결정 필요.
-3. **자동 생성되는 `CardDesign`의 `name`/`isDefault` 값 — ✅ 2026-08-31 결정**:
-   - `name`은 `"{School.name} 학생증({세로형|가로형})"`(예: `"경기외국어고등학교 학생증(세로형)"`)로 생성한다. 기존 시더의 `"{라벨} 디자인{번호}"` 관례를 그대로 못 쓰는 이유: STUDENT의 `designNumber`는 학교와 무관하게 같은 `card_type_id` 안에서 전역 증가하는 값이라(4-D 채번 방식 참고) 번호 자체가 admin에게 식별 정보가 안 됨 — 학교명+방향이 훨씬 의미 있는 식별자.
-   - `isDefault`는 STUDENT 디자인 전부 `true`로 저장한다. 근거(코드 전수 조사, 2026-08-31): `isDefault`를 실제로 읽어서 뭔가 결정하는 코드가 프로젝트 전체에 **없다** — `CardDesign` 엔티티(쓰기)·`CardDesignResponse`(그대로 노출)·`CardDesignSeeder`(`designNumber==1`이면 `true`로 시드)뿐이고, `CardDesignService`의 조회·필터링은 전부 `active`만 본다. `docs/api/card-design.md`를 보면 이 필드는 애초에 아직 없는 범용 관리자 CRUD 화면(`POST/PATCH /api/admin/card-designs`, 그 문서 자체가 "⚠️ 미구현 설계"로 표시돼 있음)을 위해 만들어둔 스캐폴딩이었다. STUDENT는 애초에 schoolId+orientation당 활성 디자인이 항상 0~1개뿐이라 "여러 개 중 기본값 고르기"라는 상황 자체가 생기지 않으므로, `true`로 둬도 틀린 값이 아니고(유일한 디자인 = 사실상 기본값) `false`를 넣을 근거도 없다. **필드 자체가 죽은 코드라는 점은 후속 정리 후보로만 남긴다** — 지금 스키마를 건드리는 건 다른 3종 카드·시더·미구현 범용 API 문서까지 얽혀 이번 4-D 스코프를 벗어난다.
-4. **POST 성공 응답 바디** — GET과 같은 `{ cardDesignId, frontPreviewUrl, backPreviewUrl }` 형태로 반환해 관리자 화면이 등록 직후 바로 미리보기를 갱신할 수 있게 할지, 아니면 성공 여부만 반환할지 미정(전자를 권장 — 관리자 UI 목업이 "등록하면 미리보기 갱신"을 요구함).
-5. **MIME/해상도 검증 실패 에러코드** — 크기 초과는 기존 `FILE_TOO_LARGE` 재사용이 정해져 있지만, MIME 불일치·해상도 비율/최소해상도 미달은 아직 코드가 안 정해짐(기존 `INVALID_INPUT` 재사용이 가장 무난해 보임, 구현 시 확정).
+1. **CardDesign 학교 불변조건 — ✅ 2026-09-01 결정**: "같은 schoolId+orientation 활성 디자인은 1개만"을 코드 레벨 조회-후-분기만으로 두지 않고, **DB Partial Unique Index까지 건다**(`card_type_id, school_id, orientation` 조합, `WHERE card_type_id = STUDENT AND active = true` 조건부 유니크 — 비STUDENT는 `school_id`가 null이라 이 인덱스 대상이 아니다). 코드 레벨 조회-후-분기(4번 항목)는 정상 경로에서 UX용 에러 메시지를 내기 위해 그대로 유지하고, 인덱스는 그 방어가 뚫렸을 때(동시 요청 등)의 최종 안전장치로 추가한다.
+2. **`designNumber` 채번 — ✅ 2026-09-01 결정**: `MAX(designNumber)+1` 방식(동시 등록 시 경쟁 가능)을 **제거**하고, PostgreSQL **DB Sequence**로 대체한다(`card_type_id`별로 분리된 시퀀스가 필요하면 STUDENT 전용 시퀀스 하나만 새로 추가 — 기존 3종은 이 채번 로직 자체를 안 타므로 영향 없음). 구현 시 `schema.sql`에 시퀀스 정의 추가, `CardDesignRepository`의 `MAX(designNumber)` 조회는 만들지 않는다.
+3. **자동 생성되는 `CardDesign`의 `name`/`isDefault` 값**:
+   - `name`은 `"{School.name} 학생증({세로형|가로형})"`(예: `"경기외국어고등학교 학생증(세로형)"`)로 생성한다. 기존 시더의 `"{라벨} 디자인{번호}"` 관례를 그대로 못 쓰는 이유: STUDENT의 `designNumber`는 학교와 무관하게 같은 `card_type_id` 안에서 전역 증가하는 값이라(2번 항목 채번 방식 참고) 번호 자체가 admin에게 식별 정보가 안 됨 — 학교명+방향이 훨씬 의미 있는 식별자.
+   - `isDefault`는 **✅ 2026-09-01 결정: STUDENT 디자인 전부 `false`로 저장한다.** 근거: `isDefault`를 실제로 읽어서 뭔가 결정하는 코드가 프로젝트 전체에 없고(`CardDesign` 엔티티 쓰기·`CardDesignResponse` 그대로 노출·`CardDesignSeeder`의 `designNumber==1`→`true` 시딩뿐), **이 필드가 담긴 `CardDesignResponse`를 반환하는 `GET /api/admin/card-designs` 자체를 프론트가 호출하지 않는다는 것도 확인됨**(2026-09-01, `frontend/src/` 전체에서 `isDefault`/`is_default` 검색 0건, `services/api.ts`에 이 엔드포인트를 부르는 함수 자체가 없음 — 즉 백엔드도 의미 있게 안 읽고 프론트도 API 자체를 안 부르는, 외부 소비자가 없는 죽은 필드로 재확인). 죽은 필드라 사실 어느 값이든 무해하지만, "여러 디자인 중 대표 하나"라는 필드의 원래 의미상 STUDENT처럼 schoolId+orientation당 활성 디자인이 애초에 1개뿐인 구조에는 안 맞는다고 보고 `false`로 통일한다. **필드 자체가 죽은 코드라는 점은 후속 정리 후보로만 남긴다** — 지금 스키마를 건드리는 건 다른 3종 카드·시더·미구현 범용 API 문서까지 얽혀 이번 4-D 스코프를 벗어난다.
+4. **POST 성공 응답 바디 — ✅ 2026-09-01 결정**: GET과 **동일한 DTO**(`{ cardDesignId, frontPreviewUrl, backPreviewUrl }`)를 `200 OK`로 반환한다 — 관리자 화면이 등록 직후 별도 재조회 없이 바로 미리보기를 갱신할 수 있게(관리자 UI 목업의 "등록하면 미리보기 갱신" 요구와 일치).
+5. **MIME/해상도 검증 실패 에러코드 — ✅ 2026-09-01 결정**: 크기 초과는 기존 `FILE_TOO_LARGE` 재사용. MIME 불일치·해상도(비율/최소해상도) 미달은 `INVALID_INPUT` 재사용이 아니라 **전용 에러코드로 분리**한다(예: `CARD_TEMPLATE_INVALID_FORMAT`, `CARD_TEMPLATE_INVALID_RESOLUTION` — 정확한 이름은 구현 시 기존 `ErrorCode` 네이밍 관례에 맞춰 확정). 관리자 화면이 "PNG 아님"과 "비율 안 맞음"을 서로 다른 안내 문구로 보여줄 수 있어야 하므로 뭉뚱그리지 않는다.
 6. **⚠️ 뒷면 타이틀 텍스트 색상 고정(BLACK) 관련 실측 발견** — 뒷면 placeholder 후보 이미지들(아래 참고) 위에 실제로 렌더링해보니, 진한 색 상단 밴드가 있는 디자인에서 검정 타이틀 텍스트("학 생 증")의 가독성이 눈에 띄게 떨어졌다(남색 밴드 위 검정 글씨는 거의 안 보임). 지금 `composeStudentBack`은 타이틀·이름 등 모든 텍스트 색을 디자인과 무관하게 고정값(`Color.BLACK`/`Color.DARK_GRAY`)으로 그린다 — 실제 디자이너 뒷면도 상단에 진한 색 밴드를 쓸 가능성이 있으므로, 4-D로 실물이 올라온 뒤 첫 렌더링에서 이 문제가 재현되는지 반드시 확인해야 한다(완료 조건에 반영, 아래).
 
 **뒷면 placeholder(실물 에셋 없어 임시 대체, 2026-08-31)**: 디자이너의 실제 뒷면 에셋이 아직 없어 지금까지는 흰 캔버스로 배치만 검증했는데, `D:\HC-worktrees\saju\시안\시안\학생증\`에 있는 다른 학교용 앞면 시안 중 세로형 `아트보드 8 사본 10.png`, 가로형 `아트보드 8 사본 15.png`를 뒷면 임시 대체 이미지로 골랐다(실제 뒷면 전용 에셋이 아니라 다른 학교 앞면 디자인을 재활용한 것 — 진짜 뒷면이 아니라는 점 명심). 후보 5개(세로 3·가로 2)를 전부 실제 렌더링해 비교했고, 이 둘이 상대적으로 텍스트 겹침·저대비 문제가 적었다(가로형 두 후보 다 상단 밴드 문제가 있었지만 15번이 14번보다 덜 어두워 상대적으로 나음 — 위 6번 항목 참고, 진짜 뒷면 에셋이 오면 재검증 필요).
@@ -1469,6 +1469,23 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] **통합 테스트(2026-08-31 사용자 지정, 신규)**: 관리자가 실제 `POST .../card-template`로 앞/뒷면 이미지를 업로드하면, 그 등록된 `CardDesign`으로 실제 카드 Preview/Generate까지 실행해 **글자가 잘리거나 겹치거나(위 6번 발견처럼) 배경과 겹쳐 안 보이는 문제 없이** 렌더링되는 것까지 확인한다 — 단위 테스트 수준(PNG 유효성만)이 아니라 업로드→렌더링 전체 경로를 실제로 태워서 확인해야 한다.
 - [ ] Application 관련 회귀 테스트 통과.
 - [ ] `requirements.md`, `data-model.md`, `api.md`, `admin-saju.md`, TODO, CHANGELOG, HANDOFF 최종 정합성 검증.
+
+### 4-E. 카드 렌더링 CJK 폰트 fallback (전 카드종류 공통, 2026-09-01 정책 확정, 미구현)
+
+**배경**: 4-C 학생증 뒷면 검증 중 현재 폰트(KoPub Batang/Dotum, `card-templates/fonts/`)가 지원하지 않는 한자 글리프(예: 緑, U+7DD1)가 네모(□)로 깨지는 걸 발견했다(2026-08-31). `Font.createFont(TRUETYPE_FONT, ...)`로 읽는 물리 폰트라 미지원 문자에 대한 자동 대체가 없다 — STUDENT만의 문제가 아니라 `chineseName`을 그리는 4종 카드 전체(`drawText`/`drawTextGeneric`/`drawBackText` 등 공용 primitive)에 잠재하는 문제다. 분석 결과와 사용자 결정은 다음과 같다:
+
+- **주 폰트는 교체하지 않는다** — 지금까지 시안_최종.jpg 대조로 육안 검증한 4종 카드 전체의 룩을 유지. 전면 교체 시 폰트 폭 변화로 `leftEdgeX` 기반 좌우 정렬(이름↔영문명, 학번↔학과 등)이 전부 재검증 대상이 되는 것도 회피.
+- **`Font.canDisplay(codePoint)`로 글자 단위 지원 여부를 확인**하고, 주 폰트가 못 그리는 글자만 CJK fallback 폰트로 그린다(주 폰트가 전부 지원하는 문자열은 지금과 동일하게 렌더링 — 기존 검증에 영향 없음).
+- **fallback 폰트는 서버 OS 설치 폰트에 의존하지 않고, 기존 3개 KoPub 폰트와 동일하게 애플리케이션 리소스(`card-templates/fonts/`)로 직접 번들한다** — 배포 이미지가 `eclipse-temurin:21-jre-alpine`이라 `fontconfig`/시스템 폰트 자체가 없음(확인 완료), OS 논리 폰트 fallback에 기대면 컨테이너에서 아예 동작 안 할 위험.
+- **중앙정렬/문자폭 계산은 실제 사용된 폰트(주 폰트만 쓰는 경우와 fallback이 섞이는 경우 둘 다) 기준으로 다시 계산한다** — 지금의 `font.getStringBounds(전체 문자열)` 단일 호출로는 mixed-font 폭을 못 재므로, `Font.canDisplayUpTo()`로 필요한 경우에만 `TextLayout`/`AttributedString` 기반 계산으로 분기(주 폰트가 전부 지원하면 지금 로직 그대로 — no-op 보장).
+- **STUDENT 전용이 아니라 `drawText`/`drawTextGeneric`/`drawBackText`/`leftEdgeX` 등 4종 카드가 공유하는 draw primitive 레벨의 공통 처리로 구현한다.**
+
+완료 조건(구현 시):
+
+- [ ] fallback CJK 폰트 1개를 `card-templates/fonts/`에 리소스로 추가(라이선스 확인 — OFL 등 재배포 가능한 폰트).
+- [ ] 주 폰트가 전부 지원하는 기존 카드 렌더링(4종 전체, 기존 `CardImageCompositorTest` 스위트)이 fallback 도입 전후로 동일하게 통과(회귀 없음 보장).
+- [ ] 오늘 발견한 실제 미지원 문자(緑 등)로 `Font.canDisplayUpTo()` 단위 테스트 — 회귀 방지 pin.
+- [ ] 미지원 문자 포함 이름으로 실제 렌더링(예외 없이 유효 PNG, mixed-font 폭 계산이 좌우 정렬을 안 깨는지) 확인 — 자동화(구조)+육안(가독성) 병행, 기존 프로젝트 검증 관례와 동일.
 
 ### 단계별 실행 체크리스트 — 학생증 단체 Excel부터 카드 Preview까지
 
