@@ -11,6 +11,7 @@
 - [Card](card.md)
   - [CardType](card-type.md)
   - [CardDesign](card-design.md)
+  - [School Card Template(학생증, 관리자)](school-card-template.md)
 - [Admin](admin.md)
 - [Review](../specs/review/api.md)
 - [Board (보류)](board.md)

@@ -200,7 +200,49 @@ Controller는 `api` 패키지에 별도로 있다(예: `api/ApplicationControlle
 
 - `User` — `passwordHash`(일반 계정만, OAuth 계정은 null)를 포함해 두 인증 방식을 한 Entity로 표현
 - refresh token session 저장 모델 또는 Redis key
-- Redis key(Entity 아님, 상태는 전부 Redis에만 존재): `auth:signup:code:*`(인증 코드 challenge, TTL 10분), `auth:signup:token:*`(가입 토큰 해시, TTL 30분), `auth:login:fail:*`/`auth:login:lock:*`(로그인 실패 카운터·잠금, 각 TTL 15분) — 전부 정규화 이메일을 SHA-256 해시한 키를 쓰고 원문 이메일은 저장하지 않는다.
+- Redis key(Entity 아님, 상태는 전부 Redis에만 존재): `auth:signup:code:*`(인증 코드 challenge, TTL 10분), `auth:signup:token:*`(가입 토큰 해시, TTL 30분), `auth:login:fail:*`/`auth:login:lock:*`(로그인 실패 카운터·잠금, 각 TTL 15분), `auth:recovery:id:*`/`auth:recovery:password:*`(계정 복구 challenge), `auth:access:user-revoked-after:*`(사용자별 access token 무효화 기준 시각) — 원문 이메일·전화번호·IP 대신 SHA-256 해시를 사용한다.
+
+### 계정 복구 책임 구조 (2026-08-21 확정)
+
+```text
+AuthController
+└─ AccountRecoveryService
+   ├─ requestIdRecovery()
+   ├─ confirmIdRecovery()
+   ├─ requestPasswordReset()
+   └─ confirmPasswordReset()
+
+VerificationChallengeStore
+├─ HMAC challenge 저장
+├─ TTL·재전송·횟수 제한
+└─ Lua 기반 원자 검증·소비
+
+UserService.resetPassword()
+├─ BCrypt 비밀번호 갱신
+├─ refresh session 전체 무효화
+└─ access token revoked-after 기록
+
+EmailSender
+├─ ID_RECOVERY_VERIFICATION
+├─ PASSWORD_RESET
+└─ PASSWORD_CHANGED
+```
+
+- `AccountRecoveryService`는 복구 흐름만 조정하며 사용자 비밀번호를 직접 변경하거나 Redis 명령을 직접 조립하지 않는다.
+- 가입 인증·아이디 찾기·비밀번호 재설정이 HMAC/TTL/Lua 규칙을 공유하므로, 이를 `EmailVerificationService`에 계속 추가하지 않고 `VerificationChallengeStore`로 분리한다. 세 군데에서 재사용되고 책임이 독립적이므로 신규 클래스 추출 조건을 충족한다.
+- challenge는 `userId + codeHmac + failedAttempts`에 결속하고 Redis key/value 모두에 이메일·전화번호 원문을 저장하지 않는다. confirm 시 User를 재조회해 계정 삭제나 계정 유형 변경을 방어한다.
+- 아이디 찾기는 `passwordHash IS NOT NULL`인 일반 계정만 대상으로 한다. Repository가 `TRIM(name)` 후보 목록을 반환하고 Service가 저장값·입력값 전화번호를 같은 규칙으로 정규화한다. 정확히 1건일 때만 발송하며 0건 또는 복수 건은 일반 성공 응답만 반환한다.
+- rate limit과 cooldown은 사용자 조회 전에 적용해 실제 계정·가짜 요청이 동일한 제한 결과를 내게 한다.
+- rate limit 확인·증가와 cooldown 선점은 Redis에서 원자 처리한다.
+- 비밀번호 재설정은 이메일만 받아 코드를 보내고, 확인 단계에서 `requestId + code + newPassword`를 함께 받는다. 임시 비밀번호는 사용하지 않는다.
+- Redis 챌린지는 DB 트랜잭션보다 먼저 원자 소비한다. 이후 DB 작업 실패 시 코드를 되살리지 않고 새 요청을 받는다.
+- 비밀번호 저장과 전체 세션 무효화는 `UserService.resetPassword()`의 하나의 업무 단위로 처리한다. 알림 메일은 commit 이후 best effort로 발송한다.
+- 세션 무효화 실패 시 비밀번호 DB 변경을 rollback한다. 반대로 Redis 무효화 성공 뒤 DB commit이 실패하면 세션을 복구하지 않는다(기존 비밀번호 유지+로그아웃 상태가 되는 보안 우선 경계).
+- 표준 JWT `iat`는 초 단위이므로 access 무효화 비교에 쓰지 않는다. access token에 `authIssuedAtMillis`를 추가하고 `auth:access:user-revoked-after:{userId}`의 millisecond 값과 비교한다. `authIssuedAtMillis <= revokedAfterMillis`인 토큰을 거절하며 키 TTL은 access token 최대 수명+clock skew로 둔다.
+- revoked-after 키가 없을 때만 커스텀 claim 없는 배포 전 토큰을 허용한다. 키가 있는 사용자의 claim 없는 토큰은 재설정 전 토큰으로 보고 거절한다.
+- Access blacklist와 사용자 revoked-after 확인을 하나의 세션 검증 책임으로 묶는다. Redis 장애는 fail-closed이며 `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)` 공통 JSON 오류로 응답한다.
+- 사용자 단위 access revoke primitive는 비밀번호 재설정과 로그인 상태 비밀번호 변경이 함께 사용한다. 요청 토큰 하나만 blacklist하는 것은 전체 세션 무효화로 보지 않는다.
+- IP 제한은 공용 `ClientIpResolver`를 사용한다. 설정된 신뢰 프록시에서 온 요청에만 `X-Forwarded-For`를 인정하고 신뢰 프록시 목록은 환경설정으로 관리한다.
 
 ### 외부에 제공하는 기능
 
@@ -385,7 +427,7 @@ Payment.confirmedAt: null → 현재 시각
 - `Application.cardDesignId`는 관리자가 배정한다.
 - 앞면과 뒷면 템플릿이 모두 있어야 카드 발급이 가능하다.
 - 가로형은 `LANDSCAPE`, 세로형은 `PORTRAIT`로 구분한다.
-- 카드 디자인 배정 시점은 현재 미결정이므로 별도 정책 결정 전 임의 구현하지 않는다.
+- ✅ 2026-09-01 갱신: 카드 디자인 배정 시점 — 비STUDENT는 관리자가 카드 생성 요청 시 `cardDesignId`를 직접 지정한다(§2-C). STUDENT는 관리자가 지정하지 않고, `Application.schoolId + Application.orientation`에 맞는 활성 `CardDesign`을 서버가 자동 확정한다(§4-B) — 이 디자인 자체는 관리자가 학교별 템플릿 업로드 API(§4-D, `docs/api/school-card-template.md`)로 미리 등록해둔다.
 
 ### 카드 발급 규칙
 
@@ -401,12 +443,19 @@ Payment.confirmedAt: null → 현재 시각
 
 `CardType.code=STUDENT`인 경우에만 다음 값을 사용한다.
 
-- 학번
-- 학과
-- 학교 로고
-- 학교 직인
+- 학번(대학교만)
+- 학과(대학교만)
+- 생년월일 표시(고등학교만)
 
 학생증이 아닌 카드에 위 값이 들어오면 무시하지 말고 입력 오류로 거절한다.
+
+⚠️ 2026-09-01 정정: 이전엔 "학교 로고/학교 직인"도 STUDENT 전용 값으로 적혀 있었으나, 실제 정책·구현
+(§4-C)은 STUDENT 카드에 로고·직인을 아예 렌더링하지 않는다(신청 시 로고·직인 업로드 자체를 요구하지
+않고, `CardRenderPreparation.validateIssuerAssets`도 `cardType != STUDENT`일 때만 검증한다). 로고·직인은
+명예한국인증/명예시민증(단체 신청)만 쓴다.
+
+STUDENT는 다른 3종과 달리 카드 템플릿(앞/뒤 배경 이미지) 자체가 classpath 리소스가 아니라 학교별로
+S3에 저장된다 — School 모듈(§4.10) 참고.
 
 ---
 
@@ -545,6 +594,34 @@ Admin은 독립된 업무 데이터 모듈이라기보다 여러 도메인의 �
 
 ---
 
+## 4.10 School 모듈
+
+> ⚠️ 2026-09-01 신규 추가 — School 도메인(`domain/school/**`)은 4-A(학생증 학교 검색select)에서
+> 이미 구현까지 완료돼 있었지만 이 문서에 반영이 안 돼 있었다(구조 변경 시 arch.md도 갱신한다는
+> §18 원칙이 지켜지지 않았던 공백). 4-D 작업 중 School을 Card 모듈에서 참조하게 되면서 뒤늦게
+> 채워 넣는다.
+
+### 책임
+
+- 학생증 지원 대상 학교 마스터 목록(`School`)을 관리한다.
+- 신청서 작성 화면(개인·단체)의 학교 검색select에 학교 이름·유형을 제공한다.
+- 관리자 업로드 UI는 없다 — 개발/운영자가 직접 row를 등록한다(신청 접수 정책과는 별개, School row
+  자체의 CRUD는 이번 범위 밖).
+
+### 소유 데이터
+
+- `School`(`name`, `schoolType`)
+
+### 규칙
+
+- `School.schoolType`은 학교 자체의 고정 속성이라 신청마다 입력받지 않고 그대로 쓴다(`Application.schoolType`은
+  등록 학교 선택 시 서버가 이 값으로 강제 확정 — 클라이언트 위변조 무시).
+- 검색 API(`GET /api/schools/search`)는 로그인 여부와 무관한 공개 API다(`SecurityConfig` permitAll).
+- School 존재 확인처럼 단순한 조회도 다른 모듈이 `SchoolRepository`를 직접 주입하지 않고
+  `SchoolService`의 공개 메서드(`search`/`getSchoolNameOrThrow`)를 거친다(§5.4 원칙).
+
+---
+
 ## 5. 도메인 간 참조 규칙
 
 ## 5.1 기본 원칙
@@ -603,9 +680,11 @@ api → service → repository/entity
 | Application | User | 활성 사용자·약관·이메일 검증 |
 | Application | Card | 카드 종류 활성 여부 조회 (`CardType.price`는 신청 금액 자동 계산에 사용하지 않음) |
 | Application | File | 사진/ZIP/로고/직인 저장 |
+| Application | School | 등록 학교 선택 시 `schoolId`+`schoolType` 확정(§4.10, 2026-09-01 문서 반영 — 구현은 4-A에서 이미 완료) |
 | Payment | Application | 입금 확인과 신청 상태 전이 |
 | Card | Application | 발급 대상 구성원 조회·발급 결과 반영 |
 | Card | File | 템플릿 및 발급 이미지 저장 |
+| Card | School | 학생증 카드 템플릿 등록 시 School 존재 확인·이름 조회(§4-D, `SchoolCardTemplateService`) |
 | Admin | Application/Payment/Card | 관리자 유스케이스 조정 |
 | Review | User | 작성자 계정 검증(표시 이름은 요청 값 그대로 저장, `User`를 조회는 하되 이름을 복사하진 않음) |
 | Review | Card | 카드종류 존재 확인·표시명 조회(`CardType.id` 직접 참조, `Application`과 동일 패턴) |

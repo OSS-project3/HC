@@ -1423,7 +1423,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] **테스트**: `CardImageCompositorTest`에 STUDENT 성공 경로 6건(대학교/고등학교 × 가로/세로 앞면, 한자 유무별 뒷면) + 템플릿 누락 실패 케이스 추가, 기존 STUDENT 실패 테스트 2건은 이름·주석을 실제 실패 사유(레이아웃 없음이 아니라 studentOrientation/템플릿 없음)에 맞게 정정. `./gradlew.bat test`로 `domain.card`/`domain.application` 패키지 전체 통과 확인.
 - [x] **실 렌더링 육안 검증(2026-08-31, 2차)**: 프로덕션 `CardImageCompositor.composeStudentFront/Back`을 직접 호출하는 임시 검증 테스트로 4개 조합(고등학교/대학교 × 가로/세로) 앞면+뒷면을 실제 렌더링해 화면에 띄워 확인했다(검증 후 파일은 삭제, `StudentCardExploratoryRenderTest.java`와 별개). 앞면은 이전 세션에서 확정한 좌표와 동일하게 나옴(재확인). 뒷면은 1차 검증에서 세로형 두 샘플이 우연히 한자 없음 조합이라 영문명↔한자 겹침을 못 잡았던 걸 발견해, 세로+한자 조합을 별도로 추가 렌더링해 위 버그 3번을 찾아 고쳤다 — 재검증 결과 4조합 모두(이름/한자/영문명/풀이) 겹침 없이 순서대로(위→아래) 배치됨을 확인. 단, 뒷면 배경은 디자이너 원본 에셋이 아직 없어(4-D 업로드 전) 흰 캔버스로 대체 렌더링했다 — 배치 좌표만 검증된 상태이고 실제 디자인 위 육안 확인은 4-D 완료 후 필요.
 
-### 4-D. 학생증 템플릿 업로드 API (관리자, S3 기반, 2026-08-31 신규)
+### 4-D. 학생증 템플릿 업로드 API (관리자, S3 기반, 2026-08-31 정책 확정, 2026-09-01 구현 완료)
 
 **배경**: 정책 4번 변경 — 학생증은 학교마다 디자이너가 완성된 앞/뒤 이미지를 따로 주고 그 위에 데이터를 매핑하는 구조라(4-A~4-C와 다른 3종의 "공유 빈 템플릿" 구조 자체가 다름), 새 학교가 추가될 때마다 개발자가 파일을 커밋·배포하는 건 비효율적이다. 관리자가 배포 없이 학교별 템플릿을 등록·교체할 수 있어야 한다. **이번 구현은 백엔드 API 계약까지만** — 실제 관리자 화면(미리보기+파일변경 버튼)은 프론트 스코프라 이 세션에서 만들지 않고 `docs/FRONTEND_API_GAPS.md`에 계약을 남긴다.
 
@@ -1464,11 +1464,11 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] 학생증 개인/단체 신청이 등록 학교 선택(`schoolId`)과 직접입력(`schoolName`+`schoolType`) 두 경로 모두로 정상 접수되고, 등록 학교 선택 시 서버가 `schoolType`을 School 값으로 강제 확정한다(클라이언트 위변조 무시).
 - [ ] 템플릿 미등록 학교와 직접입력 학교는 신청~작명까지 진행되며, Preview/최종 생성 전에는 등록 School 연결과 `schoolId + orientation` 활성 디자인 1개가 필수다.
 - [ ] 직접입력 신청을 School에 연결한 뒤에도 카드 표시 학교명은 검토 단계에서 확정한 `Application.schoolName`을 사용하고 School.name 변경은 소급 적용되지 않는다.
-- [ ] 템플릿 등록 학교는 실제 카드 렌더링까지 성공하고, 고등학교/대학교 필드 표시 분기가 육안으로 맞다.
-- [ ] 관리자가 배포 없이 `POST .../card-template`로 학교별 템플릿을 등록·교체할 수 있고, 교체해도 이미 생성된 멤버 카드(구운 PNG)는 그대로 유지된다(새로 생성하는 것부터만 새 템플릿 적용).
-- [ ] **통합 테스트(2026-08-31 사용자 지정, 신규)**: 관리자가 실제 `POST .../card-template`로 앞/뒷면 이미지를 업로드하면, 그 등록된 `CardDesign`으로 실제 카드 Preview/Generate까지 실행해 **글자가 잘리거나 겹치거나(위 6번 발견처럼) 배경과 겹쳐 안 보이는 문제 없이** 렌더링되는 것까지 확인한다 — 단위 테스트 수준(PNG 유효성만)이 아니라 업로드→렌더링 전체 경로를 실제로 태워서 확인해야 한다.
-- [ ] Application 관련 회귀 테스트 통과.
-- [ ] `requirements.md`, `data-model.md`, `api.md`, `admin-saju.md`, TODO, CHANGELOG, HANDOFF 최종 정합성 검증.
+- [x] 템플릿 등록 학교는 실제 카드 렌더링까지 성공하고, 고등학교/대학교 필드 표시 분기가 육안으로 맞다. **✅ 2026-09-01 완료** — 아래 통합 테스트로 확인(UNIVERSITY×LANDSCAPE 조합, 학번·학과 표시 확인). 고등학교 조합은 4-C에서 이미 별도로 육안 검증됨.
+- [x] 관리자가 배포 없이 `POST .../card-template`로 학교별 템플릿을 등록·교체할 수 있고, 교체해도 이미 생성된 멤버 카드(구운 PNG)는 그대로 유지된다(새로 생성하는 것부터만 새 템플릿 적용). **✅ 2026-09-01 완료** — `SchoolCardTemplateServiceTest.uploadReplacesExistingDesignKeepingSameId`로 확인(CardDesign.id 유지, 기존 UploadFile row·S3 오브젝트 정리 확인).
+- [x] **통합 테스트(2026-08-31 사용자 지정, 신규) — ✅ 2026-09-01 완료**: `SchoolCardTemplateEndToEndTest.adminUploadedTemplateRendersRealCardWithoutGarbledText` — 실제 `SchoolCardTemplateService.upload()`(4-D API)로 실제 디자이너 템플릿(대학교·가로형, `아트보드 8 사본 13.png`)을 업로드하고, 그 `CardDesign`으로 실제 `CardPreviewService.preview()`(관리자가 실제로 호출하는 프로덕션 API)까지 실행해 렌더링 결과를 파일로 남기고 육안 확인했다. 이름·영문명·학번·학과·발급일자·띠 이미지 전부 겹침·잘림 없이 정상 표시됨(뒷면 타이틀이 진한 배경 위에서 다소 흐릿한 건 위 6번 항목에 이미 기록된 기존 이슈).
+- [x] Application 관련 회귀 테스트 통과. **✅** `domain.application`/`domain.card`/`domain.school` 전체 + 전체 스위트(800개, Redis 포함) 재실행 통과.
+- [x] `requirements.md`, `data-model.md`, `api.md`, `admin-saju.md`, TODO, CHANGELOG, HANDOFF 최종 정합성 검증. **✅** Card 도메인은 `docs/specs/`로 아직 이전 전이라 `docs/api/school-card-template.md`(신규) + `docs/api/README.md` 색인 갱신, `arch.md`(School 모듈 §4.10 신규 + 모듈 의존 매트릭스 + CardDesign/학생증 규칙 정정)로 대체.
 
 ### 4-E. 카드 렌더링 CJK 폰트 fallback (전 카드종류 공통, 2026-09-01 구현 완료)
 

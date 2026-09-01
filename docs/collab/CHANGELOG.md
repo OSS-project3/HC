@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-09-01 — Claude — `main` (4-D 학생증 템플릿 업로드 API 구현 완료)
+
+- 변경: 관리자가 학교별 학생증 카드 템플릿(앞/뒤)을 배포 없이 등록·교체하는 API 구현 — `GET/POST /api/admin/schools/{schoolId}/card-template`. `SchoolCardTemplateService`(비-transactional, S3 업로드+정리)+`SchoolCardTemplatePersistenceService`(`@Transactional`, UploadFile/CardDesign 반영) 2-서비스 분리(`CardGenerationService`와 같은 패턴 재사용, `ApplicationService.registerS3CleanupAfterTransaction`보다 이 도메인에 더 가까운 기존 선례를 따름). `SchoolCardTemplateValidator`가 PNG 시그니처+카드 비율(235:156 ±5%)+최소 해상도(장변 800px)를 검증. `CardDesign.replaceTemplates()` mutator 신규(entity가 지금까지 `deactivate()` 외 변경 메서드가 없었음). `student_card_design_seq` DB 시퀀스(`application_seq`와 동일 이유 — MAX+1 동시성 경쟁 회피)와 `card_designs_school_orientation_idx` unique 인덱스(`schema.sql`) 신규. `SchoolService.getSchoolNameOrThrow()` 추가(Card 모듈이 School 존재 확인 시 Repository를 직접 주입하지 않고 이 메서드를 거침). `ErrorCode`에 `SCHOOL_NOT_FOUND`/`CARD_TEMPLATE_INVALID_RESOLUTION` 추가(MIME 불일치는 기존 `UNSUPPORTED_FILE_TYPE` 재사용 — 착수 전 재확인으로 새 코드를 줄임). `AdminActivityLog.CARD_TEMPLATE_UPLOADED` 감사로그 상수 추가.
+- 착수 전 재확인으로 발견해 정정한 것: ① `isDefault`는 원래 `true`로 결정했다가, `GET /api/admin/card-designs` 자체를 프론트가 안 부른다는 것까지 확인돼 `false`로 재정정. ② MIME 검증은 전용 코드가 아니라 기존 `UNSUPPORTED_FILE_TYPE` 재사용으로 축소(해상도만 신규 코드). ③ "같은 schoolId+orientation 활성 디자인 1개" 불변조건의 DB 인덱스는 원래 partial unique index(`WHERE active=true`)로 설계했으나, 테스트에 쓰는 H2 2.4.240이 `CREATE INDEX ... WHERE` 구문 자체를 지원하지 않아(실측 확인) 조건 없는 일반 unique index로 변경 — STUDENT CardDesign을 비활성화하는 코드 경로가 현재 없어 실질적 영향 없음(향후 그런 경로가 생기면 재검토 필요, `schema.sql` 주석 참고).
+- arch.md 갱신(RULES.md §5 — 구조적 결정은 반영 필수): School 모듈(§4.10)이 문서에 아예 없던 걸 뒤늦게 채움(구현은 4-A에서 이미 있었음), 모듈 의존 매트릭스에 `Card→School`/`Application→School` 추가, Card 모듈의 "카드 디자인 배정 시점 미결정"·"학교 로고/직인" 서술이 실제 정책과 어긋나 있어 정정.
+- 테스트: `SchoolCardTemplateServiceTest`(9, 신규/교체/조회/검증 실패 케이스), `AdminSchoolCardTemplateControllerTest`(6, 인증/권한/multipart), `SchoolCardTemplateEndToEndTest`(1, **사용자가 명시적으로 요구한 통합 테스트** — 실제 업로드 API로 실제 디자이너 템플릿을 등록하고 그 `CardDesign`으로 실제 `CardPreviewService.preview()`까지 실행, 렌더링 결과를 파일로 남겨 육안 확인). 전체 스위트(801개, Redis 포함) 재실행 통과.
+- 파일: `domain/card/service/{SchoolCardTemplateService,SchoolCardTemplatePersistenceService,SchoolCardTemplateValidator}.java`(신규), `domain/card/dto/SchoolCardTemplateResponse.java`(신규), `api/AdminSchoolCardTemplateController.java`(신규), `domain/card/entity/CardDesign.java`, `domain/school/service/SchoolService.java`, `domain/log/entity/AdminActivityLog.java`, `common/exception/ErrorCode.java`, `schema.sql`, 테스트 3개(신규), `docs/api/school-card-template.md`(신규)+`README.md`, `arch.md`, `docs/collab/TODO.md`.
+- 사유: 학생증은 학교마다 디자이너가 완성된 앞/뒤 이미지를 따로 주는 구조라 새 학교가 추가될 때마다 개발자가 파일을 커밋·배포하는 게 비효율적 — 관리자가 배포 없이 등록·교체할 수 있어야 한다는 요구사항.
+- 관련: TODO 4-D
+
+---
+
 ## 2026-09-01 — Claude — `main` (4-E 카드 렌더링 CJK 폰트 fallback 구현 완료)
 
 - 변경: 4-C에서 발견한 한자 글리프 깨짐(KoPub 폰트가 KS X 1001 위주라 이름에 쓰이는 희귀 한자가 빠져 있음) 문제를 primary+fallback 방식으로 해결. `CardImageCompositor`의 4개 텍스트 primitive(`drawTextGeneric`/`leftEdgeXGeneric`/`drawTextAtPixelXGeneric`/`drawBackText`)에 `Font.canDisplayUpTo()` 기반 분기를 추가 — 주 폰트가 문자열 전체를 지원하면 기존 `getStringBounds` 경로 그대로(회귀 없음 보장), 못 그리는 글자가 있으면 `TextLayout`/`AttributedString` 기반 mixed-font 경로로 그 글자만 fallback 폰트(`NotoSansKR-Regular.otf`, SIL OFL, 서버 OS 폰트에 의존하지 않고 앱 리소스로 번들)로 그린다. `composeFront`/`composeBack`/`composeStudentFront`/`composeStudentBack` 등 호출부는 시그니처·호출 코드 전혀 안 바뀜(4개 primitive 내부로 완전히 캡슐화됨) — 4종 카드 전체가 공통으로 혜택받는다(STUDENT 전용 아님).

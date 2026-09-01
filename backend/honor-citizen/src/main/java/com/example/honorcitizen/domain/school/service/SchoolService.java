@@ -1,5 +1,7 @@
 package com.example.honorcitizen.domain.school.service;
 
+import com.example.honorcitizen.common.exception.CustomException;
+import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.school.dto.SchoolSearchResponse;
 import com.example.honorcitizen.domain.school.entity.School;
 import com.example.honorcitizen.domain.school.repository.SchoolRepository;
@@ -29,5 +31,15 @@ public class SchoolService {
                 ? schoolRepository.findByNameContainingIgnoreCaseOrderByNameAsc(query.trim())
                 : schoolRepository.findAllByOrderByNameAsc();
         return schools.stream().map(SchoolSearchResponse::from).toList();
+    }
+
+    // 4-D: Card 모듈(SchoolCardTemplateService)이 School 존재 확인 + 이름 조회를 하려고 SchoolRepository를
+    // 직접 주입하는 대신 이 메서드를 쓴다(arch.md 5.4 — 단순 존재 확인도 공개 서비스 또는 조회 Port를
+    // 사용한다). School Entity 자체를 도메인 밖으로 노출하지 않고 필요한 값(이름)만 반환한다.
+    @Transactional(readOnly = true)
+    public String getSchoolNameOrThrow(Long schoolId) {
+        return schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new CustomException(ErrorCode.SCHOOL_NOT_FOUND))
+                .getName();
     }
 }
