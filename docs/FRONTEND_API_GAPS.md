@@ -33,6 +33,7 @@
 | **1:1 문의(Inquiry)** | ❌ 목(localStorage), 2026-08-24 관리자 화면 UI만 손봄(여전히 mock) | ✅ 구현·`main` 반영 완료(사용자 작성 API·관리자 답변 API 둘 다) | **연동 가능(단, `privacyConsent` 필드 프론트 추가 전송 필요)** — 관리자 답변 화면(`AdminPage.tsx`)도 `api.ts` import 자체가 없어 여전히 mock (§1.3, §1.4) |
 | 관리자 신청관리(조회·상태전이·작명·카드번호) | ✅ 실 API | ✅ 구현 | **🔴 작명은 절반만 연동(2026-08-31 재확인)** — 조회·상태전이·카드번호는 정상, 인앱 작명·엑셀 작명 반영 둘 다 **성씨(surname) 미전송**이라 `completeNaming()`에서 멤버 전원 거절됨(§1.16). 통계(`GET /api/admin/stats`)는 백엔드 자체가 미구현 (§1.4) |
 | **관리자 작명 확정·카드 제작(만세력·카드디자인·카드미리보기)** | ❌ 래퍼 자체 없음 | ✅ 구현·실 API 검증 완료 | **🔴 프론트 미착수 + 정확도 버그**(2026-08-31 재확인) — 6개 API 진입점 UI 전부 없음. 그냥 안 뜨는 게 아니라 `computeMemberSaju()`가 진태양시 보정 없이 "입력 시각=KST"로 가정한 **틀릴 수 있는 결과를 정상처럼** 관리자 화면에 보여주고 있음(한국 외 출생자 다수 상정하는 서비스라 실사용 영향 큼). 필요한 `longitude` 값은 백엔드가 이미 API로 내려주고 있어 백엔드 작업 없이 프론트만 고치면 됨 (§1.15(c)) |
+| **학생증 카드 템플릿 업로드(관리자)** | ❌ 진입점 자체 없음 | ✅ 구현·통합 검증 완료(2026-09-01, 4-D) | **신규** — 학교별 학생증 카드 템플릿(앞/뒤) 등록·교체 API. 이게 없으면 STUDENT 신청 건은 위 카드디자인·카드미리보기가 항상 빈 값/실패로 막힌다 — §1.15와 함께 봐야 함 (§1.17) |
 | **신청 취소** | ⚠️ 진입점만 | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 가능** (§1.5) |
 | 공지 서버 검색 | ⚠️ 클라 검색 | ❌ keyword 파라미터 없음 | 필요 시 검색 파라미터 추가 (§1.7) |
 | 회원정보 address 수정 | ⚠️ 화면엔 없음(정책상 제거된 상태) | ❌ 미지원(확정 정책) | **갭 아님** — 조회는 이름·전화번호·이메일만, 수정도 이름·전화번호만(§1.9-a) |
@@ -252,11 +253,11 @@
 - **응답** (`ManseryeokActiveResultResponse`): `{ timezoneId, longitude, selectedOffset, utcInstant, timeAccuracy, confirmedPillars, uncertainPillars, elementCounts, tzdbVersion, calculationEngineVersion, calculatedAt }`. 활성 결과가 없으면 `404 NOT_FOUND`.
 - **프론트가 필요한 것**: `getActiveManseryeokResult(applicationId, memberId)` 래퍼. 전혀 없음.
 
-#### (e) 카드 디자인 목록 조회 — `GET /api/admin/card-designs?cardTypeId={id}&active={true|false}`
+#### (e) 카드 디자인 목록 조회 — `GET /api/admin/card-designs?cardTypeId={id}&active={true|false}&applicationId={id}`
 - **용도**: 카드 미리보기·최종 발급 전에 관리자가 카드 디자인(같은 카드종류 내 여러 후보 중 1개)을 선택한다.
 - **응답**: `ApiResponse<List<CardDesignResponse>>` — 각 항목 `{ id, designNumber: number, name: string, orientation: "LANDSCAPE"|"PORTRAIT", isDefault: boolean, active: boolean }`. `active` 쿼리파라미터 생략 시 전체(비활성 포함), `true`면 활성만.
-- **정책**: `cardTypeId`가 STUDENT(학생증)면 `UNSUPPORTED_CARD_TYPE`으로 거절 — 학생증은 학교별 커스텀 업로드 디자인 체계라 이 카탈로그 방식 자체가 적용되지 않는다(별도 설계, 아직 미착수).
-- **프론트가 필요한 것**: `listCardDesigns(cardTypeId, active?)` 래퍼 + 디자인 선택 UI(썸네일/이름/가로세로 표시). 전혀 없음.
+- **⚠️ 정정(2026-09-01) — STUDENT(학생증)도 이제 이 API로 조회된다, `UNSUPPORTED_CARD_TYPE` 거절 서술은 낡음(2026-08-30 4-B에서 이미 바뀜)**: `cardTypeId`가 STUDENT면 관리자가 여러 개 중 고르는 게 아니라, **`applicationId`(그 신청의 `schoolId`+`orientation`)로 서버가 정확히 0개 또는 1개만 자동으로 좁혀서 반환**한다 — 그 신청의 학교에 등록된 템플릿이 없으면 빈 배열(에러 아님, "아직 템플릿 미등록" 정상 상태), applicationId를 안 보내면 `INVALID_INPUT`. STUDENT 신청을 다룰 때만 `applicationId`를 추가로 실어 보내면 되고, 비학생증 카드는 지금 그대로(요청·응답 계약 무변경).
+- **프론트가 필요한 것**: `listCardDesigns(cardTypeId, active?, applicationId?)` 래퍼(STUDENT는 applicationId 필수) + 디자인 선택 UI(비학생증: 썸네일/이름/가로세로 표시 후 관리자가 선택 / STUDENT: 자동으로 정해진 1개를 그대로 보여주기만 하면 됨, 목록이 비어있으면 "아직 이 학교 템플릿이 등록 안 됨 — 관리자가 §1.17로 먼저 등록해야 함" 안내). 전혀 없음.
 
 #### (f) 저장 없는 카드 미리보기 — `POST /api/admin/applications/{applicationId}/members/{memberId}/card-preview`
 - **용도**: DB row·S3 object를 전혀 만들지 않고, 실제 저장된 신청 데이터(이름·한자·주소·카드번호·발급일자·만세력 확정 연주→띠 캐릭터)로 카드 앞/뒷면 PNG를 즉시 렌더링해 반환한다. 관리자가 최종 발급 전 눈으로 확인하는 용도.
@@ -285,6 +286,28 @@
   2. `NamingCard`(또는 그 상위)에 **성씨 입력용 텍스트 필드 신규**(한글 1~2자) — 추천 목록엔 없으니 관리자가 직접 타이핑. "이 이름 선택" 클릭 시 이 값을 `surname`으로 같이 전송.
   3. "작명 완료" 배지 조건에 성씨 존재 여부도 포함(지금은 주어진 이름만 봄) — 그래야 화면 표시와 `completeNaming()` 실제 판정이 일치한다.
   4. 단체 엑셀 경로: 서식에 성씨 열이 있는지 확인 후, 없으면 열 추가 여부부터 정책 결정 필요(이건 프론트만의 문제가 아니라 엑셀 양식+백엔드 파서까지 걸친 별도 결정 사항).
+
+### 1.17 학생증 카드 템플릿 업로드(관리자) — 백엔드 구현 완료(2026-09-01, 4-D), 프론트 진입점 자체가 없음(신규)
+
+- **배경**: 학생증(STUDENT)은 다른 3종 카드와 달리 학교마다 디자이너가 완성된 앞/뒤 이미지를 통째로 다르게 제공한다(§1.15(e)에 이미 정정해뒀듯, STUDENT는 "여러 디자인 중 관리자가 선택"이 아니라 "그 학교 템플릿이 자동으로 정해짐" 구조). 그 템플릿 자체를 관리자가 배포 없이 등록·교체하는 API가 이번에 새로 생겼다 — **이 API가 있어야 STUDENT 신청 건에서 §1.15(e)/(f)(카드 디자인 조회·미리보기)가 실제로 결과를 낼 수 있다**(템플릿이 없으면 (e)는 계속 빈 배열, (f)는 `CARD_DESIGN_NOT_FOUND`).
+- **공통 인가**: `/api/admin/**` → `hasRole("ADMIN")` + `validateAdmin()`.
+
+**조회 — 현재 등록된 템플릿**: `GET /api/admin/schools/{schoolId}/card-template?orientation=LANDSCAPE|PORTRAIT`
+- 응답(등록돼 있을 때): `{ cardDesignId, frontPreviewUrl, backPreviewUrl }`(presigned URL, 1시간 만료).
+- 응답(미등록일 때): `{ "success": true }` — **`data` 키 자체가 없다**(에러 아님, 관리자가 새 학교를 다룰 때 항상 마주치는 정상 상태). `response.data`를 읽으면 `undefined`이므로 "존재 여부"는 `if (!response.data)`로 판단하면 되고 별도 null 체크 분기가 필요 없다.
+
+**등록·교체**: `POST /api/admin/schools/{schoolId}/card-template`(multipart/form-data)
+- part: `orientation`(폼 필드, `LANDSCAPE`\|`PORTRAIT`, 필수) + `front`(file, 필수) + `back`(file, 필수) — 앞/뒤를 항상 같이 보낸다, 한쪽만 교체하는 흐름 없음.
+- 응답: GET과 동일한 DTO — 성공 시 프론트가 재조회 없이 바로 미리보기를 갱신할 수 있다.
+- 에러: `FORBIDDEN`(403, ADMIN 아님) · `SCHOOL_NOT_FOUND`(404) · `INVALID_INPUT`(400, orientation 누락) · `front`/`back` 파트 자체 누락(400) · `UNSUPPORTED_FILE_TYPE`(415, PNG 아님) · `FILE_TOO_LARGE`(413, 10MB 초과) · `CARD_TEMPLATE_INVALID_RESOLUTION`(400, 카드 비율 235:156±5% 또는 최소 해상도 800px 미달).
+
+**프론트가 필요한 것(전부 신규, 진입점 자체가 없음)**:
+1. `services/api.ts`에 `getSchoolCardTemplate(schoolId, orientation)`/`uploadSchoolCardTemplate(schoolId, orientation, front, back)` 래퍼.
+2. 관리자 화면에 학교+방향(가로/세로) 선택 UI → 위 GET으로 현재 앞/뒤 미리보기 표시(없으면 빈 박스, 에러 아님) → "파일 변경" 클릭 시 파일 2장 선택 → POST로 등록 → 성공 시 미리보기 갱신. (기존 사용자 목업: 학교구분+방향 선택 → 현재 앞/뒤 미리보기 → 파일 두 장 선택 후 등록.)
+3. 에러 메시지 매핑(`CARD_TEMPLATE_INVALID_RESOLUTION`은 "PNG 형식은 맞지만 비율/해상도가 카드 규격과 안 맞음"으로, `UNSUPPORTED_FILE_TYPE`과 구분해서 안내).
+4. 이 화면이 없으면 STUDENT 신청 건은 관리자가 카드 미리보기/발급까지 절대 진행할 수 없다(§1.15 흐름의 새 전제조건) — 우선순위 판단 시 §1.15와 묶어서 고려할 것.
+- **상세 계약**: `docs/api/school-card-template.md` 참고(요청/응답 예시, 구현 메모 포함).
+- 백엔드 검증: 서비스/컨트롤러 테스트 + **실제 업로드 API로 업로드한 템플릿이 실제 카드 미리보기 API까지 정상 렌더링되는 통합 테스트**까지 완료(`SchoolCardTemplateEndToEndTest`).
 
 ### 1.11 신청 폼이 수집하나 백엔드가 저장하지 않는 입력 (프론트 유지 · 백엔드 보강)
 프론트 화면에는 입력/표시가 있으나 백엔드 request DTO·도메인에 대응이 없어 값이 서버에 남지 않는 항목. **프론트 UI는 그대로 유지**하고 백엔드 보강 시 연결한다. 상세·조치는 `BACKEND_API_GAPS.md P1-4`.
@@ -392,6 +415,7 @@
 | 4 | "내 정보" 표시 정리 — 회원 유형 제거, 전화번호 노출 추가 | 백엔드 변경 없음(확정 정책 §1.9-a 반영). 조회: 이름·전화번호·이메일만 표시(현재 `MyPage.tsx`엔 전화번호 미표시 + 회원유형 표시 중 — 둘 다 수정 필요). 수정: 이름·전화번호만(현행 유지) | §1.9-a |
 | 5 | 관리자 통계 대시보드(`GET /api/admin/stats`) | **백엔드도 아직 없음**(공동 대기) | §1.4 |
 | 5 | 관리자 작명 확정·카드 제작(만세력·카드디자인·카드미리보기) | 백엔드 완료. 프론트는 API 바인딩 6개 + UI 신규 + **사주 계산 로직(진태양시 보정) 신규 작성**까지 필요해 다른 항목보다 작업량 큼 | §1.15 |
+| 5 | 학생증 카드 템플릿 업로드(관리자) | 백엔드 완료(2026-09-01). STUDENT 신청 건은 이게 없으면 5번 항목(카드디자인·카드미리보기)이 항상 빈 값 — 같이 진행할 것 | §1.17 |
 | 6 | 행사 회사/로고 필드, 공지 서버검색, 후기 다중이미지 | **정책 결정 대기** — 결정 후 백엔드·프론트 함께 진행 | §1.6~§1.8 |
 | 7 | 계정복구(아이디/비밀번호 찾기) | **백엔드 구현 진행 중**(정책·API 계약 확정 완료, `docs/api/auth.md` API 7·8) — 커밋·검증 후 프론트 3단계 화면(아이디 찾기)·2단계 화면(비번 재설정) 신규 필요 | §1.1-c |
 | 8 | 한국이름 조회 API 전환, 정적 마케팅 CMS화, 하이브리드 목데이터(§5) 정리 | 우선순위 낮음, 필요 시에만 | §2.2, §3, §5 |
