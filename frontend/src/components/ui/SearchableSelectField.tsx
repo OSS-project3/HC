@@ -21,6 +21,13 @@ interface SearchableSelectFieldProps {
   className?: string;
   /** Trigger box styling. Defaults to the shared form field look (.field__select). */
   triggerClassName?: string;
+  /**
+   * Fires on every keystroke in the search box (including "" when the panel opens/resets).
+   * Lets a parent that fetches `options` from a server (e.g. debounced search) know what
+   * the user is typing. Client-side filtering below still runs on whatever `options` it
+   * gets, so this is additive — no behavior change for callers that don't pass it.
+   */
+  onQueryChange?: (query: string) => void;
 }
 
 export function SearchableSelectField({
@@ -32,6 +39,7 @@ export function SearchableSelectField({
   ariaLabel,
   className,
   triggerClassName = "field__select",
+  onQueryChange,
 }: SearchableSelectFieldProps) {
   // Option labels and placeholders arrive as Korean source strings; translate at
   // render (t() is a no-op for strings that are already translated or unknown).
@@ -137,6 +145,7 @@ export function SearchableSelectField({
             onChange={(e) => {
               setQuery(e.target.value);
               setActiveIndex(0);
+              onQueryChange?.(e.target.value);
             }}
             onKeyDown={onSearchKeyDown}
           />

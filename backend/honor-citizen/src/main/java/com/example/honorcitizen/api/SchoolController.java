@@ -21,8 +21,8 @@ public class SchoolController {
 
     private final SchoolService schoolService;
 
-    // query 없이 호출하면 전체 학교를 반환한다(SchoolService.search 참고 — 프론트가 최초 1회 전체
-    // 목록을 받아 클라이언트에서 필터링하는 용도).
+    // 서버 검색 autocomplete. query가 비어있으면 빈 목록을 반환한다(SchoolService.search 참고 —
+    // 학교 수가 많아 전체 목록을 한 번에 내려주지 않는다). 결과는 최대 20건으로 제한된다.
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<SchoolSearchResponse>>> search(
             @RequestParam(required = false) String query) {

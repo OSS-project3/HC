@@ -19,3 +19,8 @@ CREATE SEQUENCE IF NOT EXISTS student_card_design_seq START WITH 1 INCREMENT BY 
 -- 시딩뿐, grep으로 확인). 그런 경로가 생기면 이 인덱스도 partial 버전으로 다시 바꿔야 한다.
 CREATE UNIQUE INDEX IF NOT EXISTS card_designs_school_orientation_idx
     ON card_designs (card_type_id, school_id, orientation);
+
+-- 고등학교 마스터 시딩(HighSchoolSeeder)의 idempotency 키. NULL은 SQL 표준상 UNIQUE 제약에서 서로
+-- 다른 값으로 취급되므로(H2·Postgres 공통) 코드가 없는 University 시드 row가 여럿이어도 안전하다.
+CREATE UNIQUE INDEX IF NOT EXISTS schools_admin_standard_code_idx
+    ON schools (admin_standard_code);

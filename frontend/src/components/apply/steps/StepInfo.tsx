@@ -44,26 +44,49 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
   const setRecipient = (patch: Partial<RecipientInfo>) =>
     update({ recipient: { ...draft.recipient, ...patch } });
 
-  // 학교 검색select — 등록 학교 수가 적을 것으로 예상돼(서버 페이지네이션 없음) isStudent일 때
-  // 전체 목록을 1회만 조회하고 SearchableSelectField에서 클라이언트 필터링한다. 직접입력으로
-  // 채워진 기존 draft(schoolName은 있고 schoolId는 없음)를 복원한 경우 직접입력 모드로 시작한다.
-  const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
+  // 학교 검색select — 대학교+고등학교를 합치면 학교 수가 약 2,800개라 더 이상 전체 목록을 한 번에
+  // 받지 않는다(백엔드 SchoolService 참고). 대신 검색어를 200~300ms debounce해 서버에 넘기고, 결과를
+  // 그대로 옵션으로 쓴다(서버가 이미 최대 20건으로 제한 + 관련도순 정렬해 반환). 직접입력으로 채워진
+  // 기존 draft(schoolName은 있고 schoolId는 없음)를 복원한 경우 직접입력 모드로 시작한다.
+  //
+  // 이미 학교가 선택된 draft를 복원할 때(schoolId 있음)는 그 학교를 initial 옵션으로 미리 채워둔다 —
+  // 그래야 사용자가 아무것도 타이핑하지 않아도 선택select 트리거에 기존 학교명이 그대로 보인다(별도
+  // API 호출 없이 draft가 이미 들고 있는 값으로 구성).
+  const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>(() =>
+    draft.applicant.schoolId != null && draft.applicant.schoolName
+      ? [
+          {
+            id: draft.applicant.schoolId,
+            name: draft.applicant.schoolName,
+            schoolType: draft.applicant.schoolLevel === "highschool" ? "HIGH_SCHOOL" : "UNIVERSITY",
+          },
+        ]
+      : [],
+  );
+  const [schoolQuery, setSchoolQuery] = useState("");
   const [manualSchoolInput, setManualSchoolInput] = useState(
     () => !!draft.applicant.schoolName && draft.applicant.schoolId == null,
   );
 
   useEffect(() => {
     if (!isStudent) return;
+    const query = schoolQuery.trim();
+    // 검색어가 비었으면(패널을 처음 열었을 때 등) 서버를 부르지 않는다 — 기존 옵션(복원된 선택 포함)을
+    // 그대로 둔다. 서버도 빈 검색어에는 빈 목록을 돌려주므로 어차피 호출할 이유가 없다.
+    if (!query) return;
     let cancelled = false;
-    api.searchSchools().then((options) => {
-      if (!cancelled) setSchoolOptions(options);
-    }).catch(() => {
-      // 목록 조회 실패해도 직접입력으로 계속 진행할 수 있으므로 별도 에러 처리는 하지 않는다.
-    });
+    const timer = setTimeout(() => {
+      api.searchSchools(query).then((options) => {
+        if (!cancelled) setSchoolOptions(options);
+      }).catch(() => {
+        // 검색 실패해도 직접입력으로 계속 진행할 수 있으므로 별도 에러 처리는 하지 않는다.
+      });
+    }, 250);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [isStudent]);
+  }, [isStudent, schoolQuery]);
 
   const schoolSelectOptions = useMemo(
     () =>
@@ -295,6 +318,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                       searchPlaceholder={t("학교명을 입력해 주세요")}
                       value={draft.applicant.schoolId != null ? String(draft.applicant.schoolId) : ""}
                       onChange={selectSchool}
+                      onQueryChange={setSchoolQuery}
                       triggerClassName={`field__select${hasError("organizationName") ? " field__select--invalid" : ""}`}
                       options={schoolSelectOptions}
                     />
@@ -544,6 +568,7 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                       searchPlaceholder={t("학교명을 입력해 주세요")}
                       value={draft.applicant.schoolId != null ? String(draft.applicant.schoolId) : ""}
                       onChange={selectSchool}
+                      onQueryChange={setSchoolQuery}
                       triggerClassName={`field__select${hasError("schoolName") ? " field__select--invalid" : ""}`}
                       options={schoolSelectOptions}
                     />
