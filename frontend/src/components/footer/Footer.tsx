@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import clsx from "clsx";
 import { Logo } from "../brand/Logo";
 import { footerNav } from "../../config/navigation";
-import { companyInfo } from "../../config/company";
+import { companyInfo, footerAddress, footerRepresentativeTitle } from "../../config/company";
 import { policyDocuments, type PolicyType } from "../../data/policies";
 import { Modal } from "../ui/Modal";
 import { SocialLinks } from "./SocialLinks";
@@ -72,14 +72,14 @@ export function Footer() {
           </div>
 
           <address className="footer__info">
-            <p>{t(companyInfo.address)}</p>
+            <p>{t(footerAddress)}</p>
             <p>
               <span>{t("대표전화")} {companyInfo.phone}</span>
               <i aria-hidden="true">|</i>
               <span>{t("팩스")} {companyInfo.fax}</span>
               <i aria-hidden="true">|</i>
               <span>
-                {t(companyInfo.representativeTitle)} {t(companyInfo.representative)}
+                {t(footerRepresentativeTitle)} {t(companyInfo.representative)}
               </span>
               <i aria-hidden="true">|</i>
               <span>{t("사업자등록번호")} {companyInfo.registrationNumber}</span>

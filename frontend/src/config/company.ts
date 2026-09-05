@@ -30,6 +30,13 @@ const associationNameKo =
   companyInfo.nameKo[0] + "사" + companyInfo.nameKo.slice(2);
 export const siteNameKo = [companyInfo.nameKo, associationNameKo][+isAssociationSite];
 
+/** 사단법인 페이지(hanse.kr)에서만 다르게 표시하는 값 — 푸터 전용. */
+const associationAddress = "전주시 완산구 기린대로 192 (예원빌딩 9층)";
+const associationRepresentativeTitle = "이사장";
+export const footerAddress = [companyInfo.address, associationAddress][+isAssociationSite];
+export const footerRepresentativeTitle =
+  [companyInfo.representativeTitle, associationRepresentativeTitle][+isAssociationSite];
+
 /** Bank / deposit details shown on the application completion step. */
 export const bankInfo = {
   bankName: "농협은행",
