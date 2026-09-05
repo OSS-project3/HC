@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.board.service;
 
+import com.example.honorcitizen.common.enums.BoardSearchType;
 import com.example.honorcitizen.common.enums.BoardType;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
@@ -122,7 +123,7 @@ class BoardServiceTest {
         boardRepository.save(Board.create(BoardType.NOTICE, "공지2", "내용2", ADMIN_USER_ID));
         boardRepository.save(Board.create(BoardType.FAQ, "질문1", "답변1", ADMIN_USER_ID));
 
-        PageResponse<BoardListItemResponse> result = boardService.list(BoardType.NOTICE, 0, 9);
+        PageResponse<BoardListItemResponse> result = boardService.list(BoardType.NOTICE, null, null, 0, 9);
 
         assertThat(result.getTotalElements()).isEqualTo(2);
         assertThat(result.getContent()).extracting(BoardListItemResponse::getTitle)
@@ -131,25 +132,86 @@ class BoardServiceTest {
 
     @Test
     void listRejectsInvalidPagingParams() {
-        assertThatThrownBy(() -> boardService.list(BoardType.NOTICE, -1, 9))
+        assertThatThrownBy(() -> boardService.list(BoardType.NOTICE, null, null, -1, 9))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        assertThatThrownBy(() -> boardService.list(BoardType.NOTICE, 0, 0))
+        assertThatThrownBy(() -> boardService.list(BoardType.NOTICE, null, null, 0, 0))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        assertThatThrownBy(() -> boardService.list(BoardType.NOTICE, 0, 101))
+        assertThatThrownBy(() -> boardService.list(BoardType.NOTICE, null, null, 0, 101))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        assertThatThrownBy(() -> boardService.list(null, 0, 9))
+        assertThatThrownBy(() -> boardService.list(null, null, null, 0, 9))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    // 공지 서버 검색(2026-09-05 신규) — ReviewSpecifications 패턴 재사용. Board는 authorDisplayName이
+    // 없어 title/content 두 컬럼만 대상이다(BoardSearchType 참고).
+    @Test
+    void listFiltersByTitleKeywordOnly() {
+        boardRepository.save(Board.create(BoardType.NOTICE, "여름방학 휴무 안내", "본문에는 다른 단어만 있습니다", ADMIN_USER_ID));
+        boardRepository.save(Board.create(BoardType.NOTICE, "정기 점검 안내", "여름방학이라는 단어는 본문에도 없습니다", ADMIN_USER_ID));
+
+        PageResponse<BoardListItemResponse> result =
+                boardService.list(BoardType.NOTICE, BoardSearchType.TITLE, "여름방학", 0, 9);
+
+        assertThat(result.getContent()).extracting(BoardListItemResponse::getTitle)
+                .containsExactly("여름방학 휴무 안내");
+    }
+
+    @Test
+    void listFiltersByContentKeywordOnly() {
+        boardRepository.save(Board.create(BoardType.NOTICE, "공지1", "여름방학 휴무 안내입니다", ADMIN_USER_ID));
+        boardRepository.save(Board.create(BoardType.NOTICE, "여름방학 공지2", "다른 내용입니다", ADMIN_USER_ID));
+
+        PageResponse<BoardListItemResponse> result =
+                boardService.list(BoardType.NOTICE, BoardSearchType.CONTENT, "여름방학", 0, 9);
+
+        assertThat(result.getContent()).extracting(BoardListItemResponse::getTitle)
+                .containsExactly("공지1");
+    }
+
+    @Test
+    void listWithoutSearchTypeSearchesBothTitleAndContent() {
+        boardRepository.save(Board.create(BoardType.NOTICE, "여름방학 공지", "내용1", ADMIN_USER_ID));
+        boardRepository.save(Board.create(BoardType.NOTICE, "공지2", "여름방학 관련 내용", ADMIN_USER_ID));
+        boardRepository.save(Board.create(BoardType.NOTICE, "무관한 공지3", "무관한 내용3", ADMIN_USER_ID));
+
+        PageResponse<BoardListItemResponse> result =
+                boardService.list(BoardType.NOTICE, null, "여름방학", 0, 9);
+
+        assertThat(result.getContent()).extracting(BoardListItemResponse::getTitle)
+                .containsExactlyInAnyOrder("여름방학 공지", "공지2");
+    }
+
+    @Test
+    void listSearchDoesNotCrossBoardTypeBoundary() {
+        boardRepository.save(Board.create(BoardType.NOTICE, "여름방학 공지", "내용", ADMIN_USER_ID));
+        boardRepository.save(Board.create(BoardType.FAQ, "여름방학 질문", "답변", ADMIN_USER_ID));
+
+        PageResponse<BoardListItemResponse> result =
+                boardService.list(BoardType.NOTICE, null, "여름방학", 0, 9);
+
+        assertThat(result.getContent()).extracting(BoardListItemResponse::getTitle)
+                .containsExactly("여름방학 공지");
+    }
+
+    @Test
+    void listWithBlankKeywordReturnsAllInType() {
+        boardRepository.save(Board.create(BoardType.NOTICE, "공지1", "내용1", ADMIN_USER_ID));
+        boardRepository.save(Board.create(BoardType.NOTICE, "공지2", "내용2", ADMIN_USER_ID));
+
+        PageResponse<BoardListItemResponse> result = boardService.list(BoardType.NOTICE, BoardSearchType.TITLE, " ", 0, 9);
+
+        assertThat(result.getTotalElements()).isEqualTo(2);
     }
 
     @Test

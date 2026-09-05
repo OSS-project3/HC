@@ -62,6 +62,21 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
     }
 
+    // 공지 서버 검색 HTTP 배선 확인 — 검색 로직 자체는 BoardServiceTest가 커버.
+    @Test
+    void listAppliesKeywordAndSearchTypeQueryParams() throws Exception {
+        boardRepository.save(Board.create(BoardType.NOTICE, "여름방학 휴무 안내", "본문 내용", ADMIN_USER_ID));
+        boardRepository.save(Board.create(BoardType.NOTICE, "정기 점검 안내", "여기엔 여름방학이 없습니다", ADMIN_USER_ID));
+
+        mockMvc.perform(get("/api/boards")
+                        .param("type", "NOTICE")
+                        .param("searchType", "TITLE")
+                        .param("keyword", "여름방학"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].title").value("여름방학 휴무 안내"));
+    }
+
     @Test
     void detailSucceedsWithoutAuthentication() throws Exception {
         Board board = boardRepository.save(Board.create(BoardType.FAQ, "질문", "답변", ADMIN_USER_ID));

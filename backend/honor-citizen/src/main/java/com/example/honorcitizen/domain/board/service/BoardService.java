@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.board.service;
 
+import com.example.honorcitizen.common.enums.BoardSearchType;
 import com.example.honorcitizen.common.enums.BoardType;
 import com.example.honorcitizen.common.enums.UploadFileType;
 import com.example.honorcitizen.common.exception.CustomException;
@@ -24,6 +25,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -53,15 +55,21 @@ public class BoardService {
     private final StorageService storageService;
 
     @Transactional(readOnly = true)
-    public PageResponse<BoardListItemResponse> list(BoardType type, int page, int size) {
+    public PageResponse<BoardListItemResponse> list(BoardType type, BoardSearchType searchType, String keyword,
+            int page, int size) {
         if (type == null || page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
+        // 정책(2026-09-05): NOTICE/FAQ 통합검색은 지원하지 않는다 — type은 위에서 이미 필수로 강제했으므로
+        // 검색어는 항상 그 type 안에서만 매칭된다.
+        Specification<Board> spec = Specification
+                .where(BoardSpecifications.boardType(type))
+                .and(BoardSpecifications.keyword(searchType, keyword));
         // createdAt만으로는 동시 등록 시 밀리초 단위로 값이 같아질 수 있어 id를 2차 정렬키로 더한다(Review와 동일 이유).
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        Page<Board> boards = boardRepository.findByBoardType(type, pageable);
+        Page<Board> boards = boardRepository.findAll(spec, pageable);
         return PageResponse.from(boards, BoardListItemResponse::from);
     }
 
