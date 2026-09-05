@@ -10,10 +10,14 @@ import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
 import com.example.honorcitizen.domain.inquiry.entity.Inquiry;
 import com.example.honorcitizen.domain.inquiry.repository.InquiryRepository;
 import com.example.honorcitizen.domain.stats.dto.AdminStatsResponse;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
 
@@ -25,6 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class AdminStatsServiceTest {
 
+    private static final Long ADMIN_USER_ID = 1L;
+
     @Autowired
     private AdminStatsService adminStatsService;
     @Autowired
@@ -33,6 +39,8 @@ class AdminStatsServiceTest {
     private CardTypeRepository cardTypeRepository;
     @Autowired
     private InquiryRepository inquiryRepository;
+    @MockitoBean
+    private AdminAuthorizationService adminAuthorizationService;
 
     private CardType cardType;
 
@@ -67,7 +75,7 @@ class AdminStatsServiceTest {
         saveIndividual("APP-2026-STAT002");
         saveGroup("APP-2026-STAT003");
 
-        AdminStatsResponse stats = adminStatsService.getStats();
+        AdminStatsResponse stats = adminStatsService.getStats(ADMIN_USER_ID);
 
         assertThat(stats.getTotalApplications()).isEqualTo(3);
         assertThat(stats.getIndividualApplications()).isEqualTo(2);
@@ -81,7 +89,7 @@ class AdminStatsServiceTest {
         }
         saveGroup("APP-2026-STAT20000");
 
-        AdminStatsResponse stats = adminStatsService.getStats();
+        AdminStatsResponse stats = adminStatsService.getStats(ADMIN_USER_ID);
 
         assertThat(stats.getTotalApplications()).isEqualTo(106);
         assertThat(stats.getIndividualApplications()).isEqualTo(105);
@@ -96,7 +104,7 @@ class AdminStatsServiceTest {
         answered.answer("답변입니다");
         inquiryRepository.save(answered);
 
-        AdminStatsResponse stats = adminStatsService.getStats();
+        AdminStatsResponse stats = adminStatsService.getStats(ADMIN_USER_ID);
 
         assertThat(stats.getTotalInquiries()).isEqualTo(3);
         assertThat(stats.getPendingInquiries()).isEqualTo(2);
@@ -105,7 +113,7 @@ class AdminStatsServiceTest {
 
     @Test
     void returnsAllZerosWhenNoDataExists() {
-        AdminStatsResponse stats = adminStatsService.getStats();
+        AdminStatsResponse stats = adminStatsService.getStats(ADMIN_USER_ID);
 
         assertThat(stats.getTotalApplications()).isZero();
         assertThat(stats.getIndividualApplications()).isZero();

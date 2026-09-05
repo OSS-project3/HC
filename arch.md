@@ -519,6 +519,7 @@ Admin은 독립된 업무 데이터 모듈이라기보다 여러 도메인의 �
 ### 규칙
 
 - `/api/admin/**`는 `ADMIN` 역할만 접근할 수 있다.
+- 관리자 인가는 2중 경계로 적용한다. `SecurityConfig`가 `/api/admin/**`를 1차 차단하고, 공개 관리자 Service 메서드는 `AdminAuthorizationService.requireAdmin(adminId)`를 가장 먼저 호출해 내부 직접 호출도 방어한다.
 - Admin Controller가 Application Entity를 직접 수정하지 않는다.
 - 입금 확인은 Payment/Application 서비스를 통해 수행한다.
 - 작명은 ApplicationMember의 공개된 작명 유스케이스를 통해 수행한다.
@@ -568,7 +569,7 @@ Admin은 독립된 업무 데이터 모듈이라기보다 여러 도메인의 �
 
 - Review와 달리 작성자 개념이 공개 응답에 없다 — `canEdit`/`canDelete` 같은 소유권 판단 필드 자체가 없다(프론트에 작성자 표시 UI가 없음, `data-model.md` §5.4).
 - `BoardAttachment`는 `UploadFile`을 직접 참조하지 않고 join 엔티티를 거친다 — `docs/api/upload-file.md`의 "`UploadFile`은 아무것도 참조하지 않는 공용 메타데이터 테이블" 원칙 때문(Review의 구 `ReviewImage` 설계와 동일 이유).
-- 관리자 CRUD 권한은 리소스 소유권이 아니라 "관리자냐 아니냐"만으로 결정되므로, Review의 `canEdit`/`canDelete`(서비스 레벨 판단)와 달리 `/api/admin/**` → `hasRole("ADMIN")` 라우트 레벨 강제(`SecurityConfig`) 하나로 충분하다. 컨트롤러·서비스에는 별도 권한 분기 코드가 없다. `arch.md` §4.6에 이미 있던 `/api/admin/**` 원칙이 실제 `SecurityConfig`에는 반영돼 있지 않던 공백을 이번 Board 구현에서 메웠다(이 프로젝트의 첫 관리자 전용 쓰기 API).
+- 관리자 CRUD는 `/api/admin/**`의 `SecurityConfig` 1차 검증과 `BoardService`의 `AdminAuthorizationService` 2차 검증을 모두 적용한다. 리소스 소유권 분기는 없지만 Service 직접 호출 우회를 막기 위해 관리자 역할은 재검증한다.
 - NOTICE 첨부파일의 교체/추가/삭제 흐름(수정 API에서)은 아직 미확정 — `docs/specs/board/data-model.md` §6 참고. 이번 패스는 QnA(FAQ) 기준 CRUD 골격만 확정했고, 수정 API는 boardType/title/content만 재제출한다(첨부파일은 생성 시에만 다룬다).
 
 ## 4.9 Event 모듈
@@ -589,7 +590,7 @@ Admin은 독립된 업무 데이터 모듈이라기보다 여러 도메인의 �
 ### 규칙
 
 - `EventImage`에는 "대표 이미지" 플래그를 두지 않는다 — `EventPost.thumbnail_image_path`가 대표 이미지의 유일한 소스이고, 프론트가 상세 화면에서 `[썸네일, ...갤러리]`를 직접 이어붙이는 구조라 서버가 대표 여부를 별도로 추적할 이유가 없다(`docs/specs/events/data-model.md` §2).
-- 관리자 CRUD 권한은 Board와 동일하게 라우트 레벨(`/api/admin/**` → `hasRole("ADMIN")`) 강제 하나로 충분하다 — Board 구현 때 이미 추가된 규칙이라 `EventAdminController`는 `SecurityConfig` 변경 없이 자동 적용된다.
+- 관리자 CRUD는 Board와 동일하게 라우트 레벨(`/api/admin/**` → `hasRole("ADMIN")`) 1차 검증과 `EventService`의 공통 관리자 인가 2차 검증을 적용한다.
 - 관리자 전용 전체 목록 조회(`GET /api/admin/events`, `visible` 무관)는 필요성은 인정하나 이번 패스에서 구현하지 않는다 — 관리자는 v1에서 생성 직후 응답의 `id`로만 수정·삭제할 수 있다.
 
 ---

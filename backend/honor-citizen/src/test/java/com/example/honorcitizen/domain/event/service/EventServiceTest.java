@@ -16,6 +16,8 @@ import com.example.honorcitizen.domain.event.entity.EventPost;
 import com.example.honorcitizen.domain.event.repository.EventImageRepository;
 import com.example.honorcitizen.domain.event.repository.EventPostRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +39,8 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 class EventServiceTest {
 
+    private static final Long ADMIN_USER_ID = 1L;
+
     @Autowired
     private EventService eventService;
     @Autowired
@@ -46,6 +50,8 @@ class EventServiceTest {
 
     @MockitoBean
     private StorageService storageService;
+    @MockitoBean
+    private AdminAuthorizationService adminAuthorizationService;
 
     @BeforeEach
     void setUp() {
@@ -86,7 +92,7 @@ class EventServiceTest {
 
     @Test
     void createsEventWithThumbnailAndImages() {
-        EventCreateResponse response = eventService.create(
+        EventCreateResponse response = eventService.create(ADMIN_USER_ID,
                 request(EventType.BOOTH), imageFile("thumb.webp"), null, List.of(imageFile("a.webp"), imageFile("b.webp")));
 
         EventPost eventPost = eventPostRepository.findById(response.getId()).orElseThrow();
@@ -102,7 +108,7 @@ class EventServiceTest {
 
     @Test
     void createsEventWithoutFiles() {
-        EventCreateResponse response = eventService.create(request(EventType.BOOTH), null, null, List.of());
+        EventCreateResponse response = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), null, null, List.of());
 
         EventPost eventPost = eventPostRepository.findById(response.getId()).orElseThrow();
         assertThat(eventPost.getThumbnailImagePath()).isNull();
@@ -111,7 +117,7 @@ class EventServiceTest {
 
     @Test
     void createsCollaborationEventWithCompanyNameAndLogo() {
-        EventCreateResponse response = eventService.create(
+        EventCreateResponse response = eventService.create(ADMIN_USER_ID,
                 request(EventType.COLLABORATION, "OO기업"), null, imageFile("logo.webp"), List.of());
 
         EventPost eventPost = eventPostRepository.findById(response.getId()).orElseThrow();
@@ -121,7 +127,7 @@ class EventServiceTest {
 
     @Test
     void createRejectsCompanyNameForBoothBeforeUploadingAnything() {
-        assertThatThrownBy(() -> eventService.create(request(EventType.BOOTH, "OO기업"), null, null, List.of()))
+        assertThatThrownBy(() -> eventService.create(ADMIN_USER_ID, request(EventType.BOOTH, "OO기업"), null, null, List.of()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -131,7 +137,7 @@ class EventServiceTest {
 
     @Test
     void createRejectsLogoForBoothBeforeUploadingAnything() {
-        assertThatThrownBy(() -> eventService.create(request(EventType.BOOTH), null, imageFile("logo.webp"), List.of()))
+        assertThatThrownBy(() -> eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), null, imageFile("logo.webp"), List.of()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -145,7 +151,7 @@ class EventServiceTest {
                 .mapToObj(i -> imageFile(i + ".webp"))
                 .toList();
 
-        assertThatThrownBy(() -> eventService.create(request(EventType.BOOTH), null, null, List.copyOf(files)))
+        assertThatThrownBy(() -> eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), null, null, List.copyOf(files)))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -198,7 +204,7 @@ class EventServiceTest {
 
     @Test
     void detailReturnsThumbnailAndImages() {
-        EventCreateResponse created = eventService.create(
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID,
                 request(EventType.BOOTH), imageFile("thumb.webp"), null, List.of(imageFile("a.webp")));
 
         EventDetailResponse detail = eventService.detail(created.getId());
@@ -233,7 +239,7 @@ class EventServiceTest {
         savePost(EventType.BOOTH, "공개", null, "2026. 01", true, null);
         savePost(EventType.BOOTH, "비공개", null, "2026. 02", false, null);
 
-        PageResponse<EventAdminListItemResponse> result = eventService.listForAdmin(EventType.BOOTH, null, 0, 10);
+        PageResponse<EventAdminListItemResponse> result = eventService.listForAdmin(ADMIN_USER_ID, EventType.BOOTH, null, 0, 10);
 
         assertThat(result.getTotalElements()).isEqualTo(2);
     }
@@ -243,7 +249,7 @@ class EventServiceTest {
         savePost(EventType.BOOTH, "공개", null, "2026. 01", true, null);
         savePost(EventType.BOOTH, "비공개", null, "2026. 02", false, null);
 
-        PageResponse<EventAdminListItemResponse> result = eventService.listForAdmin(null, false, 0, 10);
+        PageResponse<EventAdminListItemResponse> result = eventService.listForAdmin(ADMIN_USER_ID, null, false, 0, 10);
 
         assertThat(result.getTotalElements()).isEqualTo(1);
         assertThat(result.getContent().get(0).getTitle()).isEqualTo("비공개");
@@ -254,7 +260,7 @@ class EventServiceTest {
         savePost(EventType.BOOTH, "부스", null, "2026. 01", true, null);
         savePost(EventType.COLLABORATION, "협업(숨김)", null, "2026. 02", false, null);
 
-        PageResponse<EventAdminListItemResponse> result = eventService.listForAdmin(null, null, 0, 10);
+        PageResponse<EventAdminListItemResponse> result = eventService.listForAdmin(ADMIN_USER_ID, null, null, 0, 10);
 
         assertThat(result.getTotalElements()).isEqualTo(2);
     }
@@ -263,7 +269,7 @@ class EventServiceTest {
     void detailForAdminReturnsHiddenPost() {
         EventPost hidden = savePost(EventType.BOOTH, "비공개", null, "2026. 01", false, null);
 
-        EventAdminDetailResponse detail = eventService.detailForAdmin(hidden.getId());
+        EventAdminDetailResponse detail = eventService.detailForAdmin(ADMIN_USER_ID, hidden.getId());
 
         assertThat(detail.getTitle()).isEqualTo("비공개");
         assertThat(detail.isVisible()).isFalse();
@@ -275,7 +281,7 @@ class EventServiceTest {
     void updateOverwritesFields() {
         EventPost eventPost = savePost(EventType.BOOTH, "원래 제목", null, "2026. 01", true, null);
 
-        eventService.update(eventPost.getId(), new EventUpdateRequest(EventType.COLLABORATION, "새 제목",
+        eventService.update(ADMIN_USER_ID, eventPost.getId(), new EventUpdateRequest(EventType.COLLABORATION, "새 제목",
                 LocalDate.of(2026, 5, 1), "2026. 05", "새 장소", "새 주최", "새 카드", "새 내용",
                 "OO기업", true, false, null, false, 3), null, null, null);
 
@@ -295,11 +301,11 @@ class EventServiceTest {
 
     @Test
     void updateReplacesThumbnailAndDeletesOldAfterCommit() {
-        EventCreateResponse created = eventService.create(request(EventType.BOOTH), imageFile("old.webp"), null, List.of());
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), imageFile("old.webp"), null, List.of());
         EventPost before = eventPostRepository.findById(created.getId()).orElseThrow();
         String oldPath = before.getThumbnailImagePath();
 
-        eventService.update(created.getId(), simpleUpdateRequest(EventType.BOOTH, null, null, null, null),
+        eventService.update(ADMIN_USER_ID, created.getId(), simpleUpdateRequest(EventType.BOOTH, null, null, null, null),
                 imageFile("new.webp"), null, null);
 
         EventPost after = eventPostRepository.findById(created.getId()).orElseThrow();
@@ -309,11 +315,11 @@ class EventServiceTest {
 
     @Test
     void updateRemoveThumbnailClearsPathAndDeletesOldAfterCommit() {
-        EventCreateResponse created = eventService.create(request(EventType.BOOTH), imageFile("old.webp"), null, List.of());
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), imageFile("old.webp"), null, List.of());
         EventPost before = eventPostRepository.findById(created.getId()).orElseThrow();
         String oldPath = before.getThumbnailImagePath();
 
-        eventService.update(created.getId(), simpleUpdateRequest(EventType.BOOTH, null, null, true, null),
+        eventService.update(ADMIN_USER_ID, created.getId(), simpleUpdateRequest(EventType.BOOTH, null, null, true, null),
                 null, null, null);
 
         EventPost after = eventPostRepository.findById(created.getId()).orElseThrow();
@@ -323,9 +329,9 @@ class EventServiceTest {
 
     @Test
     void updateRejectsRemoveThumbnailWithNewThumbnailTogether() {
-        EventCreateResponse created = eventService.create(request(EventType.BOOTH), imageFile("old.webp"), null, List.of());
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), imageFile("old.webp"), null, List.of());
 
-        assertThatThrownBy(() -> eventService.update(created.getId(),
+        assertThatThrownBy(() -> eventService.update(ADMIN_USER_ID, created.getId(),
                 simpleUpdateRequest(EventType.BOOTH, null, null, true, null), imageFile("new.webp"), null, null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -336,7 +342,7 @@ class EventServiceTest {
     void updateNotFoundThrows() {
         EventUpdateRequest request = simpleUpdateRequest(EventType.BOOTH, null, null, null, null);
 
-        assertThatThrownBy(() -> eventService.update(999L, request, null, null, null))
+        assertThatThrownBy(() -> eventService.update(ADMIN_USER_ID, 999L, request, null, null, null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.EVENT_NOT_FOUND);
@@ -346,11 +352,11 @@ class EventServiceTest {
 
     @Test
     void updateReplacesLogoAndDeletesOldAfterCommit() {
-        EventCreateResponse created = eventService.create(
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID,
                 request(EventType.COLLABORATION, "OO기업"), null, imageFile("old-logo.webp"), List.of());
         String oldLogoPath = eventPostRepository.findById(created.getId()).orElseThrow().getLogoImagePath();
 
-        eventService.update(created.getId(), simpleUpdateRequest(EventType.COLLABORATION, "OO기업", null, null, null),
+        eventService.update(ADMIN_USER_ID, created.getId(), simpleUpdateRequest(EventType.COLLABORATION, "OO기업", null, null, null),
                 null, imageFile("new-logo.webp"), null);
 
         EventPost after = eventPostRepository.findById(created.getId()).orElseThrow();
@@ -362,7 +368,7 @@ class EventServiceTest {
     void updateRejectsCompanyNameForBooth() {
         EventPost eventPost = savePost(EventType.BOOTH, "제목", null, "2026. 01", true, null);
 
-        assertThatThrownBy(() -> eventService.update(eventPost.getId(),
+        assertThatThrownBy(() -> eventService.update(ADMIN_USER_ID, eventPost.getId(),
                 simpleUpdateRequest(EventType.BOOTH, "OO기업", null, null, null), null, null, null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -373,7 +379,7 @@ class EventServiceTest {
     void updateRejectsNewLogoForBooth() {
         EventPost eventPost = savePost(EventType.BOOTH, "제목", null, "2026. 01", true, null);
 
-        assertThatThrownBy(() -> eventService.update(eventPost.getId(),
+        assertThatThrownBy(() -> eventService.update(ADMIN_USER_ID, eventPost.getId(),
                 simpleUpdateRequest(EventType.BOOTH, null, null, null, null), null, imageFile("logo.webp"), null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -382,11 +388,11 @@ class EventServiceTest {
 
     @Test
     void updateRejectsCollaborationToBoothTransitionWithoutRemovingLogo() {
-        EventCreateResponse created = eventService.create(
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID,
                 request(EventType.COLLABORATION, "OO기업"), null, imageFile("logo.webp"), List.of());
 
         // BOOTH로 바꾸면서 companyName은 지웠지만 removeLogo를 안 보냄 — 기존 로고가 남아있어 거절돼야 한다.
-        assertThatThrownBy(() -> eventService.update(created.getId(),
+        assertThatThrownBy(() -> eventService.update(ADMIN_USER_ID, created.getId(),
                 simpleUpdateRequest(EventType.BOOTH, null, null, null, null), null, null, null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -395,10 +401,10 @@ class EventServiceTest {
 
     @Test
     void updateAllowsCollaborationToBoothTransitionWhenLogoRemoved() {
-        EventCreateResponse created = eventService.create(
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID,
                 request(EventType.COLLABORATION, "OO기업"), null, imageFile("logo.webp"), List.of());
 
-        eventService.update(created.getId(), simpleUpdateRequest(EventType.BOOTH, null, true, null, null),
+        eventService.update(ADMIN_USER_ID, created.getId(), simpleUpdateRequest(EventType.BOOTH, null, true, null, null),
                 null, null, null);
 
         EventPost after = eventPostRepository.findById(created.getId()).orElseThrow();
@@ -411,10 +417,10 @@ class EventServiceTest {
 
     @Test
     void updateOmittingKeepImageIdsKeepsExistingGallery() {
-        EventCreateResponse created = eventService.create(request(EventType.BOOTH), null, null,
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), null, null,
                 List.of(imageFile("a.webp"), imageFile("b.webp")));
 
-        eventService.update(created.getId(), simpleUpdateRequest(EventType.BOOTH, null, null, null, null),
+        eventService.update(ADMIN_USER_ID, created.getId(), simpleUpdateRequest(EventType.BOOTH, null, null, null, null),
                 null, null, null);
 
         List<EventImage> images = eventImageRepository.findByEventPostIdOrderByDisplayOrderAsc(created.getId());
@@ -423,12 +429,12 @@ class EventServiceTest {
 
     @Test
     void updateWithEmptyKeepImageIdsDeletesEntireGallery() {
-        EventCreateResponse created = eventService.create(request(EventType.BOOTH), null, null,
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), null, null,
                 List.of(imageFile("a.webp"), imageFile("b.webp")));
         List<EventImage> before = eventImageRepository.findByEventPostIdOrderByDisplayOrderAsc(created.getId());
         List<String> oldKeys = before.stream().map(EventImage::getImagePath).toList();
 
-        eventService.update(created.getId(), simpleUpdateRequest(EventType.BOOTH, null, null, null, List.of()),
+        eventService.update(ADMIN_USER_ID, created.getId(), simpleUpdateRequest(EventType.BOOTH, null, null, null, List.of()),
                 null, null, null);
 
         assertThat(eventImageRepository.findByEventPostIdOrderByDisplayOrderAsc(created.getId())).isEmpty();
@@ -437,14 +443,14 @@ class EventServiceTest {
 
     @Test
     void updateReordersKeptImagesAndAppendsNewOnes() {
-        EventCreateResponse created = eventService.create(request(EventType.BOOTH), null, null,
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), null, null,
                 List.of(imageFile("a.webp"), imageFile("b.webp")));
         List<EventImage> before = eventImageRepository.findByEventPostIdOrderByDisplayOrderAsc(created.getId());
         Long firstId = before.get(0).getId();
         Long secondId = before.get(1).getId();
 
         // 순서를 뒤집어서 유지 + 신규 이미지 1장 추가.
-        eventService.update(created.getId(),
+        eventService.update(ADMIN_USER_ID, created.getId(),
                 simpleUpdateRequest(EventType.BOOTH, null, null, null, List.of(secondId, firstId)),
                 null, null, List.of(imageFile("c.webp")));
 
@@ -457,11 +463,11 @@ class EventServiceTest {
 
     @Test
     void updateRejectsKeepImageIdsFromAnotherEvent() {
-        EventCreateResponse created = eventService.create(request(EventType.BOOTH), null, null, List.of(imageFile("a.webp")));
-        EventCreateResponse otherEvent = eventService.create(request(EventType.BOOTH), null, null, List.of(imageFile("x.webp")));
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), null, null, List.of(imageFile("a.webp")));
+        EventCreateResponse otherEvent = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), null, null, List.of(imageFile("x.webp")));
         Long foreignImageId = eventImageRepository.findByEventPostIdOrderByDisplayOrderAsc(otherEvent.getId()).get(0).getId();
 
-        assertThatThrownBy(() -> eventService.update(created.getId(),
+        assertThatThrownBy(() -> eventService.update(ADMIN_USER_ID, created.getId(),
                 simpleUpdateRequest(EventType.BOOTH, null, null, null, List.of(foreignImageId)), null, null, null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -473,11 +479,11 @@ class EventServiceTest {
         List<MockMultipartFile> nineFiles = java.util.stream.IntStream.range(0, 9)
                 .mapToObj(i -> imageFile(i + ".webp"))
                 .toList();
-        EventCreateResponse created = eventService.create(request(EventType.BOOTH), null, null, List.copyOf(nineFiles));
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID, request(EventType.BOOTH), null, null, List.copyOf(nineFiles));
         List<Long> keepAllIds = eventImageRepository.findByEventPostIdOrderByDisplayOrderAsc(created.getId())
                 .stream().map(EventImage::getId).toList();
 
-        assertThatThrownBy(() -> eventService.update(created.getId(),
+        assertThatThrownBy(() -> eventService.update(ADMIN_USER_ID, created.getId(),
                 simpleUpdateRequest(EventType.BOOTH, null, null, null, keepAllIds),
                 null, null, List.of(imageFile("new1.webp"), imageFile("new2.webp"))))
                 .isInstanceOf(CustomException.class)
@@ -487,10 +493,10 @@ class EventServiceTest {
 
     @Test
     void deleteRemovesEventPostAndImagesAndCleansUpStorage() {
-        EventCreateResponse created = eventService.create(
+        EventCreateResponse created = eventService.create(ADMIN_USER_ID,
                 request(EventType.BOOTH), imageFile("thumb.webp"), null, List.of(imageFile("a.webp"), imageFile("b.webp")));
 
-        eventService.delete(created.getId());
+        eventService.delete(ADMIN_USER_ID, created.getId());
 
         assertThat(eventPostRepository.findById(created.getId())).isEmpty();
         assertThat(eventImageRepository.findByEventPostIdOrderByDisplayOrderAsc(created.getId())).isEmpty();
@@ -499,7 +505,7 @@ class EventServiceTest {
 
     @Test
     void deleteNotFoundThrows() {
-        assertThatThrownBy(() -> eventService.delete(999L))
+        assertThatThrownBy(() -> eventService.delete(ADMIN_USER_ID, 999L))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.EVENT_NOT_FOUND);

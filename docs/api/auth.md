@@ -226,9 +226,9 @@ OAuth 콜백과 동일하게 응답 본문이 아니라 HttpOnly 쿠키로 토�
 
 ---
 
-### API 7 — 계정 복구: 아이디(이메일) 찾기 (2026-08-20 정책 확정, 미구현 — RECOVERY-1)
+### API 7 — 계정 복구: 아이디(이메일) 찾기 (2026-08-21 정책 확정, 구현 진행 — RECOVERY-1)
 
-> 배경: 로그인 아이디 = 이메일이라, "아이디 찾기"는 "가입 시 쓴 이메일을 잊었을 때 다시 확인하는 기능"이다. `phone`은 회원가입 때 형식 검증만 하고 SMS 인증을 한 적이 없어서, 이름+전화번호만으로 마스킹 이메일을 바로 공개하면 그 조합을 아는 제3자가 계정 존재/이메일을 추측할 수 있다. **2026-08-20 결정: 이름+전화번호가 일치해도 마스킹 이메일을 즉시 공개하지 않고, 그 계정의 실제 가입 이메일로 확인 코드를 보낸 뒤 코드를 맞춰야 공개한다** — 기존 `EmailVerificationService`의 HMAC 챌린지/Redis TTL/재전송 쿨다운/횟수 제한 패턴을 그대로 재사용한다.
+> 로그인 아이디는 이메일이다. 전화번호는 가입 시 형식만 검증하고 SMS 소유 인증을 하지 않으므로, 이름+전화번호가 일치해도 이메일을 즉시 공개하지 않는다. 일반 이메일 계정이 정확히 하나 일치할 때만 가입 이메일로 코드를 보내고 검증 성공 후 마스킹 이메일을 반환한다. HMAC/TTL/Lua 규칙은 가입 인증과 공유하되 공용 `VerificationChallengeStore`로 분리한다.
 
 #### ④ Request/Response 설계 — 2단계(요청 → 확인), API 4/5와 동일한 모양
 
@@ -241,7 +241,7 @@ Content-Type: application/json
 ```
 **Response `200 OK`** (이름·전화번호 일치 여부와 무관하게 항상 같은 모양)
 ```json
-{ "success": true, "data": { "requestId": "UUID", "expiresInSeconds": 600, "resendAfterSeconds": 60 } }
+{ "success": true, "data": { "requestId": "32-byte URL-safe random value", "expiresInSeconds": 600, "resendAfterSeconds": 60 } }
 ```
 
 **7-2. 확인**
@@ -258,28 +258,60 @@ Content-Type: application/json
 
 #### ⑤ Validation
 
-- 7-1: `name`/`phone` 형식 검증만 통과하면 항상 200 — **일치하는 계정이 없어도, OAuth 전용 계정이어도 이메일을 보내지 않고 동일한 성공 응답**(계정 존재 비노출). 매칭 대상은 `passwordHash != null`인 로컬 계정만(OAuth 계정은 이메일로 로그인하지 않으므로 이 기능의 대상이 아님).
+- 7-1: `name`/`phone` 형식 검증만 통과하면 항상 200 — **일치하는 계정이 없어도, OAuth 전용 계정이어도 이메일을 보내지 않고 동일한 성공 응답**(계정 존재 비노출). 매칭 대상은 `passwordHash != null`인 로컬 계정만이며 OAuth 계정은 아이디 찾기에서 제외한다.
 - `requestId`는 매 요청마다 새로 발급(매칭 성공/실패 무관) — Redis에 `{requestId → HMAC(code)}`로 저장, 매칭 실패 시엔 코드 자체를 만들지도 이메일을 보내지도 않아 이후 7-2는 항상 실패한다(성공 케이스와 동일한 에러로).
-- 재전송 대기 60초, 이름당(또는 전화번호당) 1시간 5회 / IP당 1시간 20회 — API 4와 동일한 한도 재사용.
+- 재전송 대기 60초, 정규화 전화번호당 1시간 5회 / IP당 1시간 20회 — API 4와 동일한 한도 재사용.
 - 7-2: 코드 불일치·만료·이미 사용됨·5회 초과·애초에 매칭 실패(코드 자체가 없음) — **전부 동일한 `INVALID_VERIFICATION_CODE`(400)**로 응답(API 5와 동일 원칙).
-- 성공 시 `maskedEmail`은 로컬 앞부분을 일부만 노출(예: `hong@example.com` → `ho***@example.com`, 로컬파트 앞 2글자 + `***` + `@도메인`).
+- 성공 시 `maskedEmail`만 반환하고 로그인 방식은 반환하지 않는다. 로컬파트가 3자 이상이면 앞 2자, 2자이면 앞 1자만 남기고, 1자이면 전부 가린다. 도메인은 유지한다.
+
+#### ⑤-1 조회·정규화 정책
+
+- `name`은 앞뒤 공백을 제거한 뒤 정확히 일치시킨다.
+- `phone` 입력은 선택적 선행 `+`와 숫자·공백·하이픈을 허용하며 raw 최대 25자다. 공백과 하이픈을 제거하고 선행 `+`는 보존한 뒤 숫자 부분이 9~15자리인지 검증한다.
+- 회원가입·회원정보 수정·계정 복구 DTO가 같은 전화번호 규칙을 사용한다. 기존 DB 값은 일괄 변환하지 않고 비교할 때 입력값과 저장값 양쪽을 정규화한다.
+- 전화번호에는 UNIQUE 제약을 추가하지 않는다. 같은 전화번호를 사용하는 계정이 있을 수 있으므로 조회 결과가 정확히 1개일 때만 코드를 보낸다.
+- 조회 결과가 0개 또는 2개 이상이면 임의 계정을 선택하거나 여러 계정에 발송하지 않는다. 가짜 `requestId`만 반환하고 확인 단계는 일반 코드 오류와 동일하게 실패한다.
+- Repository는 `TRIM(name)`과 `passwordHash IS NOT NULL`로 후보 목록을 조회하고 Service가 각 후보의 저장 전화번호를 정규화해 입력과 비교한다. 중복 가능성을 표현하도록 `Optional<User>`를 사용하지 않는다.
+- 복수 계정 때문에 찾을 수 없는 경우 프론트는 계정 존재 여부를 단정하지 않고 고객지원 문의를 안내한다.
+
+#### ⑤-2 인증 코드·보안 정책
+
+- 코드는 `SecureRandom`으로 만든 6자리 숫자이며 유효시간은 10분이다.
+- cooldown과 횟수 카운터는 계정 조회 전에 적용한다. 실제 계정·미가입·OAuth·복수 계정 모두 동일하게 카운트해 두 번째 요청의 429 여부로 계정 존재를 추측할 수 없게 한다.
+- 임계값 확인·증가와 cooldown 선점은 Lua 또는 동등한 Redis 원자 연산으로 처리해 동시 요청의 제한 우회와 중복 메일 발송을 막는다.
+- 확인 실패는 요청당 최대 5회다. 오류·만료·재사용·가짜 `requestId`는 모두 `INVALID_VERIFICATION_CODE`로 처리하고 남은 횟수는 노출하지 않는다.
+- 코드는 평문이 아니라 서버 비밀키로 HMAC 처리해 저장한다. 검증과 소비는 Redis Lua 스크립트로 원자 처리한다.
+- 메일 발송 실패 시 해당 요청의 챌린지만 compare-and-delete로 제거한다. 응답은 계정 미존재와 같은 일반 성공 응답을 유지한다.
+- 메일 발송 실패 시에도 이미 증가한 횟수와 cooldown은 유지한다.
+- 실제 챌린지는 `userId + codeHmac + failedAttempts`에 결속한다. 이메일·전화번호 원문은 Redis value에도 넣지 않으며 가짜 요청은 챌린지를 저장하지 않는다.
+- 확인 시 `userId`로 User를 다시 조회한다. 계정 삭제 또는 일반 계정 조건 불충족은 다른 코드 오류와 같은 `INVALID_VERIFICATION_CODE`로 처리한다.
+- 로그에는 원문 이름·전화번호·이메일·코드·`requestId`를 남기지 않는다.
+
+클라이언트 IP는 공용 `ClientIpResolver`로 구한다. 설정된 신뢰 프록시에서 온 요청에만 `X-Forwarded-For`를 인정하고 직접 요청이나 비신뢰 프록시 요청은 `remoteAddr`를 사용한다. Nginx는 전달 헤더를 설정하고 신뢰 프록시 목록은 `app.security.trusted-proxies`로 관리한다.
 
 #### ⑥ DB 컬럼과 매핑 검증
 
-- `User` row는 조회만 하고 쓰지 않는다. 매칭 조건: `name`(정확히 일치) + `phone`(정규화 후 일치) + `passwordHash IS NOT NULL`.
-- Redis 키 네임스페이스: `auth:recovery:id:code:{requestId}`(챌린지), `auth:recovery:id:cooldown:{phone}`, `auth:recovery:id:count:phone:{phone}`, `auth:recovery:id:count:ip:{ip}` — API 4의 `auth:signup:code:*`와 동일 구조, prefix만 분리.
+- `User` row는 조회만 하고 쓰지 않는다. 매칭 조건: `name`(trim 후 정확히 일치) + `phone`(정규화 후 일치) + `passwordHash IS NOT NULL`.
+- Redis 키에는 원문 개인정보를 넣지 않는다.
+
+```text
+auth:recovery:id:challenge:{sha256(requestId)}
+auth:recovery:id:cooldown:{sha256(normalizedPhone)}
+auth:recovery:id:count:phone:{sha256(normalizedPhone)}
+auth:recovery:count:ip:{sha256(clientIp)}
+```
 
 #### ⑦ 누락된 필드 확인
 
-없음. 새 에러코드 불필요(기존 `TOO_MANY_REQUESTS`/`INVALID_VERIFICATION_CODE` 재사용).
+없음. 새 에러코드 불필요(기존 `TOO_MANY_REQUESTS`/`INVALID_VERIFICATION_CODE` 재사용). `requestId`는 UUID 노출에 의존하지 않고 32-byte URL-safe 난수로 발급한다.
 
-**API 7 정책 확정, 구현 대기.**
+**API 7 정책 확정.** `AccountRecoveryService`가 흐름을 조정하고 Redis 챌린지는 공용 `VerificationChallengeStore`가 담당한다. 성공해도 로그인이나 토큰 발급은 하지 않는다.
 
 ---
 
-### API 8 — 계정 복구: 비밀번호 재설정 (2026-08-20 정책 확정, 미구현 — RECOVERY-2)
+### API 8 — 계정 복구: 비밀번호 재설정 (2026-08-21 정책 확정, 구현 진행 — RECOVERY-2)
 
-> 배경: `PATCH /api/users/me/password`(현재 비밀번호 변경)는 로그인 상태 전용이라, 비밀번호를 잊어버린 비로그인 사용자를 위한 별도 흐름이 필요하다. **UX 결정(2026-08-19, 유지)**: 코드 확인과 새 비밀번호 입력을 한 화면에서 한 번에 제출 — 그래서 "코드 검증"과 "비밀번호 저장"을 API 2개로 쪼개지 않고 확인 단계 하나(`{email, code, newPassword}`)로 합친다. **2026-08-20 결정: 요청 이메일이 OAuth 전용 계정(비밀번호 자체가 없음)이거나 존재하지 않는 이메일이어도 메일을 보내지 않고 조용히 같은 성공 응답을 준다** — `UserService.changePassword`가 `PASSWORD_CHANGE_NOT_ALLOWED`로 명시적으로 거절하는 것과 달리, 이 흐름은 비로그인 상태라 계정 존재/유형을 노출하면 안 된다.
+> `PATCH /api/users/me/password`는 로그인 사용자용이다. 비밀번호를 잊은 사용자는 이메일로 재설정 코드를 받고, **10분 안에 코드와 사용자가 정한 새 비밀번호를 한 번에 제출**한다. 임시 비밀번호는 발급하지 않는다. 요청 이메일이 OAuth 전용 계정이거나 존재하지 않더라도 계정 존재·유형을 노출하지 않도록 같은 성공 응답을 반환한다.
 
 #### ④ Request/Response 설계
 
@@ -292,7 +324,7 @@ Content-Type: application/json
 ```
 **Response `200 OK`** (계정 존재/유형과 무관하게 항상 같은 모양)
 ```json
-{ "success": true, "data": { "expiresInSeconds": 600, "resendAfterSeconds": 60 } }
+{ "success": true, "data": { "requestId": "32-byte URL-safe random value", "expiresInSeconds": 600, "resendAfterSeconds": 60 } }
 ```
 
 **8-2. 코드 확인 + 새 비밀번호 저장(1회 호출)**
@@ -300,7 +332,7 @@ Content-Type: application/json
 POST /api/auth/recovery/password/confirm
 Content-Type: application/json
 
-{ "email": "user@example.com", "code": "482193", "newPassword": "새비밀번호8~72자" }
+{ "requestId": "8-1 응답의 requestId", "code": "482193", "newPassword": "새비밀번호8~72자" }
 ```
 **Response `200 OK`**
 ```json
@@ -310,23 +342,69 @@ Content-Type: application/json
 #### ⑤ Validation
 
 - 8-1: 이메일 형식만 검증하면 항상 200. 실제로 코드를 만들고 메일을 보내는 건 `passwordHash != null`인 로컬 계정이 그 이메일로 존재할 때뿐 — 나머지(미가입, OAuth 전용)는 아무 것도 안 하고 동일 응답만 반환.
-- 재전송 대기 60초, 이메일당 1시간 5회 / IP당 1시간 20회 — API 4와 동일 한도.
-- 8-2: `newPassword`는 API 6과 동일 규칙(8~72자, 복잡도 규칙 없음, BCrypt 해시). 코드 불일치·만료·이미 사용됨·5회 초과·애초에 대상 계정이 아니었음 — **전부 동일한 `INVALID_VERIFICATION_CODE`(400)**.
-- 8-2 성공 시: `User.changePasswordHash()` + **해당 유저의 전체 세션 무효화**(`tokenSessionStore.invalidateUserSessions(userId)`, `changePassword`와 동일한 보안 이벤트 로그 패턴) — 재설정 직후 자동 로그인은 시키지 않는다(비로그인 상태에서 시작된 흐름이라 accessToken 자체가 없음). 프론트는 성공 후 로그인 화면으로 안내한다.
+- `requestId`는 성공·가짜 요청 모두 매번 새 32-byte URL-safe 난수로 반환한다. Redis 챌린지는 성공 대상에만 저장하고 confirm API는 이메일을 다시 받지 않는다.
+- 재전송 대기 60초, 이메일당 1시간 5회 / IP당 1시간 20회 — API 4와 동일 한도. cooldown과 횟수 카운터는 계정 조회 전에 적용해 일반 계정·미가입·OAuth 모두 같은 제한 결과를 낸다.
+- 8-2: `newPassword`는 API 6과 동일 규칙(8~72자, 복잡도 규칙 없음, BCrypt 해시). `newPasswordConfirm`은 프론트에서만 비교하며 API에는 보내지 않는다.
+- 코드 불일치·만료·이미 사용됨·5회 초과·가짜 `requestId`는 **전부 동일한 `INVALID_VERIFICATION_CODE`(400)**로 응답하고 남은 횟수를 노출하지 않는다.
+- challenge는 `userId + codeHmac + failedAttempts`에 결속한다. confirm 시 User를 재조회하며 삭제되었거나 `passwordHash == null`이면 같은 `INVALID_VERIFICATION_CODE`로 처리한다.
+- 새 비밀번호가 현재 비밀번호와 같아도 허용한다. 기존 로그인 상태 비밀번호 변경과 동일하며 비밀번호 이력 기능은 이번 범위에 도입하지 않는다.
+- 성공 시 새 비밀번호 저장, 코드 즉시 폐기, 해당 사용자의 refresh token과 이미 발급된 access token 전체 무효화를 수행한다.
+- 재설정 직후 자동 로그인하거나 새 토큰을 발급하지 않는다. 프론트는 성공 안내 후 로그인 화면으로 이동한다.
+
+#### ⑤-1 확정 처리 순서
+
+```text
+재설정 코드 발송
+→ 10분 안에 requestId + 코드 + 새 비밀번호 입력
+→ Redis에서 코드 검증 및 즉시 소비
+→ BCrypt 새 비밀번호 저장
+→ 전체 refresh/access 세션 무효화
+→ DB 트랜잭션 commit
+→ 비밀번호 변경 알림 메일 발송(best effort)
+→ 로그인 화면으로 이동
+```
+
+- 임시 비밀번호는 이메일로 보내지 않는다. 이메일 탈취 시 바로 사용할 수 있는 인증정보를 만들지 않고, 별도 `mustChangePassword` 상태도 추가하지 않는다.
+- 코드 소비와 DB 저장은 Redis/DB 간 분산 트랜잭션으로 묶지 않는다. 코드 검증 성공 후 DB 저장이 실패하면 코드를 복구하지 않고 새 코드를 다시 요청하게 한다.
+- 비밀번호 저장과 세션 무효화는 `UserService.resetPassword`의 동일 업무 단위로 처리한다. 세션 무효화에 실패하면 비밀번호 변경을 성공 처리하지 않는다.
+- Redis 세션 무효화가 성공한 뒤 DB commit이 실패하면 종료된 세션을 복구하지 않는다. 비밀번호는 기존 값으로 rollback되지만 사용자는 새 코드를 요청해야 하며, 보안을 위해 로그아웃 상태를 유지한다.
+- 비밀번호 변경 알림 메일은 DB commit 이후 발송한다. 발송 실패는 경고 로그로 남기되 이미 완료된 비밀번호 변경을 rollback하지 않는다.
+- IP 제한은 API 7과 같은 `ClientIpResolver`를 사용한다. 신뢰 프록시가 아닌 요청의 `X-Forwarded-For`는 무시한다.
 
 #### ⑥ DB 컬럼과 매핑 검증
 
 | 필드 | 처리 |
 |---|---|
 | passwordHash | `newPassword`를 BCrypt로 재해시 후 갱신 |
-| refreshToken / 전체 세션 | `changePassword`와 동일하게 무효화 |
+| refreshToken | 사용자 소유 refresh 세션 전체 삭제 |
+| accessToken | 사용자별 `revoked-after` 시각을 기록해 기존 토큰 거절 |
 
-Redis 키 네임스페이스: `auth:recovery:password:code:{normalizedEmail}`, `auth:recovery:password:cooldown:{email}`, `auth:recovery:password:count:email:{email}`, `auth:recovery:password:count:ip:{ip}` — API 4와 동일 구조.
+Redis 키에는 원문 이메일과 IP를 넣지 않는다.
+
+```text
+auth:recovery:password:challenge:{sha256(requestId)}
+auth:recovery:password:cooldown:{sha256(normalizedEmail)}
+auth:recovery:password:count:email:{sha256(normalizedEmail)}
+auth:recovery:count:ip:{sha256(clientIp)}
+auth:access:user-revoked-after:{userId}
+```
+
+access token 무효화 정책:
+
+- Access JWT 발급 시 표준 `iat`와 별도로 millisecond 정밀도의 `authIssuedAtMillis` 커스텀 claim을 넣는다. 표준 JWT `iat`는 초 단위라 재설정과 새 로그인이 같은 초에 일어나면 새 토큰까지 거절할 수 있으므로 무효화 비교에 사용하지 않는다.
+- 비밀번호 변경 시 서버 millisecond 시각을 `auth:access:user-revoked-after:{userId}`에 `revokedAfterMillis`로 기록한다.
+- 키 TTL은 access token 최대 수명과 clock skew를 합한 값으로 한다. 현재 access token 15분 기준 기본 TTL은 16분이다.
+- JWT 인증 필터는 `authIssuedAtMillis <= revokedAfterMillis`인 기존 토큰을 거절한다.
+- revoked-after 키가 없으면 배포 전에 발급되어 커스텀 claim이 없는 토큰도 만료까지 허용한다. 키가 존재하는 사용자의 토큰에 claim이 없으면 재설정 이전 구버전 토큰으로 보고 거절한다.
+- 재설정 완료 후 발급된 새 로그인 토큰은 millisecond 시각이 이후이므로 같은 초에 발급돼도 정상 사용한다.
+- Access blacklist와 revoked-after Redis 확인은 하나의 세션 검증 책임으로 통합한다. Redis 조회 장애 시 기존 토큰을 허용하지 않는 fail-closed를 적용하고 `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)`을 반환한다.
+- 같은 사용자 단위 revoke primitive를 로그인 상태 비밀번호 변경에도 적용한다. 현재 요청 토큰 1개만 blacklist하지 않고 다른 기기의 기존 access token도 모두 거절해야 "전체 세션 무효화" 계약을 만족한다.
+- Filter 단계에서 발생한 장애도 공통 API 오류 JSON으로 반환한다. HTML 오류나 빈 503 응답을 반환하지 않는다.
 
 #### ⑦ 누락된 필드 확인
 
-없음. 새 에러코드 불필요(기존 `INVALID_VERIFICATION_CODE`/`TOO_MANY_REQUESTS` 재사용).
+확인 요청 자체는 기존 `INVALID_VERIFICATION_CODE`/`TOO_MANY_REQUESTS`를 재사용한다. 세션 검증 인프라 장애에는 `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)`을 추가하고 인증 실패 코드로 뭉뚱그리지 않는다.
 
-**API 8 정책 확정, 구현 대기.** 구현 시 `EmailVerificationService`의 Lua 스크립트(`compare-and-delete-challenge.lua`/`verify-and-increment-code.lua`)를 그대로 재사용 가능(다른 키 prefix로).
+**API 8 정책 확정.** 가입·아이디 찾기·비밀번호 재설정 세 흐름에서 Redis 검증 규칙을 공유하므로 `EmailVerificationService`를 계속 비대하게 만들지 않고 공용 `VerificationChallengeStore`로 책임을 분리한다.
 
 ---

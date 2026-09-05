@@ -1,7 +1,6 @@
 package com.example.honorcitizen.domain.manseryeok.service;
 
 import com.example.honorcitizen.common.enums.TimeAccuracy;
-import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.application.entity.ApplicationMember;
@@ -15,8 +14,7 @@ import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokResolveRequest;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokResolveResponse;
 import com.example.honorcitizen.domain.manseryeok.entity.ManseryeokResult;
 import com.example.honorcitizen.domain.manseryeok.repository.ManseryeokResultRepository;
-import com.example.honorcitizen.domain.user.entity.User;
-import com.example.honorcitizen.domain.user.service.UserService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import com.example.honorcitizen.infra.geocoding.BirthRegionLookupClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -43,7 +41,7 @@ import java.util.NoSuchElementException;
 @RequiredArgsConstructor
 public class ManseryeokService {
 
-    private final UserService userService;
+    private final AdminAuthorizationService adminAuthorizationService;
     private final ApplicationMemberRepository applicationMemberRepository;
     private final ManseryeokResultRepository manseryeokResultRepository;
     private final AdminActivityLogRepository adminActivityLogRepository;
@@ -158,10 +156,7 @@ public class ManseryeokService {
     }
 
     private void validateAdmin(Long adminId) {
-        User admin = userService.findById(adminId);
-        if (admin.getRole() != UserRole.ADMIN) {
-            throw new CustomException(ErrorCode.FORBIDDEN);
-        }
+        adminAuthorizationService.requireAdmin(adminId);
     }
 
     private String writeJson(Object value) {

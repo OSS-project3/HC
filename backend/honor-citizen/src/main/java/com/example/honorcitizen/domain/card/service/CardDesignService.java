@@ -1,7 +1,6 @@
 package com.example.honorcitizen.domain.card.service;
 
 import com.example.honorcitizen.common.enums.CardDesignOrientation;
-import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.application.entity.Application;
@@ -11,8 +10,7 @@ import com.example.honorcitizen.domain.card.entity.CardDesign;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardDesignRepository;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
-import com.example.honorcitizen.domain.user.entity.User;
-import com.example.honorcitizen.domain.user.service.UserService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +31,7 @@ public class CardDesignService {
     private final CardDesignRepository cardDesignRepository;
     private final CardTypeRepository cardTypeRepository;
     private final ApplicationRepository applicationRepository;
-    private final UserService userService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @Transactional(readOnly = true)
     public List<CardDesignResponse> listCardDesigns(Long adminId, Long cardTypeId, Boolean active, Long applicationId) {
@@ -74,9 +72,6 @@ public class CardDesignService {
     }
 
     private void validateAdmin(Long adminId) {
-        User admin = userService.findById(adminId);
-        if (admin.getRole() != UserRole.ADMIN) {
-            throw new CustomException(ErrorCode.FORBIDDEN);
-        }
+        adminAuthorizationService.requireAdmin(adminId);
     }
 }

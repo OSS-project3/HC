@@ -5,8 +5,11 @@ import com.example.honorcitizen.common.enums.CardTypeCode;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -40,38 +43,80 @@ class CardBackInterpretationWrapTest {
         assertRendersAndExport("short", shortOne);
     }
 
-    // composeBack()과 같은 drawBackTextWrapped()/wrapByWidth()를 쓰지만 폰트 크기(8f)·배경(S3 원본
-    // 템플릿)이 달라 별도로 확인한다.
+    // VISITOR는 세 카드종류 중 유일하게 세로형(baseWidth=156, baseHeight=235)이다 — 가로형만
+    // 확인하고 세로형을 안 봤다는 지적을 받아 추가(2026-09-05). 같은 INTERPRETATION_WIDTH_RATIO를
+    // 쓰지만 baseWidth 자체가 다르므로 실제 줄바꿈 결과를 따로 확인해야 한다.
     @Test
-    void studentBackAlsoWrapsLongInterpretation() throws Exception {
-        new File(OUT_DIR).mkdirs();
-        byte[] templateBack;
-        try (FileInputStream in = new FileInputStream(
-                "D:/HC-worktrees/saju/시안/시안/학생증/아트보드 8 사본 15.png")) {
-            templateBack = in.readAllBytes();
+    void visitorPortraitBackAlsoWrapsLongInterpretation() throws Exception {
+        String longest = "화평하고 공평한 태도로 소통을 주관하여 무리가 따르다. 평온과 결단의 기운을 모아 천상의 조화를 이루며, 치우치지 않는 사고와 넓은 마음으로 사람을 안는 지혜로운 자가 되다.";
+        assertRendersAndExport(CardTypeCode.VISITOR, 2, "visitor-portrait-longest", longest);
+
+        // 사용자에게 세로형 카드 앞/뒤 한 쌍을 온전히 보여주기 위해 앞면도 함께 렌더링(사진 자리는
+        // 실제 얼굴 사진 대신 회색 사각형 — 구조·문구 확인용, 이전 세션 관행과 동일).
+        CardMemberData data = new CardMemberData("김", "성노", "Jordan Smith", "星爐",
+                "별 성(星) 풀무 노(爐)", longest, solidPng(300, 400, Color.LIGHT_GRAY),
+                "ROK-90088-0001", "대한민국 전라북도 전주시", LocalDate.now(), "인", null, null);
+        byte[] frontPng = compositor.composeFront(CardTypeCode.VISITOR, 2, data);
+        try (FileOutputStream out = new FileOutputStream(OUT_DIR + "visitor-portrait-longest-front.png")) {
+            out.write(frontPng);
         }
+    }
+
+    private byte[] solidPng(int width, int height, Color color) throws Exception {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        g.setColor(color);
+        g.fillRect(0, 0, width, height);
+        g.dispose();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", out);
+        return out.toByteArray();
+    }
+
+    // composeBack()과 같은 drawBackTextWrapped()/wrapByWidth()를 쓰지만 폰트 크기(8f)·배경(S3 원본
+    // 템플릿)이 달라 별도로 확인한다. 가로형(LANDSCAPE)·세로형(PORTRAIT) 둘 다 확인(2026-09-05,
+    // 가로만 보고 세로를 안 봤다는 지적을 받아 세로형 추가).
+    @Test
+    void studentBackAlsoWrapsLongInterpretationBothOrientations() throws Exception {
+        new File(OUT_DIR).mkdirs();
         String longest = "화평하고 공평한 태도로 소통을 주관하여 무리가 따르다. 평온과 결단의 기운을 모아 천상의 조화를 이루며, 치우치지 않는 사고와 넓은 마음으로 사람을 안는 지혜로운 자가 되다.";
 
+        renderStudentBack(CardDesignOrientation.LANDSCAPE, "아트보드 8 사본 15.png", "student-landscape-longest", longest);
+        renderStudentBack(CardDesignOrientation.PORTRAIT, "아트보드 8 사본 10.png", "student-portrait-longest", longest);
+    }
+
+    private void renderStudentBack(CardDesignOrientation orientation, String templateFile, String label,
+            String interpretation) throws Exception {
+        byte[] templateBack;
+        try (FileInputStream in = new FileInputStream("D:/HC-worktrees/saju/시안/시안/학생증/" + templateFile)) {
+            templateBack = in.readAllBytes();
+        }
         CardMemberData data = new CardMemberData(
-                "김", "성노", "Jordan Smith", "星爐", "별 성(星) 풀무 노(爐)", longest,
+                "김", "성노", "Jordan Smith", "星爐", "별 성(星) 풀무 노(爐)", interpretation,
                 null, "ROK-90088-0001", null, LocalDate.now(), null, null, null,
-                null, CardDesignOrientation.LANDSCAPE, null, null, null, null, templateBack);
+                null, orientation, null, null, null, null, templateBack);
 
         byte[] png = compositor.composeBack(CardTypeCode.STUDENT, 1, data);
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(png));
         assertThat(image).isNotNull();
 
-        try (FileOutputStream out = new FileOutputStream(OUT_DIR + "student-longest-back.png")) {
+        try (FileOutputStream out = new FileOutputStream(OUT_DIR + label + "-back.png")) {
             out.write(png);
         }
     }
 
     private void assertRendersAndExport(String label, String interpretation) throws Exception {
+        assertRendersAndExport(CardTypeCode.HONOR_KOREAN, 1, label, interpretation);
+    }
+
+    private void assertRendersAndExport(CardTypeCode cardType, int design, String label, String interpretation)
+            throws Exception {
+        new File(OUT_DIR).mkdirs();
         CardMemberData data = new CardMemberData(
                 "김", "성노", "Jordan Smith", "星爐", "별 성(星) 풀무 노(爐)", interpretation,
                 null, "ROK-90088-0001", null, LocalDate.now(), null, null, null);
 
-        byte[] png = compositor.composeBack(CardTypeCode.HONOR_KOREAN, 1, data);
+        byte[] png = compositor.composeBack(cardType, design, data);
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(png));
         assertThat(image).isNotNull();
         assertThat(image.getWidth()).isGreaterThan(0);

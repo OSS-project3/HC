@@ -11,6 +11,7 @@ import com.example.honorcitizen.domain.inquiry.dto.InquiryListItemResponse;
 import com.example.honorcitizen.domain.inquiry.entity.Inquiry;
 import com.example.honorcitizen.domain.inquiry.repository.InquiryRepository;
 import com.example.honorcitizen.infra.mail.EmailSender;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class InquiryService {
 
     private final InquiryRepository inquiryRepository;
     private final EmailSender emailSender;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     // 문의 등록(requirements.md §⑤ POST /api/inquiries) — userId는 컨트롤러가 JWT에서 이미 추출해
     // 전달한다. privacyConsent는 Bean Validation(@AssertTrue)에서 걸러지므로 여기서 재검증하지 않는다.
@@ -56,17 +58,18 @@ public class InquiryService {
         return InquiryDetailResponse.from(inquiry);
     }
 
-    // 관리자 전체 목록(requirements.md §④ API 4) — 검색·페이지네이션 없음(프론트에 해당 UI 자체가
-    // 없음, §⑥ 확정 정책). 권한 검증은 SecurityConfig의 /api/admin/** 라우트 레벨이 담당한다(Board 선례).
+    // 관리자 전체 목록. Service 직접 호출도 안전하도록 공통 관리자 인가를 가장 먼저 수행한다.
     @Transactional(readOnly = true)
-    public List<InquiryListItemResponse> listAdmin() {
+    public List<InquiryListItemResponse> listAdmin(Long adminId) {
+        adminAuthorizationService.requireAdmin(adminId);
         return inquiryRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(InquiryListItemResponse::from)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public InquiryDetailResponse getAdminDetail(Long inquiryId) {
+    public InquiryDetailResponse getAdminDetail(Long adminId, Long inquiryId) {
+        adminAuthorizationService.requireAdmin(adminId);
         Inquiry inquiry = inquiryRepository.findById(inquiryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
         return InquiryDetailResponse.from(inquiry);
@@ -76,7 +79,8 @@ public class InquiryService {
     // answer가 null이었는지로 "최초 등록"을 판정해, 최초 등록일 때만 커밋 이후 이메일을 보낸다
     // (§⑥ "답변 수정 시 이메일 재발송 안 함" 정책).
     @Transactional
-    public void answer(Long inquiryId, String answerText) {
+    public void answer(Long adminId, Long inquiryId, String answerText) {
+        adminAuthorizationService.requireAdmin(adminId);
         Inquiry inquiry = inquiryRepository.findById(inquiryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
         boolean isFirstAnswer = inquiry.getAnswer() == null;
@@ -131,7 +135,8 @@ public class InquiryService {
     // 답변 유무와 무관한 독립 상태 변경(requirements.md §④·§⑥ PATCH .../status) — 전화 상담 등으로
     // COMPLETED이면서 answer가 null인 상태도 유효하다(answer/status 사이에 불변식을 걸지 않음).
     @Transactional
-    public void changeStatus(Long inquiryId, InquiryStatus status) {
+    public void changeStatus(Long adminId, Long inquiryId, InquiryStatus status) {
+        adminAuthorizationService.requireAdmin(adminId);
         Inquiry inquiry = inquiryRepository.findById(inquiryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
         inquiry.changeStatus(status);

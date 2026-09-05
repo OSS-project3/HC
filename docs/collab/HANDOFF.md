@@ -6,6 +6,8 @@
 
 ## 지금 어디까지 됐는가
 
+- **✅ 관리자 Service 계층 공통 인가 통일(2026-09-05, Codex)**: `/api/admin/**` Security 1차 차단 + `AdminAuthorizationService` 2차 검증으로 통일. Board/Event/Inquiry/Stats의 Service 직접 호출 공백 해소, 기존 Application/Manseryeok/Card 계열 중복 검증 위임. API/DB 계약 변경 없음.
+
 - **✅ "4-D. 학생증 템플릿 업로드 API" 구현+테스트+실제 통합 검증+push 완료(Claude, 2026-09-01)**:
   - `GET/POST /api/admin/schools/{schoolId}/card-template` 신규 — 관리자가 배포 없이 학교별 학생증 카드 템플릿(앞/뒤)을 등록·교체한다. `SchoolCardTemplateService`(비-transactional, S3 업로드+정리)+`SchoolCardTemplatePersistenceService`(`@Transactional`, UploadFile/CardDesign 반영) 2-서비스 분리 — `CardGenerationService`/`CardGenerationPersistenceService`와 같은 패턴(4-D 정책 문서는 원래 `ApplicationService.registerS3CleanupAfterTransaction` 재사용을 지시했는데, 구현 시작 시 Card 모듈 안에 더 가까운 선례가 있다는 걸 발견해 그쪽을 따름 — 결과는 동일한 보장).
   - `SchoolCardTemplateValidator`(PNG 시그니처+카드 비율 235:156±5%+최소 해상도 800px), `CardDesign.replaceTemplates()` mutator 신규, `SchoolService.getSchoolNameOrThrow()`(Card→School 참조를 Repository 직접 주입 없이), `student_card_design_seq` DB 시퀀스+`card_designs_school_orientation_idx` unique 인덱스(`schema.sql`) 신규, `ErrorCode.SCHOOL_NOT_FOUND`/`CARD_TEMPLATE_INVALID_RESOLUTION` 추가.

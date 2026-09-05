@@ -14,6 +14,14 @@
 ```
 
 ---
+## 2026-09-05 — Codex — `main` (관리자 Service 계층 공통 인가)
+
+- 변경: `/api/admin/**`의 `SecurityConfig` 1차 역할 검증은 유지하고, 공개 관리자 Service 메서드가 공통 `AdminAuthorizationService.requireAdmin(adminId)`를 가장 먼저 수행하도록 통일했다. 기존 Application/Manseryeok/Card/학교 템플릿의 중복 검증은 공통 컴포넌트에 위임하고, Board/Event/Inquiry/Stats에 있던 Service 직접 호출 권한 공백을 해소했다.
+- API/DB 영향: URL·요청·응답·DB schema 변경 없음. Controller는 JWT principal의 관리자 ID를 Service로 전달한다.
+- 테스트: `compileTestJava` 성공. 공통 인가+Board/Event/Inquiry/Stats Service 집중 테스트 성공. 관리자 Controller 36개는 Redis 미기동으로 `AUTH_SESSION_VALIDATION_UNAVAILABLE(503)`가 발생해 환경 의존 실패로 분리했다.
+- 관련: `docs/collab/TODO.md` “관리자 Service 계층 공통 인가 통일”, `arch.md` §4.6
+
+---
 
 ## 2026-09-05 — Claude — `main` (관리자 통계 API 구현)
 

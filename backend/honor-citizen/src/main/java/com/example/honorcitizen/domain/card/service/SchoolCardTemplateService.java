@@ -1,7 +1,6 @@
 package com.example.honorcitizen.domain.card.service;
 
 import com.example.honorcitizen.common.enums.CardDesignOrientation;
-import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.card.dto.SchoolCardTemplateResponse;
@@ -12,8 +11,7 @@ import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository
 import com.example.honorcitizen.domain.school.service.SchoolService;
 import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
-import com.example.honorcitizen.domain.user.entity.User;
-import com.example.honorcitizen.domain.user.service.UserService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import com.example.honorcitizen.infra.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,7 +34,7 @@ public class SchoolCardTemplateService {
 
     private final CardDesignRepository cardDesignRepository;
     private final SchoolService schoolService;
-    private final UserService userService;
+    private final AdminAuthorizationService adminAuthorizationService;
     private final StorageService storageService;
     private final SchoolCardTemplatePersistenceService persistenceService;
     private final AdminActivityLogRepository adminActivityLogRepository;
@@ -146,9 +144,6 @@ public class SchoolCardTemplateService {
     }
 
     private void validateAdmin(Long adminId) {
-        User admin = userService.findById(adminId);
-        if (admin.getRole() != UserRole.ADMIN) {
-            throw new CustomException(ErrorCode.FORBIDDEN);
-        }
+        adminAuthorizationService.requireAdmin(adminId);
     }
 }

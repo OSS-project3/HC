@@ -17,6 +17,7 @@ import com.example.honorcitizen.domain.event.entity.EventPost;
 import com.example.honorcitizen.domain.event.repository.EventImageRepository;
 import com.example.honorcitizen.domain.event.repository.EventPostRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -53,6 +54,7 @@ public class EventService {
     private final EventImageRepository eventImageRepository;
     private final EventImageValidator imageValidator;
     private final StorageService storageService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @Transactional(readOnly = true)
     public PageResponse<EventListItemResponse> list(EventType type, int page, int size) {
@@ -80,7 +82,8 @@ public class EventService {
 
     // 관리자 목록(api.md §API 6) — visible 무관 전체, type/visible 둘 다 선택 필터.
     @Transactional(readOnly = true)
-    public PageResponse<EventAdminListItemResponse> listForAdmin(EventType type, Boolean visible, int page, int size) {
+    public PageResponse<EventAdminListItemResponse> listForAdmin(Long adminId, EventType type, Boolean visible, int page, int size) {
+        adminAuthorizationService.requireAdmin(adminId);
         if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
@@ -93,7 +96,8 @@ public class EventService {
 
     // 관리자 상세(api.md §API 7) — visible=false도 조회 가능(공개 detail과의 유일한 차이).
     @Transactional(readOnly = true)
-    public EventAdminDetailResponse detailForAdmin(Long id) {
+    public EventAdminDetailResponse detailForAdmin(Long adminId, Long id) {
+        adminAuthorizationService.requireAdmin(adminId);
         EventPost eventPost = eventPostRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.EVENT_NOT_FOUND));
 
@@ -105,8 +109,9 @@ public class EventService {
     // 생성(api.md §API 3, data-model.md §4.1과 동일 골격): 썸네일+로고+갤러리 S3 업로드 → DB 트랜잭션 저장.
     // 실패 시 uploadedKeys 역순 보상삭제(Board BoardService.create()와 동일 패턴).
     @Transactional
-    public EventCreateResponse create(EventCreateRequest request, MultipartFile thumbnail, MultipartFile logo,
+    public EventCreateResponse create(Long adminId, EventCreateRequest request, MultipartFile thumbnail, MultipartFile logo,
             List<MultipartFile> images) {
+        adminAuthorizationService.requireAdmin(adminId);
         MultipartFile thumbnailFile = presentFile(thumbnail);
         MultipartFile logoFile = presentFile(logo);
         List<MultipartFile> galleryFiles = presentFiles(images);
@@ -152,8 +157,9 @@ public class EventService {
 
     // 수정(api.md §API 4) — 전체 재제출 + 로고/썸네일 유지·교체·삭제 + 갤러리(keepImageIds) 편집(EVENT-EXT-3).
     @Transactional
-    public void update(Long id, EventUpdateRequest request, MultipartFile thumbnail, MultipartFile logo,
+    public void update(Long adminId, Long id, EventUpdateRequest request, MultipartFile thumbnail, MultipartFile logo,
             List<MultipartFile> images) {
+        adminAuthorizationService.requireAdmin(adminId);
         EventPost eventPost = eventPostRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.EVENT_NOT_FOUND));
 
@@ -239,7 +245,8 @@ public class EventService {
     // 삭제(api.md §API 5, data-model.md와 동일 원칙): EventImage+EventPost를 한 트랜잭션에서 지우고
     // S3(썸네일+로고+갤러리 전체)는 커밋 이후 삭제한다 — 순서를 바꾸면 롤백 시 DB·S3 불일치가 생긴다.
     @Transactional
-    public void delete(Long id) {
+    public void delete(Long adminId, Long id) {
+        adminAuthorizationService.requireAdmin(adminId);
         EventPost eventPost = eventPostRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.EVENT_NOT_FOUND));
 

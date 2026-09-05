@@ -17,6 +17,7 @@ import com.example.honorcitizen.domain.board.entity.BoardAttachment;
 import com.example.honorcitizen.domain.board.repository.BoardAttachmentRepository;
 import com.example.honorcitizen.domain.board.repository.BoardRepository;
 import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,7 @@ public class BoardService {
     private final UploadFileRepository uploadFileRepository;
     private final BoardAttachmentValidator attachmentValidator;
     private final StorageService storageService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @Transactional(readOnly = true)
     public PageResponse<BoardListItemResponse> list(BoardType type, BoardSearchType searchType, String keyword,
@@ -93,6 +95,7 @@ public class BoardService {
     // 점유 시간이 문제되지 않는다 — Application처럼 업로드/영속을 별도 서비스로 분리하지 않는다.
     @Transactional
     public BoardCreateResponse create(Long adminUserId, BoardCreateRequest request, List<MultipartFile> attachments) {
+        adminAuthorizationService.requireAdmin(adminUserId);
         List<MultipartFile> files = presentFiles(attachments);
         validateAttachmentRequest(request.getBoardType(), files);
         files.forEach(attachmentValidator::validate);
@@ -121,7 +124,8 @@ public class BoardService {
     // 남지 않도록 0부터 다시 채우기 위함이다. 실제 파일(UploadFile 로우 + S3 객체)은 keepAttachmentIds에
     // 없는 것만 삭제된다.
     @Transactional
-    public void update(Long id, BoardUpdateRequest request, List<MultipartFile> newAttachments) {
+    public void update(Long adminUserId, Long id, BoardUpdateRequest request, List<MultipartFile> newAttachments) {
+        adminAuthorizationService.requireAdmin(adminUserId);
         Board board = boardRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.BOARD_NOT_FOUND));
 
@@ -173,7 +177,8 @@ public class BoardService {
     // 게시글 삭제(data-model.md §4.4): BoardAttachment·UploadFile을 Board와 함께 한 트랜잭션에서 지우고,
     // S3 객체는 커밋 이후 삭제한다 — 순서를 바꾸면 롤백 시 DB엔 남아있는데 S3만 사라지는 불일치가 생긴다.
     @Transactional
-    public void delete(Long id) {
+    public void delete(Long adminUserId, Long id) {
+        adminAuthorizationService.requireAdmin(adminUserId);
         Board board = boardRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.BOARD_NOT_FOUND));
 

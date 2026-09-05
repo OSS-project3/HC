@@ -16,6 +16,8 @@ import com.example.honorcitizen.domain.board.repository.BoardAttachmentRepositor
 import com.example.honorcitizen.domain.board.repository.BoardRepository;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +49,8 @@ class BoardServiceTest {
 
     @MockitoBean
     private StorageService storageService;
+    @MockitoBean
+    private AdminAuthorizationService adminAuthorizationService;
 
     private static final Long ADMIN_USER_ID = 1L;
 
@@ -242,7 +246,7 @@ class BoardServiceTest {
     void updateOverwritesFields() {
         Board board = boardRepository.save(Board.create(BoardType.NOTICE, "원래 제목", "원래 내용", ADMIN_USER_ID));
 
-        boardService.update(board.getId(), new BoardUpdateRequest(BoardType.FAQ, "새 제목", "새 내용", null), null);
+        boardService.update(ADMIN_USER_ID, board.getId(), new BoardUpdateRequest(BoardType.FAQ, "새 제목", "새 내용", null), null);
 
         Board updated = boardRepository.findById(board.getId()).orElseThrow();
         assertThat(updated.getBoardType()).isEqualTo(BoardType.FAQ);
@@ -253,7 +257,7 @@ class BoardServiceTest {
 
     @Test
     void updateNotFoundThrows() {
-        assertThatThrownBy(() -> boardService.update(999L, new BoardUpdateRequest(BoardType.NOTICE, "t", "c", null), null))
+        assertThatThrownBy(() -> boardService.update(ADMIN_USER_ID, 999L, new BoardUpdateRequest(BoardType.NOTICE, "t", "c", null), null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.BOARD_NOT_FOUND);
@@ -267,7 +271,7 @@ class BoardServiceTest {
         Long keepA = before.get(0).getId();
         Long keepC = before.get(2).getId();
 
-        boardService.update(created.getId(),
+        boardService.update(ADMIN_USER_ID, created.getId(),
                 new BoardUpdateRequest(BoardType.NOTICE, "제목", "내용", List.of(keepA, keepC)), null);
 
         List<BoardAttachment> after = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId());
@@ -286,7 +290,7 @@ class BoardServiceTest {
                 ADMIN_USER_ID, request(BoardType.NOTICE), List.of(pdfFile("a.pdf")));
         Long keepA = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId()).get(0).getId();
 
-        boardService.update(created.getId(),
+        boardService.update(ADMIN_USER_ID, created.getId(),
                 new BoardUpdateRequest(BoardType.NOTICE, "제목", "내용", List.of(keepA)), List.of(pdfFile("new.pdf")));
 
         List<BoardAttachment> after = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId());
@@ -302,7 +306,7 @@ class BoardServiceTest {
         BoardCreateResponse created = boardService.create(
                 ADMIN_USER_ID, request(BoardType.NOTICE), List.of(pdfFile("a.pdf"), pdfFile("b.pdf")));
 
-        boardService.update(created.getId(), new BoardUpdateRequest(BoardType.NOTICE, "제목", "내용", null), null);
+        boardService.update(ADMIN_USER_ID, created.getId(), new BoardUpdateRequest(BoardType.NOTICE, "제목", "내용", null), null);
 
         assertThat(boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId())).isEmpty();
         assertThat(uploadFileRepository.count()).isZero();
@@ -315,7 +319,7 @@ class BoardServiceTest {
                 ADMIN_USER_ID, request(BoardType.NOTICE), List.of(pdfFile("a.pdf")));
         Long keepA = boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId()).get(0).getId();
 
-        assertThatThrownBy(() -> boardService.update(created.getId(),
+        assertThatThrownBy(() -> boardService.update(ADMIN_USER_ID, created.getId(),
                 new BoardUpdateRequest(BoardType.FAQ, "제목", "내용", List.of(keepA)), null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -336,7 +340,7 @@ class BoardServiceTest {
                 .mapToObj(i -> pdfFile(i + ".pdf"))
                 .toList();
 
-        assertThatThrownBy(() -> boardService.update(created.getId(),
+        assertThatThrownBy(() -> boardService.update(ADMIN_USER_ID, created.getId(),
                 new BoardUpdateRequest(BoardType.NOTICE, "제목", "내용", keepIds), List.copyOf(newFiles)))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -348,7 +352,7 @@ class BoardServiceTest {
         BoardCreateResponse created = boardService.create(
                 ADMIN_USER_ID, request(BoardType.NOTICE), List.of(pdfFile("a.pdf"), pdfFile("b.pdf")));
 
-        boardService.delete(created.getId());
+        boardService.delete(ADMIN_USER_ID, created.getId());
 
         assertThat(boardRepository.findById(created.getId())).isEmpty();
         assertThat(boardAttachmentRepository.findByBoardIdOrderByDisplayOrderAsc(created.getId())).isEmpty();
@@ -358,7 +362,7 @@ class BoardServiceTest {
 
     @Test
     void deleteNotFoundThrows() {
-        assertThatThrownBy(() -> boardService.delete(999L))
+        assertThatThrownBy(() -> boardService.delete(ADMIN_USER_ID, 999L))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.BOARD_NOT_FOUND);

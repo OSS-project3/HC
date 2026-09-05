@@ -6,7 +6,6 @@ import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.UploadFileType;
-import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.BulkValidationException;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
@@ -50,6 +49,7 @@ import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository
 import com.example.honorcitizen.domain.school.entity.School;
 import com.example.honorcitizen.domain.school.repository.SchoolRepository;
 import com.example.honorcitizen.domain.user.entity.User;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import com.example.honorcitizen.domain.user.service.UserService;
 import com.example.honorcitizen.infra.storage.StorageService;
 import jakarta.persistence.EntityManager;
@@ -112,9 +112,12 @@ public class ApplicationService {
     // 기간이 너무 짧으면 알림 수신 후 즉시 접속하지 않으면 만료되는 UX 문제가 생긴다.
     private static final long CARD_DOWNLOAD_URL_EXPIRY_SECONDS = 7 * 24 * 60 * 60L;
 
-    // 관리자 카드 개별 다운로드 presigned URL 유효 기간: 30일(2026-09-05 정책 결정) — 사용자용보다
-    // 길게 둔다. 실물 제작 업체 전달 등 관리자 쪽 처리 시간이 사용자 다운로드보다 더 걸릴 수 있다.
-    private static final long ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS = 30 * 24 * 60 * 60L;
+    // 관리자 카드 개별 다운로드 presigned URL 유효 기간 — 2026-09-05 정책 결정은 "사용자용(7일)보다
+    // 길게"였으나, SigV4 presigned URL 자체가 최대 7일까지만 허용된다(AWS 하드 리밋 —
+    // DefaultAwsV4HttpSigner.validateExpirationDuration, 30일로 뒀다가 실제 호출 시
+    // IllegalArgumentException으로 발견). 더 길게는 기술적으로 불가능해 사용자용과 같은 최댓값(7일)을
+    // 그대로 쓴다 — "관리자용을 더 길게"라는 정책 의도는 이 상한 안에서는 충족할 수 없다.
+    private static final long ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS = CARD_DOWNLOAD_URL_EXPIRY_SECONDS;
 
     // 마이페이지 신청 목록(api.md API 6) 페이지 크기 상한 — Board/Event와 동일한 관례.
     private static final int MAX_PAGE_SIZE = 100;
@@ -130,6 +133,7 @@ public class ApplicationService {
     private final NameSelectionStatRepository nameSelectionStatRepository;
     private final ApplicationExportExcelBuilder applicationExportExcelBuilder;
     private final UserService userService;
+    private final AdminAuthorizationService adminAuthorizationService;
     // 트랜잭션 경계를 위한 별도 Bean — 위 클래스 주석의 self-invocation 문제 참고
     private final ApplicationPersistenceService applicationPersistenceService;
     // 일일 신청 생성 횟수 제한(하루 3회, 개인/단체 합산) 전담 — APPLICATION.md §7
@@ -894,10 +898,7 @@ public class ApplicationService {
     // 2026-08-19 정책 변경: 탈퇴 계정은 즉시 하드 삭제되므로 findById가 성공했다는 것 자체가
     // "탈퇴하지 않은 계정"이라는 뜻이다 — 별도 상태 체크가 필요 없다.
     private void validateAdmin(Long adminId) {
-        User admin = userService.findById(adminId);
-        if (admin.getRole() != UserRole.ADMIN) {
-            throw new CustomException(ErrorCode.FORBIDDEN);
-        }
+        adminAuthorizationService.requireAdmin(adminId);
     }
 
     private void completeCancellation(Application application) {
@@ -1164,7 +1165,9 @@ public class ApplicationService {
      * Truth는 항상 ApplicationMember.cardFrontPath/cardBackPath — ZIP 자체의 무효화·재생성 상태는
      * 별도로 관리하지 않는다. 재생성 시 멤버 파일만 갱신하면 다음 다운로드 요청이 항상 최신을 반영한다).
      */
-    @Transactional(readOnly = true)
+    // readOnly가 아니다 — 조회뿐 아니라 감사로그(AdminActivityLog)도 같이 저장한다(실제 호출 시
+    // "cannot execute INSERT in a read-only transaction"으로 발견, 2026-09-05).
+    @Transactional
     public byte[] getAdminCardsZip(Long adminId, Long applicationId) {
         validateAdmin(adminId);
         Application application = applicationRepository.findById(applicationId)
@@ -1193,7 +1196,8 @@ public class ApplicationService {
      * 아니라 이 멤버의 렌더링 결과물 존재 여부로만 판단한다. presigned URL 만료시간은 사용자용
      * (7일)보다 길게 둔다(관리자가 실물 제작 업체에 전달하는 등 더 긴 처리 시간이 필요할 수 있음).
      */
-    @Transactional(readOnly = true)
+    // readOnly가 아니다 — getAdminCardsZip과 동일한 이유(감사로그 저장).
+    @Transactional
     public AdminMemberCardDownloadResponse getAdminMemberCardDownload(Long adminId, Long applicationId, Long memberId) {
         validateAdmin(adminId);
         ApplicationMember member = applicationMemberRepository.findById(memberId)

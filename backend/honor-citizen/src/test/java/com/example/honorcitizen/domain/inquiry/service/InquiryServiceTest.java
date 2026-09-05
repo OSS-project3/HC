@@ -12,6 +12,8 @@ import com.example.honorcitizen.domain.inquiry.dto.InquiryListItemResponse;
 import com.example.honorcitizen.domain.inquiry.entity.Inquiry;
 import com.example.honorcitizen.domain.inquiry.repository.InquiryRepository;
 import com.example.honorcitizen.infra.mail.EmailSender;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,8 +41,11 @@ class InquiryServiceTest {
     private InquiryRepository inquiryRepository;
     @MockitoBean
     private EmailSender emailSender;
+    @MockitoBean
+    private AdminAuthorizationService adminAuthorizationService;
 
     private static final Long USER_ID = 1L;
+    private static final Long ADMIN_USER_ID = 2L;
 
     @BeforeEach
     void setUp() {
@@ -116,7 +121,7 @@ class InquiryServiceTest {
         Thread.sleep(5);
         InquiryCreateResponse second = inquiryService.create(2L, request());
 
-        List<InquiryListItemResponse> all = inquiryService.listAdmin();
+        List<InquiryListItemResponse> all = inquiryService.listAdmin(ADMIN_USER_ID);
 
         assertThat(all).hasSize(2);
         assertThat(all.get(0).getId()).isEqualTo(second.getId());
@@ -126,14 +131,14 @@ class InquiryServiceTest {
     void getAdminDetailReturnsAnyUsersInquiry() {
         InquiryCreateResponse created = inquiryService.create(USER_ID, request());
 
-        InquiryDetailResponse detail = inquiryService.getAdminDetail(created.getId());
+        InquiryDetailResponse detail = inquiryService.getAdminDetail(ADMIN_USER_ID, created.getId());
 
         assertThat(detail.getId()).isEqualTo(created.getId());
     }
 
     @Test
     void getAdminDetailForMissingInquiryThrowsNotFound() {
-        assertThatThrownBy(() -> inquiryService.getAdminDetail(999999L))
+        assertThatThrownBy(() -> inquiryService.getAdminDetail(ADMIN_USER_ID, 999999L))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
@@ -143,7 +148,7 @@ class InquiryServiceTest {
     void answerSavesAnswerAndTransitionsToCompleted() {
         InquiryCreateResponse created = inquiryService.create(USER_ID, request());
 
-        inquiryService.answer(created.getId(), "영업일 기준 5일 이내 발급됩니다.");
+        inquiryService.answer(ADMIN_USER_ID, created.getId(), "영업일 기준 5일 이내 발급됩니다.");
 
         Inquiry updated = inquiryRepository.findById(created.getId()).orElseThrow();
         assertThat(updated.getAnswer()).isEqualTo("영업일 기준 5일 이내 발급됩니다.");
@@ -155,7 +160,7 @@ class InquiryServiceTest {
     void answerSendsEmailOnFirstAnswer() {
         InquiryCreateResponse created = inquiryService.create(USER_ID, request());
 
-        inquiryService.answer(created.getId(), "영업일 기준 5일 이내 발급됩니다.");
+        inquiryService.answer(ADMIN_USER_ID, created.getId(), "영업일 기준 5일 이내 발급됩니다.");
 
         verify(emailSender).send(eq("hong@example.com"), eq(EmailType.INQUIRY_ANSWERED),
                 anyString(), anyString(), anyString());
@@ -164,10 +169,10 @@ class InquiryServiceTest {
     @Test
     void answerDoesNotResendEmailWhenAlreadyAnswered() {
         InquiryCreateResponse created = inquiryService.create(USER_ID, request());
-        inquiryService.answer(created.getId(), "1차 답변");
+        inquiryService.answer(ADMIN_USER_ID, created.getId(), "1차 답변");
         reset(emailSender);
 
-        inquiryService.answer(created.getId(), "수정된 답변");
+        inquiryService.answer(ADMIN_USER_ID, created.getId(), "수정된 답변");
 
         Inquiry updated = inquiryRepository.findById(created.getId()).orElseThrow();
         assertThat(updated.getAnswer()).isEqualTo("수정된 답변");
@@ -180,7 +185,7 @@ class InquiryServiceTest {
         doThrow(new CustomException(ErrorCode.EMAIL_DELIVERY_FAILED))
                 .when(emailSender).send(anyString(), any(), anyString(), anyString(), anyString());
 
-        inquiryService.answer(created.getId(), "영업일 기준 5일 이내 발급됩니다.");
+        inquiryService.answer(ADMIN_USER_ID, created.getId(), "영업일 기준 5일 이내 발급됩니다.");
 
         Inquiry updated = inquiryRepository.findById(created.getId()).orElseThrow();
         assertThat(updated.getAnswer()).isEqualTo("영업일 기준 5일 이내 발급됩니다.");
@@ -189,7 +194,7 @@ class InquiryServiceTest {
 
     @Test
     void answerForMissingInquiryThrowsNotFound() {
-        assertThatThrownBy(() -> inquiryService.answer(999999L, "답변"))
+        assertThatThrownBy(() -> inquiryService.answer(ADMIN_USER_ID, 999999L, "답변"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
@@ -199,7 +204,7 @@ class InquiryServiceTest {
     void changeStatusAllowsCompletedWithoutAnswer() {
         InquiryCreateResponse created = inquiryService.create(USER_ID, request());
 
-        inquiryService.changeStatus(created.getId(), InquiryStatus.COMPLETED);
+        inquiryService.changeStatus(ADMIN_USER_ID, created.getId(), InquiryStatus.COMPLETED);
 
         Inquiry updated = inquiryRepository.findById(created.getId()).orElseThrow();
         assertThat(updated.getStatus()).isEqualTo(InquiryStatus.COMPLETED);
@@ -209,7 +214,7 @@ class InquiryServiceTest {
 
     @Test
     void changeStatusForMissingInquiryThrowsNotFound() {
-        assertThatThrownBy(() -> inquiryService.changeStatus(999999L, InquiryStatus.COMPLETED))
+        assertThatThrownBy(() -> inquiryService.changeStatus(ADMIN_USER_ID, 999999L, InquiryStatus.COMPLETED))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);

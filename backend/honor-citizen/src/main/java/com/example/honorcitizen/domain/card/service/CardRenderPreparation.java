@@ -2,7 +2,6 @@ package com.example.honorcitizen.domain.card.service;
 
 import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.CardTypeCode;
-import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.application.entity.Application;
@@ -18,8 +17,7 @@ import com.example.honorcitizen.domain.manseryeok.entity.ManseryeokResult;
 import com.example.honorcitizen.domain.manseryeok.repository.ManseryeokResultRepository;
 import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
-import com.example.honorcitizen.domain.user.entity.User;
-import com.example.honorcitizen.domain.user.service.UserService;
+import com.example.honorcitizen.domain.user.service.AdminAuthorizationService;
 import com.example.honorcitizen.infra.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -49,7 +47,7 @@ class CardRenderPreparation {
     private final UploadFileRepository uploadFileRepository;
     private final ManseryeokResultRepository manseryeokResultRepository;
     private final StorageService storageService;
-    private final UserService userService;
+    private final AdminAuthorizationService adminAuthorizationService;
     private final CardImageCompositor compositor;
     private final ObjectMapper objectMapper;
 
@@ -206,9 +204,6 @@ class CardRenderPreparation {
     }
 
     private void validateAdmin(Long adminId) {
-        User admin = userService.findById(adminId);
-        if (admin.getRole() != UserRole.ADMIN) {
-            throw new CustomException(ErrorCode.FORBIDDEN);
-        }
+        adminAuthorizationService.requireAdmin(adminId);
     }
 }
