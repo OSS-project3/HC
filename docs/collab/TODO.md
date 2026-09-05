@@ -1815,3 +1815,36 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - `BoardServiceTest`: 기존 5개 시그니처 갱신 + 신규 5개(제목만/본문만/searchType 없으면 둘 다/타입 경계 안 넘음/빈 keyword는 전체 반환) — 22/22.
 - `BoardControllerTest`: HTTP 배선 테스트 1개 추가.
 - 전체 스위트 829개(Redis 포함) 재실행, 0 failure/0 error.
+
+---
+
+## 관리자 통계 API (2026-09-05 완료)
+
+상태: ✅ 완료(Claude)
+
+### 배경
+
+`AdminPage.tsx`의 `OverviewSection`이 `GET /api/admin/stats` 없이 자체 계산 중이었다 — `listAdminApplications({size:100})`로 받은 첫 100건을 `.filter()`해서 개인/단체 신청 수를 세므로 신청이 100건을 넘으면 부정확해진다. `listAdminInquiries()`는 페이지네이션이 없어 문의 수 자체는 이미 정확했다.
+
+### 정책 결정 (전부 사용자 확정, 2026-09-05)
+
+1. **통계 범위**: 지금 프론트가 쓰는 4개 지표(전체/개인/단체 신청 수, 문의 수)만 정확한 DB 집계로 제공한다 — 신청 상태별·카드종류별 분포는 이번 범위에 넣지 않는다(필요해지면 나중에 추가).
+2. **문의 통계 세분화**: 총 개수뿐 아니라 답변대기(PENDING)/답변완료(COMPLETED) 상태별로도 나눠서 반환한다.
+3. **기간 필터**: 지원하지 않는다 — 전체 누적 통계만. 프론트 대시보드 요약 카드에 기간 구분이 없으므로 필요성이 생기면 나중에 추가.
+
+### 구현
+
+- `GET /api/admin/stats` — `AdminStatsController`(신규) → `AdminStatsService`(신규) → `AdminStatsResponse`(신규, `totalApplications`/`individualApplications`/`groupApplications`/`totalInquiries`/`pendingInquiries`/`completedInquiries`).
+- `ApplicationRepository.countByApplicationType(ApplicationType)`, `InquiryRepository.countByStatus(InquiryStatus)` 신규 파생 메서드. 전체 건수는 `count()`(enum 값 2개뿐이라 하위 합산으로도 맞지만, enum이 늘어나도 항상 정확하도록 별도 `count()` 사용).
+- 인가는 `InquiryAdminController`와 동일 원칙 — `/api/admin/**`(SecurityConfig, `hasRole("ADMIN")`) 라우트 레벨 검증에만 맡기고, 컨트롤러/서비스에서 adminId를 받아 이중 검증하지 않음(조회뿐이라 감사로그·adminId 참조 자체가 불필요, `ApplicationService.validateAdmin(adminId)` 패턴과는 다른 계열).
+- 새 `domain/stats` 패키지 — Application/Inquiry 어느 한쪽에도 속하지 않는 집계 전용 기능이라 별도 도메인으로 분리.
+
+### 프론트 연동은 이번 범위 밖
+
+백엔드만 구현했다 — `AdminPage.tsx`의 `listAdminApplications({size:100})` 기반 자체 계산을 `GET /api/admin/stats` 호출로 교체하는 건 프론트 담당(`docs/FRONTEND_API_GAPS.md` §1.4 참고).
+
+### 테스트
+
+- `AdminStatsServiceTest`(4): 개인/단체/전체 정확한 집계, 개인 신청 105건으로 기존 100건 페이지 슬라이스 경계를 넘겨도 정확함, 문의 PENDING/COMPLETED/전체 집계, 데이터 없을 때 전부 0.
+- `AdminStatsControllerTest`(3): 관리자 200 + 값 확인, 비관리자 403, 토큰 없음 401.
+- 전체 스위트 836개(Redis 포함) 재실행, 0 failure/0 error.

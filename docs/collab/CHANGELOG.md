@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-09-05 — Claude — `main` (관리자 통계 API 구현)
+
+- 변경: `GET /api/admin/stats` 신규 — `AdminPage.tsx`의 `OverviewSection`이 `listAdminApplications({size:100})`로 받은 첫 100건을 `.filter()`해 개인/단체 신청 수를 세던 것(100건 넘으면 부정확)을 정확한 DB 집계로 대체할 수 있게 함. 응답: `totalApplications`/`individualApplications`/`groupApplications`(신청 전체·개인·단체 건수)와 `totalInquiries`/`pendingInquiries`/`completedInquiries`(문의 전체·답변대기·답변완료 건수). 신청 상태별·카드종류별 분포와 기간 필터는 이번 범위에 넣지 않음(사용자 정책 확정, 필요해지면 나중에 추가). 인가는 `InquiryAdminController`와 동일 원칙으로 SecurityConfig의 라우트 레벨 `hasRole("ADMIN")` 검증에만 맡기고 별도 adminId 이중 검증은 하지 않음(조회뿐이라 감사로그도 없음).
+- 파일: `domain/stats/dto/AdminStatsResponse.java`(신규), `domain/stats/service/AdminStatsService.java`(신규), `api/AdminStatsController.java`(신규), `domain/application/repository/ApplicationRepository.java`(`countByApplicationType` 추가), `domain/inquiry/repository/InquiryRepository.java`(`countByStatus` 추가), 테스트(`AdminStatsServiceTest` 신규 4개, `AdminStatsControllerTest` 신규 3개).
+- 사유: 관리자 통계 API 자체가 미구현 상태였음 — 프론트가 페이지 슬라이스로 자체 계산 중이던 걸 대체할 정확한 집계 API 신설.
+- 테스트: 전체 스위트 836개(Redis 포함) 재실행, 0 failure/0 error.
+- 관련: `docs/collab/TODO.md` "관리자 통계 API", `docs/FRONTEND_API_GAPS.md` §1.4(프론트 연동은 이번 범위 밖)
+
+---
+
 ## 2026-09-05 — Claude — `main` (공지/FAQ 서버 검색 구현)
 
 - 변경: `GET /api/boards`에 `searchType`(TITLE/CONTENT/ALL)/`keyword` 쿼리 파라미터 추가 — `ReviewController`의 검색 패턴(`ReviewSearchType`/`ReviewSpecifications`)을 그대로 재사용했다. Board는 관리자만 작성하는 콘텐츠라 작성자 표시명 필드가 없어 `AUTHOR` 옵션은 두지 않고 `BoardSearchType`을 TITLE/CONTENT/ALL로만 신설. NOTICE/FAQ 통합검색은 지원하지 않아 `type`은 계속 필수(기존과 동일). 검색은 DB 원문(한글) 컬럼 기준으로만 동작(Review도 이미 같은 한계 — 번역 캐시까지 검색하지 않음). `content`가 순수 텍스트(HTML 아님)임을 실제 시드 데이터로 확인해 `LIKE` 검색 결과가 화면 그대로 정확함을 확인. 정렬은 Review와 동일하게 `createdAt`+`id` 2차 정렬 유지.
