@@ -366,7 +366,7 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - **학생증 `schoolName` 저장 필드**: 실제 카드 발급에 필요한 정보인지 확인 필요.
 - **신청 건별 동의 이력(상담확인·유의사항) 저장**: 단순 UX 게이트로 충분한지, 이력 저장이 필요한지 결정 필요.
 - **후기 다중 이미지**: 현재 API·DB 둘 다 1장으로 확정 동작 중 — 다중 유지 여부 결정 필요.
-- **게시판 서버 검색(keyword/searchType)**: 현재 데이터량에서 클라이언트 검색으로 충분한지, Review 검색 패턴을 재사용해 지금 만들지 결정 필요.
+- ~~**게시판 서버 검색(keyword/searchType)**~~ — ✅ 2026-09-05 구현 완료(맨 아래 "공지 서버 검색" 절 참고). Review 패턴 재사용하되 Board는 authorDisplayName이 없어 `BoardSearchType`은 TITLE/CONTENT/ALL만 둠, NOTICE/FAQ 통합검색은 지원 안 함(type 필수 유지).
 - **한국이름 조회 API**: 서버 API로 옮길지, 외부 링크아웃으로 대체할지 결정 필요.
 - **출생국가(birthCountry) 필드 신설 여부**: saju 연동(위 SAJU-GEO 체크리스트)에서 timezone 해석에 `nationality`(국적)를 쓰면 안 된다는 게 확정됐는데, HC `Applicant`/`ApplicationMember`엔 국적만 있고 출생국가가 없음 — HC 쪽 saju export 기능을 실제로 만들 때 이 필드부터 신설할지 결정 필요.
 
@@ -1787,3 +1787,31 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - `ApplicationServiceAdminCardDownloadTest`(7): PRODUCING 상태에서도 전체 ZIP 성공, 멤버 누락 시 거절+식별, 개별 다운로드는 다른 멤버 미준비와 무관하게 성공, 개별 다운로드 거절(미준비/다른 신청 소속), 비관리자 거절, 감사로그 기록.
 - `AdminApplicationControllerTest`에 HTTP 배선 테스트 5개 추가(비즈니스 로직은 위 Service 테스트가 커버).
 - 전체 스위트 823개(Redis 포함) 재실행, 0 failure/0 error.
+
+---
+
+## 공지 서버 검색 (2026-09-05 완료)
+
+상태: ✅ 완료(Claude)
+
+### 정책 결정 (전부 사용자 확정, 2026-09-05)
+
+1. **NOTICE/FAQ 통합검색은 지원하지 않는다** — `type`을 항상 지정해서 그 타입 안에서만 검색.
+2. **FAQ 검색 범위**: title(질문)+content(답변) 검색으로 충분, 별도 처리 불필요.
+3. **다국어 번역과 검색 충돌**: 한글 원문 DB 컬럼 기준으로만 검색한다 — Review도 이미 같은 한계를 갖고 있어(번역 캐시까지 검색하지 않음) 새로 해결할 것 없음. 영어 화면에서 영어로 검색하면 안 걸릴 수 있다는 한계를 그대로 인정.
+4. **content 텍스트 형식**: `DemoDataSeeder`의 실제 시드 데이터로 확인 — HTML이 아니라 순수 텍스트(줄바꿈만 사용)라서 `LIKE` 검색이 화면에 보이는 그대로 정확히 동작함을 확인.
+5. **정렬**: Review와 동일하게 `createdAt`+`id` 2차 정렬 그대로 유지(공지 상단고정 기능 없음, 새로 만들 것 없음).
+
+### 구현
+
+- `BoardSearchType`(TITLE/CONTENT/ALL) 신규 — `ReviewSearchType`과 달리 `AUTHOR`는 없음(Board는 관리자만 작성해 작성자 표시명 필드 자체가 없음).
+- `BoardSpecifications` 신규 — `ReviewSpecifications`와 완전히 동일한 패턴(`boardType`/`keyword` 조건, null이면 `cb.conjunction()`).
+- `BoardRepository`가 `JpaSpecificationExecutor<Board>` 상속 — 이제 안 쓰는 `findByBoardType` 파생 메서드 제거.
+- `BoardService.list(type, searchType, keyword, page, size)` — Specification 조합으로 교체.
+- `BoardController`에 `searchType`/`keyword` 쿼리 파라미터 추가.
+
+### 테스트
+
+- `BoardServiceTest`: 기존 5개 시그니처 갱신 + 신규 5개(제목만/본문만/searchType 없으면 둘 다/타입 경계 안 넘음/빈 keyword는 전체 반환) — 22/22.
+- `BoardControllerTest`: HTTP 배선 테스트 1개 추가.
+- 전체 스위트 829개(Redis 포함) 재실행, 0 failure/0 error.

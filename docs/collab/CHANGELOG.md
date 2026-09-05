@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-09-05 — Claude — `main` (공지/FAQ 서버 검색 구현)
+
+- 변경: `GET /api/boards`에 `searchType`(TITLE/CONTENT/ALL)/`keyword` 쿼리 파라미터 추가 — `ReviewController`의 검색 패턴(`ReviewSearchType`/`ReviewSpecifications`)을 그대로 재사용했다. Board는 관리자만 작성하는 콘텐츠라 작성자 표시명 필드가 없어 `AUTHOR` 옵션은 두지 않고 `BoardSearchType`을 TITLE/CONTENT/ALL로만 신설. NOTICE/FAQ 통합검색은 지원하지 않아 `type`은 계속 필수(기존과 동일). 검색은 DB 원문(한글) 컬럼 기준으로만 동작(Review도 이미 같은 한계 — 번역 캐시까지 검색하지 않음). `content`가 순수 텍스트(HTML 아님)임을 실제 시드 데이터로 확인해 `LIKE` 검색 결과가 화면 그대로 정확함을 확인. 정렬은 Review와 동일하게 `createdAt`+`id` 2차 정렬 유지.
+- 파일: `common/enums/BoardSearchType.java`(신규), `domain/board/service/BoardSpecifications.java`(신규), `domain/board/repository/BoardRepository.java`(`JpaSpecificationExecutor` 상속, 안 쓰는 `findByBoardType` 제거), `domain/board/service/BoardService.java`, `api/BoardController.java`, 테스트(`BoardServiceTest` 신규 5개+기존 5개 시그니처 갱신, `BoardControllerTest` HTTP 배선 1개 추가).
+- 사유: 공지사항 서버 검색이 아예 없었음(목록 API가 `type`/`page`/`size`뿐) — 이미 같은 프로젝트에 있는 Review 검색 패턴을 재사용해 신규 구현.
+- 테스트: 전체 스위트 829개(Redis 포함) 재실행, 0 failure/0 error.
+- 관련: `docs/collab/TODO.md` "공지 서버 검색"
+
+---
+
 ## 2026-09-05 — Claude — `main` (학생증 신청 "학교 구분" 라디오 버튼 노출 버그 수정)
 
 - 변경: `StepInfo.tsx`의 "학교 구분"(대학교/고등학교) 필수 라디오 버튼이 "찾는 학교가 없나요? 직접 입력" 버튼을 눌러 직접입력 모드로 전환했을 때만 화면에 렌더링되던 것을, 정상 검색select 모드에서도 항상 보이도록 두 곳(법인·단체/개인 신청 화면)에 동일하게 추가. 검색select로 학교를 고르면 `selectSchool()`이 그 학교의 실제 `schoolType`으로 `schoolLevel`을 이미 정확히 세팅하고 있었지만(로직 자체는 정상), 사용자에게 그걸 보여주거나 확인시키는 화면 요소가 검색select 모드엔 전혀 없어 "필수인데 확인 안 되는" 것처럼 보였다.
