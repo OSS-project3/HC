@@ -43,6 +43,7 @@
 | ✅ | `CardTypeSeeder` 추가 — CardType ID 1~4 고정 시딩 | Claude | `feature/application-domain-impl` | `docs/BACKEND_API_GAPS.md`(참고: 카드 종류 ID) | 프론트 `cardTypeId` 하드코딩(1~4)을 그대로 쓰기로 결정, `GET /api/card-types` 신규 API는 만들지 않음 |
 | ⚪ | 단체 재제출 UI(`MobileCardPage.tsx`) 추가 | 프론트 담당자 | `main` | `docs/BACKEND_API_GAPS.md` P0-2 | 백엔드는 이미 구현됨(`PATCH .../photo`의 `submitFile` 파트, `PHOTO_REJECTED` 상태에서만 허용). 프론트에 단체용 업로드 UI만 없음 |
 | ⚪ | `StepInfo.tsx`에 4개 카드종류 전부 사주정보 입력폼 추가 | 프론트 담당자 | `main` | `docs/specs/application/requirements.md` §7-3 | 현재 방문증에만 있음. 나머지 3종은 목데이터라 안 드러날 뿐 실제 API 연동 시 400 발생 |
+| ✅ | 고등학교 마스터 데이터 시딩(`학교기본정보_20260831` CSV 기반) | Claude | `main` | 본 문서 "고등학교 마스터 데이터 시딩" 절 | `HighSchoolSeeder` 신규, 최종 2,403개 등록 대상(동명이교 214건 지역명 prefix). 전체 테스트 810개 통과 |
 | ⚪ | Payment/상담금액/자동취소/환불 도메인 설계·구현 | 미정 | - | `docs/specs/application/requirements.md` | 이번 Application 구현 범위 밖(api.md 스코프 노트 참고). checklist.md 1절 미충족 3건이 여기 해당 |
 | 🟡 | Admin 도메인(사진검토/작명/카드발급/CardDesign 배정) 설계·구현 | 대부분 완료(2026-08-25) | `main` | `docs/FRONTEND_API_GAPS.md` §1.4 | ✅ 사진반려·작명(assign/naming-result)·카드발급(card-ready)·배송(dispatch)·상태전이 8종·엑셀 export 전부 구현·연동. ❌ 남은 것: CardDesign 배정, 통계(`GET /api/admin/stats`)만 |
 | ⚪ | CardDesign 관리자 배정 API/화면 흐름 확정 | 미정 | - | `docs/specs/application/requirements.md` | "CardDesign 배정 시점" TBD 선결 필요 |
@@ -1690,8 +1691,8 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] `MOBILE`은 cardReady 시 COMPLETED.
 - [ ] `MOBILE_AND_PHYSICAL`은 cardReady 후 PRODUCING 유지, 모바일 카드 조회 허용, dispatch 후 COMPLETED.
 - [ ] 사용자 다운로드 조건을 `COMPLETED` 단독 기준에서 `cardReadyAt != null && 필수 파일 존재` 기준으로 정리.
-- [ ] 관리자 제작 파일 다운로드 API 구현. 개인은 앞·뒷면, 단체는 전체 결과 ZIP 제공.
-- [ ] 단체 ZIP 임시 S3 object의 만료·정리 정책 적용.
+- [x] 관리자 제작 파일 다운로드 API 구현 — 단, 이 항목이 전제한 비동기 Job 설계와는 별개로, "3. 카드 생성·저장 — 최소 버전"(동기 방식) 기준으로 **더 아래 "관리자 카드 다운로드" 절**에서 완료함(2026-09-05). 개인/단체 모두 지원 + 단체는 전체 ZIP과 멤버 1명 개별 다운로드 둘 다 지원(이 항목 원문보다 범위가 넓음).
+- [ ] ~~단체 ZIP 임시 S3 object의 만료·정리 정책 적용.~~ → 실제 구현은 ZIP을 S3에 아예 저장하지 않고 매 요청마다 즉석 생성해 응답하는 방식으로 확정돼(2026-09-05) 이 항목 자체가 무의미해짐 — 만료·정리 대상 자체가 없음.
 - [ ] 멱등 호출: 완료 Job 재조회, 중복 재시도, 중복 startProducing/cardReady가 기존 결과를 훼손하지 않도록 검증.
 - [ ] 통합 테스트: 재시도, 선행조건, MOBILE/MOBILE_AND_PHYSICAL 분기, 발송 전 모바일 다운로드, 관리자 다운로드, ZIP 정리.
 
@@ -1701,3 +1702,88 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] 사용자가 정책상 허용된 시점에 모바일 카드를 조회·다운로드 가능.
 - [ ] 1~3 전체 Application 관련 회귀 테스트 통과.
 - [ ] push 직전 전체 테스트를 로그 파일로 실행하고 종료 코드·전체 테스트 수·실패 이름·리포트 경로만 보고.
+
+---
+
+## 고등학교 마스터 데이터 시딩(`학교기본정보_20260831` CSV 기반)
+
+상태: ✅ 완료(2026-09-05, Claude)
+
+### 배경
+
+`SchoolSeeder`(2026-08-31, 다른 세션 작업분 — 미커밋 상태로 워킹트리에 존재, `HANDOFF.md` 참고)가 공공데이터포털 "전국대학및전문대학정보" CSV로 대학교/전문대학만 `School` 마스터에 시딩한다. 고등학교는 빠져있다. 사용자가 `D:\HC-worktrees\saju\학교 정보\학교기본정보_2026년8월31일기준.csv`(나이스 "학교기본정보" 표준데이터, 전국 초중고 전체 포함)를 제공, 이 중 고등학교만 골라 같은 방식으로 시딩하는 작업.
+
+### CSV 실측 결과 (2026-09-04 확인, 코드 작성 전 조사 단계)
+
+- 인코딩: **CP949**(EUC-KR 계열, UTF-8 아님) — `SchoolSeeder`가 `universities.csv`에 이미 쓰는 `Charset.forName("MS949")`와 동일하게 처리 가능.
+- 전체 행수: 12,673행(헤더 제외).
+- 컬럼(25개, 순서대로): `시도교육청코드,시도교육청명,행정표준코드,학교명,영문학교명,학교종류명,시도명,관할조직명,설립명,도로명우편번호,도로명주소,도로명상세주소,전화번호,홈페이지주소,남녀공학구분명,팩스번호,고등학교구분명,산업체특별학급존재여부,고등학교일반전문구분명,특수목적고등학교계열명,입시전후기구분명,주야구분명,설립일자,개교기념일,수정일자`
+  - 학교급 판별 공식 컬럼 = **`학교종류명`**(6번째). `학교종류명 == "고등학교"`로 정확히 필터링(부분 문자열 매칭 아님) — 2,409행.
+  - 필터링된 2,409행의 `고등학교구분명`(17번째) 분포: 일반고 1,647 / 특성화고 490 / 특목고 160 / 자율고 112 = 합계 2,409 일치. 사용자가 요구한 4개 구분이 전부 이 값으로 커버됨 — `고등학교구분명`을 추가 필터 조건으로 쓸 필요 없음(`학교종류명` 단독 필터로 충분).
+  - **주의**: 일부 행(주소·영문학교명 등)에 콤마가 따옴표로 감싸여 들어있어(예: 외국인학교 행) **naive `split(',')`는 컬럼이 밀리는 오류가 남** — `SchoolSeeder.parseCsvLine()`이 이미 이 문제를 해결한 quote-aware 파서이므로 그대로 재사용할 것(새로 구현하지 말 것).
+  - **폐교 여부 컬럼 자체가 없음** — 이 데이터셋(나이스 학교기본정보)은 구조상 폐교를 아예 싣지 않는 것으로 보임(운영 중인 학교만 나열). 다만 사용자가 요청한 "운영 중인 학교만 포함" 취지에 대응하는 **다른 신호**를 발견함 — 아래 "정책 결정이 필요한 항목" 참고.
+
+### 정책 결정이 필요한 항목 (구현 전 확정 필요)
+
+1. ✅ **확정(2026-09-05, 사용자): 제외한다.** 개교 예정/가칭 학교 6건(`행정표준코드` 공백 — `(가칭)명지3고등학교`(부산), `검단3고등학교(설립예정)`(인천), `인천청라4고등학교(개교예정)`(인천), `양주2고(개교예정)`(경기), `(가칭)오송2고등학교`(충북), `AIDT고등학교`(시도명이 `재외한국학교`인데 주소는 대구 — 성격 불분명한 특이 케이스))는 시딩 대상에서 제외 → 대상 2,409 → **2,403**.
+2. ✅ **확정(2026-09-05, 사용자): `전남광주통합특별시` 특이 케이스에만 flat 매핑을 추가한다** — 원래 17개 정상 시도는 기존 계획대로 시도 축약표를 그대로 쓰고(시/군/구 파싱 도입 안 함, 전국 동명이교 220여 건 전체에 확대 적용하지 않음), 이 특이 케이스 하나만 `전남광주통합특별시(광주)` → `광주`, `전남광주통합특별시(전남)` → `전남`으로 flat 매핑(구/시/군 하위 파싱 불필요)한다.
+   - **검증 완료(2026-09-05)**: 광주(71건) 내부 동명 중복 0건, 전남(143건) 내부 동명 중복 0건 — 둘 다 구/시/군 단위로 더 쪼갤 필요가 실제로 없다. 전국 교차 충돌(광주 쪽 7건, 전남 쪽 11건 — 원본 학교명이 다른 시도에도 같은 이름으로 존재)은 그 다른 시도들이 "광주"/"전남"이 아닌 자기 시도 축약(서울/경기/충남 등)을 쓰므로 최종 표시명 기준으로는 전부 자동 해소됨(이 CSV엔 `전라남도`/`광주광역시`라는 시도명 자체가 없어 "전남"/"광주" 접두어가 이중으로 쓰일 다른 출처도 없음).
+3. ✅ **확정(2026-09-05, 사용자): 학교코드 컬럼을 추가한다.** `School`에 `adminStandardCode`(가칭) 컬럼 신설, 이 컬럼을 idempotent 시딩의 키로 사용.
+4. ✅ **완료(2026-09-04, 이번 세션에서 별도로 먼저 처리함)**: `SchoolService.search()` 페이지네이션 없음 문제는 이미 서버 검색(관련도순 정렬 + 최대 20건)으로 교체 완료 — 고등학교 시딩과 별개로 이미 반영된 코드, 재작업 불필요.
+5. ✅ **확정(2026-09-05, 사용자): `domain/school` 패키지에 신규 클래스로 둔다.** → `RegionAbbreviations`(package-private).
+
+### 구현 체크리스트 (완료)
+
+- [x] 위 "정책 결정이 필요한 항목" 5건 사용자 확정.
+- [x] CSV를 프로젝트 리소스로 복사(원본 `D:\HC-worktrees\saju\...`는 절대 수정하지 않음, 바이트 단위로 그대로 복사해 MD5 대조까지 확인) — `backend/honor-citizen/src/main/resources/seed/high-schools.csv`.
+- [x] `School` 엔티티에 `adminStandardCode`(nullable, `admin_standard_code`) 컬럼 추가 + `schools_admin_standard_code_idx` UNIQUE 인덱스(`schema.sql`, NULL은 서로 다른 값 취급이라 코드 없는 University 시드 row와 공존 가능). 기존 `School.create(name, schoolType)`은 그대로 유지(내부적으로 code=null로 위임)해 기존 호출부(University 시더·카드템플릿 테스트 등) 전부 무변경.
+- [x] 지역명 축약 매핑 `RegionAbbreviations`(신규, `domain/school`) — 시도명 17종 + `전남광주통합특별시(광주)`/`(전남)` 특이 케이스.
+- [x] 고등학교 CSV 파서 `HighSchoolSeeder`(신규, `@Order(5)`) — `학교종류명 == "고등학교"` 필터 + 행정표준코드 공백(개교예정) 제외. CSV quote-aware 파싱은 `SchoolSeeder.parseCsvLine()`를 `CsvLineParser`(신규 공용 유틸)로 뽑아내 University·고등학교 시더 양쪽이 재사용(재사용처가 2곳이 되어 추상화 정당화).
+- [x] 동명이교 판정: 전국 기준 학교명 중복 카운트 → 2개 이상이면 지역명 prefix, 아니면 원본 학교명 그대로.
+- [x] idempotent 시딩: `adminStandardCode` 기준으로 이미 있는 학교는 skip, 없는 것만 insert. DELETE/UPDATE 전혀 없음 — 기존 School.id를 참조하는 FK(Application 등) 무영향.
+- [x] 테스트: `HighSchoolSeederTest`(7 — 유일명/동명이교prefix/비고등학교제외/개교예정제외/전남광주통합특별시 매핑/CP949 인코딩/실제 번들 CSV 전수 검증), `HighSchoolSeederIntegrationTest`(1 — `@SpringBootTest`로 재시딩 시 row 미증가 확인). `SchoolSeeder.parseCsvLine` 추출에 따른 회귀는 없음(`SchoolSeederTest` 2개 그대로 통과).
+- [x] `./gradlew.bat test` 전체 실행 — **810개 전체(Redis 포함), 0 failure, 0 error**(2 skipped는 기존 `@Disabled` 탐색용 테스트, 이번 변경과 무관) — University 시더·CardDesign·School 검색 API 관련 기존 테스트 전부 회귀 없음 확인.
+
+### 검증 수치 (최종, 2026-09-05)
+
+- CSV 전체 행 수: **12,673**
+- `학교종류명 == "고등학교"` 필터링 결과: **2,409**
+- 제외된 비고등학교 수: **10,264**(12,673 − 2,409)
+- 개교예정/코드공백으로 추가 제외: **6**
+- **최종 DB 등록 대상: 2,403**
+- 중복되지 않은 원래 학교명 수(고유 이름 종류): **2,290**
+- 동명이교 학교명 종류 수: **101**
+- 동명이교 레코드 수(=지역명을 붙여 저장한 학교 수): **214**
+- 학교코드(`adminStandardCode`) 중복: **0건**
+- 최종 표시 학교명(`name`) 중복: **0건**(테스트로 assert — 있었다면 실패했을 것)
+
+---
+
+## 관리자 카드 다운로드 API (2026-09-05 완료)
+
+상태: ✅ 완료(Claude) — "5. [보류] 3-C"가 전제한 비동기 Job 설계와 별개로, 현재 구현된 "3. 카드 생성·저장 — 최소 버전"(동기, Member 1명 단위) 기준으로 구현.
+
+### 정책 결정 (전부 사용자 확정, 2026-09-05)
+
+1. **게이트: `ApplicationStatus`가 아니라 `ApplicationMember.cardFrontPath`/`cardBackPath` 존재 여부.** 사용자용 `getCardDownload`(COMPLETED 전용)와 완전히 별개 정책 — 관리자는 `PRODUCING`(실물 제작 중, 발송 전) 단계에서도 다운로드 가능해야 실제 제작 업무 순서와 맞는다.
+2. **단체는 전체 ZIP + 멤버 1명 개별 다운로드 둘 다 지원.** Source of Truth는 항상 `ApplicationMember.cardFrontPath`/`cardBackPath` — ZIP은 별도 S3 영구 객체로 저장하지 않고 요청마다 동적 생성해 응답 바디로 직접 반환한다(무효화·재생성 상태 관리 불필요 — 멤버 파일만 갱신하면 다음 요청이 항상 최신 반영). 전체 ZIP은 모든 멤버의 front/back이 다 있어야 허용, 하나라도 없으면 전체 거절.
+3. **누락 멤버 식별 가능하게.** 전체 ZIP 거절 시 어떤 멤버(memberId)가 준비 안 됐는지 응답에 담는다.
+4. **감사 로그 남김.** `AdminActivityLog.CARD_DOWNLOAD` 신규 상수 — 전체/개별 둘 다 기록.
+5. **presigned URL 만료시간을 사용자용(7일)보다 길게.** 관리자용은 30일(`ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS`) — 실물 제작 업체 전달 등 처리 시간이 더 걸릴 수 있음.
+
+### 구현
+
+- API: `GET /api/admin/applications/{applicationId}/cards/download`(전체 ZIP, `ResponseEntity<byte[]>` 바이너리 직접 응답), `GET /api/admin/applications/{applicationId}/members/{memberId}/cards/download`(개별, presigned URL 2개 JSON 응답).
+- `ApplicationService.getAdminCardsZip()`/`getAdminMemberCardDownload()` 신규. 기존 사용자용 `buildGroupCardsZipAndGetUrl()`의 ZIP 조립 로직을 `buildMembersCardsZipBytes()`로 추출해 공유(재사용처 2곳이 되어 추상화 정당화).
+- 누락 멤버 식별은 기존 `BulkValidationException`/`ValidationErrorDetail`을 재사용(신규 예외 클래스 안 만듦 — `completeNaming()`이 이미 같은 패턴으로 씀).
+- `AdminMemberCardDownloadResponse` DTO 신규.
+
+### 정책 결정으로 무효화된 기존 항목
+
+- 위 "3-C" 절의 "단체 ZIP 임시 S3 object의 만료·정리 정책 적용" — ZIP을 S3에 아예 안 올리는 방식으로 확정돼 이 항목 자체가 대상이 없어짐.
+
+### 테스트
+
+- `ApplicationServiceAdminCardDownloadTest`(7): PRODUCING 상태에서도 전체 ZIP 성공, 멤버 누락 시 거절+식별, 개별 다운로드는 다른 멤버 미준비와 무관하게 성공, 개별 다운로드 거절(미준비/다른 신청 소속), 비관리자 거절, 감사로그 기록.
+- `AdminApplicationControllerTest`에 HTTP 배선 테스트 5개 추가(비즈니스 로직은 위 Service 테스트가 커버).
+- 전체 스위트 823개(Redis 포함) 재실행, 0 failure/0 error.

@@ -15,6 +15,38 @@
 
 ---
 
+## 2026-09-05 — Claude — `main` (학생증 신청 "학교 구분" 라디오 버튼 노출 버그 수정)
+
+- 변경: `StepInfo.tsx`의 "학교 구분"(대학교/고등학교) 필수 라디오 버튼이 "찾는 학교가 없나요? 직접 입력" 버튼을 눌러 직접입력 모드로 전환했을 때만 화면에 렌더링되던 것을, 정상 검색select 모드에서도 항상 보이도록 두 곳(법인·단체/개인 신청 화면)에 동일하게 추가. 검색select로 학교를 고르면 `selectSchool()`이 그 학교의 실제 `schoolType`으로 `schoolLevel`을 이미 정확히 세팅하고 있었지만(로직 자체는 정상), 사용자에게 그걸 보여주거나 확인시키는 화면 요소가 검색select 모드엔 전혀 없어 "필수인데 확인 안 되는" 것처럼 보였다.
+- 범위: 순수 UI 추가뿐 — 기존 검증 로직(`missingKeys`, `?? "university"` 기본값 처리)·`StepReview.tsx`·`mappers.ts`의 `toSchoolType()`은 전혀 건드리지 않음(요청받은 범위 밖). 라디오를 바꾸면 이미 고른 학교 정보(schoolId/schoolName 등)를 초기화하는 기존 리셋 패턴을 그대로 재사용.
+- 파일: `frontend/src/components/apply/steps/StepInfo.tsx`.
+- 사유: 사용자 버그 리포트 — "학교 구분이 필수인데 직접입력 버튼을 눌러야만 확인되는 버그".
+- 관련: 없음(단발성 버그 수정)
+
+---
+
+## 2026-09-05 — Claude — `main` (관리자 카드 다운로드 API 구현)
+
+- 변경: 관리자가 완성된 카드 이미지를 실물 제작 과정에서 가져다 쓸 수 있는 다운로드 API 신규 — `GET /api/admin/applications/{id}/cards/download`(전체 ZIP, 응답 바디로 바로 스트리밍), `GET /api/admin/applications/{id}/members/{memberId}/cards/download`(멤버 1명, presigned URL). 게이트는 `ApplicationStatus`가 아니라 `ApplicationMember.cardFrontPath`/`cardBackPath` 존재 여부 — 사용자용 `getCardDownload`(COMPLETED 전용)와 완전히 별개 정책이며, `PRODUCING`(실물 제작 중) 단계에서도 허용된다. 전체 ZIP은 S3에 영구 저장하지 않고 매 요청마다 즉석 생성해 응답하며, 멤버 중 하나라도 카드 이미지가 없으면 어떤 멤버인지 식별해 거절한다(`BulkValidationException` 재사용). 개별 멤버 다운로드는 재인쇄용 — 다른 멤버 준비 상태와 무관하게 동작한다. presigned URL 만료는 관리자용이 사용자용(7일)보다 길게 30일. `AdminActivityLog.CARD_DOWNLOAD` 신규 상수로 전체/개별 둘 다 감사로그 기록.
+- 파일: `domain/application/service/ApplicationService.java`(신규 메서드 2개 + ZIP 조립 로직 공용 추출), `domain/application/dto/AdminMemberCardDownloadResponse.java`(신규), `api/AdminApplicationController.java`(엔드포인트 2개), `domain/log/entity/AdminActivityLog.java`, 테스트(`ApplicationServiceAdminCardDownloadTest` 신규 7개, `AdminApplicationControllerTest` HTTP 배선 5개 추가), `docs/collab/TODO.md`.
+- 사유: 관리자용 다운로드 API가 없어 실물 카드 제작 담당자가 완성된 이미지를 가져갈 방법이 없었음. 기존 사용자용(`COMPLETED` 게이트)을 그대로 재사용하면 정작 제작 중(`PRODUCING`)엔 못 받고 이미 발송 끝난 뒤(`COMPLETED`)에야 받을 수 있는 순서가 뒤바뀐 문제가 있어 별도 정책으로 분리.
+- 테스트: 전체 스위트 823개(Redis 포함) 재실행, 0 failure/0 error.
+- 관련: `docs/collab/TODO.md` "관리자 카드 다운로드 API", 3-C(구 비동기 Job 설계, 보류)
+
+---
+
+## 2026-09-05 — Claude — `main` (학교 검색 서버 검색 전환 + 고등학교 마스터 데이터 시딩)
+
+- 변경 ①: `SchoolService.search()`가 전체 학교 목록을 한 번에 반환하던 것을 서버 검색으로 전환 — 검색어 없으면 빈 배열, 있으면 관련도순(정확히 일치 > 시작 > 포함) 정렬 + 최대 20건만 반환(`SchoolRepository.searchByName()` 신규 `@Query`, `Pageable`로 내부 제한하되 `Page<T>` 응답 아님). 대학교(418)+고등학교(2,403 예정)로 학교 수가 약 2,800개까지 늘어나 기존 "학교 수가 적다"는 가정이 깨진 데 대응. 프론트(`StepInfo.tsx`)는 전체 목록 1회 fetch 방식에서 검색어 250ms debounce 후 서버 호출 방식으로 변경, `SearchableSelectField`에 `onQueryChange` optional prop 추가(기존 소비자 무영향). API 응답 형태(`List<SchoolSearchResponse>`)는 무변경.
+- 변경 ②: 나이스 "학교기본정보" CSV(원본 2026-08-31 기준, 공공데이터포털)에서 고등학교만 골라 `School` 마스터에 시딩하는 `HighSchoolSeeder` 신규 — 기존 `SchoolSeeder`(대학교 전용)와 같은 `CommandLineRunner` 패턴. `학교종류명 == "고등학교"` 공식 컬럼으로 필터링(일반고/특성화고/특목고/자율고 4개 구분 전부 커버 확인), 개교예정/가칭 학교(행정표준코드 공백) 6건 제외. 전국에 이름이 겹치는 학교(동명이교, 214건)만 학교명 앞에 지역 접두어를 붙인다 — 축약표는 신규 `RegionAbbreviations`(시도명 17종 + 이 CSV 데이터셋 전용 특이 케이스 `전남광주통합특별시(광주)`→"광주"/`(전남)`→"전남" flat 매핑, 둘 다 내부 동명 중복 0건 실측 확인 후 확정). `School`에 `adminStandardCode`(nullable) 컬럼 신설 — 표시명(`name`)은 지역 접두어가 붙어 재실행마다 값이 달라질 수 있어 idempotency 키로 못 쓰므로, 원본 CSV의 행정표준코드를 진짜 식별자로 분리(기존 `School.create(name, schoolType)`는 무변경 유지, 코드가 없는 University 시드와 공존). CSV quote-aware 파서(`SchoolSeeder`에 있던 것)는 `CsvLineParser`로 뽑아 두 시더가 공용으로 씀. DELETE/UPDATE 전혀 없이 코드 기준 skip-insert만 수행해 기존 FK(Application 등) 무영향.
+- 최종 등록 대상: CSV 12,673행 → 고등학교 2,409행 → 개교예정 6건 제외 → **2,403개**. 동명이교 101종/214건에 지역 접두어 적용, 학교코드·최종 표시명 둘 다 중복 0건(테스트로 assert).
+- 파일: `domain/school/{CsvLineParser,RegionAbbreviations,HighSchoolSeeder}.java`(신규), `domain/school/entity/School.java`, `domain/school/repository/SchoolRepository.java`, `domain/school/service/SchoolService.java`, `api/SchoolController.java`, `SchoolSeeder.java`(parseCsvLine 추출), `schema.sql`, `resources/seed/high-schools.csv`(신규), 테스트 3개(신규: `HighSchoolSeederTest`/`HighSchoolSeederIntegrationTest`, 수정: `SchoolServiceTest`), `frontend/src/{components/ui/SearchableSelectField.tsx, components/apply/steps/StepInfo.tsx, services/api.ts}`, `docs/collab/TODO.md`.
+- 사유: 학생증 신청 시 학교 검색select가 대학교뿐이라 고등학생 신청자가 자기 학교를 못 찾고 매번 직접입력으로 폴백하던 문제. 학교 수가 늘어나면서 기존 "전체 목록 한 번에 반환" 검색 방식도 함께 재검토 필요.
+- 테스트: 전체 스위트 810개(Redis 포함) 재실행, 0 failure/0 error.
+- 관련: `docs/collab/TODO.md` "고등학교 마스터 데이터 시딩"
+
+---
+
 ## 2026-09-01 — Claude — `main` (4-D 학생증 템플릿 업로드 API 구현 완료)
 
 - 변경: 관리자가 학교별 학생증 카드 템플릿(앞/뒤)을 배포 없이 등록·교체하는 API 구현 — `GET/POST /api/admin/schools/{schoolId}/card-template`. `SchoolCardTemplateService`(비-transactional, S3 업로드+정리)+`SchoolCardTemplatePersistenceService`(`@Transactional`, UploadFile/CardDesign 반영) 2-서비스 분리(`CardGenerationService`와 같은 패턴 재사용, `ApplicationService.registerS3CleanupAfterTransaction`보다 이 도메인에 더 가까운 기존 선례를 따름). `SchoolCardTemplateValidator`가 PNG 시그니처+카드 비율(235:156 ±5%)+최소 해상도(장변 800px)를 검증. `CardDesign.replaceTemplates()` mutator 신규(entity가 지금까지 `deactivate()` 외 변경 메서드가 없었음). `student_card_design_seq` DB 시퀀스(`application_seq`와 동일 이유 — MAX+1 동시성 경쟁 회피)와 `card_designs_school_orientation_idx` unique 인덱스(`schema.sql`) 신규. `SchoolService.getSchoolNameOrThrow()` 추가(Card 모듈이 School 존재 확인 시 Repository를 직접 주입하지 않고 이 메서드를 거침). `ErrorCode`에 `SCHOOL_NOT_FOUND`/`CARD_TEMPLATE_INVALID_RESOLUTION` 추가(MIME 불일치는 기존 `UNSUPPORTED_FILE_TYPE` 재사용 — 착수 전 재확인으로 새 코드를 줄임). `AdminActivityLog.CARD_TEMPLATE_UPLOADED` 감사로그 상수 추가.
