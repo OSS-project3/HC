@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.text.AttributedString;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -63,6 +64,16 @@ class CardImageCompositor {
     // 띠 아이콘은 디자인별 슬롯 에셋이 없어(HONOR_CITIZEN/1의 캐릭터.png가 유일한 참고용) 슬롯 크기에
     // coverFit하지 않고, 기준 캔버스 스케일로 이 논리 너비(pt)만큼 그린다 — 시안 목업 비율을 육안 참고.
     private static final double ZODIAC_BASE_WIDTH = 9d;
+
+    // 뒷면 뜻풀이(nameInterpretation) 줄바꿈 폭 — baseWidth 대비 비율. 실제 700개 추천 이름 데이터셋의
+    // meaning 필드(평균 약 70자, 최장 97자)를 이 비율로 실측 줄바꿈한 결과 전부 2~3줄로 떨어짐을
+    // 확인했다(2026-09-05, KoPub Dotum Medium 실폰트로 직접 측정 — WrapTest 스크립트, 커밋 미포함).
+    // 카드 뒷면 그래픽(좌우 도자기 문양)과 겹치지 않는 중앙 여백에 대응하는 값이다.
+    private static final double INTERPRETATION_WIDTH_RATIO = 0.55;
+    // 학생증 뒷면은 풀이 폰트가 더 커서(8f vs 4f) 같은 비율이면 줄 수가 더 늘어난다 — 학생증 배경은
+    // 좌우 여백이 더 넓어(점무늬·물결무늬가 훨씬 가장자리에 있음, 실제 렌더링으로 확인) 폭을
+    // 넓혀도 그래픽과 안 겹친다. 이 값으로 같은 최장(97자) 텍스트가 3~4줄로 카드 안에 들어간다.
+    private static final double STUDENT_INTERPRETATION_WIDTH_RATIO = 0.72;
 
     private final Font dotumMedium;
     private final Font dotumBold;
@@ -179,8 +190,9 @@ class CardImageCompositor {
                 drawBackText(g, data.nameMeaning(), dotumMedium, 4f, Color.DARK_GRAY,
                         variant.hanjaMeaning(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             }
-            drawBackText(g, data.nameInterpretation(), dotumMedium, 4f, Color.DARK_GRAY,
-                    variant.interpretation(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            drawBackTextWrapped(g, data.nameInterpretation(), dotumMedium, 4f, Color.DARK_GRAY,
+                    variant.interpretation(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY,
+                    layout.baseWidth() * INTERPRETATION_WIDTH_RATIO);
         } finally {
             g.dispose();
         }
@@ -270,8 +282,9 @@ class CardImageCompositor {
                 drawBackText(g, "(" + data.chineseName() + ")", batangBold, 9f, Color.DARK_GRAY,
                         variant.hanja(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             }
-            drawBackText(g, data.nameInterpretation(), dotumMedium, 8f, Color.DARK_GRAY,
-                    variant.interpretation(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            drawBackTextWrapped(g, data.nameInterpretation(), dotumMedium, 8f, Color.DARK_GRAY,
+                    variant.interpretation(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY,
+                    layout.baseWidth() * STUDENT_INTERPRETATION_WIDTH_RATIO);
         } finally {
             g.dispose();
         }
@@ -471,6 +484,58 @@ class CardImageCompositor {
         double x = cx - metrics.width() / 2.0;
         double y = cy + metrics.height() / 2.0 - metrics.descent();
         drawMeasured(g, text, font, frc, (float) x, (float) y);
+    }
+
+    // "한국이름풀이"의 뜻풀이(nameInterpretation)는 자유 문장이라 이름·한자 같은 짧은 라벨과 달리
+    // 한 줄로 그리면 카드 밖으로 잘려나간다(실제 렌더링으로 발견, 2026-09-05) — 지정한 폭(maxWidth,
+    // baseWidth와 같은 단위)을 넘지 않도록 단어 경계에서 줄바꿈하고, 줄 전체 블록을 기존 앵커
+    // 좌표(offset)에 세로 중앙 정렬한다(줄 수가 늘어도 텍스트 중심이 디자인 의도한 위치에서 안 벗어남).
+    private void drawBackTextWrapped(Graphics2D g, String text, Font baseFont, float sizeAtBaseScale, Color color,
+            CardFieldOffset offset, double baseWidth, double baseHeight, double scaleX, double scaleY,
+            double maxWidthUnits) {
+        if (text == null || text.isBlank() || offset == null) {
+            return;
+        }
+        Font font = baseFont.deriveFont((float) (sizeAtBaseScale * scaleX));
+        g.setColor(color);
+        FontRenderContext frc = g.getFontRenderContext();
+        double maxWidthPx = maxWidthUnits * scaleX;
+        List<String> lines = wrapByWidth(text, font, frc, maxWidthPx);
+
+        double cx = (baseWidth / 2 + offset.x()) * scaleX;
+        double cy = (baseHeight / 2 + offset.y()) * scaleY;
+        // 줄 높이는 첫 줄 기준으로 재고(고정폭 아님 — 한글은 줄마다 실측 높이가 사실상 같음), 줄 사이
+        // 여백은 가독성을 위해 20% 더한다.
+        double lineHeight = measure(lines.get(0), font, frc).height() * 1.2;
+        double blockHeight = lineHeight * lines.size();
+        double firstBaselineY = cy - blockHeight / 2.0 + lineHeight - lineHeight * 0.2 / 2.0;
+        for (int i = 0; i < lines.size(); i++) {
+            TextMetrics metrics = measure(lines.get(i), font, frc);
+            double x = cx - metrics.width() / 2.0;
+            double y = firstBaselineY + lineHeight * i - metrics.descent();
+            drawMeasured(g, lines.get(i), font, frc, (float) x, (float) y);
+        }
+    }
+
+    // 공백 기준 그리디 줄바꿈 — 한 단어가 단독으로 maxWidthPx를 넘으면(매우 긴 합성어 등) 그 단어만
+    // 넘치는 채로 한 줄에 둔다(강제 음절 분할은 하지 않음 — 실제 데이터셋 700개 전부 이 케이스 없음).
+    private List<String> wrapByWidth(String text, Font font, FontRenderContext frc, double maxWidthPx) {
+        List<String> lines = new ArrayList<>();
+        String[] words = text.trim().split("\\s+");
+        StringBuilder current = new StringBuilder();
+        for (String word : words) {
+            String candidate = current.isEmpty() ? word : current + " " + word;
+            if (font.getStringBounds(candidate, frc).getWidth() > maxWidthPx && !current.isEmpty()) {
+                lines.add(current.toString());
+                current = new StringBuilder(word);
+            } else {
+                current = new StringBuilder(candidate);
+            }
+        }
+        if (!current.isEmpty()) {
+            lines.add(current.toString());
+        }
+        return lines;
     }
 
     private String formatIssueDate(LocalDate issueDate) {
