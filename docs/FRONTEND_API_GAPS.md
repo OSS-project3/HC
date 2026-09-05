@@ -1,5 +1,7 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
+> **갱신: 2026-09-05(12차, Claude 세션) — 백엔드 신규 구현 2건 반영(공지 서버 검색, 관리자 카드 다운로드). 둘 다 프론트는 아직 미착수.** ① **공지 서버 검색(§1.7)** — `GET /api/boards`에 `searchType`(`ALL`/`TITLE`/`CONTENT`)·`keyword` 파라미터가 추가됐다(`72dad09`, `Review`의 검색 패턴을 그대로 재사용). `frontend/src/services/api.ts`의 `listBoards` 타입은 여전히 `{ type?, page?, size? }`뿐이라(직접 grep 확인) 프론트는 아직 이 파라미터를 안 쓴다 — §0/§1.7/§6을 "백엔드 완료, 프론트 파라미터 추가만 남음"으로 갱신했다. ② **관리자 카드 다운로드(신규 §1.18)** — `ApplicationMember.cardFrontPath`/`cardBackPath` 존재 여부로 판단하는(=`ApplicationStatus`와 무관, `PRODUCING` 중에도 허용) 관리자 전용 카드 다운로드 API 2개(`GET /api/admin/applications/{id}/cards/download`(전체 ZIP)·`GET /api/admin/applications/{id}/members/{memberId}/cards/download`(개별, 재인쇄용))가 신규 구현됐다(`a0f2e85`). `services/api.ts`에 관련 함수가 전혀 없어(grep 0건) 프론트 진입점 자체가 없다 — §0에 신규 행 추가, §1.18 신설. §1.4(관리자 통계 API)는 이번에도 재확인 결과 그대로 백엔드 미구현이라 변경 없음.
+>
 > **갱신: 2026-09-02(11차, Claude 세션) — §6 표 전체 재검증.** §6("남은 프론트엔드 작업 전체 목록")이 §0/§1.x보다도 더 낡아 있었다(계정복구를 "백엔드 구현 진행 중"으로, 이미 연동 완료된 행사·후기다중이미지를 "정책 결정 대기"로 잘못 표기하는 등). §0/§1.x 서술도 그대로 믿지 않고 **`frontend/src` 실제 코드를 이번에 직접 다시 대조**했다(2026-08-31 이후 프론트 쪽에서 상당한 작업이 있었던 것으로 보임 — 이 세션이 한 작업 아님, 백엔드 세션 스코프 유지, 코드는 안 건드리고 읽기만 함). 결과: 아래 항목들이 **실제로 연동 완료된 상태였다** — ① 이메일 회원가입 인증코드 UI(`SignupPage.tsx`가 `requestSignupEmailCode`/`confirmSignupEmailCode` 실호출) ② 로그인·이메일중복확인·비밀번호변경(`loginWithPassword`/`checkEmail`/`changePassword` 전부 실호출) ③ 마이페이지 신청목록·상세(`listMyApplications`/`getMyApplication`) ④ 신청취소(`cancelApplication`, 상태별 버튼) ⑤ Inquiry 사용자 작성(`privacyConsent: true` 전송 확인) + 관리자 답변(`InquiriesSection.tsx`가 `listAdminInquiries`/`answerInquiry`/`updateInquiryStatus` 실호출 — §1.3/§1.4의 "여전히 mock" 서술은 낡음) ⑥ 개인 신청 국적 입력이 placeholder 텍스트가 아니라 `SearchableSelectField`(ISO 코드 옵션) 드롭다운으로 교체됨(§1.12 해소) ⑦ 드래프트 복원 시 `logoFile`/`sealFile`/`archiveFile`/`faceFile`을 의도적으로 복원 안 함(§1.13 해소) ⑧ FAQ·고객지원 페이지 둘 다 `api.listBoards({type:"FAQ"/"NOTICE"})` 실호출로 통합(§1.14 해소) ⑨ 마이페이지 "내 정보"에서 회원유형 표시 제거 + 전화번호 노출 확인(§1.9-a 해소). **§1.9-a의 "관리자 로그인이 role 타입 문제로 isAdmin=false로 떨어진다"는 서술도 재확인 결과 사실이 아니었다** — `LoginPage.tsx`는 `/api/users/me`(role 없음, 의도적)가 아니라 `POST /api/auth/login`의 응답(`LoginResponse`, `role` 필드 있음)에서 role을 가져오고, `AuthContext.refreshProfile()`은 그 뒤 `/me`로 프로필을 재동기화할 때 role은 덮어쓰지 않도록 이미 방어돼 있다(주석으로 이유까지 명시돼 있음) — 이 갭은 이미 해소된 상태였다. **여전히 실제로 안 된 것**(코드에 관련 함수·API 호출이 전혀 없음, 직접 확인): §1.15(관리자 만세력·카드디자인·카드미리보기 6개 API), §1.16(성씨), §1.17(학생증 템플릿 업로드, 오늘 신규), §1.7(공지 서버검색, 프론트·백엔드 둘 다 keyword 파라미터 없음), 관리자 통계 API(백엔드 자체가 없음). OAuth 로그인 경로의 role 처리는 이번에 확인 안 함(이메일/비밀번호 로그인만 확인) — 필요하면 별도 확인 필요. §0/§6을 이 재검증 결과로 갱신했다.
 >
 > **갱신: 2026-08-31(10차, Claude 세션).** §1.15(c)에 실제 검증 결과 추가 — 뉴욕 1995-06-15 15:00 출생 예시로 실제 백엔드 API(`manseryeok/resolve`)를 호출해 정확한 `utcInstant`/`selectedOffset`(서머타임 포함)을 확정받은 뒤, 같은 `manseryeok` 패키지로 지금 프론트 방식(버그)과 올바른 방식을 각각 계산해 비교했다 — 시주가 달라지고 오행 결핍 판정이 뒤집히면서 실제 700개 추천 데이터셋 채점 결과 상위 5개가 **0/5 겹침**으로 완전히 달라짐을 실증했다(saju 레포의 기준 구현 `computeSajuAtBirthplace()`도 함께 확인). 신규로 **§1.16 관리자 작명 성씨(surname) 필드 누락**도 추가 — §1.4에서 "연동 완료"로 분류했던 인앱 작명·엑셀 작명 반영 둘 다 성씨를 저장하지 않아, 이름을 다 골라도 `completeNaming()`에서 멤버 전원이 거절되는 걸 코드로 확인했다(§1.4도 이 내용으로 갱신). 코드는 수정하지 않았다(백엔드 세션 스코프 — `docs/collab/RULES.md`).
@@ -37,7 +39,8 @@
 | **관리자 작명 확정·카드 제작(만세력·카드디자인·카드미리보기)** | ❌ 래퍼 자체 없음 | ✅ 구현·실 API 검증 완료 | **🔴 프론트 미착수 + 정확도 버그(2026-09-02 재확인, 여전히 미해결)** — `searchBirthRegion`/`resolveManseryeokBirthTime`/`confirmManseryeokResult`/`getActiveManseryeokResult`/`listCardDesigns`/`getCardPreview` 6개 전부 `services/api.ts`에 없음(grep 0건). `computeMemberSaju()`도 여전히 `trueSolarTime` 미사용 — 한국 외 출생자에게 **틀린 결과를 정상처럼** 보여주는 문제 그대로. 필요한 `longitude` 값은 백엔드가 이미 API로 내려주고 있어 백엔드 작업 없이 프론트만 고치면 됨 (§1.15(c)) |
 | **학생증 카드 템플릿 업로드(관리자)** | ❌ 진입점 자체 없음 | ✅ 구현·통합 검증 완료(2026-09-01, 4-D) | **신규, 미착수(2026-09-02 확인)** — 학교별 학생증 카드 템플릿(앞/뒤) 등록·교체 API. 이게 없으면 STUDENT 신청 건은 위 카드디자인·카드미리보기가 항상 빈 값/실패로 막힌다 — §1.15와 함께 봐야 함 (§1.17) |
 | **신청 취소** | ✅ 실 API | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 완료(2026-09-02 재검증)** — `MyPage.tsx`의 `cancelApplication` 실호출, 취소 가능 상태에서만 버튼 노출 확인(§1.5) |
-| 공지 서버 검색 | ⚠️ 클라 검색 | ❌ keyword 파라미터 없음 | **여전히 미해결(2026-09-02 재확인)** — `NoticesPage.tsx`가 `listBoards()`로 전체를 받아온 뒤 클라이언트에서만 `.filter()`, 백엔드 `GET /api/boards`도 `keyword` 파라미터 자체가 없음. 필요 시 검색 파라미터 추가 (§1.7) |
+| 공지 서버 검색 | ⚠️ 클라 검색(미연결) | ✅ 구현 완료(2026-09-05) | **백엔드 완료, 프론트 파라미터 추가만 남음** — `GET /api/boards`에 `searchType`/`keyword` 추가됨(`72dad09`). `NoticesPage.tsx`/`listBoards()`는 여전히 전체를 받아 클라이언트에서만 `.filter()` — 서버 파라미터로 교체만 하면 됨 (§1.7) |
+| **관리자 카드 다운로드(전체 ZIP/개별 재인쇄)** | ❌ 진입점 자체 없음 | ✅ 구현 완료(2026-09-05) | **신규, 미착수** — `cardFrontPath`/`cardBackPath` 존재 여부로 판단(제작 중에도 허용), 전체 ZIP 또는 멤버 개별 다운로드. `services/api.ts`에 래퍼 없음(grep 0건) (§1.18) |
 | 회원정보 address 수정 | ⚠️ 화면엔 없음(정책상 제거된 상태) | ❌ 미지원(확정 정책) | **갭 아님** — 조회는 이름·전화번호·이메일만, 수정도 이름·전화번호만(§1.9-a) |
 | 학생증 schoolName/schoolId | ✅ 검색select+직접입력 | ✅ School 마스터+schoolId 위변조 차단 | **연동 완료(2026-08-27)** — 실 브라우저 E2E(단체는 실제 제출·DB 반영까지) 검증 완료 (§1.9) |
 | 카드 종류·디자인 카탈로그 | 정적(`cards.ts`) | 🟡 내부만 존재 | **STATIC 확정**(공개 API 신설 안 함) (§2.1) |
@@ -119,10 +122,12 @@
 - **백엔드 현황(2026-08-21 구현 완료·push 완료)**: `EventPost`에 `companyName`/`logoImagePath`(`COLLABORATION` 전용, 내부 엔티티/컬럼명) 추가. 응답 DTO(`EventListItemResponse`/`EventDetailResponse`/`EventAdminListItemResponse`/`EventAdminDetailResponse`)와 요청 DTO(`EventCreateRequest`/`EventUpdateRequest`)는 프론트 `FeedPost`(`data/eventFeedPosts.ts`)와 동일하게 `company`/`logoUrl` 필드명을 쓴다(엔티티 내부명과 API 계약명을 분리, 커밋 `1e5a7b3`). `GET /api/admin/events`(`visible` 무관 전체, `type`/`visible` 선택 필터)·`GET /api/admin/events/{id}` 신규. `PATCH /api/admin/events/{id}`에 갤러리 편집(`keepImageIds`) + 로고 유지·교체·삭제(`removeLogo`) 추가. 계약 상세는 `docs/specs/events/api.md` API 3·4·6·7.
 - **프론트 현황(2026-08-24 연동 완료)**: `EventAdminPanel.tsx`가 `api.listAdminEvents`/`getAdminEvent`/`createEvent`/`updateEvent`(`keepImageIds`·`removeThumbnail`·`removeLogo` 포함)/`deleteEvent`를 전부 호출. `company`/`logoUrl` 필드명이 백엔드와 동일해 별도 매핑 어댑터 없이 그대로 대입한다(`eventToFeedPost()`, `data/eventFeedPosts.ts:28-29`). 기존 별도 컴포넌트였던 `EventFeedAdminPanel.tsx`는 이 작업으로 삭제됨(`EventAdminPanel.tsx`로 통합).
 
-### 1.7 공지 서버 검색 — 없음 (PARTIAL)
+### 1.7 공지 서버 검색 — 백엔드 구현 완료(2026-09-05), 프론트 미연동
 - **프론트 사용처**: `pages/NoticesPage` 제목/작성일 검색.
-- **백엔드 현황**: `GET /api/boards`에 `keyword`/`searchType` 파라미터 없음 → 프론트가 `size=100`으로 받아 **클라이언트 검색** 중.
-- **필요**: 데이터 증가 시 게시판 서버 검색·페이지네이션 파라미터.
+- **✅ 백엔드 현황(2026-09-05, `72dad09`)**: `GET /api/boards`가 `type`(필수)에 더해 `searchType`(`ALL`\|`TITLE`\|`CONTENT`, 생략 시 제목+본문 동시 검색)·`keyword`(생략/공백이면 검색 없이 전체) 파라미터를 받는다. `Review`의 `searchType`/`keyword` 패턴을 그대로 재사용해 구현했다(`BoardSearchType` enum, `BoardSpecifications`). `AUTHOR` 검색은 없다 — `Board`엔 후기처럼 작성자 표시 필드가 없기 때문(정책 확정 사항, 2026-09-05).
+- **정책(2026-09-05 확정)**: ① NOTICE/FAQ 통합검색 없음, `type`은 계속 필수. ② 제목+본문 검색으로 충분(FAQ 질문+답변 포함). ③ 한글 검색만 지원(Review와 동일한 한계, `LIKE` 기반). ④ 공지 상단고정 없음, 기존 정렬(작성일+id desc) 그대로 유지.
+- **아직 프론트가 안 쓴다**: `services/api.ts`의 `listBoards`는 여전히 `{ type?, page?, size? }`뿐(`api.ts:210`, `keyword`/`searchType` 없음). `NoticesPage.tsx`는 여전히 전체 목록을 받아 클라이언트에서 `.filter()`.
+- **필요**: `listBoards`에 `searchType?`/`keyword?` 추가 + `NoticesPage.tsx`를 서버 파라미터 호출로 교체(클라이언트 `.filter()` 제거). 백엔드 작업은 끝났으므로 프론트만 남음.
 
 ### 1.8 후기 다중 이미지 — ✅ 정책 확정(다중 허용) + 백엔드·프론트 구현 완료(2026-08-24)
 - **백엔드 현황**: 후기 1건당 0~5장(`MAX_IMAGE_COUNT`, `ReviewService.java:54`) — `ReviewImage` 엔티티로 정식 다중 이미지 지원, 생성(`:74`)·수정(`:218`, 유지+신규 합쳐 5장 제한) 둘 다 적용. `docs/specs/review` API 계약도 갱신 완료(커밋 `ff4d27d`).
@@ -303,6 +308,30 @@
 - **상세 계약**: `docs/api/school-card-template.md` 참고(요청/응답 예시, 구현 메모 포함).
 - 백엔드 검증: 서비스/컨트롤러 테스트 + **실제 업로드 API로 업로드한 템플릿이 실제 카드 미리보기 API까지 정상 렌더링되는 통합 테스트**까지 완료(`SchoolCardTemplateEndToEndTest`).
 
+### 1.18 관리자 카드 다운로드(전체 ZIP/개별 재인쇄) — 백엔드 구현 완료(2026-09-05), 프론트 진입점 자체가 없음(신규)
+
+- **배경**: 실물 제작 과정에서 관리자가 렌더링된 카드 이미지를 내려받아야 한다. 사용자용 `getCardDownload`(§1.4 참고 없음, `application.status === COMPLETED`일 때만 허용)와는 별개 정책·별개 API다 — 관리자는 `PRODUCING` 중에도 렌더링만 끝나면 다운로드할 수 있어야 한다(재인쇄·품질확인 용도).
+- **공통 인가**: `/api/admin/**` → `hasRole("ADMIN")`(SecurityConfig) + `validateAdmin()` 이중 검증.
+- **판단 기준(정책 확정, 2026-09-05)**: `ApplicationStatus`가 아니라 각 `ApplicationMember.cardFrontPath`/`cardBackPath`(둘 다 non-null)로 판단한다. ZIP은 S3에 영구 저장되지 않고 요청마다 저장된 이미지들을 모아 동적으로 생성해 스트리밍 응답한다.
+
+**전체 ZIP 다운로드** — `GET /api/admin/applications/{applicationId}/cards/download`
+- 응답: `Content-Type: application/zip`, `Content-Disposition: attachment; filename="application-{id}-cards.zip"` (raw 바이너리, `ApiResponse` 미포장).
+- 해당 신청의 **모든 멤버**가 front/back 이미지를 둘 다 가지고 있어야 성공한다. 하나라도 없으면 전체를 거절하고(`400`, `errorCode: "CARD_NOT_READY"`), 응답 바디에 어떤 멤버가 빠졌는지 식별 정보를 포함한다(`BulkValidationException`의 `ValidationErrorDetail(row=memberId, field:"cardImage", code:"NOT_READY", message)` 배열 — 엑셀 검증 실패 응답과 동일한 형태로 재사용됨, 엑셀 전용이 아님).
+- 성공 시 `AdminActivityLog.CARD_DOWNLOAD`로 감사 로그가 남는다.
+
+**개별 멤버 다운로드(재인쇄용)** — `GET /api/admin/applications/{applicationId}/members/{memberId}/cards/download`
+- 용도: 단체 신청 중 특정 1명만 재제작/재인쇄가 필요할 때. 다른 멤버가 준비 안 됐어도 이 멤버만 준비돼 있으면 성공한다.
+- 응답: `ApiResponse<{ applicationId, memberId, cardFrontUrl, cardBackUrl, expiresAt }>` (presigned URL 2개, JSON — ZIP과 달리 파일을 직접 스트리밍하지 않고 URL을 내려준다).
+- **만료 30일**(관리자 용도라 사용자용 7일보다 길게 잡음, 2026-09-05 확정).
+- 그 멤버의 front/back이 없으면 `400 CARD_NOT_READY`, 다른 신청 소속 멤버 id를 넘기면 `404`.
+- 성공 시에도 `AdminActivityLog.CARD_DOWNLOAD` 기록.
+
+**프론트가 필요한 것(전부 신규, 진입점 자체가 없음)**:
+1. `services/api.ts`에 `getAdminApplicationCardsZip(applicationId)`(blob 응답 → 다운로드 트리거)와 `getAdminMemberCardDownload(applicationId, memberId)`(URL 2개 받아 `<a>`/새 탭으로 열기) 래퍼 추가.
+2. `ApplicationsSection.tsx`(또는 상세 화면)에 "전체 카드 다운로드(ZIP)" 버튼(단체) + 멤버별 "카드 다운로드/재인쇄" 버튼(개인·단체 공통) 추가.
+3. 전체 ZIP 거절 시 응답의 멤버별 결측 목록을 관리자가 바로 알아볼 수 있게 표시(예: "OO님 카드 미생성 — 작명/카드번호 확인 필요" 등).
+- **검증**: `ApplicationServiceAdminCardDownloadTest`(7개)·`AdminApplicationControllerTest` 신규 5개, 전부 통과. `docs/collab/TODO.md`(2026-09-05 완료 섹션) 참고.
+
 ### 1.11 신청 폼이 수집하나 백엔드가 저장하지 않는 입력 (프론트 유지 · 백엔드 보강)
 프론트 화면에는 입력/표시가 있으나 백엔드 request DTO·도메인에 대응이 없어 값이 서버에 남지 않는 항목. **프론트 UI는 그대로 유지**하고 백엔드 보강 시 연결한다. 상세·조치는 `BACKEND_API_GAPS.md P1-4`.
 
@@ -424,8 +453,9 @@
 | 1 | **관리자 작명 — 성씨(surname) 필드 추가** | 백엔드 계약은 이미 성씨를 받게 돼 있음(`NameAssignRequest.surname`) — 프론트가 안 보내서 `completeNaming()`에서 멤버 전원 거절됨. 이미 연동된 화면에 입력 필드 하나 + 타입 하나만 추가하면 되는 **가장 작고 빠른 항목** | §1.16 |
 | 2 | 관리자 작명 확정·카드 제작(만세력·카드디자인·카드미리보기) | 백엔드 완료. API 바인딩 6개 + UI 신규 + **사주 계산 로직(진태양시 보정) 신규 작성**까지 필요해 작업량 큼 | §1.15 |
 | 2 | 학생증 카드 템플릿 업로드(관리자) | 백엔드 완료(2026-09-01, 4-D). STUDENT 신청 건은 이게 없으면 위 항목(카드디자인·카드미리보기)이 항상 빈 값 — 같이 진행할 것 | §1.17 |
-| 3 | 관리자 통계 대시보드(`GET /api/admin/stats`) | **백엔드도 아직 없음**(공동 대기) | §1.4 |
-| 4 | 공지 서버 검색(keyword) | 프론트는 클라이언트 필터만, 백엔드도 `keyword` 파라미터 없음 — 필요성부터 정책 결정 | §1.7 |
+| 3 | 공지 서버 검색(`searchType`/`keyword`) | **백엔드 완료(2026-09-05)** — `listBoards`에 파라미터 추가 + `NoticesPage.tsx` 클라이언트 `.filter()` 제거만 하면 됨. 작업량 작음 | §1.7 |
+| 3 | 관리자 카드 다운로드(전체 ZIP/개별 재인쇄) | **백엔드 완료(2026-09-05)** — API 래퍼 2개 + 다운로드/재인쇄 버튼 UI 신규. 실물 제작 흐름에 필요 | §1.18 |
+| 4 | 관리자 통계 대시보드(`GET /api/admin/stats`) | **백엔드도 아직 없음**(공동 대기) | §1.4 |
 | 5 | 한국이름 조회 API 전환, 정적 마케팅 CMS화, 하이브리드 목데이터(§5) 정리 | 우선순위 낮음, 필요 시에만 | §2.2, §3, §5 |
 
-**진행 원칙**: 1번은 이미 연동된 기능이 절반만 동작하는 회귀성 결함이라 가장 먼저. 2번은 작업량이 크지만 백엔드는 이미 다 준비돼 있어 프론트 작업만으로 끝난다. 3번 이후는 백엔드 작업이나 정책 결정이 먼저 필요해 프론트 혼자 진행할 수 없는 항목.
+**진행 원칙**: 1번은 이미 연동된 기능이 절반만 동작하는 회귀성 결함이라 가장 먼저. 2번은 작업량이 크지만 백엔드는 이미 다 준비돼 있어 프론트 작업만으로 끝난다. 3번(공지 검색·카드 다운로드)도 백엔드가 이미 끝나 있어 프론트만으로 끝나는 작은 항목들이다. 4번 이후는 백엔드 작업이나 정책 결정이 먼저 필요해 프론트 혼자 진행할 수 없는 항목.
