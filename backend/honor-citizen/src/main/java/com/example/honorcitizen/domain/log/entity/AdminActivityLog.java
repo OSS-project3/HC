@@ -67,4 +67,7 @@ public class AdminActivityLog {
     // 4-D: 관리자가 학교별 학생증 카드 템플릿(앞/뒤)을 등록·교체 — CARD_IMAGE_GENERATED(멤버별 카드
     // 렌더링 결과물)와는 대상이 다르다(이쪽은 CardDesign이 가리키는 렌더링용 원본 템플릿).
     public static final String CARD_TEMPLATE_UPLOADED = "CARD_TEMPLATE_UPLOADED";
+    // 관리자 카드 다운로드(전체 ZIP 또는 멤버 1명) — 2026-09-05, 실물 제작 과정에서 완성된 카드
+    // 이미지를 가져다 쓸 때 남긴다. detail로 전체/멤버 단위를 구분한다(getAdminCardsZip 참고).
+    public static final String CARD_DOWNLOAD = "CARD_DOWNLOAD";
 }

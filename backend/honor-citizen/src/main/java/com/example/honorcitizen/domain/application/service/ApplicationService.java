@@ -13,6 +13,7 @@ import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.exception.ValidationErrorDetail;
 import com.example.honorcitizen.common.enums.LookupMethod;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
+import com.example.honorcitizen.domain.application.dto.AdminMemberCardDownloadResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
 import com.example.honorcitizen.domain.application.dto.CardNumberBatchAssignRequest;
 import com.example.honorcitizen.domain.application.dto.CardNumberBatchAssignResponse;
@@ -110,6 +111,10 @@ public class ApplicationService {
     // 카드 발급 완료 알림을 받은 후 사용자가 여유 있게 다운로드할 수 있도록 넉넉히 설정.
     // 기간이 너무 짧으면 알림 수신 후 즉시 접속하지 않으면 만료되는 UX 문제가 생긴다.
     private static final long CARD_DOWNLOAD_URL_EXPIRY_SECONDS = 7 * 24 * 60 * 60L;
+
+    // 관리자 카드 개별 다운로드 presigned URL 유효 기간: 30일(2026-09-05 정책 결정) — 사용자용보다
+    // 길게 둔다. 실물 제작 업체 전달 등 관리자 쪽 처리 시간이 사용자 다운로드보다 더 걸릴 수 있다.
+    private static final long ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS = 30 * 24 * 60 * 60L;
 
     // 마이페이지 신청 목록(api.md API 6) 페이지 크기 상한 — Board/Event와 동일한 관례.
     private static final int MAX_PAGE_SIZE = 100;
@@ -1114,6 +1119,22 @@ public class ApplicationService {
      * - 대규모 단체(수백 명 이상)는 스트리밍 방식으로 개선이 필요하다.
      */
     private String buildGroupCardsZipAndGetUrl(Application application, List<ApplicationMember> members) {
+        byte[] zipBytes = buildMembersCardsZipBytes(members);
+        String key = "applications/" + application.getApplicationNumber() + "/cards/" + UUID.randomUUID() + ".zip";
+        storageService.uploadBytes(key, zipBytes, "application/zip");
+        return storageService.generatePresignedUrl(key, CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+    }
+
+    /**
+     * 멤버 목록의 앞/뒤 카드 이미지를 인메모리 ZIP으로 묶어 바이트 배열로 반환한다.
+     * 사용자용(위 buildGroupCardsZipAndGetUrl, S3 임시 업로드 후 presigned URL)과 관리자용
+     * (getAdminCardsZip, S3에 올리지 않고 응답 바디로 바로 스트리밍)이 이 조립 로직을 공유한다.
+     *
+     * [파일명 레이블 규칙]
+     * - 멤버의 영문명을 파일명으로 사용한다 (예: JohnDoe-front.png, JohnDoe-back.png).
+     * - 영문명이 없으면 순번(1, 2, 3...)을 사용해 파일명 충돌을 방지한다.
+     */
+    private byte[] buildMembersCardsZipBytes(List<ApplicationMember> members) {
         ByteArrayOutputStream zipBytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(zipBytes)) {
             int index = 1;
@@ -1131,10 +1152,66 @@ public class ApplicationService {
         } catch (java.io.IOException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR);
         }
+        return zipBytes.toByteArray();
+    }
 
-        String key = "applications/" + application.getApplicationNumber() + "/cards/" + UUID.randomUUID() + ".zip";
-        storageService.uploadBytes(key, zipBytes.toByteArray(), "application/zip");
-        return storageService.generatePresignedUrl(key, CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+    /**
+     * 관리자 카드 다운로드(전체 ZIP) — 실물 제작 과정에서 쓰므로 ApplicationStatus가 아니라 각 멤버의
+     * 렌더링 결과물(cardFrontPath/cardBackPath) 존재 여부로만 허용 여부를 판단한다(2026-09-05 정책
+     * 결정 — 사용자용 getCardDownload의 COMPLETED 게이트와는 완전히 별개, PRODUCING 단계에서도 허용).
+     * 멤버 중 하나라도 미완성이면 전체 ZIP을 거절하고 어떤 멤버가 빠졌는지 식별 가능하게 응답한다.
+     * ZIP은 S3에 영구 저장하지 않고 매 요청마다 즉석에서 만들어 응답 바디로 직접 반환한다(Source of
+     * Truth는 항상 ApplicationMember.cardFrontPath/cardBackPath — ZIP 자체의 무효화·재생성 상태는
+     * 별도로 관리하지 않는다. 재생성 시 멤버 파일만 갱신하면 다음 다운로드 요청이 항상 최신을 반영한다).
+     */
+    @Transactional(readOnly = true)
+    public byte[] getAdminCardsZip(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(applicationId);
+
+        List<ValidationErrorDetail> missing = new ArrayList<>();
+        for (ApplicationMember member : members) {
+            if (member.getCardFrontPath() == null || member.getCardBackPath() == null) {
+                missing.add(new ValidationErrorDetail(member.getId().intValue(), "cardImage", "NOT_READY",
+                        "카드 이미지가 준비되지 않았습니다(front/back)."));
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new BulkValidationException(ErrorCode.CARD_NOT_READY, missing);
+        }
+
+        byte[] zipBytes = buildMembersCardsZipBytes(members);
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.CARD_DOWNLOAD, applicationId, "관리자 카드 전체 ZIP 다운로드"));
+        return zipBytes;
+    }
+
+    /**
+     * 관리자 카드 다운로드(멤버 1명) — 재인쇄·부분 재제작용. 전체 ZIP과 동일하게 ApplicationStatus가
+     * 아니라 이 멤버의 렌더링 결과물 존재 여부로만 판단한다. presigned URL 만료시간은 사용자용
+     * (7일)보다 길게 둔다(관리자가 실물 제작 업체에 전달하는 등 더 긴 처리 시간이 필요할 수 있음).
+     */
+    @Transactional(readOnly = true)
+    public AdminMemberCardDownloadResponse getAdminMemberCardDownload(Long adminId, Long applicationId, Long memberId) {
+        validateAdmin(adminId);
+        ApplicationMember member = applicationMemberRepository.findById(memberId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        if (!member.getApplicationId().equals(applicationId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (member.getCardFrontPath() == null || member.getCardBackPath() == null) {
+            throw new CustomException(ErrorCode.CARD_NOT_READY);
+        }
+
+        String cardFrontUrl = storageService.generatePresignedUrl(member.getCardFrontPath(), ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+        String cardBackUrl = storageService.generatePresignedUrl(member.getCardBackPath(), ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+        LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.CARD_DOWNLOAD, applicationId, "관리자 카드 개별 다운로드: memberId=" + memberId));
+        return new AdminMemberCardDownloadResponse(applicationId, memberId, cardFrontUrl, cardBackUrl, expiresAt);
     }
 
     /**

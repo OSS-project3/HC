@@ -355,4 +355,47 @@ class AdminApplicationControllerTest {
                         .content("{\"applicationIds\":[" + otherUsersApplication.getId() + "],\"type\":\"INDIVIDUAL\"}"))
                 .andExpect(status().isUnauthorized());
     }
+
+    // 관리자 카드 다운로드 — 비즈니스 로직(상태 게이트·누락 멤버 식별·개별 다운로드)은
+    // ApplicationServiceAdminCardDownloadTest에서 이미 커버, 여기선 HTTP 배선만 검증한다.
+    @Test
+    void cardsDownloadRejectsWhenMemberCardImagesNotReady() throws Exception {
+        // setUp()의 otherUsersApplication은 카드 이미지가 아직 없는 멤버 1명뿐이다.
+        mockMvc.perform(get("/api/admin/applications/" + otherUsersApplication.getId() + "/cards/download")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void cardsDownloadForNonAdminReturnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/admin/applications/" + otherUsersApplication.getId() + "/cards/download")
+                        .header(HttpHeaders.AUTHORIZATION, userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void cardsDownloadWithoutTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/admin/applications/" + otherUsersApplication.getId() + "/cards/download"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void memberCardDownloadRejectsWhenNotReady() throws Exception {
+        Long memberId = applicationMemberRepository.findByApplicationId(otherUsersApplication.getId()).get(0).getId();
+
+        mockMvc.perform(get("/api/admin/applications/" + otherUsersApplication.getId()
+                        + "/members/" + memberId + "/cards/download")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void memberCardDownloadForNonAdminReturnsForbidden() throws Exception {
+        Long memberId = applicationMemberRepository.findByApplicationId(otherUsersApplication.getId()).get(0).getId();
+
+        mockMvc.perform(get("/api/admin/applications/" + otherUsersApplication.getId()
+                        + "/members/" + memberId + "/cards/download")
+                        .header(HttpHeaders.AUTHORIZATION, userToken))
+                .andExpect(status().isForbidden());
+    }
 }

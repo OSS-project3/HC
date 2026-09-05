@@ -4,6 +4,7 @@ import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.common.response.PageResponse;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
+import com.example.honorcitizen.domain.application.dto.AdminMemberCardDownloadResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationExportRequest;
 import com.example.honorcitizen.domain.application.dto.ApplicationStatusResponse;
 import com.example.honorcitizen.domain.application.dto.CardNumberAssignRequest;
@@ -251,6 +252,34 @@ public class AdminApplicationController {
             @PathVariable Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.completeNaming(adminId, applicationId)));
+    }
+
+    // 관리자 카드 다운로드(전체 ZIP) — 실물 제작 과정에서 사용하므로 ApplicationStatus가 아니라 각
+    // 멤버의 렌더링 결과물(cardFrontPath/cardBackPath) 존재 여부로만 허용 여부를 판단한다(2026-09-05
+    // 정책, ApplicationService.getAdminCardsZip 참고). 사용자용 GET /api/applications/{id}/cards/download
+    // (COMPLETED 게이트, presigned URL 응답)와는 완전히 별개 계약 — ZIP은 S3에 저장하지 않고 매 요청마다
+    // 즉석에서 만들어 응답 바디로 바로 내려준다. 멤버 중 하나라도 미완성이면 어느 멤버인지 담아 거절한다.
+    @GetMapping("/{applicationId}/cards/download")
+    public ResponseEntity<byte[]> downloadCardsZip(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId) {
+        byte[] zipBytes = applicationService.getAdminCardsZip(adminId, applicationId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"application-" + applicationId + "-cards.zip\"")
+                .body(zipBytes);
+    }
+
+    // 관리자 카드 다운로드(멤버 1명) — 재인쇄·부분 재제작용. 전체 ZIP과 동일하게 렌더링 결과물 존재
+    // 여부로만 판단한다. presigned URL은 사용자용보다 만료시간을 길게 둔다(getAdminMemberCardDownload 참고).
+    @GetMapping("/{applicationId}/members/{memberId}/cards/download")
+    public ResponseEntity<ApiResponse<AdminMemberCardDownloadResponse>> downloadMemberCard(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @PathVariable Long memberId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.getAdminMemberCardDownload(adminId, applicationId, memberId)));
     }
 
     // 신청 명단 엑셀 내보내기(DESIGN.md §2.4). GROUP은 원본 서식 보존을 위해 정확히 1건만 허용
