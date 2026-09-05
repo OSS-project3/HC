@@ -308,6 +308,35 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
               </label>
               {isStudent && !manualSchoolInput ? (
                 <>
+                  <fieldset className="form-block">
+                    <legend className="form-block__legend">
+                      {t("학교 구분")}<span className="req">*</span>
+                    </legend>
+                    <div className="radio-row">
+                      <label className="check">
+                        <input
+                          type="radio"
+                          name="orgSchoolLevel"
+                          checked={(draft.applicant.schoolLevel ?? "university") === "university"}
+                          onChange={() =>
+                            setApplicant({ schoolLevel: "university", schoolId: undefined, schoolName: "", organizationName: "" })
+                          }
+                        />
+                        <span>{t("대학교")}</span>
+                      </label>
+                      <label className="check">
+                        <input
+                          type="radio"
+                          name="orgSchoolLevel"
+                          checked={draft.applicant.schoolLevel === "highschool"}
+                          onChange={() =>
+                            setApplicant({ schoolLevel: "highschool", schoolId: undefined, schoolName: "", organizationName: "" })
+                          }
+                        />
+                        <span>{t("고등학교")}</span>
+                      </label>
+                    </div>
+                  </fieldset>
                   <label className="field" ref={registerField("organizationName")}>
                     <span className="field__label">
                       {t(orgLabel)}<span className="req">*</span>
@@ -560,6 +589,35 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
               </div>
               {isStudent && !manualSchoolInput && (
                 <>
+                  <fieldset className="form-block">
+                    <legend className="form-block__legend">
+                      {t("학교 구분")}<span className="req">*</span>
+                    </legend>
+                    <div className="radio-row">
+                      <label className="check">
+                        <input
+                          type="radio"
+                          name="schoolLevel"
+                          checked={(draft.applicant.schoolLevel ?? "university") === "university"}
+                          onChange={() =>
+                            setApplicant({ schoolLevel: "university", schoolId: undefined, schoolName: "", studentNumber: "", department: "" })
+                          }
+                        />
+                        <span>{t("대학교")}</span>
+                      </label>
+                      <label className="check">
+                        <input
+                          type="radio"
+                          name="schoolLevel"
+                          checked={draft.applicant.schoolLevel === "highschool"}
+                          onChange={() =>
+                            setApplicant({ schoolLevel: "highschool", schoolId: undefined, schoolName: "", studentNumber: "", department: "" })
+                          }
+                        />
+                        <span>{t("고등학교")}</span>
+                      </label>
+                    </div>
+                  </fieldset>
                   <label className="field" ref={registerField("schoolName")}>
                     <span className="field__label">{t("학교")}<span className="req">*</span></span>
                     <SearchableSelectField
