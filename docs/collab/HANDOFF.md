@@ -37,9 +37,9 @@
   - **계정 복구 프론트 연동(프론트 담당)** — `pages/AccountRecoveryPage`.
   - **마이페이지 "제작 내역" 연동(프론트 담당)** — `docs/FRONTEND_API_GAPS.md` §1.2.
   - **만세력 진태양시 보정 프론트 반영, 성씨(surname) 필드 프론트 반영(프론트 담당)** — `docs/FRONTEND_API_GAPS.md` §1.15/1.16, 백엔드는 이미 완전히 구현·검증됨.
-  - **EC2 배포 마무리**: `.env` 값 확인, HTTPS(certbot) 미착수.
-  - **`UserApplicationFlowTest.fullUserApplicationFlow()` 403 기존 결함**: 여러 세션째 미수정, 담당자 미정.
-  - 다른 세션(Codex로 추정)이 동시에 `SchoolSeeder`/`universities.csv`(전국대학 CSV 시딩) 작업 중인 것으로 보임(이 작업 디렉터리에 커밋 안 된 관련 파일이 계속 남아있음 — `backend/honor-citizen/src/main/java/.../school/SchoolSeeder.java`, `src/main/resources/seed/universities.csv` 등). 이번 세션도 건드리지 않았다. 다음 작업자는 해당 작업자의 커밋 여부를 `git log`/`git status`로 먼저 확인할 것.
+  - ~~**EC2 배포 마무리**: `.env` 값 확인, HTTPS(certbot) 미착수.~~ — ✅ 2026-09-05 확인: 실제로는 Let's Encrypt HTTPS가 이미 적용돼 있었음(이 문구가 낡은 것이었음). MinIO presigned URL host 문제(별도 이슈)는 진행 중 — 아래 "❓ 확인 필요" 참고.
+  - ~~**`UserApplicationFlowTest.fullUserApplicationFlow()` 403 기존 결함**: 여러 세션째 미수정, 담당자 미정.~~ — ✅ 2026-09-05 확인: 이미 해결돼 있었음(`TODO.md` 1114행 — 개인 신청에 `member.address` 필드가 추가되면서 함께 그린으로 전환된 것으로 기록돼 있었으나 이 문서엔 반영 안 됨). 방금 다시 실행해서 1/1 통과 재확인. 이 문구는 낡은 기록이었을 뿐 실제 결함 아님.
+  - ~~다른 세션(Codex로 추정)이 동시에 `SchoolSeeder`/`universities.csv`(전국대학 CSV 시딩) 작업 중~~ — ✅ 2026-09-05 커밋 완료(`60437f5`), 운영 배포 반영 및 라이브 검색 검증(서울대/연세대/고려대/카이스트 등) 완료.
   - 그 외 `docs/collab/TODO.md` 진행 보드·`docs/BACKEND_API_GAPS.md` 참고.
 
 ## ❓ 확인 필요
