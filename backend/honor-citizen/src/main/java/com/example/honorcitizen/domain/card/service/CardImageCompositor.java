@@ -253,7 +253,10 @@ class CardImageCompositor {
 
     // 4-C: 학생증 뒷면 — 배경도 S3(templateBack). 필드 구성은 이름/한자/영문/풀이 4개뿐이라
     // 한자뜻음 줄이 없는 것 빼고는 다른 3종의 뒷면 합성과 로직이 같다(공용 drawBackText 재사용).
-    // 타이틀은 이미지가 아니라 텍스트("학 생 증")로 — 다른 3종의 "한국이름풀이" 텍스트 타이틀과 동일 패턴.
+    // 타이틀은 이미지가 아니라 텍스트로 — 다른 3종과 동일한 폰트·크기·색(batangBold/8f/BLACK)으로
+    // "한국이름풀이"를 그린다. 원본 시안(학생증_뒷면타이틀.png)도 학생증 뒷면 타이틀이 "한국이름풀이"임을
+    // 보여준다 — 이전엔 실수로 앞면용 titleFallbackText(STUDENT)("학 생 증")를 재사용해서 뒷면에도
+    // "학생증"이 찍히던 버그였다(실제 렌더링으로 발견, 2026-09-06).
     private byte[] composeStudentBack(CardMemberData data) {
         // composeStudentFront와 동일한 이유(Map.of().get(null) NPE) — null 먼저 거른다.
         if (data.studentOrientation() == null) {
@@ -272,7 +275,7 @@ class CardImageCompositor {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         try {
-            drawBackText(g, titleFallbackText(CardTypeCode.STUDENT), batangBold, 8f, Color.BLACK,
+            drawBackText(g, titleFallbackBackText(), batangBold, 8f, Color.BLACK,
                     layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             drawBackText(g, data.fullName(), batangBold, 12.11f, Color.BLACK,
                     variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
