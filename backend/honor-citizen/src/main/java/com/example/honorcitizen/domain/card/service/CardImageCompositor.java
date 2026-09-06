@@ -116,14 +116,14 @@ class CardImageCompositor {
         try {
             drawTitle(g, cardType, layout, scaleX, scaleY);
             drawPhoto(g, dir, data.photo(), layout, scaleX, scaleY);
-            drawText(g, data.fullName(), dotumBold, 8f, Color.BLACK, layout.name(), layout, scaleX, scaleY);
+            drawText(g, spacedName(data.fullName()), batangBold, 8f, Color.BLACK, layout.name(), layout, scaleX, scaleY);
             // HONOR_CITIZEN/HONOR_KOREAN 위치값 표는 영문명/카드번호/주소를 각자 다른 x에서 중앙
             // 정렬하는 걸 전제로 한 듯한데, 문자열 길이가 서로 달라(특히 주소) 실제 렌더링해보면
             // 왼쪽 시작점이 들쭉날쭉했다(사용자 확인, 두 카드종류 모두 동일 원칙 적용 요청). 이름의
             // 왼쪽 끝을 기준선으로 계산해 그 지점에 왼쪽 정렬한다. 각 필드 자신의 y좌표·폰트 크기는
             // 그대로 쓴다. VISITOR는 요청 범위 밖이라 기존 중앙 정렬 유지.
             if (cardType == CardTypeCode.HONOR_CITIZEN || cardType == CardTypeCode.HONOR_KOREAN) {
-                double nameLeftEdge = leftEdgeX(data.fullName(), dotumBold, 8f, layout.name(), layout, scaleX);
+                double nameLeftEdge = leftEdgeX(spacedName(data.fullName()), batangBold, 8f, layout.name(), layout, scaleX);
                 drawTextAtPixelX(g, data.englishName(), dotumMedium, 5f, Color.DARK_GRAY, nameLeftEdge,
                         layout.englishName(), layout, scaleX, scaleY);
                 drawTextAtPixelX(g, data.cardNumber(), dotumMedium, 5f, Color.DARK_GRAY, nameLeftEdge,
@@ -140,7 +140,7 @@ class CardImageCompositor {
             // 왼쪽 그룹에서 어긋난다(실제 렌더링 후 발견) — 대신 카드번호의 왼쪽 끝을 기준으로 맞춘다
             // (사용자 확인). HONOR_KOREAN은 카드 우측(x=+79.96)에 별도 배치되는 디자인이라 중앙 정렬 유지.
             if (cardType == CardTypeCode.HONOR_CITIZEN) {
-                double nameLeftEdge = leftEdgeX(data.fullName(), dotumBold, 8f, layout.name(), layout, scaleX);
+                double nameLeftEdge = leftEdgeX(spacedName(data.fullName()), batangBold, 8f, layout.name(), layout, scaleX);
                 drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
                         nameLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
             } else if (cardType == CardTypeCode.VISITOR) {
@@ -182,7 +182,7 @@ class CardImageCompositor {
         try {
             drawBackText(g, titleFallbackBackText(), batangBold, 8f, Color.BLACK,
                     layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
-            drawBackText(g, data.fullName(), dotumBold, 7f, Color.BLACK,
+            drawBackText(g, spacedName(data.fullName()), batangBold, 7f, Color.BLACK,
                     variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             drawBackText(g, data.englishName(), dotumMedium, 4.5f, Color.DARK_GRAY,
                     variant.englishName(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
@@ -228,11 +228,11 @@ class CardImageCompositor {
             double bh = layout.baseHeight();
             drawTitleGeneric(g, CardTypeCode.STUDENT, layout.title(), bw, bh, scaleX, scaleY);
             drawStudentPhoto(g, data.photo(), layout, scaleX, scaleY);
-            drawTextGeneric(g, data.fullName(), batangBold, 12.11f, Color.BLACK, layout.name(), bw, bh, scaleX, scaleY);
+            drawTextGeneric(g, spacedName(data.fullName()), batangBold, 12.11f, Color.BLACK, layout.name(), bw, bh, scaleX, scaleY);
             // 이름/영문명, 학번/학과처럼 짝을 이루는 줄은 각자 표 좌표로 따로 중앙정렬하면 문자열
             // 길이가 다를 때 왼쪽 끝이 어긋난다(탐색 렌더링에서 실측 확인 — 예: "Jo Grinnarae"가
             // "조그린나래"보다 오른쪽으로 밀림). 위 줄의 왼쪽 끝에 맞춰 아래 줄을 왼쪽 정렬한다.
-            double nameLeftEdge = leftEdgeXGeneric(data.fullName(), batangBold, 12.11f, layout.name(), bw, scaleX);
+            double nameLeftEdge = leftEdgeXGeneric(spacedName(data.fullName()), batangBold, 12.11f, layout.name(), bw, scaleX);
             drawTextAtPixelXGeneric(g, data.englishName(), dotumBold, 6.7f, Color.DARK_GRAY, nameLeftEdge,
                     layout.englishName(), bh, scaleX, scaleY);
             if (data.isUniversity()) {
@@ -279,7 +279,7 @@ class CardImageCompositor {
         try {
             drawBackText(g, titleFallbackBackText(), batangBold, 8f, Color.BLACK,
                     layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
-            drawBackText(g, data.fullName(), batangBold, 12.11f, Color.BLACK,
+            drawBackText(g, spacedName(data.fullName()), batangBold, 12.11f, Color.BLACK,
                     variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             drawBackText(g, data.englishName(), batangBold, 9f, Color.DARK_GRAY,
                     variant.englishName(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
@@ -682,6 +682,24 @@ class CardImageCompositor {
         g.drawImage(src, 0, 0, null);
         g.dispose();
         return copy;
+    }
+
+    // 한국이름은 관례상 음절 사이를 벌려 쓴다(예: "정은성" → "정 은 성", 사용자 확정 요청) — 실제
+    // 자간(tracking) API 대신 음절 사이에 스페이스 문자를 넣어 같은 시각 효과를 낸다. 이름을 그리는
+    // 모든 지점(앞/뒤면, 학생증 포함)과 그 아래 줄(영문명 등)을 이름 왼쪽 끝에 맞추는 계산에도 반드시
+    // 이 함수를 통과한 동일한 문자열을 넘겨야 폭이 어긋나지 않는다.
+    private static String spacedName(String name) {
+        if (name == null || name.length() <= 1) {
+            return name;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            if (i > 0) {
+                sb.append(' ');
+            }
+            sb.append(name.charAt(i));
+        }
+        return sb.toString();
     }
 
     private Font loadFont(String fileName) {
