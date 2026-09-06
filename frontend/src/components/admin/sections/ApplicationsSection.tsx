@@ -1,10 +1,22 @@
 // 제작신청 관리 — 목록/상세/구성원은 실제 API. 만세력은 실제 계산(manseryeok).
 // 이름 확정·선택이력은 **백엔드 저장**(프론트 localStorage 미사용). 추천 이름 데이터만 프론트 번들.
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { api, ApiError, type AdminApplicationDetail, type AdminApplicationListItem, type AdminApplicationMember, type ApplicationStatus, type ApplicationType } from "../../../services/api";
+import {
+  api,
+  ApiError,
+  type AdminApplicationDetail,
+  type AdminApplicationListItem,
+  type AdminApplicationMember,
+  type ApplicationStatus,
+  type ApplicationType,
+  type BirthRegionCandidate,
+  type CardDesignOption,
+  type ManseryeokResolveResponse,
+  type OffsetCandidate,
+} from "../../../services/api";
 import { showToast } from "../../ui/toast";
 import { mockRecommendations, mockSaju, type MockSaju, type RecommendedName } from "../../../data/adminNamingMock";
-import { computeMemberSaju } from "../../../lib/saju";
+import { computeMemberSaju, computeMemberSajuFromResolved, makeSajuInputHash, toConfirmedPillars } from "../../../lib/saju";
 
 const statusLabels: Record<ApplicationStatus, string> = {
   SUBMITTED: "접수", REVIEWING: "검토중", PHOTO_REJECTED: "사진반려", NAME_EDITING: "작명중",
@@ -26,6 +38,25 @@ async function downloadApplicationsExcel(ids: number[], type: ApplicationType) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function asDataUrl(base64: string) {
+  return base64.startsWith("data:") ? base64 : `data:image/png;base64,${base64}`;
 }
 
 export function ApplicationsSection() {
@@ -250,6 +281,18 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
       setGroupBusy(false);
     }
   };
+  const downloadGroupCards = async () => {
+    setGroupBusy(true);
+    try {
+      const { blob, filename } = await api.getAdminApplicationCardsZip(app.applicationId);
+      downloadBlob(blob, filename.endsWith(".zip") ? filename : `application-${app.applicationId}-cards.zip`);
+      showToast("카드 ZIP을 다운로드했습니다.");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "카드 ZIP 다운로드에 실패했습니다.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
   const applyNamingResult = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -363,6 +406,9 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
           <button type="button" className="admin__btn" disabled={groupBusy} onClick={() => setCardBatchOpen((v) => !v)}>
             <span aria-hidden="true">#</span> 카드번호 일괄 입력
           </button>
+          <button type="button" className="admin__btn" disabled={groupBusy} onClick={downloadGroupCards}>
+            <span aria-hidden="true">⭳</span> 전체 카드 ZIP
+          </button>
           <span className="admin__muted">사주 프로그램이 채운 이름 엑셀을 업로드하면 구성원 한글이름이 일괄 반영됩니다.</span>
           {cardBatchOpen && (
             <div className="admin-naming__cardbatch">
@@ -383,37 +429,55 @@ function ApplicationNaming({ app, onChanged }: { app: AdminApplicationListItem; 
       )}
 
       {members.map((m, i) => (
-        <NamingCard key={m.memberId} appId={app.applicationId} index={i} member={m} isGroup={isGroup} counts={counts} onSaved={onSaved} />
+        <NamingCard
+          key={m.memberId}
+          appId={app.applicationId}
+          cardTypeId={detail.cardTypeId}
+          index={i}
+          member={m}
+          isGroup={isGroup}
+          counts={counts}
+          onSaved={onSaved}
+        />
       ))}
       {members.length === 0 && <p className="admin-panel__note">구성원 정보가 없습니다.</p>}
     </div>
   );
 }
 
-function NamingCard({ appId, index, member, isGroup, counts, onSaved }: {
-  appId: number; index: number; member: AdminApplicationMember; isGroup: boolean;
+function NamingCard({ appId, cardTypeId, index, member, isGroup, counts, onSaved }: {
+  appId: number; cardTypeId?: number; index: number; member: AdminApplicationMember; isGroup: boolean;
   counts: Record<string, number>; onSaved: () => Promise<void>;
 }) {
   const memberKey = `${appId}#${member.memberId}`;
   const label = member.englishName || (isGroup ? `멤버 ${index + 1}` : "신청인");
   // 실제 만세력(생년월일/시간). 계산 불가 시 mock로 폴백.
-  const realSaju = useMemo(() => computeMemberSaju(member.birthDate, member.birthTime), [member.birthDate, member.birthTime]);
-  const saju: MockSaju = useMemo(() => realSaju ?? mockSaju(memberKey), [realSaju, memberKey]);
+  const fallbackSaju = useMemo(() => computeMemberSaju(member.birthDate, member.birthTime), [member.birthDate, member.birthTime]);
+  const [resolvedSaju, setResolvedSaju] = useState<MockSaju | null>(null);
+  const saju: MockSaju = useMemo(() => resolvedSaju ?? fallbackSaju ?? mockSaju(memberKey), [resolvedSaju, fallbackSaju, memberKey]);
   const [tick, setTick] = useState(0); // 새로고침 버튼: 증가 시 추천을 다시 뽑는다.
   const recs = useMemo(() => mockRecommendations(memberKey, saju), [memberKey, saju, tick]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [surname, setSurname] = useState(member.surname ?? "");
+
+  useEffect(() => { setSurname(member.surname ?? ""); }, [member.surname]);
 
   // 확정 이름은 서버(member.assignedName)가 소스. 예시(preview) 멤버(음수 id)는 저장하지 않는다.
-  const chosen = member.assignedName ? { name: member.assignedName, hanja: member.assignedHanja ?? "" } : null;
+  const chosen = member.surname && member.assignedName ? { surname: member.surname, name: member.assignedName, hanja: member.assignedHanja ?? "" } : null;
   const isPreview = member.memberId < 0;
 
   const choose = async (name: RecommendedName) => {
     if (isPreview) { showToast("예시 카드입니다. 실제 신청에서 서버에 저장됩니다."); return; }
+    const cleanSurname = surname.trim();
+    if (!/^[가-힣]{1,2}$/.test(cleanSurname)) {
+      showToast("성씨는 한글 1~2자로 입력해 주세요.");
+      return;
+    }
     setSaving(true);
     try {
-      await api.saveMemberName(appId, member.memberId, { name: name.name, hanja: name.hanja, reading: name.reading, meaning: name.meaning });
-      showToast(`"${name.name}(${name.hanja})" 이름을 확정했습니다. (서버 저장 · 선택이력 +1)`);
+      await api.saveMemberName(appId, member.memberId, { surname: cleanSurname, name: name.name, hanja: name.hanja, reading: name.reading, meaning: name.meaning });
+      showToast(`"${cleanSurname}${name.name}(${name.hanja})" 이름을 확정했습니다. (서버 저장 · 선택이력 +1)`);
       setEditing(false);
       await onSaved();
     } catch (e) {
@@ -424,6 +488,7 @@ function NamingCard({ appId, index, member, isGroup, counts, onSaved }: {
   };
 
   const metaLine = [member.nationality, genderLabel(member.gender), member.birthDate].filter(Boolean).join(" · ");
+  const sajuLabel = resolvedSaju ? "" : fallbackSaju ? " · 임시 만세력" : " · 만세력 mock";
 
   // 이름 확정 후: 상태 '작명 완료' + 창을 접어(compact) 노출한다.
   if (chosen && !editing) {
@@ -434,10 +499,11 @@ function NamingCard({ appId, index, member, isGroup, counts, onSaved }: {
           <button type="button" className="admin__btn" onClick={() => setEditing(true)}>다시 선택</button>
         </div>
         <div className="admin-naming__done">
-          <span className="admin-naming__done-name">{chosen.name}{chosen.hanja && <em>{chosen.hanja}</em>}</span>
+          <span className="admin-naming__done-name">{chosen.surname}{chosen.name}{chosen.hanja && <em>{chosen.hanja}</em>}</span>
           <span className="admin__muted">확정된 이름 (서버 저장)</span>
         </div>
         {!isPreview && <CardNumberField appId={appId} memberId={member.memberId} current={member.cardNumber} onSaved={onSaved} />}
+        {!isPreview && cardTypeId && <CardProductionTools appId={appId} memberId={member.memberId} cardTypeId={cardTypeId} onGenerated={onSaved} />}
       </div>
     );
   }
@@ -449,8 +515,17 @@ function NamingCard({ appId, index, member, isGroup, counts, onSaved }: {
           <b>{label}</b>
           <span className={`admin__status-pill ${chosen ? "is-completed" : "is-waiting"}`}>{chosen ? "작명 완료" : "접수"}</span>
         </div>
-        <span className="admin__muted">{metaLine}{realSaju ? "" : (metaLine ? " · " : "") + "만세력 mock"}</span>
+        <span className="admin__muted">{metaLine}{sajuLabel}</span>
       </div>
+
+      {!isPreview && (
+        <SajuResolvePanel
+          appId={appId}
+          member={member}
+          fallbackSaju={saju}
+          onResolved={setResolvedSaju}
+        />
+      )}
 
       <div className="admin-naming__saju">
         <table className="admin-naming__pillars">
@@ -477,6 +552,10 @@ function NamingCard({ appId, index, member, isGroup, counts, onSaved }: {
 
       <div className="admin-naming__recs-head">
         <b className="admin-naming__subtitle">추천 이름 {recs.length}</b>
+        <label className="admin-naming__surname">
+          <span>성씨</span>
+          <input className="field__input" value={surname} onChange={(e) => setSurname(e.target.value)} placeholder="김" maxLength={2} />
+        </label>
         <button type="button" className="admin__btn admin-naming__refresh" onClick={() => setTick((t) => t + 1)}>
           <span aria-hidden="true">↻</span> 다른 이름 추천
         </button>
@@ -497,6 +576,218 @@ function NamingCard({ appId, index, member, isGroup, counts, onSaved }: {
         ))}
       </ul>
       {!isPreview && <CardNumberField appId={appId} memberId={member.memberId} current={member.cardNumber} onSaved={onSaved} />}
+      {!isPreview && cardTypeId && <CardProductionTools appId={appId} memberId={member.memberId} cardTypeId={cardTypeId} onGenerated={onSaved} />}
+    </div>
+  );
+}
+
+function SajuResolvePanel({ appId, member, fallbackSaju, onResolved }: {
+  appId: number;
+  member: AdminApplicationMember;
+  fallbackSaju: MockSaju;
+  onResolved: (saju: MockSaju | null) => void;
+}) {
+  const [query, setQuery] = useState(member.birthRegion ?? "");
+  const [candidates, setCandidates] = useState<BirthRegionCandidate[]>([]);
+  const [selected, setSelected] = useState("");
+  const [resolved, setResolved] = useState<ManseryeokResolveResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const search = async () => {
+    const keyword = query.trim();
+    if (!keyword) { showToast("출생지역을 입력해 주세요."); return; }
+    setBusy(true);
+    try {
+      const rows = await api.searchBirthRegion(keyword);
+      setCandidates(rows);
+      setSelected(rows[0] ? `${rows[0].latitude},${rows[0].longitude}` : "");
+      if (rows.length === 0) showToast("출생지역 검색 결과가 없습니다.");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "출생지역 검색에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resolve = async (candidate?: BirthRegionCandidate, offset?: OffsetCandidate) => {
+    const target = candidate ?? candidates.find((c) => `${c.latitude},${c.longitude}` === selected);
+    if (!target) { showToast("출생지역 후보를 선택해 주세요."); return; }
+    setBusy(true);
+    try {
+      const data = await api.resolveManseryeokBirthTime(appId, member.memberId, {
+        latitude: target.latitude,
+        longitude: target.longitude,
+        timezoneId: resolved?.timezoneId,
+        selectedOffset: offset?.offset,
+      });
+      setResolved(data);
+      if (data.status === "EXACT" && data.utcInstant && data.longitude != null) {
+        const saju = computeMemberSajuFromResolved(data.utcInstant, data.longitude);
+        if (saju) {
+          onResolved(saju);
+          await api.confirmManseryeokResult(appId, member.memberId, {
+            timezoneId: data.timezoneId ?? "",
+            longitude: data.longitude,
+            selectedOffset: data.selectedOffset,
+            utcInstant: data.utcInstant,
+            timeAccuracy: "EXACT",
+            confirmedPillars: toConfirmedPillars(saju),
+            uncertainPillars: [],
+            elementCounts: saju.elementCounts,
+            calculationEngineVersion: "manseryeok@2.0.0",
+            inputHash: makeSajuInputHash([member.birthDate, member.birthTime, data.timezoneId, data.longitude, data.utcInstant]),
+          });
+          showToast("만세력 결과를 확정 저장했습니다.");
+        }
+      } else if (data.status === "UNKNOWN_TIME") {
+        onResolved(fallbackSaju);
+        await api.confirmManseryeokResult(appId, member.memberId, {
+          timezoneId: data.timezoneId ?? "UNKNOWN",
+          longitude: data.longitude ?? target.longitude,
+          timeAccuracy: "UNKNOWN",
+          confirmedPillars: toConfirmedPillars(fallbackSaju),
+          uncertainPillars: ["hour"],
+          elementCounts: fallbackSaju.elementCounts,
+          calculationEngineVersion: "manseryeok@2.0.0",
+          inputHash: makeSajuInputHash([member.birthDate, member.birthTime, data.timezoneId, target.longitude, "UNKNOWN"]),
+        });
+        showToast("출생시간 미상으로 만세력 결과를 저장했습니다.");
+      } else if (data.status === "AMBIGUOUS_LOCAL_TIME") {
+        showToast("중복되는 현지 시각입니다. 후보 offset 중 하나를 선택해 주세요.");
+      } else {
+        showToast("존재하지 않는 현지 시각입니다. 출생시간을 확인해 주세요.");
+      }
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "만세력 확정에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="admin-naming__resolve">
+      <div className="field__with-btn">
+        <input className="field__input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="출생지역 검색" />
+        <button type="button" className="postal-btn" disabled={busy} onClick={search}>검색</button>
+      </div>
+      {candidates.length > 0 && (
+        <div className="field__with-btn">
+          <select className="field__select" value={selected} onChange={(e) => setSelected(e.target.value)}>
+            {candidates.map((c) => <option key={`${c.displayName}-${c.latitude}-${c.longitude}`} value={`${c.latitude},${c.longitude}`}>{c.displayName}</option>)}
+          </select>
+          <button type="button" className="postal-btn" disabled={busy} onClick={() => void resolve()}>만세력 확정</button>
+        </div>
+      )}
+      {resolved?.status === "AMBIGUOUS_LOCAL_TIME" && (
+        <div className="admin-naming__offsets">
+          {(resolved.candidates ?? []).map((c) => (
+            <button key={`${c.offset}-${c.utcInstant}`} type="button" className="admin__btn" disabled={busy} onClick={() => void resolve(undefined, c)}>
+              {c.offset} / {c.utcInstant}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CardProductionTools({ appId, memberId, cardTypeId, onGenerated }: {
+  appId: number;
+  memberId: number;
+  cardTypeId: number;
+  onGenerated: () => Promise<void>;
+}) {
+  const [designs, setDesigns] = useState<CardDesignOption[]>([]);
+  const [designId, setDesignId] = useState("");
+  const [issueDate, setIssueDate] = useState(todayIso());
+  const [preview, setPreview] = useState<{ front: string; back: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const loadDesigns = async () => {
+    setBusy(true);
+    try {
+      const rows = await api.listCardDesigns({ cardTypeId, active: true, applicationId: appId });
+      setDesigns(rows);
+      setDesignId((current) => current || String(rows.find((d) => d.isDefault)?.id ?? rows[0]?.id ?? ""));
+      if (rows.length === 0) showToast("사용 가능한 카드 디자인이 없습니다.");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "카드 디자인을 불러오지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestBody = () => {
+    const id = Number(designId);
+    if (!id) {
+      showToast("카드 디자인을 선택해 주세요.");
+      return null;
+    }
+    return { cardDesignId: id, issueDate };
+  };
+
+  const previewCard = async () => {
+    const body = requestBody();
+    if (!body) return;
+    setBusy(true);
+    try {
+      const data = await api.getCardPreview(appId, memberId, body);
+      setPreview({ front: asDataUrl(data.front), back: asDataUrl(data.back) });
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "카드 미리보기에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const generate = async () => {
+    const body = requestBody();
+    if (!body) return;
+    setBusy(true);
+    try {
+      await api.generateCard(appId, memberId, body);
+      showToast("카드 이미지를 생성해 저장했습니다.");
+      await onGenerated();
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "카드 생성에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const downloadMember = async () => {
+    setBusy(true);
+    try {
+      const data = await api.getAdminMemberCardDownload(appId, memberId);
+      window.open(data.cardFrontUrl, "_blank", "noopener,noreferrer");
+      window.open(data.cardBackUrl, "_blank", "noopener,noreferrer");
+      showToast("카드 다운로드 링크를 열었습니다.");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "카드 다운로드에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="admin-card-tools">
+      <div className="admin-card-tools__row">
+        <button type="button" className="admin__btn" disabled={busy} onClick={loadDesigns}>디자인 불러오기</button>
+        <select className="field__select" value={designId} onChange={(e) => setDesignId(e.target.value)} disabled={busy || designs.length === 0}>
+          <option value="">디자인 선택</option>
+          {designs.map((d) => <option key={d.id} value={d.id}>{d.name} #{d.designNumber}</option>)}
+        </select>
+        <input className="field__input admin-card-tools__date" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+        <button type="button" className="admin__btn" disabled={busy} onClick={previewCard}>미리보기</button>
+        <button type="button" className="admin__btn admin__btn--primary" disabled={busy} onClick={generate}>카드 생성</button>
+        <button type="button" className="admin__btn" disabled={busy} onClick={downloadMember}>다운로드</button>
+      </div>
+      {preview && (
+        <div className="admin-card-tools__preview">
+          <img src={preview.front} alt="카드 앞면 미리보기" />
+          <img src={preview.back} alt="카드 뒷면 미리보기" />
+        </div>
+      )}
     </div>
   );
 }

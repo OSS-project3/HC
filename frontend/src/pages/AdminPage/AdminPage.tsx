@@ -10,13 +10,15 @@ import { ApplicationsSection } from "../../components/admin/sections/Application
 import { BoardsSection } from "../../components/admin/sections/BoardsSection";
 import { ReviewsSection } from "../../components/admin/sections/ReviewsSection";
 import { InquiriesSection } from "../../components/admin/sections/InquiriesSection";
+import { SchoolTemplateSection } from "../../components/admin/sections/SchoolTemplateSection";
 import "./AdminPage.css";
 
-type SectionId = "overview" | "applications" | "notice" | "faq" | "events" | "reviews" | "inquiries";
+type SectionId = "overview" | "applications" | "templates" | "notice" | "faq" | "events" | "reviews" | "inquiries";
 
 const SECTIONS: { id: SectionId; label: string; group: string }[] = [
   { id: "overview", label: "개요", group: "" },
   { id: "applications", label: "제작신청 관리", group: "신청" },
+  { id: "templates", label: "학생증 템플릿", group: "신청" },
   { id: "notice", label: "공지사항", group: "콘텐츠" },
   { id: "faq", label: "FAQ", group: "콘텐츠" },
   { id: "events", label: "행사사업", group: "콘텐츠" },
@@ -59,6 +61,7 @@ export function AdminPage() {
       <main className="admin-dash__main">
         {section === "overview" && <OverviewSection onGo={setSection} />}
         {section === "applications" && <ApplicationsSection />}
+        {section === "templates" && <SchoolTemplateSection />}
         {section === "notice" && <BoardsSection boardType="NOTICE" />}
         {section === "faq" && <BoardsSection boardType="FAQ" />}
         {section === "events" && (
@@ -77,8 +80,8 @@ export function AdminPage() {
 
 // 개요: 실제 API에서 집계. 서버 관리자 세션이 없으면(하드코딩 로그인) 401이 나며 안내를 표시한다.
 function OverviewSection({ onGo }: { onGo: (s: SectionId) => void }) {
-  const [stats, setStats] = useState<{ applications: number | null; individual: number | null; group: number | null; inquiries: number | null }>({
-    applications: null, individual: null, group: null, inquiries: null,
+  const [stats, setStats] = useState<{ applications: number | null; individual: number | null; group: number | null; inquiries: number | null; pendingInquiries: number | null; completedInquiries: number | null }>({
+    applications: null, individual: null, group: null, inquiries: null, pendingInquiries: null, completedInquiries: null,
   });
   const [warn, setWarn] = useState<string | null>(null);
 
@@ -86,16 +89,15 @@ function OverviewSection({ onGo }: { onGo: (s: SectionId) => void }) {
     let alive = true;
     (async () => {
       try {
-        const [apps, inquiries] = await Promise.all([
-          api.listAdminApplications({ size: 100 }),
-          api.listAdminInquiries().catch(() => null),
-        ]);
+        const data = await api.getAdminStats();
         if (!alive) return;
         setStats({
-          applications: apps.totalElements,
-          individual: apps.content.filter((a) => a.applicationType === "INDIVIDUAL").length,
-          group: apps.content.filter((a) => a.applicationType === "GROUP").length,
-          inquiries: inquiries?.length ?? null,
+          applications: data.totalApplications,
+          individual: data.individualApplications,
+          group: data.groupApplications,
+          inquiries: data.totalInquiries,
+          pendingInquiries: data.pendingInquiries,
+          completedInquiries: data.completedInquiries,
         });
       } catch (e) {
         if (alive) setWarn(e instanceof ApiError && e.status === 401
@@ -127,7 +129,7 @@ function OverviewSection({ onGo }: { onGo: (s: SectionId) => void }) {
       </div>
       <p className="admin__muted admin-dash__hint">
         좌측 메뉴에서 공지·FAQ·행사·후기·문의를 관리하고, 제작신청 관리에서 개인/단체 신청을 확인·작명합니다.
-        작명(만세력·이름추천·엑셀출력)은 백엔드 미구현으로 현재 UI 시연(mock)입니다.
+        작명·카드 제작·학생증 템플릿 업로드는 관리자 API와 연결되어 있으며, 일부 항목은 신청 상태와 생성된 카드 파일 상태에 따라 제한됩니다.
       </p>
     </div>
   );

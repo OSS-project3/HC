@@ -240,6 +240,10 @@
 .admin-naming__recs-head { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 8px; }
 .admin-naming__refresh { display: inline-flex; align-items: center; gap: 5px; }
 .admin-naming__refresh span { font-size: 15px; line-height: 1; }
+.admin-naming__surname { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; color: var(--color-text-secondary); }
+.admin-naming__surname .field__input { width: 72px; padding: 7px 9px; }
+.admin-naming__resolve { display: grid; gap: 8px; margin-bottom: 12px; max-width: 680px; }
+.admin-naming__offsets { display: flex; flex-wrap: wrap; gap: 8px; }
 .admin-naming__recs { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .admin-naming__rec { border: 1px solid var(--color-border-soft); border-radius: 8px; padding: 12px; display: grid; gap: 5px; }
 .admin-naming__rec.is-chosen { border-color: #a9d3b8; background: #f2f9f4; }
@@ -303,3 +307,22 @@
 .admin-naming__cardbatch { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .admin-naming__cardbatch textarea { font-family: monospace; resize: vertical; }
 .admin-naming__cardbatch-actions { display: flex; align-items: center; gap: 10px; }
+
+/* 카드 미리보기/생성 */
+.admin-card-tools { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border-soft); }
+.admin-card-tools__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.admin-card-tools__row .field__select { width: auto; min-width: 180px; }
+.admin-card-tools__date { width: 150px; }
+.admin-card-tools__preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; max-width: 720px; }
+.admin-card-tools__preview img { width: 100%; height: auto; border: 1px solid var(--color-border-soft); border-radius: 6px; background: #fff; }
+
+/* 학생증 템플릿 */
+.admin-template__controls { display: grid; grid-template-columns: minmax(240px, 1fr) 180px; gap: 10px; align-items: start; margin-bottom: 16px; }
+.admin-template__preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; min-height: 120px; margin-bottom: 16px; }
+.admin-template__preview img { width: 100%; height: auto; border: 1px solid var(--color-border-soft); border-radius: 6px; background: #fff; }
+.admin-template__upload { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)) auto; gap: 10px; align-items: end; }
+
+@media (max-width: 720px) {
+  .admin-template__controls,
+  .admin-template__upload { grid-template-columns: 1fr; }
+}

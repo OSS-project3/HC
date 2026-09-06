@@ -13,7 +13,7 @@ export interface ValidationErrorDetail {
 
 export interface ApiEnvelope<T> {
   success: boolean;
-  data: T;
+  data?: T;
   errorCode: string | null;
   errorMessage: string | null;
   errors?: ValidationErrorDetail[];
@@ -48,7 +48,7 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
     const fallback = language === "en" ? `The request failed. (${response.status})` : `API 요청에 실패했습니다. (${response.status})`;
     throw new ApiError(resolveServerErrorMessage(language, payload?.errorCode, payload?.errorMessage, fallback), response.status, payload?.errorCode, payload?.errors);
   }
-  return payload.data;
+  return payload.data as T;
 }
 
 /** request()와 동일한 인증(쿠키+401 refresh) 처리를 하되, JSON envelope이 아니라 바이너리(파일)를 반환한다. */
@@ -113,6 +113,7 @@ export interface ReviewUpdateBody extends ReviewWriteBody { keepImageIds: number
 
 // ── Boards (공지사항 / FAQ) ─────────────────────────────────────
 export type BoardType = "NOTICE" | "FAQ";
+export type BoardSearchType = "ALL" | "TITLE" | "CONTENT";
 export interface BoardAttachment { id: number; originalFileName: string; url: string; }
 export interface BoardListItem { id: number; boardType: BoardType; title: string; content: string; createdAt: string; }
 export interface BoardDetail extends BoardListItem { attachments: BoardAttachment[]; next?: { id: number; title: string }; }
@@ -157,10 +158,36 @@ export interface AdminApplicationDetail {
 export interface AdminApplicationMember {
   memberId: number; englishName?: string; nationality?: string; gender?: "MALE" | "FEMALE";
   birthDate?: string; birthTime?: string; birthRegion?: string;
-  assignedName?: string; assignedHanja?: string; photoNumber?: string; cardNumber?: string;
+  surname?: string; assignedName?: string; assignedHanja?: string; photoNumber?: string; cardNumber?: string;
 }
 export interface NameSelectionStat { name: string; hanja: string; count: number; }
 export interface ApplicationStatusResult { applicationId: number; status: ApplicationStatus; }
+export interface AdminStats { totalApplications: number; individualApplications: number; groupApplications: number; totalInquiries: number; pendingInquiries: number; completedInquiries: number; }
+export interface BirthRegionCandidate { displayName: string; latitude: number; longitude: number; }
+export type ManseryeokResolutionStatus = "EXACT" | "NONEXISTENT_LOCAL_TIME" | "AMBIGUOUS_LOCAL_TIME" | "UNKNOWN_TIME";
+export type TimeAccuracy = "EXACT" | "PARTIAL" | "UNKNOWN";
+export interface OffsetCandidate { offset: string; utcInstant: string; }
+export interface ManseryeokResolveResponse { status: ManseryeokResolutionStatus; timezoneId?: string; longitude?: number; selectedOffset?: string; utcInstant?: string; candidates?: OffsetCandidate[]; }
+export interface SajuPillar { stem: string; branch: string; }
+export interface ManseryeokConfirmBody {
+  timezoneId: string;
+  longitude: number;
+  selectedOffset?: string;
+  utcInstant?: string;
+  timeAccuracy: TimeAccuracy;
+  confirmedPillars: Record<string, SajuPillar>;
+  uncertainPillars?: string[];
+  elementCounts?: Record<string, number>;
+  calculationEngineVersion: string;
+  inputHash: string;
+}
+export interface ManseryeokActiveResult extends ManseryeokConfirmBody { tzdbVersion: string; calculatedAt: string; }
+export interface CardDesignOption { id: number; designNumber: number; name: string; orientation: "LANDSCAPE" | "PORTRAIT"; isDefault: boolean; active: boolean; }
+export interface CardPreviewImages { front: string; back: string; }
+export interface CardGenerateResult { cardFrontPath: string; cardBackPath: string; issueDate: string; }
+export interface AdminMemberCardDownload { applicationId: number; memberId: number; cardFrontUrl: string; cardBackUrl: string; expiresAt: string; }
+export type CardDesignOrientation = "LANDSCAPE" | "PORTRAIT";
+export interface SchoolCardTemplate { cardDesignId: number; frontPreviewUrl: string; backPreviewUrl: string; }
 
 // ── Inquiries (1:1 문의, 고객지원) ───────────────────────────────
 // 백엔드가 @JsonValue/@JsonCreator로 한글 값을 그대로 주고받는다(InquiryCategory enum). 표시값 = 이 문자열.
@@ -207,7 +234,7 @@ export const api = {
   deleteReview: (id: number) => request<void>(`/api/reviews/${id}`, { method: "DELETE" }),
 
   // Boards (notices / FAQ)
-  listBoards: (params: { type?: BoardType; page?: number; size?: number } = {}) => request<PageResponse<BoardListItem>>(`/api/boards${qs({ ...params })}`),
+  listBoards: (params: { type?: BoardType; searchType?: BoardSearchType; keyword?: string; page?: number; size?: number } = {}) => request<PageResponse<BoardListItem>>(`/api/boards${qs({ ...params })}`),
   getBoard: (id: number) => request<BoardDetail>(`/api/boards/${id}`),
   createBoard: (body: BoardWriteBody, attachments: File[] = []) => request<{ id: number }>("/api/admin/boards", { method: "POST", body: multipart(body, attachments.map((file) => ({ name: "attachments", file }))) }),
   updateBoard: (id: number, body: BoardWriteBody, attachments: File[] = []) => request<void>(`/api/admin/boards/${id}`, { method: "PATCH", body: multipart(body, attachments.map((file) => ({ name: "attachments", file }))) }),
@@ -221,9 +248,27 @@ export const api = {
   getAdminApplication: (id: number) => request<AdminApplicationDetail>(`/api/admin/applications/${id}`),
   getAdminApplicationMembers: (id: number) => request<AdminApplicationMember[]>(`/api/admin/applications/${id}/members`),
   // 인앱 작명 확정 — 서버에 저장(멤버 이름 반영 + 선택이력 +1). 프론트 localStorage 미사용.
-  saveMemberName: (applicationId: number, memberId: number, body: { name: string; hanja?: string; reading?: string; meaning?: string }) =>
+  saveMemberName: (applicationId: number, memberId: number, body: { surname?: string; name: string; hanja?: string; reading?: string; meaning?: string }) =>
     request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/name`, { method: "POST", body: JSON.stringify(body) }),
   getNameSelectionStats: () => request<NameSelectionStat[]>("/api/admin/name-selection-stats"),
+  getAdminStats: () => request<AdminStats>("/api/admin/stats"),
+  searchBirthRegion: (query: string) => request<BirthRegionCandidate[]>(`/api/admin/birth-region/search${qs({ query })}`),
+  resolveManseryeokBirthTime: (applicationId: number, memberId: number, body: { latitude: number; longitude: number; timezoneId?: string; selectedOffset?: string }) =>
+    request<ManseryeokResolveResponse>(`/api/admin/applications/${applicationId}/members/${memberId}/manseryeok/resolve`, { method: "POST", body: JSON.stringify(body) }),
+  confirmManseryeokResult: (applicationId: number, memberId: number, body: ManseryeokConfirmBody) =>
+    request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/manseryeok`, { method: "POST", body: JSON.stringify(body) }),
+  getActiveManseryeokResult: (applicationId: number, memberId: number) =>
+    request<ManseryeokActiveResult>(`/api/admin/applications/${applicationId}/members/${memberId}/manseryeok`),
+  listCardDesigns: (params: { cardTypeId: number; active?: boolean; applicationId?: number }) =>
+    request<CardDesignOption[]>(`/api/admin/card-designs${qs({ ...params })}`),
+  getCardPreview: (applicationId: number, memberId: number, body: { cardDesignId: number; issueDate: string }) =>
+    request<CardPreviewImages>(`/api/admin/applications/${applicationId}/members/${memberId}/card-preview`, { method: "POST", body: JSON.stringify(body) }),
+  generateCard: (applicationId: number, memberId: number, body: { cardDesignId: number; issueDate: string }) =>
+    request<CardGenerateResult>(`/api/admin/applications/${applicationId}/members/${memberId}/card-generate`, { method: "POST", body: JSON.stringify(body) }),
+  getAdminApplicationCardsZip: (applicationId: number) =>
+    requestFile(`/api/admin/applications/${applicationId}/cards/download`),
+  getAdminMemberCardDownload: (applicationId: number, memberId: number) =>
+    request<AdminMemberCardDownload>(`/api/admin/applications/${applicationId}/members/${memberId}/cards/download`),
   // 카드번호 확정 — 개인/단일 멤버(관리자 직접 입력, 서버 채번 없음).
   assignCardNumber: (applicationId: number, memberId: number, cardNumber: string) =>
     request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/card-number`, { method: "PUT", body: JSON.stringify({ cardNumber }) }),
@@ -274,6 +319,15 @@ export const api = {
   confirmIdRecovery: (body: { requestId: string; code: string }) => request<{ maskedEmail: string }>("/api/auth/recovery/id/confirm", { method: "POST", body: JSON.stringify(body) }),
   requestPasswordRecovery: (body: { email: string }) => request<RecoveryChallenge>("/api/auth/recovery/password/request", { method: "POST", body: JSON.stringify(body) }),
   confirmPasswordRecovery: (body: { requestId: string; code: string; newPassword: string }) => request<void>("/api/auth/recovery/password/confirm", { method: "POST", body: JSON.stringify(body) }),
+  getSchoolCardTemplate: (schoolId: number, orientation: CardDesignOrientation) =>
+    request<SchoolCardTemplate | undefined>(`/api/admin/schools/${schoolId}/card-template${qs({ orientation })}`),
+  uploadSchoolCardTemplate: (schoolId: number, orientation: CardDesignOrientation, front: File, back: File) => {
+    const form = new FormData();
+    form.append("orientation", orientation);
+    form.append("front", front);
+    form.append("back", back);
+    return request<SchoolCardTemplate>(`/api/admin/schools/${schoolId}/card-template`, { method: "POST", body: form });
+  },
 };
 
 /** Build the events multipart body: JSON `request` + thumbnail/logo (single) + images (gallery). */

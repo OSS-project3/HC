@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import "../SupportPage/SupportPage.css";
 import { useAuth } from "../../features/auth/AuthContext";
 import { useLanguage } from "../../features/i18n/LanguageContext";
 import { BoardAdminPanel } from "../../components/admin/BoardAdminPanel";
 import { SelectField } from "../../components/ui/SelectField";
-import { api, type BoardListItem } from "../../services/api";
+import { api, type BoardListItem, type BoardSearchType } from "../../services/api";
 
 function formatDate(iso: string) {
   return (iso ?? "").slice(0, 10).replace(/-/g, ".");
@@ -17,25 +17,22 @@ export function NoticesPage() {
   const [notices, setNotices] = useState<BoardListItem[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [query, setQuery] = useState("");
-  const [searchBy, setSearchBy] = useState("전체");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [searchBy, setSearchBy] = useState<BoardSearchType>("ALL");
 
   const reload = useCallback(() => {
     setStatus("loading");
-    api.listBoards({ type: "NOTICE", size: 100 })
+    api.listBoards({
+      type: "NOTICE",
+      searchType: submittedQuery ? searchBy : undefined,
+      keyword: submittedQuery || undefined,
+      size: 100,
+    })
       .then((data) => { setNotices(data.content); setStatus("ready"); })
       .catch(() => setStatus("error"));
-  }, [language]); // Accept-Language가 응답 언어를 바꾸므로 언어 전환 시 재조회
+  }, [language, searchBy, submittedQuery]); // Accept-Language가 응답 언어를 바꾸므로 언어 전환 시 재조회
 
   useEffect(() => { reload(); }, [reload]);
-
-  const filteredNotices = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-    if (!keyword) return notices;
-    return notices.filter((notice) => {
-      const target = searchBy === "작성일" ? formatDate(notice.createdAt) : notice.title;
-      return target.toLowerCase().includes(keyword);
-    });
-  }, [query, searchBy, notices]);
 
   return (
     <div className="support notices-page">
@@ -48,15 +45,15 @@ export function NoticesPage() {
         {isAdmin && <BoardAdminPanel boardType="NOTICE" items={notices} onChanged={reload} />}
         <h2 className="support__heading">{t("공지사항")}</h2>
 
-        <form className="notice-search" onSubmit={(event) => event.preventDefault()}>
+        <form className="notice-search" onSubmit={(event) => { event.preventDefault(); setSubmittedQuery(query.trim()); }}>
           <SelectField
             ariaLabel={t("검색 조건")}
             value={searchBy}
-            onChange={setSearchBy}
+            onChange={(value) => setSearchBy(value as BoardSearchType)}
             options={[
-              { value: "전체", label: t("전체") },
-              { value: "제목", label: t("제목") },
-              { value: "작성일", label: t("작성일") },
+              { value: "ALL", label: t("전체") },
+              { value: "TITLE", label: t("제목") },
+              { value: "CONTENT", label: t("내용") },
             ]}
           />
           <label>
@@ -70,14 +67,14 @@ export function NoticesPage() {
           <div className="notice-table__head"><span>{t("번호")}</span><span>{t("제목")}</span><span>{t("작성일")}</span></div>
           {status === "loading" && <p className="notice-table__empty">{t("공지사항을 불러오는 중입니다…")}</p>}
           {status === "error" && <p className="notice-table__empty">{t("공지사항을 불러오지 못했습니다.")}</p>}
-          {status === "ready" && filteredNotices.map((notice) => (
+          {status === "ready" && notices.map((notice) => (
             <article className="notice-table__row" key={notice.id}>
               <span className="notice-table__badge">{t("공지")}</span>
               <Link className="notice-table__title" to={`/notices/${notice.id}`}>{t(notice.title)}</Link>
               <time>{formatDate(notice.createdAt)}</time>
             </article>
           ))}
-          {status === "ready" && filteredNotices.length === 0 && <p className="notice-table__empty">{t("검색 결과가 없습니다.")}</p>}
+          {status === "ready" && notices.length === 0 && <p className="notice-table__empty">{t("검색 결과가 없습니다.")}</p>}
         </div>
 
         <nav className="support-pagination" aria-label={t("공지사항 페이지")}>
