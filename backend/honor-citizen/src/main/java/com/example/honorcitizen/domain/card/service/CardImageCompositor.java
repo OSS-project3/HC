@@ -62,8 +62,10 @@ class CardImageCompositor {
     private static final List<String> LOGO_CANDIDATES = List.of("발행처로고.png", "로고.png", "발행처 로고.png");
     private static final List<String> SEAL_CANDIDATES = List.of("직인.png", "아트보드 6.png");
     // 띠 아이콘은 디자인별 슬롯 에셋이 없어(HONOR_CITIZEN/1의 캐릭터.png가 유일한 참고용) 슬롯 크기에
-    // coverFit하지 않고, 기준 캔버스 스케일로 이 논리 너비(pt)만큼 그린다 — 시안 목업 비율을 육안 참고.
-    private static final double ZODIAC_BASE_WIDTH = 9d;
+    // coverFit하지 않고, 기준 캔버스 스케일로 이 논리 너비(pt)만큼 그린다. 참고 이미지(185x249)가
+    // 그 카드 배경(980x650) 대비 차지하는 실제 비율(185/980≈18.9%)로 환산한 값 — 기존 9pt는 이 비율의
+    // 1/5 수준으로 눈에 띄게 작게 그려지는 버그였다(사용자 리포트: "용 이미지가 너무 작게 출력되는데").
+    private static final double ZODIAC_BASE_WIDTH = 40d;
 
     // 뒷면 뜻풀이(nameInterpretation) 줄바꿈 폭 — baseWidth 대비 비율. 실제 700개 추천 이름 데이터셋의
     // meaning 필드(평균 약 70자, 최장 97자)를 이 비율로 실측 줄바꿈한 결과 전부 2~3줄로 떨어짐을
