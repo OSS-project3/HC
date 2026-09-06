@@ -71,8 +71,9 @@ class CardImageCompositor {
     // 학생증은 다른 3종과 카드 레이아웃 자체가 달라(사진·이름·영문명·학번/학과가 한 열에 조밀하게
     // 배치) 위 값을 그대로 쓰면 세로형에서 영문명 줄·학교 엠블럼 워터마크와 겹친다(실제 렌더링으로
     // 확인, 2026-09-06). 학생증 캔버스 폭(156/235) 대비 비율로 겹치지 않는 선까지 낮춘 값 — 이후
-    // 오프셋을 아래로 내려 여유가 생긴 만큼(위 CardLayouts 참고) 22 → 30으로 다시 키웠다.
-    private static final double STUDENT_ZODIAC_BASE_WIDTH = 30d;
+    // 오프셋을 아래로 내려 여유가 생긴 만큼(위 CardLayouts 참고) 22 → 30 → 38로 다시 키웠다
+    // (2026-09-06 사용자 재요청: "학생증 동물 이미지만 조금 더 크게").
+    private static final double STUDENT_ZODIAC_BASE_WIDTH = 38d;
 
     // 뒷면 뜻풀이(nameInterpretation) 줄바꿈 폭 — baseWidth 대비 비율. 실제 700개 추천 이름 데이터셋의
     // meaning 필드(평균 약 70자, 최장 97자)를 이 비율로 실측 줄바꿈한 결과 전부 2~3줄로 떨어짐을
