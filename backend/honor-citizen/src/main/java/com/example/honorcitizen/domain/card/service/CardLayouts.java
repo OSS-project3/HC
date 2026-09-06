@@ -20,7 +20,9 @@ final class CardLayouts {
                     new CardFieldOffset(4.4421, 12.9746),
                     new CardFieldOffset(23.3687, 35.6633),
                     new CardFieldOffset(79.9606, 63.2729),
-                    new CardFieldOffset(81.1677, -1.8476),
+                    // 십이간지 아이콘 위치·크기는 2026-09-06 사용자 확인 후 조정 중 — 원래보다
+                    // 아래로 내리고(y +14) 크기도 키웠다(ZODIAC_BASE_WIDTH 참고).
+                    new CardFieldOffset(81.1677, 12.1524),
                     new CardFieldOffset(-98.7078, 63.3311),
                     new CardFieldOffset(-13.0232, 59.0572)),
             // ⚠️ 캐릭터/직인 두 값은 "카드사이즈 및 위치값.jpg" 원문 그대로가 아니다. 원문은
@@ -38,7 +40,8 @@ final class CardLayouts {
                     new CardFieldOffset(-73.2793, 29.6069),
                     new CardFieldOffset(-36.176, 41.7827),
                     new CardFieldOffset(-76.7358, 64.1948),
-                    new CardFieldOffset(0, -30),
+                    // 위 HONOR_KOREAN과 동일한 이유로 아래로 내림(y +14).
+                    new CardFieldOffset(0, -16),
                     new CardFieldOffset(-4.0777, 63.8937),
                     new CardFieldOffset(90, 60)),
             CardTypeCode.VISITOR, new CardLayout(
@@ -130,7 +133,8 @@ final class CardLayouts {
                     mm(-12.055, 17.046),
                     mm(-13.197, 21.068),
                     mm(-12.055, 29.988),
-                    mm(17.253, 15.935)),
+                    // 2026-09-06 사용자 확인 — 영문명 줄과 가로 방향으로 가까워 아래로 더 내림(y +4mm).
+                    mm(17.253, 19.935)),
             CardDesignOrientation.LANDSCAPE, new CardStudentFrontLayout(
                     235, 156,
                     mm(0, -20.629),
@@ -141,7 +145,8 @@ final class CardLayouts {
                     mm(-3.278, 7.022), // 가로형은 학번/생년월일 칸 좌표가 같다(캔버스 밖으로 안 잘림).
                     mm(-1.867, 11.028),
                     mm(-27.031, 22.499),
-                    mm(30.48, 1.856)));
+                    // 위 PORTRAIT와 동일한 이유로 아래로 내림(y +4mm).
+                    mm(30.48, 5.856)));
 
     // 뒷면. 원문 위치값.jpg 표 그대로(4-C 구현 시 처음 렌더링해서 확인). 이름/한자/영문/풀이 4개뿐이라
     // 다른 3종의 한자뜻음(hanjaVariant의 hanjaMeaning) 줄이 없다 — 그 offset을 null로 둔다. 한자

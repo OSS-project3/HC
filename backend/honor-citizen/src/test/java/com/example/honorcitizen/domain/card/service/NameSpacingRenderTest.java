@@ -41,6 +41,15 @@ class NameSpacingRenderTest {
         write("name-spacing-student-front.png", studentFront);
         byte[] studentBack = compositor.composeBack(CardTypeCode.STUDENT, 1, student);
         write("name-spacing-student-back.png", studentBack);
+
+        CardMemberData studentLandscape = new CardMemberData("정", "은성", "Jung Eun-seong", "恩星",
+                "은혜 은(恩) 별 성(星)", "은혜롭고 별처럼 빛나는 삶을 산다.", samplePhoto(), "ROK-90099-0004",
+                "대한민국 전라북도 전주시", LocalDate.now(), "인", null, null, SchoolType.UNIVERSITY,
+                CardDesignOrientation.LANDSCAPE, "202512345", "컴퓨터공학과", null,
+                readTemplate("card-templates/STUDENT/10/앞면.png"),
+                blankTemplate(982, 650), 1);
+        byte[] studentLandscapeFront = compositor.composeFront(CardTypeCode.STUDENT, 1, studentLandscape);
+        write("name-spacing-student-landscape-front.png", studentLandscapeFront);
     }
 
     private byte[] samplePhoto() throws Exception {
