@@ -1849,3 +1849,41 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - `AdminStatsServiceTest`(4): 개인/단체/전체 정확한 집계, 개인 신청 105건으로 기존 100건 페이지 슬라이스 경계를 넘겨도 정확함, 문의 PENDING/COMPLETED/전체 집계, 데이터 없을 때 전부 0.
 - `AdminStatsControllerTest`(3): 관리자 200 + 값 확인, 비관리자 403, 토큰 없음 401.
 - 전체 스위트 836개(Redis 포함) 재실행, 0 failure/0 error.
+
+---
+
+## 십이간지 캐릭터 디자인 세트 선택 (2026-09-06 완료)
+
+상태: ✅ 완료(Claude)
+
+### 배경
+
+`card-templates/zodiac/`(카드 4종 공용 폴더)에 띠 동물 12마리 PNG가 1세트만 있고 `ZodiacIcon`이 이 경로를 고정으로 반환한다 — 선택 개념 자체가 없다. 디자이너 원본(`동물/1,2,3` 폴더)엔 3가지 스타일이 있고, 사용자가 "지금 서비스에 적용된 디자인은 앞으로 안 쓸 예정, 관리자가 3개 중 골라야 한다"고 확정.
+
+### 정책 결정 (전부 사용자 확정, 2026-09-06)
+
+1. **선택 단위**: 카드종류와 무관하게 **신청(Application) 1건당 값 1개**("1신청-1디자인") — 단체 신청이면 소속 멤버 전원이 같은 세트를 공유한다. `cardDesignId`(카드 디자인)처럼 매 미리보기/생성 요청마다 실어 보내는 값이 아니라 `Application`에 저장되는 값이다.
+2. **미지정 상태로 카드 생성 시도**: 기본값(예: 1번) 자동 적용 **안 함** — 명시적으로 거절(에러)한다. 관리자가 반드시 먼저 골라야 한다.
+3. **디자인 변경 가능 시점**: 카드가 이미 생성된 이후에도 **언제든 변경 가능**하다 — `cardDesignId`/`cardIssueDate`(`confirmCardGeneration()`으로 한 번 확정되면 잠기는 값)와 달리 잠금이 없다.
+
+### 구현 체크리스트
+
+- [x] `Application` 엔티티: `zodiacDesignSet`(Integer, nullable) 필드 + `assignZodiacDesignSet(int)`(1~3 검증, 잠금 없음) 추가
+- [x] `ErrorCode.ZODIAC_DESIGN_NOT_SELECTED` 신규 — 미지정 상태로 렌더링 시도 시 사용
+- [x] `ZodiacIcon.resourcePathFor(branch, designSet)` — 세트 번호를 경로에 삽입하도록 시그니처 변경, 호출부(`drawZodiac`/`drawZodiacGeneric`, `CardImageCompositor` 2곳) 갱신
+- [x] `CardMemberData`에 `zodiacDesignSet` 필드 추가(기존 생성자 하위호환 유지 패턴 — legacy 생성자는 1로 기본값)
+- [x] `CardRenderPreparation.prepare()`: `application.getZodiacDesignSet()`이 null이면 `ZODIAC_DESIGN_NOT_SELECTED`로 거절(`resolveZodiacDesignSet()` 신규) — `CardMemberData` 조립 시 이 값을 실어 보냄
+- [x] `ApplicationService.assignZodiacDesignSet(adminId, applicationId, zodiacDesignSet)` 신규 — 관리자 검증 + 1~3 검증(엔티티) + 저장
+- [x] `AdminApplicationController`에 신규 엔드포인트(`PUT /api/admin/applications/{applicationId}/zodiac-design`) + `ZodiacDesignSetRequest` DTO
+- [x] 자산 반입: `card-templates/zodiac/1/`, `/2/`, `/3/`(각 12개, 총 36개 PNG) — `saju/시안/시안/명예시민증/동물/{1,2,3}/`에서 가져옴. 기존 공용 `card-templates/zodiac/*.png`(세트 구분 없는 옛 자산)는 삭제 완료(더 이상 어떤 코드도 참조하지 않음)
+
+### 검증 체크리스트
+
+- [x] `Application` 엔티티 테스트(`ApplicationStateTransitionTest`): `assignZodiacDesignSet(0)`/`(4)` 거절, `(1)`~`(3)` 성공, 최초 카드 생성 확정 이후에도 재호출 성공(잠금 없음 확인)
+- [x] `ApplicationService` 서비스 테스트(`ApplicationServiceZodiacDesignSetTest` 신규 5개): 비관리자 거절, 1~3 외 값 거절, 존재하지 않는 신청 거절, 정상 저장·반복 변경 확인
+- [x] `AdminApplicationController` HTTP 배선 테스트(4개 추가): 200/400(범위 밖)/403/401
+- [x] `CardPreviewServiceTest`/`CardGenerationServiceTest`에 `zodiacDesignSet` 미지정 상태 거절 테스트 추가 — 기존 성공 케이스들의 fixture도 `assignZodiacDesignSet(1)`로 갱신(안 그러면 전부 신규 에러로 회귀)
+- [x] `ZodiacDesignSetRenderTest`(신규): 세트 1/2/3 각각 실제 렌더링 → 파일로 남겨 육안 확인 완료(실제로 스타일이 다른 호랑이 그림 3종 확인: 만화풍/화려한 색채/미니멀 라인아트)
+- [x] 기존 zodiac 관련 테스트(`StudentCardExploratoryRenderTest`, `SchoolCardTemplateEndToEndTest`, `BulkExcelToCardRenderingEndToEndTest`) 시그니처 변경 반영, 회귀 없음
+- [x] 전체 스위트 재실행, 856개 0 failure/0 error
+- [x] 로컬 docker 재빌드 후 실제 확인 — Docker Desktop이 중간에 내려가 있어 재기동(본 작업과 무관), 이 과정에서 관리자 인가 리팩터링(Codex, `AdminAuthorizationService`) 이후 실제 Redis로 처음 돌려본 `BoardAdminControllerTest`/`EventAdminControllerTest`/`InquiryAdminControllerTest`가 403으로 떨어지는 기존 결함(테스트 fixture가 JWT role 클레임만 ADMIN으로 만들고 DB role은 안 바꿔둠 — 예전엔 서비스 레벨 재검증이 없어서 문제없었으나 공통 인가 도입 후 노출됨)을 같이 발견·수정함(본 작업과 무관, 부수 수정). `ApplicationServiceAdminCardDownloadTest`의 오래된 30일 만료 assertion(어제 7일로 고쳤는데 테스트 미갱신)도 같이 정정

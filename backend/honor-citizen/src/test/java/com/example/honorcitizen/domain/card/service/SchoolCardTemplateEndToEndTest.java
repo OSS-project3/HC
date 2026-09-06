@@ -156,6 +156,7 @@ class SchoolCardTemplateEndToEndTest {
                 userId, "APP-2026-E2E01", studentTypeId, IssueType.MOBILE, true, null, null,
                 Orientation.LANDSCAPE, SchoolType.UNIVERSITY, "인문외국어대학교", schoolId);
         ReflectionTestUtils.setField(application, "status", ApplicationStatus.PRODUCTION_READY);
+        application.assignZodiacDesignSet(1);
         application = applicationRepository.save(application);
         Long applicationId = application.getId();
 

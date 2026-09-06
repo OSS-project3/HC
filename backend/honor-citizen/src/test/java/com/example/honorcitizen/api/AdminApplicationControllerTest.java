@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -397,5 +398,43 @@ class AdminApplicationControllerTest {
                         + "/members/" + memberId + "/cards/download")
                         .header(HttpHeaders.AUTHORIZATION, userToken))
                 .andExpect(status().isForbidden());
+    }
+
+    // 십이간지 캐릭터 디자인 세트 — 비즈니스 로직(1~3 검증·잠금 없음)은
+    // ApplicationServiceZodiacDesignSetTest/ApplicationStateTransitionTest가 이미 커버, 여기선
+    // HTTP 배선만 검증한다.
+    @Test
+    void assignZodiacDesignSetSucceeds() throws Exception {
+        mockMvc.perform(put("/api/admin/applications/" + otherUsersApplication.getId() + "/zodiac-design")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"zodiacDesignSet\":2}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void assignZodiacDesignSetRejectsOutOfRangeValue() throws Exception {
+        mockMvc.perform(put("/api/admin/applications/" + otherUsersApplication.getId() + "/zodiac-design")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"zodiacDesignSet\":4}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void assignZodiacDesignSetForNonAdminReturnsForbidden() throws Exception {
+        mockMvc.perform(put("/api/admin/applications/" + otherUsersApplication.getId() + "/zodiac-design")
+                        .header(HttpHeaders.AUTHORIZATION, userToken)
+                        .contentType("application/json")
+                        .content("{\"zodiacDesignSet\":1}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void assignZodiacDesignSetWithoutTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(put("/api/admin/applications/" + otherUsersApplication.getId() + "/zodiac-design")
+                        .contentType("application/json")
+                        .content("{\"zodiacDesignSet\":1}"))
+                .andExpect(status().isUnauthorized());
     }
 }

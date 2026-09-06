@@ -707,6 +707,17 @@ public class ApplicationService {
         }
     }
 
+    // 십이간지 캐릭터 디자인 세트 지정/변경(2026-09-06 정책 확정) — 카드종류와 무관하게 신청 1건당
+    // 값 1개, cardDesignId와 달리 잠금이 없어 카드가 이미 생성된 뒤에도 자유롭게 바꿀 수 있다.
+    @Transactional
+    public void assignZodiacDesignSet(Long adminId, Long applicationId, int zodiacDesignSet) {
+        validateAdmin(adminId);
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        application.assignZodiacDesignSet(zodiacDesignSet);
+        applicationRepository.save(application);
+    }
+
     /**
      * 단체 신청 카드번호 일괄 저장. Application row를 잠그고(PESSIMISTIC_WRITE) 요청 version과
      * 대조해 동시 수정을 막은 뒤, 사진 번호(photoNumber) 기준으로 Member를 매칭한다 — 화면 순서나

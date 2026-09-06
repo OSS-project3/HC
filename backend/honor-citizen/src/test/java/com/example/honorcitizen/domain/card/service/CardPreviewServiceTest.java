@@ -114,6 +114,7 @@ class CardPreviewServiceTest {
         Application application = Application.createIndividual(
                 userId, "APP-2026-PREVIEW01", honorKoreanTypeId, IssueType.MOBILE, true, null, null);
         ReflectionTestUtils.setField(application, "status", ApplicationStatus.PRODUCTION_READY);
+        application.assignZodiacDesignSet(1);
         application = applicationRepository.save(application);
         applicationId = application.getId();
 
@@ -319,6 +320,19 @@ class CardPreviewServiceTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_ISSUER_ASSETS_MISSING);
     }
 
+    // 2026-09-06 신규: 십이간지 캐릭터 디자인 세트가 아직 지정되지 않았으면(기본값 자동 적용 안 함,
+    // 정책 확정) 렌더링 자체를 거절한다 — 만세력 확정 이후·설계상 마지막 단계에서 걸린다.
+    @Test
+    void rejectsWhenZodiacDesignNotSelected() {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        ReflectionTestUtils.setField(application, "zodiacDesignSet", null);
+        applicationRepository.save(application);
+
+        assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request()))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ZODIAC_DESIGN_NOT_SELECTED);
+    }
+
     @Test
     void rejectsWhenNoActiveManseryeokResult() {
         manseryeokResultRepository.deleteAll();
@@ -352,6 +366,7 @@ class CardPreviewServiceTest {
         Application group = Application.createGroup(userId, "APP-2026-PVGRP2", honorKoreanTypeId,
                 IssueType.MOBILE, true, 1, logo.getId(), seal.getId(), null);
         ReflectionTestUtils.setField(group, "status", ApplicationStatus.PRODUCTION_READY);
+        group.assignZodiacDesignSet(1);
         group = applicationRepository.save(group);
         ApplicationMember groupMember = ApplicationMember.createGroupRow(group.getId(), "Kim Hak-saeng",
                 LocalDate.of(1995, 2, 7), "KR", LocalTime.of(10, 0), "Seoul", Gender.MALE, null,

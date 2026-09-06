@@ -149,7 +149,7 @@ class CardImageCompositor {
                 drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 4.5f, Color.DARK_GRAY,
                         layout.issueDate(), layout, scaleX, scaleY);
             }
-            drawZodiac(g, data.zodiacBranch(), layout.zodiac(), layout, scaleX, scaleY);
+            drawZodiac(g, data.zodiacBranch(), data.zodiacDesignSet(), layout.zodiac(), layout, scaleX, scaleY);
             drawSlotImage(g, dir, LOGO_CANDIDATES, data.logo(), layout.issuerLogo(), layout, scaleX, scaleY);
             drawSlotImage(g, dir, SEAL_CANDIDATES, data.seal(), layout.seal(), layout, scaleX, scaleY);
         } finally {
@@ -244,7 +244,7 @@ class CardImageCompositor {
             }
             drawTextGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, Color.BLACK,
                     layout.issueDate(), bw, bh, scaleX, scaleY);
-            drawZodiacGeneric(g, data.zodiacBranch(), layout.zodiac(), bw, bh, scaleX, scaleY);
+            drawZodiacGeneric(g, data.zodiacBranch(), data.zodiacDesignSet(), layout.zodiac(), bw, bh, scaleX, scaleY);
         } finally {
             g.dispose();
         }
@@ -324,12 +324,12 @@ class CardImageCompositor {
         }
     }
 
-    private void drawZodiacGeneric(Graphics2D g, String zodiacBranch, CardFieldOffset offset,
+    private void drawZodiacGeneric(Graphics2D g, String zodiacBranch, int zodiacDesignSet, CardFieldOffset offset,
             double baseWidth, double baseHeight, double scaleX, double scaleY) {
         if (zodiacBranch == null || offset == null) {
             return;
         }
-        String path = ZodiacIcon.resourcePathFor(zodiacBranch);
+        String path = ZodiacIcon.resourcePathFor(zodiacBranch, zodiacDesignSet);
         if (path == null || !resourceExists(path)) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
@@ -452,9 +452,9 @@ class CardImageCompositor {
         return cardType == CardTypeCode.VISITOR && design == 1;
     }
 
-    private void drawZodiac(Graphics2D g, String zodiacBranch, CardFieldOffset offset, CardLayout layout,
-            double scaleX, double scaleY) {
-        drawZodiacGeneric(g, zodiacBranch, offset, layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+    private void drawZodiac(Graphics2D g, String zodiacBranch, int zodiacDesignSet, CardFieldOffset offset,
+            CardLayout layout, double scaleX, double scaleY) {
+        drawZodiacGeneric(g, zodiacBranch, zodiacDesignSet, offset, layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
     }
 
     // 로고·직인은 신청자가 업로드한 이미지를 슬롯 크기에 coverFit해서 그린다. bytes가 null이면(정책상

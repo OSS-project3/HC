@@ -86,16 +86,18 @@ class CardRenderPreparation {
         validateIssuerAssets(application, cardType.getCode());
 
         String zodiacBranch = resolveZodiacBranch(member);
+        int zodiacDesignSet = resolveZodiacDesignSet(application);
         byte[] photo = member.getPhotoPath() != null ? storageService.download(member.getPhotoPath()) : null;
         byte[] logo = downloadUploadFile(application.getLogoFileId());
         byte[] seal = downloadUploadFile(application.getSealFileId());
 
         CardMemberData data = cardType.getCode() == CardTypeCode.STUDENT
-                ? studentMemberData(application, member, design, request, photo, zodiacBranch)
+                ? studentMemberData(application, member, design, request, photo, zodiacBranch, zodiacDesignSet)
                 : new CardMemberData(
                         member.getSurname(), member.getName(), member.getEnglishName(), member.getChineseName(),
                         member.getNameMeaning(), member.getNameInterpretation(), photo, member.getCardNumber(),
-                        member.getAddress(), request.getIssueDate(), zodiacBranch, logo, seal);
+                        member.getAddress(), request.getIssueDate(), zodiacBranch, logo, seal, null, null, null,
+                        null, null, null, null, zodiacDesignSet);
 
         CardTypeCode code = cardType.getCode();
         byte[] front = compositor.composeFront(code, design.getDesignNumber(), data);
@@ -108,7 +110,7 @@ class CardRenderPreparation {
     // 템플릿(templateFront/templateBack)을 다른 3종과 달리 classpath가 아니라 CardDesign이 가리키는
     // UploadFile(S3, 4-D 업로드 API가 등록)에서 내려받는다.
     private CardMemberData studentMemberData(Application application, ApplicationMember member, CardDesign design,
-            CardPreviewRequest request, byte[] photo, String zodiacBranch) {
+            CardPreviewRequest request, byte[] photo, String zodiacBranch, int zodiacDesignSet) {
         byte[] templateFront = downloadUploadFile(design.getTemplateFrontId());
         byte[] templateBack = downloadUploadFile(design.getTemplateBackId());
         if (templateFront == null || templateBack == null) {
@@ -125,7 +127,7 @@ class CardRenderPreparation {
                 member.getNameMeaning(), member.getNameInterpretation(), photo, member.getCardNumber(),
                 member.getAddress(), request.getIssueDate(), zodiacBranch, null, null,
                 application.getSchoolType(), orientation, member.getStudentId(), member.getDepartment(),
-                member.getBirthDate(), templateFront, templateBack);
+                member.getBirthDate(), templateFront, templateBack, zodiacDesignSet);
     }
 
     private ApplicationMember findMember(Long applicationId, Long memberId) {
@@ -194,6 +196,16 @@ class CardRenderPreparation {
             throw new CustomException(ErrorCode.MANSERYEOK_NOT_CONFIRMED);
         }
         return year.get("branch");
+    }
+
+    // 십이간지 캐릭터 디자인 세트(2026-09-06 신규, 정책 2번): 관리자가 아직 안 골랐으면(null)
+    // 기본값을 자동 적용하지 않고 명시적으로 거절한다 — 먼저 별도 API로 지정해야 한다.
+    private int resolveZodiacDesignSet(Application application) {
+        Integer zodiacDesignSet = application.getZodiacDesignSet();
+        if (zodiacDesignSet == null) {
+            throw new CustomException(ErrorCode.ZODIAC_DESIGN_NOT_SELECTED);
+        }
+        return zodiacDesignSet;
     }
 
     private <T> T readJson(String json, TypeReference<T> typeReference) {

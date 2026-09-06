@@ -124,6 +124,7 @@ class CardGenerationServiceTest {
         Application application = Application.createIndividual(
                 userId, "APP-2026-GEN0001", honorKoreanTypeId, IssueType.MOBILE, true, null, null);
         ReflectionTestUtils.setField(application, "status", ApplicationStatus.PRODUCTION_READY);
+        application.assignZodiacDesignSet(1);
         application = applicationRepository.save(application);
         applicationId = application.getId();
 
@@ -237,6 +238,21 @@ class CardGenerationServiceTest {
         assertThat(adminActivityLogRepository.findAll()).isEmpty();
         ApplicationMember saved = applicationMemberRepository.findById(memberId).orElseThrow();
         assertThat(saved.isCardGenerated()).isFalse();
+    }
+
+    // 2026-09-06 신규: 십이간지 캐릭터 디자인 세트 미지정 시 생성도 준비 단계에서 거절된다(업로드
+    // 시도 자체가 없어야 함 — 위 rejectsBeforeAnyUploadWhenPreparationFails와 동일한 성격).
+    @Test
+    void rejectsWhenZodiacDesignNotSelected() {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        ReflectionTestUtils.setField(application, "zodiacDesignSet", null);
+        applicationRepository.save(application);
+
+        assertThatThrownBy(() -> cardGenerationService.generate(adminId, applicationId, memberId, request()))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ZODIAC_DESIGN_NOT_SELECTED);
+
+        verifyNoInteractions(storageService);
     }
 
     @Test

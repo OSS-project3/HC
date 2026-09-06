@@ -14,6 +14,16 @@
 ```
 
 ---
+## 2026-09-06 — Claude — `main` (십이간지 캐릭터 디자인 세트 선택 + 테스트 fixture 결함 수정)
+
+- 변경: 카드 뒷면/앞면 띠 캐릭터가 공용 1세트로 고정돼 있던 걸 관리자가 신청 1건당 3종(1/2/3) 중 하나로 지정·변경할 수 있게 함 — `Application.zodiacDesignSet`(잠금 없음, 언제든 재지정 가능) 신규 필드 + `PUT /api/admin/applications/{id}/zodiac-design` 신규 API. 미지정 상태로 카드 미리보기·생성을 시도하면 `ZODIAC_DESIGN_NOT_SELECTED`로 거절(기본값 자동 적용 안 함, 정책 확정). 기존 공용 `card-templates/zodiac/*.png`(세트 구분 없음)는 `card-templates/zodiac/{1,2,3}/`로 대체하고 옛 자산은 삭제.
+- 부수 발견·수정(본 작업과 무관, 같이 처리): (1) `ApplicationServiceAdminCardDownloadTest`의 30일 만료 assertion이 어제 7일로 낮춘 버그 수정 때 안 고쳐져 있던 것 정정. (2) 어제 관리자 Service 공통 인가(`AdminAuthorizationService`) 도입 이후 실제 Redis로 처음 돌려본 `BoardAdminControllerTest`/`EventAdminControllerTest`/`InquiryAdminControllerTest`가 403으로 실패하는 걸 발견 — 세 테스트 모두 JWT의 role 클레임만 ADMIN으로 만들고 실제 DB row의 role은 안 바꿔둔 상태였는데, 예전엔 이 컨트롤러들이 서비스 레벨 재검증이 없어서 문제없었다가 공통 인가 도입으로 노출된 결함. 세 파일 모두 `ReflectionTestUtils.setField(admin, "role", UserRole.ADMIN)` 추가로 수정.
+- 파일: `Application.java`(필드+`assignZodiacDesignSet`), `ErrorCode.java`(`ZODIAC_DESIGN_NOT_SELECTED`), `ZodiacIcon.java`(세트별 경로), `CardMemberData.java`(필드+하위호환 생성자), `CardImageCompositor.java`(호출부 2곳), `CardRenderPreparation.java`(`resolveZodiacDesignSet`), `ApplicationService.java`(`assignZodiacDesignSet`), `AdminApplicationController.java`+`ZodiacDesignSetRequest.java`(신규), `card-templates/zodiac/{1,2,3}/`(신규 36개 PNG, 옛 자산 삭제), 테스트 다수(`ApplicationStateTransitionTest`/`ApplicationServiceZodiacDesignSetTest`(신규)/`AdminApplicationControllerTest`/`CardPreviewServiceTest`/`CardGenerationServiceTest`/`ZodiacDesignSetRenderTest`(신규)/`SchoolCardTemplateEndToEndTest`/`BulkExcelToCardRenderingEndToEndTest`/`ApplicationServiceAdminCardDownloadTest`/`BoardAdminControllerTest`/`EventAdminControllerTest`/`InquiryAdminControllerTest`).
+- 사유: 요구사항 변경(디자이너 원본에 3가지 스타일이 있었고 기존 서비스 반영본은 앞으로 안 쓰기로 함) + 그 과정에서 실제 Redis로 테스트를 돌려보다 드러난 기존 테스트 결함 수정.
+- 테스트: 전체 스위트 856개(Redis 포함) 재실행, 0 failure/0 error. 실제 렌더링으로 세트 1/2/3이 서로 다른 스타일(만화풍/화려한 색채/미니멀 라인아트)로 나오는 것 육안 확인.
+- 관련: `docs/collab/TODO.md` "십이간지 캐릭터 디자인 세트 선택"
+
+---
 ## 2026-09-05 — Codex — `main` (관리자 Service 계층 공통 인가)
 
 - 변경: `/api/admin/**`의 `SecurityConfig` 1차 역할 검증은 유지하고, 공개 관리자 Service 메서드가 공통 `AdminAuthorizationService.requireAdmin(adminId)`를 가장 먼저 수행하도록 통일했다. 기존 Application/Manseryeok/Card/학교 템플릿의 중복 검증은 공통 컴포넌트에 위임하고, Board/Event/Inquiry/Stats에 있던 Service 직접 호출 권한 공백을 해소했다.

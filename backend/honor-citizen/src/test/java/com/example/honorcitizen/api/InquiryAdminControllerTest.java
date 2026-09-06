@@ -16,6 +16,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,7 +50,9 @@ class InquiryAdminControllerTest {
         inquiryRepository.deleteAll();
         userRepository.deleteAll();
 
-        User admin = userRepository.save(User.createOAuthUser("inquiry-admin@example.com", "oauth-inquiry-admin", "google", "관리자"));
+        User admin = User.createOAuthUser("inquiry-admin@example.com", "oauth-inquiry-admin", "google", "관리자");
+        ReflectionTestUtils.setField(admin, "role", UserRole.ADMIN);
+        admin = userRepository.save(admin);
         adminToken = "Bearer " + jwtTokenProvider.generateAccessToken(admin.getId(), UserRole.ADMIN);
 
         User user = userRepository.save(User.createOAuthUser("inquiry-admin-user@example.com", "oauth-inquiry-admin-user", "google", "일반사용자"));

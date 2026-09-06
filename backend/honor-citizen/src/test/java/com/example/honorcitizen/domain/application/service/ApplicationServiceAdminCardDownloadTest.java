@@ -176,7 +176,9 @@ class ApplicationServiceAdminCardDownloadTest {
         assertThat(response.getMemberId()).isEqualTo(ready.getId());
         assertThat(response.getCardFrontUrl()).isEqualTo("http://mock-storage/presigned");
         assertThat(response.getCardBackUrl()).isEqualTo("http://mock-storage/presigned");
-        assertThat(response.getExpiresAt()).isAfter(java.time.LocalDateTime.now().plusDays(29));
+        // 2026-09-06: presigned URL 만료를 30일에서 7일로 낮춘 버그 수정(SigV4 최대 7일 하드리밋)에
+        // 맞춰 갱신 — 사용자용과 같은 7일이다(ApplicationService.ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS).
+        assertThat(response.getExpiresAt()).isAfter(java.time.LocalDateTime.now().plusDays(6));
     }
 
     @Test

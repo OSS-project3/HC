@@ -37,14 +37,28 @@ record CardMemberData(
         String department,
         LocalDate birthDate,
         byte[] templateFront,
-        byte[] templateBack) {
+        byte[] templateBack,
+        int zodiacDesignSet) {
+
+    // 기존 호출부(십이간지 디자인 세트 도입 이전, 학생증 포함) 하위 호환용 — 1번 세트로 그린다.
+    // 실제 렌더링 경로(CardRenderPreparation)는 항상 Application.zodiacDesignSet을 명시적으로
+    // 넘기므로 이 기본값은 테스트 편의용일 뿐이다(2026-09-06 신규 필드).
+    CardMemberData(String surname, String name, String englishName, String chineseName, String nameMeaning,
+            String nameInterpretation, byte[] photo, String cardNumber, String address, LocalDate issueDate,
+            String zodiacBranch, byte[] logo, byte[] seal, SchoolType schoolType,
+            CardDesignOrientation studentOrientation, String studentId, String department, LocalDate birthDate,
+            byte[] templateFront, byte[] templateBack) {
+        this(surname, name, englishName, chineseName, nameMeaning, nameInterpretation, photo, cardNumber,
+                address, issueDate, zodiacBranch, logo, seal, schoolType, studentOrientation, studentId,
+                department, birthDate, templateFront, templateBack, 1);
+    }
 
     // 기존 호출부(학생증 아닌 카드종류) 하위 호환용 — 학생증 전용 필드 없이 호출하면 전부 null로 생성한다.
     CardMemberData(String surname, String name, String englishName, String chineseName, String nameMeaning,
             String nameInterpretation, byte[] photo, String cardNumber, String address, LocalDate issueDate,
             String zodiacBranch, byte[] logo, byte[] seal) {
         this(surname, name, englishName, chineseName, nameMeaning, nameInterpretation, photo, cardNumber,
-                address, issueDate, zodiacBranch, logo, seal, null, null, null, null, null, null, null);
+                address, issueDate, zodiacBranch, logo, seal, null, null, null, null, null, null, null, 1);
     }
 
     String fullName() {

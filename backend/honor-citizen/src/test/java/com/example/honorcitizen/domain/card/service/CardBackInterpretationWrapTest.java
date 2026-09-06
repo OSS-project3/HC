@@ -62,6 +62,20 @@ class CardBackInterpretationWrapTest {
         }
     }
 
+    // 2026-09-06: 사용자가 "명예한국인증만 타이틀 이미지가 없어서 흰 폴백 텍스트가 안 보인다"는 걸
+    // 발견한 뒤, 명예시민증(HONOR_CITIZEN)도 실제로 타이틀.png가 반영되는지 확인해달라고 해서 추가.
+    @Test
+    void honorCitizenFrontTitleImageIsApplied() throws Exception {
+        new File(OUT_DIR).mkdirs();
+        CardMemberData data = new CardMemberData("김", "성노", "Jordan Smith", "星爐",
+                "별 성(星) 풀무 노(爐)", "밝고 지혜롭게 살다.", solidPng(300, 400, Color.LIGHT_GRAY),
+                "ROK-90088-0001", "대한민국 전라북도 전주시", LocalDate.now(), "인", null, null);
+        byte[] frontPng = compositor.composeFront(CardTypeCode.HONOR_CITIZEN, 1, data);
+        try (FileOutputStream out = new FileOutputStream(OUT_DIR + "honor-citizen-front.png")) {
+            out.write(frontPng);
+        }
+    }
+
     private byte[] solidPng(int width, int height, Color color) throws Exception {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics();

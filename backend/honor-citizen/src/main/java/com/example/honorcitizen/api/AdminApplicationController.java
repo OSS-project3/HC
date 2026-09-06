@@ -16,6 +16,7 @@ import com.example.honorcitizen.domain.application.dto.MyApplicationListItemResp
 import com.example.honorcitizen.domain.application.dto.NameAssignRequest;
 import com.example.honorcitizen.domain.application.dto.NamingResultApplyResponse;
 import com.example.honorcitizen.domain.application.dto.RejectPhotoRequest;
+import com.example.honorcitizen.domain.application.dto.ZodiacDesignSetRequest;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
 import com.example.honorcitizen.domain.card.dto.CardGenerateResponse;
 import com.example.honorcitizen.domain.card.dto.CardPreviewRequest;
@@ -127,6 +128,17 @@ public class AdminApplicationController {
             @Valid @RequestBody CardNumberBatchAssignRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.assignCardNumbersBatch(adminId, applicationId, request)));
+    }
+
+    // 십이간지 캐릭터 디자인 세트 지정/변경(2026-09-06) — 카드종류와 무관하게 신청 1건당 값 1개,
+    // 카드번호와 달리 잠금이 없어 카드 생성 전후 아무 때나 다시 호출해 바꿀 수 있다.
+    @PutMapping("/{applicationId}/zodiac-design")
+    public ResponseEntity<ApiResponse<Void>> assignZodiacDesignSet(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @Valid @RequestBody ZodiacDesignSetRequest request) {
+        applicationService.assignZodiacDesignSet(adminId, applicationId, request.getZodiacDesignSet());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     // 만세력 timezone/DST 판정 — 미리보기 전용, DB에 저장하지 않는다(1-D).
