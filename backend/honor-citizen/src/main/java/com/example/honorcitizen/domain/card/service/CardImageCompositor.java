@@ -66,6 +66,10 @@ class CardImageCompositor {
     // 그 카드 배경(980x650) 대비 차지하는 실제 비율(185/980≈18.9%)로 환산한 값 — 기존 9pt는 이 비율의
     // 1/5 수준으로 눈에 띄게 작게 그려지는 버그였다(사용자 리포트: "용 이미지가 너무 작게 출력되는데").
     private static final double ZODIAC_BASE_WIDTH = 40d;
+    // 학생증은 다른 3종과 카드 레이아웃 자체가 달라(사진·이름·영문명·학번/학과가 한 열에 조밀하게
+    // 배치) 위 값을 그대로 쓰면 세로형에서 영문명 줄·학교 엠블럼 워터마크와 겹친다(실제 렌더링으로
+    // 확인, 2026-09-06). 학생증 캔버스 폭(156/235) 대비 비율로 겹치지 않는 선까지 낮춘 값.
+    private static final double STUDENT_ZODIAC_BASE_WIDTH = 22d;
 
     // 뒷면 뜻풀이(nameInterpretation) 줄바꿈 폭 — baseWidth 대비 비율. 실제 700개 추천 이름 데이터셋의
     // meaning 필드(평균 약 70자, 최장 97자)를 이 비율로 실측 줄바꿈한 결과 전부 2~3줄로 떨어짐을
@@ -246,7 +250,8 @@ class CardImageCompositor {
             }
             drawTextGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, Color.BLACK,
                     layout.issueDate(), bw, bh, scaleX, scaleY);
-            drawZodiacGeneric(g, data.zodiacBranch(), data.zodiacDesignSet(), layout.zodiac(), bw, bh, scaleX, scaleY);
+            drawZodiacGeneric(g, data.zodiacBranch(), data.zodiacDesignSet(), layout.zodiac(), bw, bh, scaleX, scaleY,
+                    STUDENT_ZODIAC_BASE_WIDTH);
         } finally {
             g.dispose();
         }
@@ -327,7 +332,7 @@ class CardImageCompositor {
     }
 
     private void drawZodiacGeneric(Graphics2D g, String zodiacBranch, int zodiacDesignSet, CardFieldOffset offset,
-            double baseWidth, double baseHeight, double scaleX, double scaleY) {
+            double baseWidth, double baseHeight, double scaleX, double scaleY, double zodiacBaseWidth) {
         if (zodiacBranch == null || offset == null) {
             return;
         }
@@ -336,7 +341,7 @@ class CardImageCompositor {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         BufferedImage icon = copy(loadImage(path));
-        double scale = (ZODIAC_BASE_WIDTH * scaleX) / icon.getWidth();
+        double scale = (zodiacBaseWidth * scaleX) / icon.getWidth();
         int targetW = (int) Math.round(icon.getWidth() * scale);
         int targetH = (int) Math.round(icon.getHeight() * scale);
         BufferedImage scaled = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_ARGB);
@@ -456,7 +461,8 @@ class CardImageCompositor {
 
     private void drawZodiac(Graphics2D g, String zodiacBranch, int zodiacDesignSet, CardFieldOffset offset,
             CardLayout layout, double scaleX, double scaleY) {
-        drawZodiacGeneric(g, zodiacBranch, zodiacDesignSet, offset, layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+        drawZodiacGeneric(g, zodiacBranch, zodiacDesignSet, offset, layout.baseWidth(), layout.baseHeight(), scaleX, scaleY,
+                ZODIAC_BASE_WIDTH);
     }
 
     // 로고·직인은 신청자가 업로드한 이미지를 슬롯 크기에 coverFit해서 그린다. bytes가 null이면(정책상
