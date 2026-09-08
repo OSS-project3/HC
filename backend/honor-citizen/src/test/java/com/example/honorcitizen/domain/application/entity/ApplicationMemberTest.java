@@ -117,6 +117,48 @@ class ApplicationMemberTest {
         assertThat(member.getName()).isEqualTo("길동");
     }
 
+    // 10대 성씨(원본 사주 데이터 "사주 이름 결과.xlsx" 성씨별 시트와 동일한 한자)는 surnameHanja가
+    // 자동으로 채워져야 한다 — 관리자가 입력하는 값이 아니다.
+    @Test
+    void assignKoreanNameDerivesSurnameHanjaForTopTenSurnames() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Kim Gaheon", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        member.assignKoreanName("김", "가헌", "佳憲", "뜻", null);
+
+        assertThat(member.getSurname()).isEqualTo("김");
+        assertThat(member.getSurnameHanja()).isEqualTo("金");
+    }
+
+    // 10대 성씨 밖의 성씨는 원본 데이터에도 매핑이 없어 surnameHanja가 null로 남아야 한다.
+    @Test
+    void assignKoreanNameLeavesSurnameHanjaNullForUnmappedSurname() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Hong Gildong", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+
+        member.assignKoreanName("홍", "길동", "吉童", "뜻", null);
+
+        assertThat(member.getSurname()).isEqualTo("홍");
+        assertThat(member.getSurnameHanja()).isNull();
+    }
+
+    // surname을 다시 null로 덮어쓰면(NAME_EDITING 재수정) surnameHanja도 같이 초기화되어야 한다 —
+    // 이전에 유도된 값이 그대로 남아있으면 안 된다.
+    @Test
+    void assignKoreanNameClearsSurnameHanjaWhenSurnameClearedAgain() {
+        ApplicationMember member = ApplicationMember.createIndividual(
+                1L, "Kim Gaheon", LocalDate.of(1990, 5, 15), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg");
+        member.assignKoreanName("김", "가헌", "佳憲", "뜻", null);
+
+        member.assignKoreanName(null, "가헌", "佳憲", "뜻", null);
+
+        assertThat(member.getSurname()).isNull();
+        assertThat(member.getSurnameHanja()).isNull();
+    }
+
     @Test
     void assignKoreanNameRejectsNameOutsideTwoToThreeKoreanCharacters() {
         ApplicationMember member = ApplicationMember.createIndividual(

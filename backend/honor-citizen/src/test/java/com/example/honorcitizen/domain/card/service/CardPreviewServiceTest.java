@@ -168,6 +168,23 @@ class CardPreviewServiceTest {
         assertThat(decode(response.back())).isNotNull();
     }
 
+    // 2026-09-08: 성씨 한자(surnameHanja)가 카드 뒷면 한자 표기에 실제로 합쳐지는지 실제 렌더링으로
+    // 육안 확인한다(이 프로젝트 관행) — setUp()의 member가 surname="김"(10대 성씨)이라 카드 뒷면
+    // 괄호 안에 "(金學生)"이 나와야 한다(기존엔 성 한자가 없어 "(學生)"만 나왔음).
+    @Test
+    void backCardCombinesSurnameHanjaWithGivenNameHanja() throws Exception {
+        CardPreviewResponse response = cardPreviewService.preview(adminId, applicationId, memberId, request());
+
+        java.io.File outDir = new java.io.File(
+                "C:/TEMPFO~1/claude/d--HC-worktrees/c4a01a9d-4c65-474a-b64a-e0d1ec48f9d4/scratchpad/e2e-render/wrap-check/");
+        outDir.mkdirs();
+        try (var out = new java.io.FileOutputStream(new java.io.File(outDir, "surname-hanja-back.png"))) {
+            out.write(Base64.getDecoder().decode(response.back()));
+        }
+
+        assertThat(decode(response.back())).isNotNull();
+    }
+
     @Test
     void doesNotMutateDbOrUploadToStorage() {
         long applicationCountBefore = applicationRepository.count();

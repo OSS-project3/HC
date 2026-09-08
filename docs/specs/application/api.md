@@ -768,6 +768,7 @@ Cookie: accessToken={JWT}
 - `surname`은 선택 입력이다. `NAME_EDITING` 중에는 비워둘 수 있으나(값을 안 보내면 기존 성씨를 그대로 두지 않고 `NULL`로 저장), `completeNaming()` 집계 검증 시점에는 모든 Member에 값이 있어야 한다.
 - `name`/`meaning`은 `@NotBlank` — 없으면 `INVALID_INPUT`.
 - 저장 시점 형식 검증(`ApplicationMember.assignKoreanName`, 엑셀 왕복 경로와 공유): `name`은 성씨를 제외한 한글 2~3글자, `surname`은 한글 1~2글자, `hanja`가 있으면 `name`과 Unicode 글자 수가 같아야 한다. 하나라도 위반하면 `INVALID_INPUT`.
+- ✅ 2026-09-08 신규: **성씨 한자(`surnameHanja`)는 요청 바디에 없다** — 이 API로 입력받지 않고, 저장 시 `surname` 값으로부터 서버가 자동 유도한다(10대 성씨만 매핑, 그 외는 `NULL`). 카드 뒷면 한자 표기는 이 유도값을 이름 한자 앞에 합쳐서 그린다. 관리자 조회 응답(`AdminApplicationMemberResponse.surnameHanja`)에서 확인 가능.
 
 ### 관리자 작명 완료 — `POST /api/admin/applications/{applicationId}/complete-naming`
 

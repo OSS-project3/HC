@@ -23,6 +23,9 @@ public class AdminApplicationMemberResponse {
     private final String birthRegion;
     // 작명 결과(확정 한글/한자 이름) — 아직 지정 전이면 null.
     private final String surname;
+    // 성씨 한자 — surname으로부터 자동 유도된 값(10대 성씨만 존재, ApplicationMember.assignKoreanName
+    // 참고). 관리자가 입력하는 값이 아니라 참고용 표시 필드.
+    private final String surnameHanja;
     private final String assignedName;
     private final String assignedHanja;
     // 단체 신청 사진번호(카드번호 일괄 매칭 키) + 관리자가 확정한 카드번호 — 지정 전이면 null.
@@ -38,6 +41,7 @@ public class AdminApplicationMemberResponse {
         this.birthTime = m.getBirthTime();
         this.birthRegion = m.getBirthRegion();
         this.surname = m.getSurname();
+        this.surnameHanja = m.getSurnameHanja();
         this.assignedName = m.getName();
         this.assignedHanja = m.getChineseName();
         this.photoNumber = m.getPhotoNumber();

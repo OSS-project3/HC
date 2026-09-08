@@ -94,7 +94,7 @@ class CardRenderPreparation {
         CardMemberData data = cardType.getCode() == CardTypeCode.STUDENT
                 ? studentMemberData(application, member, design, request, photo, zodiacBranch, zodiacDesignSet)
                 : new CardMemberData(
-                        member.getSurname(), member.getName(), member.getEnglishName(), member.getChineseName(),
+                        member.getSurname(), member.getName(), member.getEnglishName(), combinedChineseName(member),
                         member.getNameMeaning(), member.getNameInterpretation(), photo, member.getCardNumber(),
                         member.getAddress(), request.getIssueDate(), zodiacBranch, logo, seal, null, null, null,
                         null, null, null, null, zodiacDesignSet);
@@ -123,11 +123,23 @@ class CardRenderPreparation {
         // (CardDesignService.listStudentCardDesigns()와 동일한 변환).
         CardDesignOrientation orientation = CardDesignOrientation.valueOf(application.getOrientation().name());
         return new CardMemberData(
-                member.getSurname(), member.getName(), member.getEnglishName(), member.getChineseName(),
+                member.getSurname(), member.getName(), member.getEnglishName(), combinedChineseName(member),
                 member.getNameMeaning(), member.getNameInterpretation(), photo, member.getCardNumber(),
                 member.getAddress(), request.getIssueDate(), zodiacBranch, null, null,
                 application.getSchoolType(), orientation, member.getStudentId(), member.getDepartment(),
                 member.getBirthDate(), templateFront, templateBack, zodiacDesignSet);
+    }
+
+    // 카드에는 성 한자+이름 한자를 합쳐서 하나의 괄호 안에 표시한다(한글 이름을 surname+name으로
+    // 합쳐서 표시하는 것과 동일한 패턴, CardMemberData.fullName() 참고). surnameHanja가 없는 성씨
+    // (10대 성씨 외)는 이름 한자만 단독으로 표시된다 — 기존 동작 그대로 유지.
+    private String combinedChineseName(ApplicationMember member) {
+        String given = member.getChineseName();
+        if (given == null || given.isBlank()) {
+            return given;
+        }
+        String surnameHanja = member.getSurnameHanja();
+        return surnameHanja != null ? surnameHanja + given : given;
     }
 
     private ApplicationMember findMember(Long applicationId, Long memberId) {

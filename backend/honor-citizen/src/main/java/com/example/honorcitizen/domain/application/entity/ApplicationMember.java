@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 // 실제 카드 발급 대상자 1명 = 1 row. 개인 신청은 Application 1개당 이 row가 1개, 단체 신청은
@@ -72,6 +73,12 @@ public class ApplicationMember extends BaseTimeEntity {
     // 실행 시 필수가 된다(검증은 1-B에서 추가). 카드의 한글 이름은 surname + name으로 조합한다.
     @Column(length = 10)
     private String surname;
+
+    // 성씨 한자 — 관리자가 입력하지 않고 surname으로부터 자동 유도된다(assignKoreanName 참고).
+    // 10대 성씨(원본 사주 데이터 "사주 이름 결과.xlsx"의 성씨별 시트와 동일한 한자) 외에는 매핑이
+    // 없어 null로 남는다 — 이 경우 카드에는 이름 한자만 단독 표시된다(2026-09-08 신규 필드).
+    @Column(length = 10)
+    private String surnameHanja;
 
     // 단체 신청 Excel의 고정 사진 번호(예: "001") — 단체는 필수, 개인은 항상 null.
     // (application_id, photo_number) 조합이 유일해야 관리자 카드번호 일괄 입력에서 행을 정확히 매칭할 수 있다.
@@ -196,6 +203,7 @@ public class ApplicationMember extends BaseTimeEntity {
             validateSurnameFormat(surname);
         }
         this.surname = surname;
+        this.surnameHanja = surname != null ? SURNAME_HANJA.get(surname) : null;
         this.name = name;
         this.chineseName = chineseName;
         this.nameMeaning = nameMeaning;
@@ -233,6 +241,14 @@ public class ApplicationMember extends BaseTimeEntity {
     // 변경만 거절한다 — 같은 번호 재저장(멱등)은 항상 허용. DB UNIQUE 제약은 최종 방어선으로 Service가
     // DataIntegrityViolationException을 CARD_NUMBER_ALREADY_USED로 변환한다.
     private static final Pattern CARD_NUMBER_PATTERN = Pattern.compile("ROK-\\d{5}-\\d{4}");
+
+    // 10대 성씨 한자 매핑 — 원본 사주 데이터("사주 이름 결과.xlsx")의 성씨별 시트 헤더와 동일한 값
+    // (예: "김(金, 성 김)" 시트 → 金). 이 10개 외의 성씨는 원본 데이터에도 없어 매핑하지 않는다 —
+    // 그 경우 surnameHanja는 null로 남고 카드에는 이름 한자만 단독 표시된다.
+    private static final Map<String, String> SURNAME_HANJA = Map.ofEntries(
+            Map.entry("김", "金"), Map.entry("이", "李"), Map.entry("박", "朴"), Map.entry("최", "崔"),
+            Map.entry("정", "鄭"), Map.entry("조", "趙"), Map.entry("강", "姜"), Map.entry("윤", "尹"),
+            Map.entry("장", "張"), Map.entry("임", "林"));
 
     public static boolean isValidCardNumberFormat(String cardNumber) {
         return cardNumber != null && CARD_NUMBER_PATTERN.matcher(cardNumber).matches();
