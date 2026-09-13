@@ -30,8 +30,8 @@
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
-| 🔵 | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드)+프론트 담당자 | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳(1,2번) 완료. 남은 건 프론트 5개 파일(3~7번, 프론트 담당자) — 그때까지는 개인 비학생증 신청 제출이 여전히 `INVALID_INPUT`으로 실패함. 상세는 아래 전용 절 참고 |
-| ⚪ | 단체 신청 주소 필수 여부 — 정책 문서 충돌 해소 | 미정(정책 결정 필요) | `main` | `admin-saju.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | `admin-saju.md`는 "학생증 제외 모든 카드는 주소를 표시한다"(개인/단체 구분 없는 포괄 규정)인데 `BULK_EXCEL_TEMPLATE_POLICY.md:81`은 단체 엑셀 11번 "주소" 컬럼을 "선택"으로 명시 — 두 문서가 정반대. 코드도 `BulkExcelParser`/`createGroup()` 모두 검증 없음(정책 문서 따른 것, 버그 아님). 어느 쪽이 맞는지 결정 후 문서 통일 + (필수로 정해지면) `ApplicationService.createGroup()`에 주소 필수 검증 추가 필요 |
+| ✅ | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드+프론트) | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳 + 프론트 5개 파일(`types.ts`/`StepInfo.tsx`/`ApplyPage.tsx`/`StepReview.tsx`/번역) 전부 완료. `tsc --noEmit`/`npm run build` 통과. 상세는 아래 전용 절 참고 |
+| ✅ | 단체 신청 주소 필수 여부 — 정책 문서 충돌 해소 | Claude(백엔드) | `main` | `admin-saju.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 사용자 결정: admin-saju.md 정책(필수)으로 통일. `BulkExcelParser`에 학생증이면 거절·그 외 필수 검증 추가, `BULK_EXCEL_TEMPLATE_POLICY.md` §4.1 11번 열 "선택"→"필수(학생증은 미입력)"로 갱신. 기존 테스트 픽스처 중 정책 위반 데이터(학생증 행에 주소 포함) 다수 발견·정정 |
 | ✅ | 십이간지 캐릭터 디자인 세트 1~3 → 1~5 확장 (2026-09-13) | Claude | `main` | 본 문서 "십이간지 캐릭터 디자인 세트 1~5 확장" 절 | 4/5(2/3번 스타일의 화이트 버전) 자산 반입 + 범위 검증 2곳(`ZodiacDesignSetRequest`/`Application.assignZodiacDesignSet`) 확장. 상세는 아래 전용 절 참고 |
 | ✅ | 관리자 Service 계층 공통 인가 통일 (2026-09-05) | Codex | `main` | `arch.md` §4.6 | `SecurityConfig`의 `/api/admin/**` 1차 차단은 유지하고 `AdminAuthorizationService.requireAdmin(adminId)`를 공통 2차 경계로 추가. Application/Manseryeok/Card/School 템플릿의 중복 검증을 위임하고 Board/Event/Inquiry/Stats의 Service 직접 호출 공백을 해소. API 계약 변경 없음 |
 | ✅ | 단체 신청 Excel 사진 번호 고정 및 파서 정합성 | Codex | `main` | `docs/specs/application/{APPLICATION,requirements,api,service-flow}.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | v1.1 양식 3종의 A열을 사진 번호 001~100 텍스트로 사전 입력·잠금·색상·메모 처리. 파서는 사진 번호만 있는 행을 무시하고 실제 입력 행 사진만 매칭. 집중 테스트 19개 통과 |
@@ -1946,16 +1946,19 @@ TODO/정책 문서 감사 중 `docs/collab/result.md` P0 BLOCKER 항목("일반 
 
 1. ✅ **[백엔드, Claude]** `AdminApplicationMemberResponse`에 `address` 필드 추가(관리자 작명/상세 화면이 확인할 수 있게)
 2. ✅ **[백엔드, Claude]** `MyApplicationDetailResponse`에 `memberAddress` 필드 추가(신청자 본인 마이페이지에서 확인할 수 있게 — `ReceiverSummary.address`(배송지)와는 별도 필드). 개인 신청(멤버 1명)만 노출하고 단체는 항상 null(구성원별 상세는 이 응답 범위 밖, 기존 설계 그대로 유지)
-3. ⚪ **[프론트, 프론트 담당자]** `features/apply/types.ts`: `ApplicantInfo.address?: string` + `emptyApplicant.address: ""` 추가
-4. ⚪ **[프론트, 프론트 담당자]** `components/apply/steps/StepInfo.tsx`: `englishName`과 동일한 패턴으로 입력 UI 추가 + `missingKeys` 검증에 `if (!isStudent) { address 필수 }` 추가(기존 `isStudent` 학교 필드 블록과 대칭)
-5. ⚪ **[프론트, 프론트 담당자]** `pages/ApplyPage/ApplyPage.tsx`: `member` 페이로드에 `address: draft.applicant.address` 추가
-6. ⚪ **[프론트, 프론트 담당자]** `components/apply/steps/StepReview.tsx`: 최종 확인 요약에 주소 항목 추가(선택, UX 일관성)
-7. ⚪ **[프론트, 프론트 담당자]** `features/i18n/translations/apply.ts`, `applyFlow.ts`: `"주소": "Address"` 번역 키 추가
-8. ⚪ **[검증]** 실제 개인 비학생증 신청을 프론트 화면으로 제출해 성공하는지 확인, 관리자 화면·마이페이지에서 입력한 주소가 보이는지 확인, 카드 렌더링에 정상 반영되는지 실제 렌더링으로 확인
+3. ✅ **[프론트, Claude]** `features/apply/types.ts`: `ApplicantInfo.address?: string` + `emptyApplicant.address: ""` 추가
+4. ✅ **[프론트, Claude]** `components/apply/steps/StepInfo.tsx`: `englishName`과 동일한 패턴으로 입력 UI 추가(개인/비-기관 분기에만 — 기관=엑셀 업로드 단체 신청은 이 폼을 안 쓰므로 대상 아님, 착수 전 잘못 넣었던 기관 분기 입력은 되돌림) + `missingKeys` 검증에 `if (!isStudent) { address 필수 }` 추가(기존 `isStudent` 학교 필드 블록과 대칭)
+5. ✅ **[프론트, Claude]** `pages/ApplyPage/ApplyPage.tsx`: `member` 페이로드에 `address: isStudent ? undefined : draft.applicant.address` 추가
+6. ✅ **[프론트, Claude]** `components/apply/steps/StepReview.tsx`: 최종 확인 요약에 주소 항목 추가(학생증이 아닐 때만)
+7. ✅ **[프론트, Claude]** `features/i18n/translations/apply.ts`: `"주소"`/입력 placeholder 번역 키 추가(`applyFlow.ts`엔 "주소" 키가 이미 있어 그대로 재사용, 병합 사전이라 문제없음)
+8. ⚪ **[검증]** 실제 개인 비학생증 신청을 프론트 화면으로 제출해 성공하는지 확인, 관리자 화면·마이페이지에서 입력한 주소가 보이는지 확인, 카드 렌더링에 정상 반영되는지 실제 렌더링으로 확인 — 로컬 브라우저 수동 확인 필요(자동화 테스트 없음)
 
 ### 검증 체크리스트 (구현 후 채울 것)
 
 - [x] 1, 2(백엔드 DTO) 구현 — `AdminApplicationMemberResponse.address`, `MyApplicationDetailResponse.memberAddress`(개인만 노출, 단체는 항상 null) + 신규 테스트 2개(`ApplicationServiceMyApplicationsTest`: 개인 주소 노출 확인, 단체는 주소가 실제로 있어도 null로 응답하는지 구분 검증) + `domain.application.*` 전체 재실행, 회귀 없음
+- [x] 3~7(프론트) 구현 — `tsc --noEmit` 통과, `npm run build` 통과(런타임 브라우저 수동 확인은 아직)
+- [x] 단체 신청 주소도 개인과 동일하게 필수로 통일 — `BulkExcelParser`(학생증 거절/그 외 필수) + `BULK_EXCEL_TEMPLATE_POLICY.md` 갱신 + 기존 테스트 픽스처 중 정책 위반 데이터(학생증 행에 주소 포함) 발견·정정, `domain.application.*` 전체 재실행 회귀 없음
+- [ ] (후속, 별도) 실제 배포된 .xlsx 템플릿 3종(`outputs/bulk-excel-templates-20260818/`) 파일 자체의 "주소" 헤더 셀도 필수 표시(굵게/색상/메모)로 갱신 필요 — 이번엔 정책 문서·파서 코드만 바꿨고 실제 바이너리 xlsx 파일은 안 건드림
 - [ ] 3~7(프론트) 구현 — 프론트 담당자
 - [ ] 개인 비학생증 신청 실제 제출 성공 확인
 - [ ] 관리자 상세 화면 / 마이페이지에서 주소 노출 확인

@@ -14,6 +14,24 @@
 ```
 
 ---
+## 2026-09-13 — Claude — `main` (개인 신청 카드 표기 주소 프론트 입력 필드 추가 — 버그 완결)
+
+- 변경: "개인 신청 카드 표기 주소 누락" 버그 마무리 — 프론트 `StepInfo.tsx`에 개인(비-기관) 신청자 폼 전용 주소 입력 필드를 추가했다(학생증이 아닐 때만 필수, `englishName`과 동일한 패턴). 착수 중 기관(법인·단체) 분기에도 잘못 넣었다가, 그 분기는 실제로 엑셀 업로드(단체 신청) 제출 경로라 이 폼의 값이 어디에도 전송되지 않는 죽은 필드였음을 발견하고 되돌렸다 — 기관 분기의 단체 신청 주소는 엑셀 "주소" 컬럼으로 받는다(아래 단체 신청 커밋 참고).
+- 파일: `features/apply/types.ts`(`ApplicantInfo.address`), `components/apply/steps/StepInfo.tsx`(입력 UI+검증, 기관 분기 되돌림), `pages/ApplyPage/ApplyPage.tsx`(`member.address` 페이로드), `components/apply/steps/StepReview.tsx`(요약 항목), `features/i18n/translations/apply.ts`(번역 키).
+- 사유: 버그 수정 — 백엔드는 이미 필수로 요구하는데 프론트에 입력 통로 자체가 없어 개인 비학생증 신청이 전부 실패하던 문제.
+- 테스트: `tsc --noEmit`, `npm run build` 둘 다 통과(자동화된 프론트 테스트가 이 레포에 없어 단위 테스트는 추가 안 함).
+- 관련: `docs/collab/TODO.md` "개인 신청 카드 표기 주소 누락" — ✅ 완료.
+
+---
+## 2026-09-13 — Claude — `main` (단체 신청 주소를 개인과 동일하게 필수로 통일)
+
+- 변경: `admin-saju.md`(주소는 학생증 제외 전 카드종류 필수, 개인/단체 구분 없는 포괄 규정) vs `BULK_EXCEL_TEMPLATE_POLICY.md`(단체 엑셀 주소 컬럼 "선택")의 정책 문서 충돌을 사용자 확정으로 해소 — admin-saju.md 쪽(필수)으로 통일. `BulkExcelParser`의 11번 "주소" 컬럼을 학생증이면 값이 있을 때 거절, 그 외 카드종류는 필수로 검증하도록 변경(개인 신청 `validateCardAddress`와 동일 조건), `hasRowError` 판정에도 반영.
+- 파일: `BulkExcelParser.java`(주소 검증 로직+주석), `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md`(§4.1 11번 열 "선택"→"필수"), 테스트(`BulkExcelParserTest`/`ApplicationServiceBulkTest` — 기존 픽스처 중 학생증 행에 주소가 같이 들어있던 정책 위반 데이터 다수 발견·정정).
+- 사유: 정책 결정(사용자 확정) — 문서 간 모순 해소.
+- 테스트: `domain.application.*` 전체 재실행, 회귀 없음(픽스처 수정 후).
+- 관련: `docs/collab/TODO.md` "단체 신청 주소 필수 여부 — 정책 문서 충돌 해소" — ✅ 완료. (후속 별도 항목: 실제 배포 .xlsx 템플릿 파일 자체의 헤더 표기 갱신은 미착수)
+
+---
 ## 2026-09-13 — Claude — `main` (개인 신청 카드 표기 주소 응답 DTO 노출 — 백엔드 절반)
 
 - 변경: `docs/collab/result.md` P0 BLOCKER("일반 개인 신청 주소")를 코드로 재검증 — 프론트 `ApplicantInfo` 타입에 `address` 필드 자체가 없어 개인 비학생증 신청 제출이 전부 `INVALID_INPUT`으로 실패함을 확인. 프론트 수정 전에도 관리자/신청자 본인이 저장된 `ApplicationMember.address`를 확인할 수 있도록 응답 DTO 2곳에 먼저 필드를 노출했다. `MyApplicationDetailResponse.memberAddress`는 개인 신청(멤버 1명)만 채우고 단체는 항상 null(구성원별 상세는 이 응답 범위 밖이라는 기존 설계 그대로 유지, `getMyApplicationDetail`/`getApplicationDetailForAdmin` 공용).
