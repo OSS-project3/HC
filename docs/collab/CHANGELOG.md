@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-13 — Claude — `main` (개인 신청 카드 표기 주소 응답 DTO 노출 — 백엔드 절반)
+
+- 변경: `docs/collab/result.md` P0 BLOCKER("일반 개인 신청 주소")를 코드로 재검증 — 프론트 `ApplicantInfo` 타입에 `address` 필드 자체가 없어 개인 비학생증 신청 제출이 전부 `INVALID_INPUT`으로 실패함을 확인. 프론트 수정 전에도 관리자/신청자 본인이 저장된 `ApplicationMember.address`를 확인할 수 있도록 응답 DTO 2곳에 먼저 필드를 노출했다. `MyApplicationDetailResponse.memberAddress`는 개인 신청(멤버 1명)만 채우고 단체는 항상 null(구성원별 상세는 이 응답 범위 밖이라는 기존 설계 그대로 유지, `getMyApplicationDetail`/`getApplicationDetailForAdmin` 공용).
+- 파일: `AdminApplicationMemberResponse.java`(`address` 필드), `MyApplicationDetailResponse.java`(`memberAddress` 필드, `of()` 시그니처 변경), `ApplicationService.java`(`resolveIndividualMemberAddress` 신규 헬퍼, 두 호출부 갱신), `ApplicationServiceMyApplicationsTest.java`(신규 테스트 2개 — 개인은 주소 노출, 단체는 주소가 있어도 null로 응답하는지 구분 검증).
+- 사유: 버그 수정 준비 — 프론트에 입력 필드를 추가해도 응답 DTO가 없으면 "저장은 되는데 아무도 못 보는" 반쪽짜리 수정이 되므로 먼저 처리.
+- 테스트: `domain.application.*` 전체 재실행, 회귀 없음.
+- 관련: `docs/collab/TODO.md` "개인 신청 카드 표기 주소 누락" — 프론트 5개 파일(3~7번)은 아직 미착수.
+
+---
 ## 2026-09-13 — Claude — `main` (십이간지 캐릭터 디자인 세트 1~3 → 1~5 확장)
 
 - 변경: 최종 디자인이 총 5가지로 확정됨에 따라 `zodiacDesignSet` 허용 범위를 1~3에서 1~5로 확장. 4/5는 2/3번 스타일의 화이트 버전 — 사용자가 전달한 원본 자산 폴더(`0901캐릭터수정/{1,2,2_화이트,3,3_화이트}`)를 대조해보니 `1`/`2`/`3`은 기존 반입 자산과 MD5 완전 일치(개정판 아님), `2_화이트`/`3_화이트`만 신규였다. "카드 디자인 선택 시 십이간지도 같이 고를 수 있어야 한다"는 요구는 `cardDesignId`/`zodiacDesignSet`이 애초에 독립 필드/엔드포인트라 이미 충족되어 별도 API 통합 작업은 하지 않음.

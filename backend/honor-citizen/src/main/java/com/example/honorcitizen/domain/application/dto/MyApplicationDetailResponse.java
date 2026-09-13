@@ -39,6 +39,10 @@ public class MyApplicationDetailResponse {
     private final long memberCount;
     private final LocalDateTime createdAt;
     private final String depositorName;
+    // 카드 표기용 주소 — 개인 신청(멤버 1명)만 노출한다. 단체는 구성원별 상세를 이 응답에서
+    // 다루지 않으므로(407행 주석 "별도 API로 분리 예정") 항상 null. 배송용 ReceiverSummary.address와는
+    // 별도 값이다(2026-09-13, 개인 신청 주소 누락 검증 후속 조치로 추가).
+    private final String memberAddress;
     // 낙관적 락 버전 — 카드번호 일괄 저장(PUT .../card-numbers)의 applicationVersion 대조용.
     private final Long version;
 
@@ -48,7 +52,7 @@ public class MyApplicationDetailResponse {
             LocalDateTime cancelledAt, CancellationType cancellationType, CancellationReason cancellationReason,
             LocalDateTime refundedAt, LocalDateTime cardReadyAt, LocalDateTime physicalDispatchedAt,
             String photoRejectReason, ApplicantSummary applicant, ReceiverSummary receiver, long memberCount,
-            LocalDateTime createdAt, String depositorName, Long version) {
+            LocalDateTime createdAt, String depositorName, String memberAddress, Long version) {
         this.applicationId = applicationId;
         this.applicationNumber = applicationNumber;
         this.applicationType = applicationType;
@@ -72,12 +76,15 @@ public class MyApplicationDetailResponse {
         this.memberCount = memberCount;
         this.createdAt = createdAt;
         this.depositorName = depositorName;
+        this.memberAddress = memberAddress;
         this.version = version;
     }
 
     // receiver는 issueType=MOBILE이면 항상 null(api.md API 7 참고) — 호출측이 조회 여부부터 결정해서 넘긴다.
+    // memberAddress는 개인 신청일 때만 호출측이 그 1명의 ApplicationMember.address를 조회해서 넘긴다
+    // (단체는 null 그대로 전달).
     public static MyApplicationDetailResponse of(Application application, String cardTypeName, Applicant applicant,
-            Receiver receiver, long memberCount) {
+            Receiver receiver, long memberCount, String memberAddress) {
         return new MyApplicationDetailResponse(application.getId(), application.getApplicationNumber(),
                 application.getApplicationType(), application.getCardTypeId(), cardTypeName,
                 application.getIssueType(), application.getTotalQuantity(), application.getStatus(),
@@ -86,7 +93,7 @@ public class MyApplicationDetailResponse {
                 application.getRefundedAt(), application.getCardReadyAt(), application.getPhysicalDispatchedAt(),
                 application.getPhotoRejectReason(), ApplicantSummary.from(applicant),
                 receiver == null ? null : ReceiverSummary.from(receiver), memberCount, application.getCreatedAt(),
-                application.getDepositorName(), application.getVersion());
+                application.getDepositorName(), memberAddress, application.getVersion());
     }
 
     // 영어 응답용 사본 — 자유 텍스트인 photoRejectReason만 번역한다(cardTypeName·status 등은 그대로).
@@ -94,7 +101,7 @@ public class MyApplicationDetailResponse {
         return new MyApplicationDetailResponse(applicationId, applicationNumber, applicationType, cardTypeId,
                 cardTypeName, issueType, totalQuantity, status, paymentStatus, paymentGuidedAt, paymentDueAt,
                 cancelledAt, cancellationType, cancellationReason, refundedAt, cardReadyAt, physicalDispatchedAt,
-                photoRejectReason, applicant, receiver, memberCount, createdAt, depositorName, version);
+                photoRejectReason, applicant, receiver, memberCount, createdAt, depositorName, memberAddress, version);
     }
 
     @Getter

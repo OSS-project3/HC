@@ -30,7 +30,7 @@
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
-| 🔵 | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드)+프론트 담당자 | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 검증 완료(코드 확인), 착수 전. 프론트 `ApplicantInfo`에 `address` 필드 자체가 없어 개인 비학생증 신청 제출 시 백엔드 `validateCardAddress`가 전부 `INVALID_INPUT`으로 거절함. 상세는 아래 전용 절 참고 |
+| 🔵 | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드)+프론트 담당자 | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳(1,2번) 완료. 남은 건 프론트 5개 파일(3~7번, 프론트 담당자) — 그때까지는 개인 비학생증 신청 제출이 여전히 `INVALID_INPUT`으로 실패함. 상세는 아래 전용 절 참고 |
 | ✅ | 십이간지 캐릭터 디자인 세트 1~3 → 1~5 확장 (2026-09-13) | Claude | `main` | 본 문서 "십이간지 캐릭터 디자인 세트 1~5 확장" 절 | 4/5(2/3번 스타일의 화이트 버전) 자산 반입 + 범위 검증 2곳(`ZodiacDesignSetRequest`/`Application.assignZodiacDesignSet`) 확장. 상세는 아래 전용 절 참고 |
 | ✅ | 관리자 Service 계층 공통 인가 통일 (2026-09-05) | Codex | `main` | `arch.md` §4.6 | `SecurityConfig`의 `/api/admin/**` 1차 차단은 유지하고 `AdminAuthorizationService.requireAdmin(adminId)`를 공통 2차 경계로 추가. Application/Manseryeok/Card/School 템플릿의 중복 검증을 위임하고 Board/Event/Inquiry/Stats의 Service 직접 호출 공백을 해소. API 계약 변경 없음 |
 | ✅ | 단체 신청 Excel 사진 번호 고정 및 파서 정합성 | Codex | `main` | `docs/specs/application/{APPLICATION,requirements,api,service-flow}.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | v1.1 양식 3종의 A열을 사진 번호 001~100 텍스트로 사전 입력·잠금·색상·메모 처리. 파서는 사진 번호만 있는 행을 무시하고 실제 입력 행 사진만 매칭. 집중 테스트 19개 통과 |
@@ -1943,18 +1943,18 @@ TODO/정책 문서 감사 중 `docs/collab/result.md` P0 BLOCKER 항목("일반 
 
 ### 순서대로 해야 할 일
 
-1. **[백엔드, Claude]** `AdminApplicationMemberResponse`에 `address` 필드 추가(관리자 작명/상세 화면이 확인할 수 있게)
-2. **[백엔드, Claude]** `MyApplicationDetailResponse`에 카드 표기용 주소 필드 추가(신청자 본인 마이페이지에서 확인할 수 있게 — `ReceiverSummary.address`(배송지)와는 별도 필드로)
-3. **[프론트, 프론트 담당자]** `features/apply/types.ts`: `ApplicantInfo.address?: string` + `emptyApplicant.address: ""` 추가
-4. **[프론트, 프론트 담당자]** `components/apply/steps/StepInfo.tsx`: `englishName`과 동일한 패턴으로 입력 UI 추가 + `missingKeys` 검증에 `if (!isStudent) { address 필수 }` 추가(기존 `isStudent` 학교 필드 블록과 대칭)
-5. **[프론트, 프론트 담당자]** `pages/ApplyPage/ApplyPage.tsx`: `member` 페이로드에 `address: draft.applicant.address` 추가
-6. **[프론트, 프론트 담당자]** `components/apply/steps/StepReview.tsx`: 최종 확인 요약에 주소 항목 추가(선택, UX 일관성)
-7. **[프론트, 프론트 담당자]** `features/i18n/translations/apply.ts`, `applyFlow.ts`: `"주소": "Address"` 번역 키 추가
-8. **[검증]** 실제 개인 비학생증 신청을 프론트 화면으로 제출해 성공하는지 확인, 관리자 화면·마이페이지에서 입력한 주소가 보이는지 확인, 카드 렌더링에 정상 반영되는지 실제 렌더링으로 확인
+1. ✅ **[백엔드, Claude]** `AdminApplicationMemberResponse`에 `address` 필드 추가(관리자 작명/상세 화면이 확인할 수 있게)
+2. ✅ **[백엔드, Claude]** `MyApplicationDetailResponse`에 `memberAddress` 필드 추가(신청자 본인 마이페이지에서 확인할 수 있게 — `ReceiverSummary.address`(배송지)와는 별도 필드). 개인 신청(멤버 1명)만 노출하고 단체는 항상 null(구성원별 상세는 이 응답 범위 밖, 기존 설계 그대로 유지)
+3. ⚪ **[프론트, 프론트 담당자]** `features/apply/types.ts`: `ApplicantInfo.address?: string` + `emptyApplicant.address: ""` 추가
+4. ⚪ **[프론트, 프론트 담당자]** `components/apply/steps/StepInfo.tsx`: `englishName`과 동일한 패턴으로 입력 UI 추가 + `missingKeys` 검증에 `if (!isStudent) { address 필수 }` 추가(기존 `isStudent` 학교 필드 블록과 대칭)
+5. ⚪ **[프론트, 프론트 담당자]** `pages/ApplyPage/ApplyPage.tsx`: `member` 페이로드에 `address: draft.applicant.address` 추가
+6. ⚪ **[프론트, 프론트 담당자]** `components/apply/steps/StepReview.tsx`: 최종 확인 요약에 주소 항목 추가(선택, UX 일관성)
+7. ⚪ **[프론트, 프론트 담당자]** `features/i18n/translations/apply.ts`, `applyFlow.ts`: `"주소": "Address"` 번역 키 추가
+8. ⚪ **[검증]** 실제 개인 비학생증 신청을 프론트 화면으로 제출해 성공하는지 확인, 관리자 화면·마이페이지에서 입력한 주소가 보이는지 확인, 카드 렌더링에 정상 반영되는지 실제 렌더링으로 확인
 
 ### 검증 체크리스트 (구현 후 채울 것)
 
-- [ ] 1, 2(백엔드 DTO) 구현 + 관련 테스트
+- [x] 1, 2(백엔드 DTO) 구현 — `AdminApplicationMemberResponse.address`, `MyApplicationDetailResponse.memberAddress`(개인만 노출, 단체는 항상 null) + 신규 테스트 2개(`ApplicationServiceMyApplicationsTest`: 개인 주소 노출 확인, 단체는 주소가 실제로 있어도 null로 응답하는지 구분 검증) + `domain.application.*` 전체 재실행, 회귀 없음
 - [ ] 3~7(프론트) 구현 — 프론트 담당자
 - [ ] 개인 비학생증 신청 실제 제출 성공 확인
 - [ ] 관리자 상세 화면 / 마이페이지에서 주소 노출 확인

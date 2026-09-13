@@ -422,8 +422,10 @@ public class ApplicationService {
                 ? receiverRepository.findByApplicationId(applicationId).orElse(null)
                 : null;
         long memberCount = applicationMemberRepository.countByApplicationId(applicationId);
+        String memberAddress = resolveIndividualMemberAddress(application, applicationId);
 
-        return MyApplicationDetailResponse.of(application, cardType.getName(), applicant, receiver, memberCount);
+        return MyApplicationDetailResponse.of(application, cardType.getName(), applicant, receiver, memberCount,
+                memberAddress);
     }
 
     /**
@@ -467,8 +469,22 @@ public class ApplicationService {
                 ? receiverRepository.findByApplicationId(applicationId).orElse(null)
                 : null;
         long memberCount = applicationMemberRepository.countByApplicationId(applicationId);
+        String memberAddress = resolveIndividualMemberAddress(application, applicationId);
 
-        return MyApplicationDetailResponse.of(application, cardType.getName(), applicant, receiver, memberCount);
+        return MyApplicationDetailResponse.of(application, cardType.getName(), applicant, receiver, memberCount,
+                memberAddress);
+    }
+
+    // 개인 신청(멤버 1명)일 때만 그 멤버의 카드 표기용 주소를 조회한다 — 단체는 구성원별 상세를
+    // 이 응답에서 다루지 않으므로(별도 API로 분리 예정) 항상 null.
+    private String resolveIndividualMemberAddress(Application application, Long applicationId) {
+        if (application.getApplicationType() != ApplicationType.INDIVIDUAL) {
+            return null;
+        }
+        return applicationMemberRepository.findByApplicationId(applicationId).stream()
+                .findFirst()
+                .map(ApplicationMember::getAddress)
+                .orElse(null);
     }
 
     /** 관리자 작명 화면용 구성원 목록 — 개인=1명, 단체=엑셀 행 N명. 만세력 계산에 필요한 생년월일 등을 포함한다. */

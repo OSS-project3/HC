@@ -144,6 +144,45 @@ class ApplicationServiceMyApplicationsTest {
         assertThat(detail.getReceiver()).isNull();
     }
 
+    // 2026-09-13: 개인 신청 카드 표기 주소 누락 검증 후속 조치 — 관리자/마이페이지 응답에 주소를
+    // 노출하기 시작했다. 개인 신청은 그 1명의 ApplicationMember.address를 그대로 노출해야 한다.
+    @Test
+    void getMyApplicationDetailReturnsMemberAddressForIndividualApplication() {
+        Application application = applicationRepository.save(Application.createIndividual(
+                OWNER_ID, "APP-2026-" + String.format("%06d", applicationNumberSeq.incrementAndGet()),
+                cardType.getId(), IssueType.MOBILE, true, null, null));
+        applicantRepository.save(Applicant.createIndividual(
+                application.getId(), "홍길동", "hong@example.com", "010-1111-2222"));
+        applicationMemberRepository.save(ApplicationMember.createIndividual(
+                application.getId(), "Hong Gildong", LocalDate.of(1990, 1, 1), "KR",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg", "대한민국 서울특별시 강남구"));
+
+        MyApplicationDetailResponse detail = applicationService.getMyApplicationDetail(OWNER_ID, application.getId());
+
+        assertThat(detail.getMemberAddress()).isEqualTo("대한민국 서울특별시 강남구");
+    }
+
+    // 단체 신청은 구성원별 상세를 이 응답에서 다루지 않으므로(별도 API로 분리 예정), 멤버의 주소가
+    // 실제로 채워져 있어도 항상 null로 응답해야 한다 — "주소가 없어서 null"이 아니라 "단체라 제외"임을
+    // 구분해서 검증한다.
+    @Test
+    void getMyApplicationDetailReturnsNullMemberAddressForGroupApplication() {
+        Application application = applicationRepository.save(Application.createGroup(
+                OWNER_ID, "APP-2026-" + String.format("%06d", applicationNumberSeq.incrementAndGet()),
+                cardType.getId(), IssueType.MOBILE, true, 1, 10L, 11L, 12L));
+        applicantRepository.save(Applicant.createGroup(
+                application.getId(), "인사담당", "hr@example.com", "010-1111-1111", "OO기업", "인사팀"));
+        applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                application.getId(), "John Doe", LocalDate.of(1988, 1, 1), "US",
+                null, null, Gender.MALE, null, "john@example.com", "010-2222-2222", "Seoul", null, null,
+                "photos/b.jpg"));
+
+        MyApplicationDetailResponse detail = applicationService.getMyApplicationDetail(OWNER_ID, application.getId());
+
+        assertThat(detail.getMemberAddress()).isNull();
+        assertThat(detail.getMemberCount()).isEqualTo(1);
+    }
+
     @Test
     void getMyApplicationDetailRejectsNonOwner() {
         Application application = saveApplication(OWNER_ID, IssueType.MOBILE);
