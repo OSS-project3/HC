@@ -368,7 +368,7 @@ GET /api/my/applications/{applicationId}
 
 ```text
 issueType, paymentGuidedAt, paymentDueAt
-cancelledAt, cancellationType, cancellationReason, refundedAt
+cancelledAt, cancellationType, cancellationReason
 cardReadyAt, physicalDispatchedAt, photoRejectReason
 applicant, receiver, memberCount
 ```

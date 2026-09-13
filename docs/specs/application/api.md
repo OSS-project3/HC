@@ -631,7 +631,6 @@ Cookie: accessToken={JWT}
     "cancelledAt": null,
     "cancellationType": null,
     "cancellationReason": null,
-    "refundedAt": null,
     "cardReadyAt": null,
     "physicalDispatchedAt": null,
     "photoRejectReason": null,
@@ -685,6 +684,10 @@ Cookie: accessToken={JWT}
 
 없음(신청 목록 조회 API 6과 동일한 조회 조건 재사용).
 
+- `refundedAt`은 2026-09-13부터 응답에서 제거됨 — 시스템이 환불 완료 여부를 관리하지 않는다는 정책과
+  일치시키기 위해 사용자 조회 API에는 노출하지 않는다(`Application.refundedAt` DB 컬럼과
+  `markRefunded()`는 이전 정책의 구현 흔적으로 유지되며 신규 흐름에 연결하지 않음).
+
 **API 7 완료(구현, 커밋 보류 — `docs/collab/HANDOFF.md` 참고).**
 
 ---
@@ -715,7 +718,9 @@ Cookie: accessToken={JWT}
 
 - `SUBMITTED`, `REVIEWING`, `PHOTO_REJECTED`에서만 최초 취소할 수 있다.
 - `CANCELLED` 재호출은 기존 취소·결제·환불 값을 변경하지 않는 멱등 성공이다.
-- `WAITING`이면 `refundRequired=false`, `CONFIRMED + refundedAt=null`이면 `refundRequired=true`다.
+- `refundRequired`은 환불 진행 상태가 아니라 "결제가 확인된 상태로 취소되어 관리자의 외부 수동
+  환불 절차가 필요한 취소인지"를 나타내는 안내값이다 — `paymentStatus=CONFIRMED`이면 `true`,
+  `WAITING`이면 `false`다(2026-09-13부터 `Application.refundedAt`은 참조하지 않는다).
 - 최초 취소 commit 직후 얼굴사진·로고·직인·제출 ZIP 등 신청 전용 S3 객체를 즉시 삭제한다. rollback 시에는 삭제하지 않는다.
 
 | 상황 | errorCode | HTTP |
