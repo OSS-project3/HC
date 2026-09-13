@@ -1069,7 +1069,8 @@ public class ApplicationService {
                     ApplicationMember member = ApplicationMember.createGroupRow(
                             applicationId, row.englishName(), row.birthDate(), row.nationality(),
                             row.birthTime(), row.birthRegion(), row.gender(), row.entryDate(),
-                            row.email(), row.phone(), row.address(), row.studentId(), row.department(), photoPath);
+                            row.email(), row.phone(), row.address(), row.studentId(), row.department(), photoPath,
+                            row.photoNumber());
                     applicationMemberRepository.save(member);
                 }
                 application.updateTotalQuantity(rows.size());

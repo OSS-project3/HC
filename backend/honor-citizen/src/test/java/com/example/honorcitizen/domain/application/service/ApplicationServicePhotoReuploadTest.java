@@ -249,6 +249,22 @@ class ApplicationServicePhotoReuploadTest {
         assertThat(members.get(0).getEnglishName()).isEqualTo("Jane Doe");
     }
 
+    // 2026-09-13: 단체 전체 재업로드 photoNumber 보존 체크리스트(TODO.md) — 재생성된 Member가
+    // 재업로드 Excel의 사진 번호(A열, 사진 파일명 매칭 키)를 그대로 가져야 한다. 기존엔 사진 번호
+    // 없는 legacy createGroupRow() 오버로드를 호출해 항상 null이 되는 결함이 있었다.
+    @Test
+    void reuploadPhotoForGroupPreservesPhotoNumberFromExcel() throws Exception {
+        Application application = photoRejectedGroupApplication(1L);
+        byte[] zip = buildZip("9|Jane Doe|1991-02-02|US||Chicago|FEMALE||jane@example.com|010-3333-3333|Busan");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+
+        applicationService.reuploadPhoto(1L, application.getId(), null, submitFile);
+
+        List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(application.getId());
+        assertThat(members).hasSize(1);
+        assertThat(members.get(0).getPhotoNumber()).isEqualTo("9");
+    }
+
     @Test
     void reuploadPhotoForGroupDeletesOldMemberPhotosAndOldSubmitFile() throws Exception {
         UploadFile oldSubmitFile = uploadFileRepository.save(UploadFile.create(
