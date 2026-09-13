@@ -181,6 +181,12 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
         if (!filled(draft.applicant.department)) missingKeys.push("department");
       }
     }
+    // 카드 표기용 주소 — 학생증은 카드에 주소를 표시하지 않으므로 받지 않고, 그 외 카드종류는
+    // 개인 신청도 필수다(백엔드 ApplicationService.validateCardAddress와 동일한 정책). 단체(엑셀
+    // 업로드) 신청은 이 폼이 아니라 엑셀의 "주소" 컬럼으로 받으므로 여기서는 검증하지 않는다.
+    if (!isStudent) {
+      if (!filled(draft.applicant.address)) missingKeys.push("address");
+    }
     if (!filled(draft.applicant.koreaEntryDate)) missingKeys.push("koreaEntryDate");
     if (!isValidPhone(draft.applicant.phone)) missingKeys.push("phone");
     if (!isValidEmail(draft.applicant.email)) missingKeys.push("email");
@@ -758,6 +764,19 @@ export function StepInfo({ draft, update, onNext, onPrev }: StepInfoProps) {
                   onChange={(e) => setApplicant({ koreaEntryDate: e.target.value })}
                 />
               </label>
+              {!isStudent && (
+                <label className="field" ref={registerField("address")}>
+                  <span className="field__label">
+                    {t("주소")}<span className="req">*</span>
+                  </span>
+                  <input
+                    className={inputCls("address")}
+                    value={draft.applicant.address ?? ""}
+                    onChange={(e) => setApplicant({ address: e.target.value })}
+                    placeholder={t("카드에 표시될 주소를 입력해 주세요")}
+                  />
+                </label>
+              )}
               <label className="field" ref={registerField("phone")}>
                 <span className="field__label">
                   {t("전화번호")}<span className="req">*</span>

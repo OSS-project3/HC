@@ -47,6 +47,8 @@ export const apply: Record<string, string> = {
   "성별을 선택해 주세요": "Select your gender",
   "남성": "Male",
   "여성": "Female",
+  "주소": "Address",
+  "카드에 표시될 주소를 입력해 주세요": "Enter the address to display on the card",
   "한국입국일": "Date of Entry into Korea",
 
   // Student ID school fields

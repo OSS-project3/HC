@@ -14,6 +14,8 @@ export interface ApplicantInfo {
   birthTimeUnknown?: boolean;
   gender?: "male" | "female" | "";
   koreaEntryDate?: string;
+  /** 카드 표기용 주소(학생증 제외 전 카드종류 필수). 배송지 주소(RecipientInfo.address)와는 별개 값. */
+  address?: string;
   organizationName?: string;
   department?: string;
   studentNumber?: string;
@@ -81,6 +83,7 @@ export const emptyApplicant: ApplicantInfo = {
   birthTimeUnknown: false,
   gender: "",
   koreaEntryDate: "",
+  address: "",
   organizationName: "",
   department: "",
   studentNumber: "",

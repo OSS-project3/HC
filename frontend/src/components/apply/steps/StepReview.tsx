@@ -93,6 +93,7 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
                   <Item label="학과" value={draft.applicant.department || dash} />
                 </>
               ))}
+            {!isStudent && <Item label="주소" value={draft.applicant.address || dash} />}
             <Item label="한국입국일" value={draft.applicant.koreaEntryDate || dash} />
             <Item label="전화번호" value={draft.applicant.phone || dash} />
             <Item label="이메일" value={draft.applicant.email || dash} />

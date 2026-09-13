@@ -90,7 +90,9 @@ export function ApplyPage() {
           applicant: { name: draft.applicant.name || draft.applicant.englishName, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
           // 학번·학과는 대학교(UNIVERSITY)에서만 전송한다(고등학교·비학생증은 미전송).
-          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: nationalityToIso(draft.applicant.nationality), birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: toGender(draft.applicant.gender), entryDate: draft.applicant.koreaEntryDate || undefined, studentId: isStudent && isUniversity ? draft.applicant.studentNumber : undefined, department: isStudent && isUniversity ? draft.applicant.department : undefined },
+          // address는 학생증이 아닐 때만 전송한다(학생증은 카드에 주소를 표시하지 않음 — 백엔드
+          // validateCardAddress와 동일한 정책, StepInfo.tsx 검증도 동일 조건).
+          member: { englishName: draft.applicant.englishName || draft.applicant.name, birthDate: draft.applicant.birthDate, nationality: nationalityToIso(draft.applicant.nationality), birthTime: draft.applicant.birthTime || undefined, birthRegion: draft.applicant.birthPlace, gender: toGender(draft.applicant.gender), entryDate: draft.applicant.koreaEntryDate || undefined, address: isStudent ? undefined : draft.applicant.address, studentId: isStudent && isUniversity ? draft.applicant.studentNumber : undefined, department: isStudent && isUniversity ? draft.applicant.department : undefined },
         };
         const form = new FormData();
         form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
