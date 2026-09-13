@@ -30,6 +30,7 @@
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
+| 🔵 | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드)+프론트 담당자 | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 검증 완료(코드 확인), 착수 전. 프론트 `ApplicantInfo`에 `address` 필드 자체가 없어 개인 비학생증 신청 제출 시 백엔드 `validateCardAddress`가 전부 `INVALID_INPUT`으로 거절함. 상세는 아래 전용 절 참고 |
 | ✅ | 십이간지 캐릭터 디자인 세트 1~3 → 1~5 확장 (2026-09-13) | Claude | `main` | 본 문서 "십이간지 캐릭터 디자인 세트 1~5 확장" 절 | 4/5(2/3번 스타일의 화이트 버전) 자산 반입 + 범위 검증 2곳(`ZodiacDesignSetRequest`/`Application.assignZodiacDesignSet`) 확장. 상세는 아래 전용 절 참고 |
 | ✅ | 관리자 Service 계층 공통 인가 통일 (2026-09-05) | Codex | `main` | `arch.md` §4.6 | `SecurityConfig`의 `/api/admin/**` 1차 차단은 유지하고 `AdminAuthorizationService.requireAdmin(adminId)`를 공통 2차 경계로 추가. Application/Manseryeok/Card/School 템플릿의 중복 검증을 위임하고 Board/Event/Inquiry/Stats의 Service 직접 호출 공백을 해소. API 계약 변경 없음 |
 | ✅ | 단체 신청 Excel 사진 번호 고정 및 파서 정합성 | Codex | `main` | `docs/specs/application/{APPLICATION,requirements,api,service-flow}.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | v1.1 양식 3종의 A열을 사진 번호 001~100 텍스트로 사전 입력·잠금·색상·메모 처리. 파서는 사진 번호만 있는 행을 무시하고 실제 입력 행 사진만 매칭. 집중 테스트 19개 통과 |
@@ -1919,3 +1920,42 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] `ZodiacDesignSetRenderTest.rendersAllFiveZodiacDesignSets`(이름 변경, 1~3→1~5 루프): 4/5 실제 렌더링 → 파일로 남겨 육안 확인(4=2번 스타일 화이트/미니멀 라인, 5=3번 스타일 화이트/라인아트, 기존 1~3과 시각적으로 명확히 구분됨)
 - [x] 관련 테스트 전체(엔티티/서비스/렌더) 재실행 — 46개 중 23개 통과, 나머지 23개(`AdminApplicationControllerTest` 전체)는 로컬 Docker Desktop이 내려가 있어 Redis 미연결로 인한 503(본 작업과 무관한 환경 이슈, HTTP 배선 자체는 코드 리뷰로 확인 완료)
 - [ ] 로컬 docker 재빌드 후 실제 배포 확인 — Docker Desktop 재기동 대기 중
+
+---
+
+## 개인 신청 카드 표기 주소 누락 (2026-09-13 검증 완료, 착수 전)
+
+상태: 🔵 진행중(검증만 완료, 구현 전) — Claude(백엔드) + 프론트 담당자
+
+### 배경
+
+TODO/정책 문서 감사 중 `docs/collab/result.md` P0 BLOCKER 항목("일반 개인 신청 주소")을 코드로 직접 재확인 — 문서 주장이 실제로 맞는지 md가 아니라 실제 코드(프론트 타입 정의·폼 컴포넌트·백엔드 검증 로직)를 전부 추적해서 검증했다.
+
+### 검증 결과 (코드 기준, 2026-09-13 확인)
+
+1. **백엔드는 주소를 필수로 요구한다** — `ApplicationService.validateCardAddress(isStudent, address)`: 학생증이 아니면 `address`가 비어있을 때 `INVALID_INPUT`. `admin-saju.md` 확정 정책("학생증 제외 모든 카드는 주소를 표시한다", "개인 신청은 카드 표기용 주소를 신청 입력값으로 받아 저장해야 한다")과 정확히 일치하는 정상 구현.
+2. **프론트 개인 신청 폼에는 이 필드 자체가 없다** — `frontend/src/features/apply/types.ts:7-28`의 `ApplicantInfo` interface에 `address` 필드가 타입 정의부터 없음(죽은 필드가 아니라 애초에 미정의). 있는 건 `RecipientInfo.address`(30-39행, 배송지 주소)뿐 — `StepInfo.tsx:861`에 라벨도 "배송지 주소"로 명시. `ApplyPage.tsx:93`의 `member` 제출 페이로드에도 `address`가 없음.
+3. **실제로 재현되는 문제다** — 지금 프론트 코드 그대로 개인 비학생증(명예한국인증/명예시민증/방문증) 신청을 제출하면 백엔드가 100% `INVALID_INPUT`으로 거절한다.
+4. **단체 신청은 무관** — 단체는 엑셀 11번 컬럼("주소")으로 받고 `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md:81`에 "선택"으로 명시돼 이미 별도 정책으로 문서화돼있음(개인과는 다른 문제, 이번 작업 범위 아님).
+5. **추가로 발견한 것** — 프론트에 필드를 추가해도, 백엔드 응답 DTO 2곳(`AdminApplicationMemberResponse`, `MyApplicationDetailResponse`)에 `address`가 없어 관리자도 신청자 본인도 저장된 주소를 화면에서 확인할 방법이 없다. 이것도 같이 처리해야 반쪽짜리 수정이 안 됨.
+6. **isStudent 조건부 처리는 기존 구조에 그대로 들어맞는다** — `StepInfo.tsx:170-187`의 개인 신청자 검증 블록에 이미 `if (isStudent) { 학교 필드 필수 }` 패턴이 있어, 그 옆에 `if (!isStudent) { address 필수 }`를 대칭으로 추가하면 됨. 새 분기 구조·리팩터링 불필요.
+7. **프론트 테스트 파일 없음** — 이 레포에 `*.test.ts*`/`*.spec.ts*` 자체가 0건이라 갱신할 기존 테스트 없음.
+
+### 순서대로 해야 할 일
+
+1. **[백엔드, Claude]** `AdminApplicationMemberResponse`에 `address` 필드 추가(관리자 작명/상세 화면이 확인할 수 있게)
+2. **[백엔드, Claude]** `MyApplicationDetailResponse`에 카드 표기용 주소 필드 추가(신청자 본인 마이페이지에서 확인할 수 있게 — `ReceiverSummary.address`(배송지)와는 별도 필드로)
+3. **[프론트, 프론트 담당자]** `features/apply/types.ts`: `ApplicantInfo.address?: string` + `emptyApplicant.address: ""` 추가
+4. **[프론트, 프론트 담당자]** `components/apply/steps/StepInfo.tsx`: `englishName`과 동일한 패턴으로 입력 UI 추가 + `missingKeys` 검증에 `if (!isStudent) { address 필수 }` 추가(기존 `isStudent` 학교 필드 블록과 대칭)
+5. **[프론트, 프론트 담당자]** `pages/ApplyPage/ApplyPage.tsx`: `member` 페이로드에 `address: draft.applicant.address` 추가
+6. **[프론트, 프론트 담당자]** `components/apply/steps/StepReview.tsx`: 최종 확인 요약에 주소 항목 추가(선택, UX 일관성)
+7. **[프론트, 프론트 담당자]** `features/i18n/translations/apply.ts`, `applyFlow.ts`: `"주소": "Address"` 번역 키 추가
+8. **[검증]** 실제 개인 비학생증 신청을 프론트 화면으로 제출해 성공하는지 확인, 관리자 화면·마이페이지에서 입력한 주소가 보이는지 확인, 카드 렌더링에 정상 반영되는지 실제 렌더링으로 확인
+
+### 검증 체크리스트 (구현 후 채울 것)
+
+- [ ] 1, 2(백엔드 DTO) 구현 + 관련 테스트
+- [ ] 3~7(프론트) 구현 — 프론트 담당자
+- [ ] 개인 비학생증 신청 실제 제출 성공 확인
+- [ ] 관리자 상세 화면 / 마이페이지에서 주소 노출 확인
+- [ ] 카드 실제 렌더링에 주소 정상 표시 확인
