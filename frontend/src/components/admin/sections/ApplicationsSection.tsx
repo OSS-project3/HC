@@ -455,8 +455,8 @@ function NamingCard({ appId, cardTypeId, index, member, isGroup, counts, onSaved
   const fallbackSaju = useMemo(() => computeMemberSaju(member.birthDate, member.birthTime), [member.birthDate, member.birthTime]);
   const [resolvedSaju, setResolvedSaju] = useState<MockSaju | null>(null);
   const saju: MockSaju = useMemo(() => resolvedSaju ?? fallbackSaju ?? mockSaju(memberKey), [resolvedSaju, fallbackSaju, memberKey]);
-  const [tick, setTick] = useState(0); // "다른 이름 추천" 버튼: 증가 시 다음 8개(page)를 보여준다(결정적 페이지 넘김, 무작위 아님).
-  const recs = useMemo(() => mockRecommendations(memberKey, saju, tick), [memberKey, saju, tick]);
+  const [tick, setTick] = useState(0); // 새로고침 버튼: 증가 시 추천을 다시 뽑는다.
+  const recs = useMemo(() => mockRecommendations(memberKey, saju), [memberKey, saju, tick]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [surname, setSurname] = useState(member.surname ?? "");
