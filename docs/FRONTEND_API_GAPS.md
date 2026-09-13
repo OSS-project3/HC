@@ -1,5 +1,7 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
+> **갱신: 2026-09-13(14차, Claude 세션) — §1.19 신규: 이름 추천 결과 재현성 정책 위반.** 개인 명예시민증 E2E 검증 선행조사 중 발견 — `admin-saju.md`는 "이름 추천은 결정적이어야 한다(무작위 금지)"고 명시하는데, 실제 코드(`frontend/src/data/adminNamingMock.ts`)는 `Math.random()` 셔플로 매번 다른 8개를 보여준다. 더 나아가 `docs/specs/admin-dashboard/DESIGN.md`(124행)는 오히려 "매번 무작위 8개를 추천한다"고 무작위를 설계로 명시해놔서, **두 스펙 문서가 서로 다른 정책을 적어놓은 상태**였다는 것도 확인됨. 사용자 확정(2026-09-13): `admin-saju.md`(결정적) 방향으로 통일 — `DESIGN.md` 수정 + `adminNamingMock.ts` 셔플 제거 필요(프론트 수정이라 RULES.md 예외 승인 대상). 추천 후보 개수도 8(코드/DESIGN.md/STATUS.md) vs 5(별도 E2E 테스트 스펙 `codex-docs/docs/collab/e2e_test.md`)로 불일치 확인, 미확정. §0/§1.19 신설. 코드는 아직 수정하지 않음(문서 반영만).
+>
 > **갱신: 2026-09-05(13차, Claude 세션) — 관리자 통계 API(`GET /api/admin/stats`) 백엔드 구현 완료.** 12차 기록의 "§1.4(관리자 통계 API)는 이번에도 재확인 결과 그대로 백엔드 미구현" 서술은 이 갱신으로 낡았다 — 바로 이어서 이번 세션에서 구현했다. 응답은 `totalApplications`/`individualApplications`/`groupApplications`/`totalInquiries`/`pendingInquiries`/`completedInquiries` 6개(정책 확정: 상태별·카드종류별 분포, 기간 필터는 이번 범위 아님). `OverviewSection`(`AdminPage.tsx`)이 `listAdminApplications({size:100})`를 `.filter()`해 개인/단체 신청 수를 세던 부정확한 방식(100건 초과 시 틀림)을 이 API로 교체하면 된다. `services/api.ts`에 래퍼 없음 — 프론트 미착수. §0/§1.4/§6을 갱신했다.
 >
 > **갱신: 2026-09-05(12차, Claude 세션) — 백엔드 신규 구현 2건 반영(공지 서버 검색, 관리자 카드 다운로드). 둘 다 프론트는 아직 미착수.** ① **공지 서버 검색(§1.7)** — `GET /api/boards`에 `searchType`(`ALL`/`TITLE`/`CONTENT`)·`keyword` 파라미터가 추가됐다(`72dad09`, `Review`의 검색 패턴을 그대로 재사용). `frontend/src/services/api.ts`의 `listBoards` 타입은 여전히 `{ type?, page?, size? }`뿐이라(직접 grep 확인) 프론트는 아직 이 파라미터를 안 쓴다 — §0/§1.7/§6을 "백엔드 완료, 프론트 파라미터 추가만 남음"으로 갱신했다. ② **관리자 카드 다운로드(신규 §1.18)** — `ApplicationMember.cardFrontPath`/`cardBackPath` 존재 여부로 판단하는(=`ApplicationStatus`와 무관, `PRODUCING` 중에도 허용) 관리자 전용 카드 다운로드 API 2개(`GET /api/admin/applications/{id}/cards/download`(전체 ZIP)·`GET /api/admin/applications/{id}/members/{memberId}/cards/download`(개별, 재인쇄용))가 신규 구현됐다(`a0f2e85`). `services/api.ts`에 관련 함수가 전혀 없어(grep 0건) 프론트 진입점 자체가 없다 — §0에 신규 행 추가, §1.18 신설. §1.4(관리자 통계 API)는 이번에도 재확인 결과 그대로 백엔드 미구현이라 변경 없음.
@@ -43,6 +45,7 @@
 | **신청 취소** | ✅ 실 API | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 완료(2026-09-02 재검증)** — `MyPage.tsx`의 `cancelApplication` 실호출, 취소 가능 상태에서만 버튼 노출 확인(§1.5) |
 | 공지 서버 검색 | ⚠️ 클라 검색(미연결) | ✅ 구현 완료(2026-09-05) | **백엔드 완료, 프론트 파라미터 추가만 남음** — `GET /api/boards`에 `searchType`/`keyword` 추가됨(`72dad09`). `NoticesPage.tsx`/`listBoards()`는 여전히 전체를 받아 클라이언트에서만 `.filter()` — 서버 파라미터로 교체만 하면 됨 (§1.7) |
 | **관리자 카드 다운로드(전체 ZIP/개별 재인쇄)** | ❌ 진입점 자체 없음 | ✅ 구현 완료(2026-09-05) | **신규, 미착수** — `cardFrontPath`/`cardBackPath` 존재 여부로 판단(제작 중에도 허용), 전체 ZIP 또는 멤버 개별 다운로드. `services/api.ts`에 래퍼 없음(grep 0건) (§1.18) |
+| **이름 추천 결과 재현성** | N/A(추천 API 자체 없음) | ⚠️ `Math.random()`으로 매번 무작위 | **🔴 정책 위반(2026-09-13 신규)** — `admin-saju.md`(결정적이어야 함) vs `DESIGN.md`(무작위가 설계)가 서로 다른 정책을 문서화했고, 코드는 후자를 따름. 사용자 확정: `admin-saju.md` 방향으로 통일 — `adminNamingMock.ts` 셔플 제거 필요(§1.19) |
 | 회원정보 address 수정 | ⚠️ 화면엔 없음(정책상 제거된 상태) | ❌ 미지원(확정 정책) | **갭 아님** — 조회는 이름·전화번호·이메일만, 수정도 이름·전화번호만(§1.9-a) |
 | 학생증 schoolName/schoolId | ✅ 검색select+직접입력 | ✅ School 마스터+schoolId 위변조 차단 | **연동 완료(2026-08-27)** — 실 브라우저 E2E(단체는 실제 제출·DB 반영까지) 검증 완료 (§1.9) |
 | 카드 종류·디자인 카탈로그 | 정적(`cards.ts`) | 🟡 내부만 존재 | **STATIC 확정**(공개 API 신설 안 함) (§2.1) |
@@ -333,6 +336,22 @@
 2. `ApplicationsSection.tsx`(또는 상세 화면)에 "전체 카드 다운로드(ZIP)" 버튼(단체) + 멤버별 "카드 다운로드/재인쇄" 버튼(개인·단체 공통) 추가.
 3. 전체 ZIP 거절 시 응답의 멤버별 결측 목록을 관리자가 바로 알아볼 수 있게 표시(예: "OO님 카드 미생성 — 작명/카드번호 확인 필요" 등).
 - **검증**: `ApplicationServiceAdminCardDownloadTest`(7개)·`AdminApplicationControllerTest` 신규 5개, 전부 통과. `docs/collab/TODO.md`(2026-09-05 완료 섹션) 참고.
+
+### 1.19 이름 추천 결과가 매번 무작위로 바뀜 — 정책 문서와 정면 충돌, 두 스펙 문서끼리도 서로 다름 (2026-09-13 신규, E2E 검증 선행조사 중 발견)
+
+- **배경**: `docs/specs/application/admin-saju.md`에는 이름 추천이 **결정적(deterministic)이어야 한다**는 정책이 명시돼 있다 — "무작위 후보 선택은 사용하지 않습니다. 같은 계산 입력과 같은 이름 사전 버전이면 결과 순서가 같아야 합니다", "점수 내림차순으로 정렬하고, 점수가 같으면 이름 사전 ID 오름차순으로 정렬합니다."
+- **실제 코드는 정반대다**: `frontend/src/data/adminNamingMock.ts` — `scoreName()`으로 오행 결핍 기반 점수 계산까지는 정책대로 결정적이다. 그 다음 `sort((a,b) => b.score - a.score)`로 정렬하는데 **동점 tiebreaker가 없고**(사전 ID 오름차순 규정 미적용), 상위 풀(`limit*6`개, 최소 48개)을 뽑은 뒤 **Fisher-Yates 셔플에 `Math.random()`을 사용**해 그중 무작위로 추려서 보여준다. 코드 주석에도 "무작위라 새로고침(컴포넌트 재마운트)마다 새로운 조합이 나온다"고 명시돼 있다 — 우발적 버그가 아니라 의도적으로 그렇게 짜여 있다.
+- **관리자 화면에 "↻ 다른 이름 추천" 버튼**(`ApplicationsSection.tsx`)이 있어 클릭할 때마다 같은 신청자에게 **완전히 다른 8개 이름**이 나온다. 새로고침해도 마찬가지다.
+- **두 스펙 문서끼리도 서로 다르다** — `docs/specs/admin-dashboard/DESIGN.md`(124행)는 오히려 "오행 결핍 기반으로 **매번 무작위 8개를 추천한다**"고 **무작위를 의도된 설계로 명시**하고 있다. 즉 `admin-saju.md`(결정적이어야 함)와 `DESIGN.md`(무작위가 설계임)가 정면으로 충돌하고, 실제 코드는 `DESIGN.md` 쪽을 따라간 상태다.
+- **추천 후보 개수도 별개로 불일치**: 실제 코드·`DESIGN.md`·`docs/specs/admin-dashboard/STATUS.md`는 전부 **8개**로 일치하는데, 별도로 진행 중인 E2E 테스트 스펙 문서(`codex-docs/docs/collab/e2e_test.md`)에는 "정책상 추천 후보는 5개여야 한다"고 적혀 있다 — 8과 5, 근거가 되는 문서가 또 다르다. `admin-saju.md`엔 개수 규정 자체가 없다.
+- **§1.15(c)의 사주 계산 부정확 버그와는 별개 문제다** — §1.15(c)는 "입력값(사주 계산)이 틀려서 추천 결과가 달라지는" 정확도 문제이고, 이 §1.19는 "입력값이 정확히 같아도 뽑을 때마다 결과가 달라지는" 재현성 문제다. 둘 다 고쳐야 이름 추천이 정책대로 동작한다.
+- **사용자 확정(2026-09-13)**: `admin-saju.md`(결정적이어야 함) 방향으로 통일한다 — `DESIGN.md` 124행 쪽을 정책에 맞게 고쳐야 한다.
+- **프론트가 필요한 것** (RULES.md상 프론트 수정은 예외 승인 필요 — 별도 확인 후 진행):
+  1. `adminNamingMock.ts`의 Fisher-Yates `Math.random()` 셔플 제거.
+  2. 정렬을 점수 내림차순 + 동점 시 이름 사전 ID 오름차순(`admin-saju.md:283` 그대로)으로 변경.
+  3. "↻ 다른 이름 추천" 버튼의 의미 재정의 필요 — 같은 입력이면 항상 같은 8개가 나오므로, 지금처럼 "다시 뽑기"로 두면 아무 효과가 없다. 다음 8개(9~16위)를 보여주는 페이지네이션으로 바꾸거나 버튼 자체를 제거하는 등 결정 필요.
+  4. 추천 후보 개수(5 vs 8)도 이 작업과 함께 확정 필요.
+- **문서 후속 조치 필요**: `docs/specs/admin-dashboard/DESIGN.md:124`("매번 무작위 8개를 추천한다")를 `admin-saju.md` 정책에 맞게 수정.
 
 ### 1.11 신청 폼이 수집하나 백엔드가 저장하지 않는 입력 (프론트 유지 · 백엔드 보강)
 프론트 화면에는 입력/표시가 있으나 백엔드 request DTO·도메인에 대응이 없어 값이 서버에 남지 않는 항목. **프론트 UI는 그대로 유지**하고 백엔드 보강 시 연결한다. 상세·조치는 `BACKEND_API_GAPS.md P1-4`.
