@@ -1,0 +1,111 @@
+# E2E 전용 격리 스택 — 개발 스택(docker-compose.yml)과 완전히 분리된 포트·볼륨을 쓴다.
+# 기동: docker compose -p hc-e2e -f docker-compose.e2e.yml up -d --build
+# 종료(볼륨까지 정리): docker compose -p hc-e2e -f docker-compose.e2e.yml down -v
+# -p hc-e2e로 프로젝트명을 분리하므로 컨테이너/네트워크/볼륨이 개발 스택과 절대 겹치지 않는다.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: honor_citizen_e2e
+      POSTGRES_USER: honor_citizen_e2e
+      POSTGRES_PASSWORD: honor_citizen_e2e_local
+    ports:
+      - "15432:5432" # 호스트에서 Playwright 테스트/fixture 스크립트가 직접 조회하기 위함
+    volumes:
+      - e2e-db-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - e2e-minio-data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      BUCKET: honor-citizen-e2e
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}; do echo 'waiting for minio...'; sleep 1; done;
+      mc mb -p local/$${BUCKET} || true;
+      exit 0;
+      "
+
+  backend:
+    build: ./backend/honor-citizen
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/honor_citizen_e2e
+      SPRING_DATASOURCE_USERNAME: honor_citizen_e2e
+      SPRING_DATASOURCE_PASSWORD: honor_citizen_e2e_local
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-bG9jYWwtZGV2ZWxvcG1lbnQtand0LXNlY3JldC1tdXN0LWJlLWF0LWxlYXN0LTMyLWJ5dGVzLWxvbmc=}
+      JWT_ISSUER: honor-citizen
+      EMAIL_CODE_SECRET: ${EMAIL_CODE_SECRET:-bG9jYWwtZGV2ZWxvcG1lbnQtZW1haWwtY29kZS1zZWNyZXQtbXVzdC1iZS1hdC1sZWFzdC0zMi1ieXRlcw==}
+      COOKIE_SECURE: "false"
+      COOKIE_SAME_SITE: Lax
+      APP_FRONTEND_URL: http://localhost:13000
+      APP_FRONTEND_ALLOWED_ORIGINS: http://localhost:13000
+      # 데모 시드(ADMIN 계정 포함) — E2E는 항상 켜서 admin@test.com 시드를 확보한다.
+      APP_SEED_DEMO_DATA: "true"
+      MAIL_HOST: localhost
+      MAIL_PORT: 587
+      MAIL_FROM: no-reply@honor-citizen.local
+      GOOGLE_CLIENT_ID: e2e-google-client
+      GOOGLE_CLIENT_SECRET: e2e-google-secret
+      NAVER_CLIENT_ID: e2e-naver-client
+      NAVER_CLIENT_SECRET: e2e-naver-secret
+      # 출생지역 검색 실제 검증을 위해 .env의 실키를 그대로 전달(이 파일 자체엔 값을 안 적음).
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY:-}
+      AWS_ACCESS_KEY: minioadmin
+      AWS_SECRET_KEY: minioadmin
+      AWS_S3_BUCKET: honor-citizen-e2e
+      AWS_REGION: us-east-1
+      AWS_S3_BASE_URL: http://localhost:19000/honor-citizen-e2e
+      AWS_S3_ENDPOINT: http://minio:9000
+      AWS_S3_PRESIGN_ENDPOINT: http://localhost:19000
+      AWS_S3_PATH_STYLE: "true"
+    ports:
+      - "18080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # 비워두면 nginx.conf가 /api를 컨테이너 내부의 backend:8080으로 프록시한다(dev와 동일 패턴).
+        VITE_API_BASE_URL: ""
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "13000:80"
+
+volumes:
+  e2e-db-data:
+  e2e-minio-data:
