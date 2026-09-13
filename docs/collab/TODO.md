@@ -7,6 +7,62 @@
 
 ---
 
+## 확정 정책 — 단체 작명 Excel·사용자 역할 복원·카드 생성 동시성 (2026-09-14)
+
+### 1. 단체 작명 Excel
+
+**확정 정책**
+
+- 단체 작명 Excel은 이름·한자·뜻만 반영한다.
+- 성씨는 Excel에서 입력받지 않고 관리자 화면에서 관리자가 별도로 입력한다.
+- Excel을 다시 가져와도 기존 `ApplicationMember.surname`을 `null` 또는 빈 값으로 덮어쓰지 않는다.
+- `completeNaming` 실행 전 모든 Member의 성씨 입력 여부를 검증한다.
+
+**구현 체크리스트**
+
+- [ ] 작명 Excel import가 기존 `surname`을 변경하지 않는지 확인하고 직접 테스트로 보장한다.
+- [ ] 관리자 화면에서 Member별 성씨를 입력·저장하는 기존 흐름을 유지한다.
+- [ ] `completeNaming`이 모든 Member의 성씨 누락을 검사하고 한 명이라도 누락되면 상태 전이를 거절하도록 검증한다.
+- [ ] Excel 재가져오기 후에도 기존 성씨가 보존되는 회귀 테스트를 추가한다.
+
+### 2. 사용자 역할 복원
+
+**확정 정책**
+
+- `GET /api/users/me` 응답에 `role`을 포함한다.
+- 프론트는 새로고침할 때 `/api/users/me`의 `role`을 기준으로 사용자·관리자 UI를 복원한다.
+- 프론트의 `localStorage`에 저장된 사용자 정보나 역할을 인증·인가의 근거로 사용하지 않는다.
+- 실제 API 접근 권한은 기존과 동일하게 백엔드 Spring Security가 최종 판단한다.
+
+**구현 체크리스트**
+
+- [ ] `/api/users/me` 응답 DTO와 매핑에 `role`을 추가한다.
+- [ ] USER와 ADMIN 각각의 `/api/users/me` 응답에서 올바른 `role`이 반환되는 직접 테스트를 보강한다.
+- [ ] API 명세에 `role` 필드와 enum 계약을 반영한다.
+- [ ] 프론트가 새로고침 시 `/api/users/me`로 인증 상태와 역할을 복원하도록 연결한다.
+- [ ] 프론트의 localStorage 사용자·역할 값은 인증 판단에서 제거하되 백엔드 관리자 권한 검증은 변경하지 않는다.
+
+### 3. 카드 생성 동시성
+
+**확정 정책**
+
+- 초기 운영은 카드 제작 관리자가 한 명이라고 가정한다.
+- 프론트는 카드 생성 요청 중 버튼을 비활성화하고 로딩 중 재클릭을 차단한다.
+- 이번 최소 구현에서는 별도 분산락·비관적 락·Member 단위 잠금을 추가하지 않는다.
+- 기존 `Application.@Version`은 제거하지 않는다.
+- 카드 파일 생성 완료 여부와 상태 전이 선행조건 검증은 동시성 정책과 별개로 반드시 유지한다.
+- 실제 운영에서 동시 관리자 요청 충돌이 확인되면 전용 잠금 및 충돌 응답 정책을 후속으로 도입한다.
+
+**구현 체크리스트**
+
+- [ ] 카드 생성 요청 중 프론트 버튼 비활성화·로딩 표시·중복 클릭 차단을 적용한다.
+- [ ] 전체 Member의 필수 카드 결과가 준비되기 전 `startProducing`·`markCardReady` 상태 전이를 거절한다.
+- [ ] 제작 단계 이후 이름·작명 결과 수정이 허용되지 않도록 기존 상태 게이트를 검증한다.
+- [ ] 신규 잠금 구현은 이번 범위에 포함하지 않으며 기존 `Application.@Version`을 유지한다.
+- [ ] 동시 관리자 운영이 시작되면 카드 생성 경합 위험을 재검토한다.
+
+---
+
 ## 📌 개발 원칙 (고정 — 모든 Task 공통, 예외 없음)
 
 이 TODO에 정의한 개발 순서는 **반드시** 따른다. (아래는 "Application 개인 신청 리팩터링 로드맵"의 "공통 진입·완료 원칙"과 같은 내용을 더 짧게 고정해둔 버전 — 세부 절차는 그쪽 참고)
@@ -46,9 +102,10 @@
 | ✅ | 조회(`lookup`) 인증 정책 method별 분리 구현 | Claude | `feature/application-domain-impl` | `docs/specs/application/api.md` | `application`=phone+email 둘 다 필수, `card`=인증값 없음. 상세는 CHANGELOG 2026-08-06 참고 |
 | ✅ | `CardTypeSeeder` 추가 — CardType ID 1~4 고정 시딩 | Claude | `feature/application-domain-impl` | `docs/BACKEND_API_GAPS.md`(참고: 카드 종류 ID) | 프론트 `cardTypeId` 하드코딩(1~4)을 그대로 쓰기로 결정, `GET /api/card-types` 신규 API는 만들지 않음 |
 | ⚪ | 단체 재제출 UI(`MobileCardPage.tsx`) 추가 | 프론트 담당자 | `main` | `docs/BACKEND_API_GAPS.md` P0-2 | 백엔드는 이미 구현됨(`PATCH .../photo`의 `submitFile` 파트, `PHOTO_REJECTED` 상태에서만 허용). 프론트에 단체용 업로드 UI만 없음 |
+| ✅ | 단체 전체 재업로드 후 `photoNumber` 유실 수정 (2026-09-14) | Claude | `main` | 본 문서 단체 전체 재업로드 photoNumber 보존 절 | `ApplicationService.reuploadPhoto()`의 `createGroupRow()` 호출에 `row.photoNumber()` 마지막 인자로 전달 — 신규 API/DB/Entity 변경 없음. 상세는 아래 전용 절 참고 |
 | ⚪ | `StepInfo.tsx`에 4개 카드종류 전부 사주정보 입력폼 추가 | 프론트 담당자 | `main` | `docs/specs/application/requirements.md` §7-3 | 현재 방문증에만 있음. 나머지 3종은 목데이터라 안 드러날 뿐 실제 API 연동 시 400 발생 |
 | ✅ | 고등학교 마스터 데이터 시딩(`학교기본정보_20260831` CSV 기반) | Claude | `main` | 본 문서 "고등학교 마스터 데이터 시딩" 절 | `HighSchoolSeeder` 신규, 최종 2,403개 등록 대상(동명이교 214건 지역명 prefix). 전체 테스트 810개 통과 |
-| ⚪ | Payment/상담금액/자동취소/환불 도메인 설계·구현 | 미정 | - | `docs/specs/application/requirements.md` | 이번 Application 구현 범위 밖(api.md 스코프 노트 참고). checklist.md 1절 미충족 3건이 여기 해당 |
+| ⚪ | 결제 안내 API/UI 연결 및 자동취소 운영 검증 | 미정 | `main` | `docs/specs/application/requirements.md`, 본 문서 §5-A | 환불은 시스템 밖에서 관리자가 확인·처리하므로 별도 환불 도메인/API/상태는 만들지 않음 |
 | 🟡 | Admin 도메인(사진검토/작명/카드발급/CardDesign 배정) 설계·구현 | 대부분 완료(2026-08-25) | `main` | `docs/FRONTEND_API_GAPS.md` §1.4 | ✅ 사진반려·작명(assign/naming-result)·카드발급(card-ready)·배송(dispatch)·상태전이 8종·엑셀 export 전부 구현·연동. ❌ 남은 것: CardDesign 배정, 통계(`GET /api/admin/stats`)만 |
 | ⚪ | CardDesign 관리자 배정 API/화면 흐름 확정 | 미정 | - | `docs/specs/application/requirements.md` | "CardDesign 배정 시점" TBD 선결 필요 |
 | ✅ | 학생증 학번 형식 정책 문서 반영(학과는 계속 보류) | Codex | codexdocs/application-policy-sync | `docs/specs/application/requirements.md` | 학번 최대 10자·숫자만 반영. 학과는 `APPLICATION.md`가 "제외"로 적었으나 근거 없어 미결정 유지, 기존 필수 정책 그대로 둠(`PENDING_DECISIONS.md` 참고) |
@@ -67,8 +124,8 @@
 | ⚪ | Codex: `arch.md` 3절 패키지 구조 예시 최신화 | Codex | `feature/application-domain-docs` | `arch.md` | `api/admin`·`infra/toss`는 삭제됨, `domain/uploadfile`·`domain/log`는 예시에 없음, `ApplicationResponse.java`는 이제 `ApplicationCreateResponse` 등으로 분리됨 |
 | ✅ | 마이페이지 신청 목록/상세 조회 API 6·7 설계 | Claude | `main` | `docs/specs/application/api.md` API 6/7 | `GET /api/my/applications`(페이징 목록)·`GET /api/my/applications/{id}`(상세, 소유권 검증) 설계만 완료, 구현 안 됨. 기존 `lookup`(API 3)은 비로그인 공개 조회라 별개 |
 | ✅ | 마이페이지 신청 목록/상세 조회 API 6·7 구현 (2026-08-18) | Claude | `main` | `docs/specs/application/api.md` API 6/7 | `GET /api/my/applications`(목록, `status` 선택 필터·`createdAt DESC` 고정 정렬)·`GET /api/my/applications/{id}`(상세) 구현+테스트 완료. `ApplicationRepository.findByUserId`/`findByUserIdAndStatus`, `ApplicationMemberRepository.countByApplicationId` 신규. 신규 DTO `MyApplicationListItemResponse`/`MyApplicationDetailResponse`(중첩 `ApplicantSummary`/`ReceiverSummary`), 기존 `PageResponse<T>`(Review에서 처음 도입) 재사용. `receiver`는 `issueType=MOBILE_AND_PHYSICAL`일 때만 채워지고 그 외엔 `null`. `MyApplicationController` 신규(`SecurityConfig` 변경 없음 — 기존 `/api/**` → `hasAnyRole("USER","ADMIN")` 규칙에 자동 편입). 신규 테스트 13개(`ApplicationServiceMyApplicationsTest` 7개, `MyApplicationControllerTest` 6개) 전부 통과. 전체 스위트 361개 중 기존과 동일하게 UserControllerTest 2건+Redis 미기동 1건만 실패(회귀 없음). ⚠️ **커밋 보류**: 응답 DTO(`MyApplicationDetailResponse`)가 `Application.paymentGuidedAt/cancelledAt/cancellationType/cancellationReason/refundedAt/cardReadyAt/physicalDispatchedAt`(Codex의 미커밋 상태 리팩터링 신규 필드) 게터를 그대로 쓰고 있어, 지금 HEAD엔 없는 필드라 이 작업만 단독 커밋하면 컴파일이 깨짐 — Codex의 "신청 상태 리팩터링" 커밋이 먼저 들어간 뒤에 이 작업을 커밋한다 |
-| ✅ | 신청 상태·취소·환불 정책 문서 정합성 반영 | Codex | `main` | `docs/specs/application/APPLICATION.md` §16, `docs/collab/TODO.md` 상세 체크리스트 | requirements/data-model/api/service-flow/admin/payment/PENDING 문서를 확정 정책으로 동기화. 초기 `SUBMITTED+WAITING`, 최초 결제 안내+72시간, 10분 설정형 자동취소, 취소 commit 직후 S3 삭제 반영 |
-| ⚪ | 신청 상태 리팩터링 및 사용자 취소 API 구현 | 미정 | `main` | `docs/specs/application/APPLICATION.md` §16, `docs/collab/TODO.md` 상세 체크리스트 | `PAYMENT_PENDING/RECEIVED` 제거, `SUBMITTED/PRODUCTION_READY` 추가, 결제 확인과 상태 전이 분리, 취소 이력·3일 자동 취소·일일 슬롯 반환·최소 환불 모델·다운로드/실물 발송 기준을 체크리스트 순서대로 구현하고 통합 테스트 |
+| ✅ | 신청 상태·취소 정책 문서 정합성 반영 | Codex | `main` | `docs/specs/application/APPLICATION.md` §16, `docs/collab/TODO.md` 상세 체크리스트 | 초기 `SUBMITTED+WAITING`, 최초 결제 안내+72시간, 10분 설정형 자동취소, 취소 commit 직후 S3 삭제 반영. 환불 상태는 시스템에서 관리하지 않는 최신 정책으로 변경 |
+| ⚪ | 신청 상태 리팩터링 및 사용자 취소 API 후속 정리 | 미정 | `main` | `docs/specs/application/APPLICATION.md` §16, `docs/collab/TODO.md` 상세 체크리스트 | 취소 이력·3일 자동 취소·일일 슬롯 반환·다운로드/실물 발송 기준의 남은 체크리스트만 진행. 환불 도메인·환불 완료 API는 범위 제외 |
 | ✅ | 학생증 신청 항목 추가(학교구분·가로형/세로형, 2026-08-14) | Claude | `main` | `docs/specs/application/{data-model,api}.md`, 계획: `C:\Users\gpdnj\.claude\plans\application-api-async-knuth.md` | 구현+테스트 완료. `Application`에 `orientation`(LANDSCAPE/PORTRAIT)·`school_type`(UNIVERSITY/HIGH_SCHOOL) 컬럼 신규 추가(개인·단체 공통, 학생증 전용, 신청서 전체에 1개). `ApplicationMember.student_id`/`department` 필수 조건을 "학생증이면 무조건"→"학생증+`school_type=UNIVERSITY`일 때만"으로 변경(HIGH_SCHOOL이면 있으면 오히려 거절). 단체는 학번·학과를 여전히 엑셀로만 받음(`BulkExcelParser` 변경 없음), orientation/schoolType만 신청 폼 필드로 추가. 카드종류별 config 추상화 없이 기존 `isStudent` boolean 게이트 재사용. `Application.createIndividual`/`createGroup` 팩토리 메서드는 기존 시그니처를 하위호환 오버로드로 유지해 무관한 기존 테스트 ~20개는 손대지 않음. 신규 ErrorCode 없음(`INVALID_INPUT` 재사용). 신규 테스트 12개(`ApplicationServiceTest` 7개, `ApplicationServiceBulkTest` 5개) 전부 통과, 기존 테스트 3개(`ApplicationServiceUploadCompensationTest`) 픽스처 보정 후 통과. 전체 스위트 224개 중 기존과 동일하게 Redis 미기동 3건만 실패(회귀 없음). 프론트(`StepInfo.tsx` 등)는 프론트 담당자 영역이라 미착수 |
 | ✅ | Board 도메인(공지사항/FAQ) 구현 (2026-08-14) | Claude | `main` | `docs/specs/board/{data-model,api}.md`, `arch.md` §4.8 | CRUD 5개 API(목록/단건/생성/수정/삭제) 전부 구현+테스트 완료. `Board`+`BoardType{NOTICE,FAQ}` enum 통합 관리, `BoardAttachment` join 엔티티(`Board:UploadFile`=1:N, NOTICE 전용). 신규 `BoardAttachmentValidator`(최대 10개, 1개당 10MB, 문서+이미지 확장자/MIME 허용목록, 이미지만 시그니처 검증). `BoardService`/`BoardController`(공개 GET, `/api/boards`)/`BoardAdminController`(관리자 CRUD, `/api/admin/boards`) 신규. `SecurityConfig`에 `arch.md` §4.6이 이미 명시했으나 코드로는 없었던 `/api/admin/**` → `hasRole("ADMIN")` 신규 추가(이 프로젝트 첫 관리자 전용 쓰기 API), `GET /api/boards`·`GET /api/boards/**` `permitAll()` 추가. 서비스 레벨 권한 분기 없음 — 라우트 레벨 강제로 충분(리소스 소유권 판단이 필요없는 "관리자냐 아니냐"뿐이라 Review의 `canEdit`/`canDelete`와 다름). `ErrorCode.BOARD_NOT_FOUND` 신규. FAQ+첨부파일 요청은 `INVALID_INPUT`으로 거절(2026-08-14 사용자 확인). API 4(수정)는 첨부파일 편집을 이번 패스 범위 밖으로 명시적으로 미루고 `application/json`으로 단순화(당초 `multipart/form-data` 초안에 실체 없는 `attachments` 파트가 남아있던 문서 불일치를 구현 중 발견해 함께 정리). 신규 테스트 34개(`BoardTest` 2개, `BoardAttachmentTest` 1개, `BoardAttachmentValidatorTest` 6개, `BoardServiceTest` 12개, `BoardControllerTest` 5개, `BoardAdminControllerTest` 8개) 전부 통과. 전체 스위트 258개 중 기존과 동일하게 Redis 미기동 관련 3건만 실패(회귀 없음). NOTICE 첨부파일 교체/추가/삭제 흐름과 프론트 업로드 UI는 다음 패스로 이월 |
 | ✅ | Inquiry(1:1 문의) 도메인 구현 완료(2026-08-19) | Claude | `main` | `docs/specs/inquiry/requirements.md` §⑨ | 6개 API 전부 구현+테스트 완료: `POST /api/inquiries`(`1abab25`), `GET /api/my/inquiries`·`/{id}`(`0b08b41`), `GET /api/admin/inquiries`·`/{id}`(`3cb647f`), `PATCH /api/admin/inquiries/{id}/answer`(최초 등록만 best-effort 이메일 알림, `f877d2d`), `PATCH /api/admin/inquiries/{id}/status`(`a9abff7`). 신규 테스트 37개(엔티티 2, 서비스 15, `InquiryControllerTest` 4, `MyInquiryControllerTest` 5, `InquiryAdminControllerTest` 10, 이하 반올림) 전부 통과, 전체 스위트 472개 중 `UserApplicationFlowTest.fullUserApplicationFlow`(pre-existing) 1건만 실패(회귀 없음). **오픈 아이템**: 프론트 `InquiryPage.tsx`가 신설된 `privacyConsent` 필드를 아직 전송하지 않아(`docs/FRONTEND_API_GAPS.md` §1.3) 실 연동 전 프론트 반영 필요 — 그 전까지 `POST /api/inquiries`는 실제 프론트 요청 기준으로는 항상 400. §⑧ 6개월 파기 배치와 `api.md`/`data-model.md` 문서 분리는 별도 후속작업으로 남음. |
@@ -81,6 +138,42 @@
 | ⚪ | 단체신청 Excel 양식 다운로드 API 필요 여부 확정 | 미정 | `main` | `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 백엔드에 template 관련 엔드포인트가 확인되지 않음(코드 검색 결과 없음) — 프론트에도 양식 다운로드 버튼 자체가 없음. 신규 API가 필요한 건지, 정적 파일 제공으로 충분한지 정책 확인부터 필요 |
 
 > 아래 "Task 1~4" 4행 요약은 이 로드맵이 Task 1~6(5-A/5-B 포함)으로 세분화되기 전의 옛 버전이라 삭제함 — 최신 진행 상태는 바로 아래 "Application 개인 신청 리팩터링 로드맵" 절 참고.
+
+---
+
+## 단체 전체 재업로드 photoNumber 보존
+
+상태: ✅ 완료 (2026-09-14, Claude)
+
+### 현재 동작과 원인
+
+- [x] 최초 단체 신청은 `ApplicationPersistenceService.saveGroup()`에서 `row.photoNumber()`를 전달해 `ApplicationMember.photoNumber`에 저장함을 확인
+- [x] 단체 재업로드는 `ApplicationService.reuploadPhoto()`에서 기존 Member 전체를 삭제하고 재업로드한 Excel+사진 ZIP으로 전체 Member를 다시 생성함을 확인
+- [x] 재생성 시 사진 번호 인자가 없는 legacy `ApplicationMember.createGroupRow()` 오버로드를 호출하며, 해당 오버로드가 `photoNumber=null`을 전달하는 결함 확인
+- [x] 기존 `ApplicationServicePhotoReuploadTest.reuploadPhotoForGroupReplacesMembersAndUpdatesQuantity`는 영문명과 수량만 확인하고 `photoNumber`를 검증하지 않아 결함을 탐지하지 못함을 확인
+
+### 구현 체크리스트
+
+- [x] 정책 테스트를 먼저 보강하고 현재 구현에서 의도대로 실패하는지 확인 — `reuploadPhotoForGroupPreservesPhotoNumberFromExcel` 신규 추가, 수정 전 `expected: "9" but was: null`로 의도대로 RED 확인
+- [x] 단체 재업로드 테스트에서 재업로드 Excel의 사진 번호가 새 Member에 저장되는지 검증 — 위 테스트가 그대로 검증
+- [x] `ApplicationService.reuploadPhoto()`의 `createGroupRow()` 호출에 마지막 인자로 `row.photoNumber()` 전달
+- [x] 기존 DB Member의 번호를 복사하지 않고 재업로드된 Excel의 `BulkMemberRow.photoNumber`를 Source of Truth로 사용 — 재업로드는 기존 로직대로 Member 전체 삭제 후 `BulkMemberRow`로만 재생성하므로 별도 구현 불필요, 그대로 성립
+- [x] 재업로드 후 모든 Member의 `photoNumber`가 null이 아니고 신청 내부에서 유일한지 확인 — `BulkExcelParser`가 파싱 시점에 이미 필수·중복 검증(`REQUIRED`/`DUPLICATE_ID`)을 강제하므로 이 fix로 새로 보장할 필요 없음, 기존 보장 그대로 유지됨 확인
+- [x] 사진 번호 기준 관리자 카드번호 일괄 입력이 재업로드 후에도 정상 동작하는지 관련 회귀 테스트 확인 — `ApplicationServiceCardNumberTest` 포함 `domain.application.*` 전체 재실행 회귀 없음
+- [x] 단체 전체 재업로드의 기존 DB 트랜잭션, S3 신규 파일 보상 삭제, commit 이후 구 파일 삭제 동작에 회귀가 없는지 확인 — `ApplicationServicePhotoReuploadTest` 12개(신규 1개 포함) 전부 통과
+
+### 범위 제한
+
+- [x] 신규 Entity, enum, DB 컬럼 또는 API를 추가하지 않음
+- [x] Member별 `REVIEW_REQUIRED`·`APPROVED` 상태와 부분 수정 API를 만들지 않음
+- [x] 단체 신청은 Application 단위 `PHOTO_REJECTED` → 전체 `submitFile` 재업로드 → `REVIEWING` 복귀 구조를 유지
+- [x] 프론트 단체 재제출 UI는 진행 보드의 별도 항목에서 처리 — 이번 작업에서 건드리지 않음
+
+### 완료 조건
+
+- [x] 단체 재업로드 후 Excel 사진 번호가 새 `ApplicationMember.photoNumber`에 정확히 저장됨
+- [x] 기존 재업로드 집중 테스트 및 사진 번호 기반 카드번호 일괄 입력 관련 테스트 통과 — `domain.application.*` + `api.*` 전체 재실행, 전체 스위트 868개 전부 통과(회귀 없음)
+- [x] API 계약과 DB schema 변경 없음
 
 ---
 
@@ -489,6 +582,16 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 
 > 기준: 2026-08-17 확정 정책. `origin/main` `26ac036`에는 일일 KST 3회 제한만 구현되어 있으며 아래 항목은 미구현 상태다.
 
+### 최신 환불 운영 정책 (2026-09-13 확정, 아래의 이전 환불 모델보다 우선)
+
+- [x] 사용자가 취소하면 결제 상태와 관계없이 허용된 신청 상태에서 즉시 `ApplicationStatus=CANCELLED`로 변경
+- [x] `PaymentStatus`는 기존 입금 확인 이력(`WAITING` 또는 `CONFIRMED`)을 그대로 유지
+- [x] `CANCELLED + WAITING`은 환불 불필요, `CANCELLED + CONFIRMED`는 관리자가 외부 은행 내역을 확인하여 시스템 밖에서 전액 환불
+- [x] 백엔드는 환불 금액·통화·계좌·진행 상태·완료 여부를 저장하거나 계산하지 않음
+- [x] 환불 대기 목록 API, 환불 완료 API, `REFUND_PENDING`/`REFUNDED` 상태, 환불 전용 관리자 UI 및 감사 로그는 구현하지 않음
+- [x] 기존 `refundedAt`/`markRefunded()`는 이전 정책에서 구현된 호환 필드·메서드로 남아 있으나 신규 흐름에서 호출·노출하지 않음. DB 컬럼 제거는 이번 최소 변경 범위에 포함하지 않음
+- [x] 시스템은 외부 환불의 완료·누락·중복을 판정하지 않으며 초기 운영에서는 관리자가 별도 운영 절차로 확인
+
 ### 1. 정책 문서 정합성
 
 - [x] `requirements.md`의 `PAYMENT_PENDING → RECEIVED → REVIEWING` 선형 흐름을 새 상태 구조로 교체
@@ -506,7 +609,7 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] `PaymentStatus`는 입금 확인 이력인 `WAITING, CONFIRMED`만 유지
 - [x] `CancellationType`에 `USER, SYSTEM, ADMIN` 정의
 - [x] `CancellationReason`에 `USER_REQUEST, PAYMENT_TIMEOUT, ADMIN_DECISION` 정의
-- [x] `Application`에 nullable `cancelledAt`, `cancellationType`, `cancellationReason`, `refundedAt` 추가
+- [x] `Application`에 nullable `cancelledAt`, `cancellationType`, `cancellationReason`, `refundedAt` 추가 — `refundedAt`은 이전 정책 구현 흔적이며 최신 운영 흐름에서는 사용하지 않음
 - [x] `Application`에 nullable `paymentGuidedAt`, `paymentDueAt` 추가
 - [x] 모바일 다운로드 기준 `cardReadyAt`, 실물 발송 여부 `physicalDispatchedAt` 반영
 - [ ] `Application`에 동시 상태 변경 감지를 위한 `@Version` 필드 추가하고 DB 컬럼·기존 row 초기화 방식 반영 — Entity 필드는 추가 완료, 운영 DB 기존 row 초기화·배포 절차는 미완료
@@ -534,9 +637,8 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] 현재 모든 비취소 상태를 취소할 수 있는 범용 `cancel()`을 제거/비공개화하고 이번 범위에서는 `cancelByUser()`, `cancelForPaymentTimeout()`만 각각 허용 상태를 검증하도록 분리
 - [x] 관리자 직접 취소 API·Service 메서드는 구현하지 않고 `ADMIN`, `ADMIN_DECISION` 값만 향후 확장용으로 예약
 - [x] `cancellationType`과 `cancellationReason`의 허용 조합(`USER/USER_REQUEST`, `SYSTEM/PAYMENT_TIMEOUT`, `ADMIN/ADMIN_DECISION`) 불변조건 보장
-- [x] `markRefunded()`는 `CANCELLED + CONFIRMED`에서만 `refundedAt`을 한 번 기록
-- [x] `refundedAt != null`이면 반드시 `CANCELLED + CONFIRMED` 불변조건 보장
-- [x] 자동 취소 후 늦은 입금은 재활성화하지 않고 `CANCELLED + CONFIRMED + refundedAt=null` 유지
+- [x] `markRefunded()`와 `refundedAt` 불변조건은 이전 정책 기준으로 구현됨 — 최신 운영 흐름에서는 Service/API에 연결하지 않음
+- [x] 자동 취소 후 늦은 입금은 재활성화하지 않고 `CANCELLED + CONFIRMED` 유지; 환불은 관리자가 시스템 밖에서 확인·처리
 
 ### 4. Service 및 트랜잭션
 
@@ -549,33 +651,92 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [ ] 결제 안내/입금 확인/검토 시작/검토 승인/편집 완료/제작 승인/제작 완료가 새 Entity 메서드만 통해 전이되도록 관리자 Application 처리 흐름 연결
 - [x] 자동 취소 스케줄러는 `SUBMITTED + WAITING + paymentDueAt<=now` 조회 후 처리 직전 Entity에서 재검증
 - [x] 자동 취소 스케줄러 기본 주기를 10분(`0 */10 * * * *`)으로 두고 `application.payment-timeout-scheduler.cron` 설정으로 변경 가능하게 구현
-- [ ] `ApplicationRepository`에 자동 취소 대상과 환불 대기 대상 조회를 추가하고, 상태 변경용 조회에는 선택한 낙관적/비관적 잠금 정책을 일관되게 적용 — 자동 취소 대상 조회·`@Version` 적용 완료, 환불 대기 조회는 후속
+- [x] `ApplicationRepository`에 자동 취소 대상 조회와 상태 변경 동시성 정책 적용 — 자동 취소 대상 조회·`@Version` 적용 완료; 환불 대기 조회는 최신 정책에서 범위 제외
 - [x] 스케줄러와 관리자 입금 확인이 같은 신청을 처리할 때 낙관적 락 충돌을 감지하고 스케줄러가 해당 stale 후보를 건너뛰도록 처리
 - [x] 늦은 입금 확인은 환불 대상 조합으로만 바꾸고 Application 상태를 복구하지 않음
 - [x] 최초 사용자/자동 취소 commit 직후 `afterCommit`에서 얼굴사진·로고·직인·제출 ZIP 등 Application 전용 S3 객체를 즉시 삭제; 중복 취소에서는 재삭제하지 않음
 - [x] 사용자 취소 DB 트랜잭션에서 `logoFileId`, `sealFileId`, `submitFileId`, `ApplicationMember.photoPath` 등 삭제 대상 참조와 해당 UploadFile metadata row를 함께 정리하고 Application/Applicant/Receiver/Member 이력 row는 유지
 - [x] 사용자 취소 DB rollback/commit 실패 시 S3 삭제를 실행하지 않고 기존 파일을 보존
 - [x] 사용자 취소 after-commit S3 삭제 실패는 취소 결과를 되돌리거나 원 예외로 바꾸지 않고 실패 key를 오류 로그로 남겨 운영자가 수동 재삭제
-- [ ] 환불 완료 처리 시 기존 `AdminActivityLog`에 관리자·신청·처리 시각 기록
-- [ ] `AdminActivityLog`에 환불 완료 action type을 추가하고 최초 완료 때만 로그가 한 건 생성되도록 보장
+- [x] 환불 완료 `AdminActivityLog` 및 action type 추가하지 않음 — 외부 환불 완료를 시스템에 기록하지 않는 정책으로 범위 제외
 - [x] `ApplicationDailyLimitService`의 “향후 취소 구현” 주석을 실제 취소 트랜잭션 연결 방식으로 갱신
 
 ### 5. API 및 조회 계약
 
 - [x] `POST /api/applications/{applicationId}/cancel` 추가; 로그인 본인 신청만 허용
-- [x] 요청 본문 없이 ApplicationStatus, PaymentStatus, 환불 필요 여부 응답
+- [x] 요청 본문 없이 ApplicationStatus, PaymentStatus, 입금 이력에 따른 운영 참고값 응답 — 환불 완료 상태를 의미하지 않음
 - [x] 신청 없음, 타인 신청, 취소 불가 상태, 중복 취소의 HTTP/ErrorCode 계약 구현·검증
 - [ ] 관리자 결제 안내 API/명령과 입금 확인 API 계약을 분리하고, 안내 시각·기한 및 실제 입금 이력을 각각 응답에 반영
 - [ ] 입금 확인 최초 호출과 중복 호출 모두 `200 OK`; 중복 호출은 `CONFIRMED` 유지와 “이미 입금 확인 완료” 안내를 기존 `ApiResponse` 형식으로 반환
 - [ ] 관리자 상태 변경 API가 임의 status 문자열 덮어쓰기가 아니라 검토 시작·승인·편집 완료·제작 승인·제작 완료 명령을 호출하도록 계약 정리
 - [ ] 카드 파일 준비 완료와 `MOBILE_AND_PHYSICAL` 택배사 인계를 기록하는 관리자 API/명령을 분리하고, 인계 API는 배송사·운송장 정보를 받지 않도록 계약
 - [ ] 낙관적 락 충돌을 409 등 일관된 ErrorCode/HTTP 응답으로 매핑
-- [ ] `CANCELLED + CONFIRMED + refundedAt=null`은 환불 대기, `refundedAt!=null`은 환불 완료로 조회
-- [ ] 관리자 환불 대상 조건을 `CANCELLED + CONFIRMED + refundedAt IS NULL`로 정의
-- [ ] 관리자 환불 완료 API 또는 내부 관리 명령에서만 `markRefunded()` 호출
+- [x] 환불 대기·완료 상태 조회, 환불 대상 전용 조회 및 `markRefunded()` 호출 API는 구현하지 않음 — 관리자가 `CANCELLED + CONFIRMED`를 참고해 외부 절차로 처리
 - [ ] 카드 다운로드 조건을 `COMPLETED` 단독 검사에서 `cardReadyAt` 기준으로 변경
 - [ ] `MOBILE`은 카드 파일 준비 시 완료, `MOBILE_AND_PHYSICAL`은 `physicalDispatchedAt` 기록 시 완료
 - [ ] 배송사·운송장·배송 중·배송 완료 상태는 저장하거나 제공하지 않음
+
+### 5-A. 결제 안내 API/UI 연결 — 다음 구현 단위
+
+범위: 관리자가 외부 상담·연락으로 결제 방법을 안내한 뒤 시스템에서 `결제 안내 완료`를 기록하는 기능이다. 이번 단위에서는 이메일·SMS 발송 기능을 추가하지 않는다. 기존 DB 컬럼, `Application.guidePayment()`, `ApplicationService.guidePayment()`, 자동 취소 스케줄러를 재사용하며 DB 스키마를 변경하지 않는다.
+
+#### 5-A-1. Entity 불변조건
+
+- [ ] 일반 입금 확인은 `SUBMITTED + WAITING + paymentGuidedAt!=null + paymentDueAt!=null`에서만 허용하도록 `confirmPayment()` 선행조건을 보강
+- [ ] 결제 안내 전 `SUBMITTED + WAITING` 신청에 대한 입금 확인은 `INVALID_STATUS_TRANSITION`으로 거절
+- [ ] 자동 취소 후 늦은 입금 확인은 `CANCELLED + WAITING + cancellationType=SYSTEM + cancellationReason=PAYMENT_TIMEOUT`에서만 예외적으로 허용
+- [ ] 사용자 취소 또는 다른 사유로 `CANCELLED`된 신청의 뒤늦은 입금 확인은 거절
+- [ ] 늦은 입금 확인 후 신청 상태는 `CANCELLED`로 유지하고 결제 상태만 `CONFIRMED`로 변경; 별도 환불 대기 상태는 만들지 않음
+- [ ] 최초 결제 안내는 `paymentGuidedAt=현재 시각`, `paymentDueAt=paymentGuidedAt+72시간`을 기록
+- [ ] 결제 안내 재호출은 기존 안내·기한을 변경하거나 72시간을 연장하지 않는 멱등 성공
+
+#### 5-A-2. 백엔드 API
+
+- [ ] `POST /api/admin/applications/{applicationId}/guide-payment` 추가
+- [ ] Controller는 `ApplicationService.guidePayment(adminId, applicationId)`만 호출하고 Entity를 API 응답으로 직접 노출하지 않음
+- [ ] 결제 안내 응답 DTO에 최소 `applicationId`, `status`, `paymentStatus`, `paymentGuidedAt`, `paymentDueAt`, 최초 처리 여부 또는 사용자 안내 메시지를 포함
+- [ ] 기존 `POST /api/admin/applications/{applicationId}/confirm-payment`는 결제 안내 완료 후에만 일반 입금 확인을 허용
+- [ ] 결제 안내·입금 확인 모두 `/api/admin/**` Security 규칙과 Service의 `requireAdmin()` 이중 인가를 유지
+- [ ] 신청 없음은 기존 `APPLICATION_NOT_FOUND`, 잘못된 상태 조합은 기존 `INVALID_STATUS_TRANSITION`을 사용하고 새 ErrorCode를 임의로 추가하지 않음
+- [ ] 최초 입금 확인에만 `PAYMENT_CONFIRMED` 감사 로그를 1건 저장하고 중복 호출에서는 추가 로그를 남기지 않음
+
+#### 5-A-3. 관리자 프론트 연결
+
+- [ ] `api.guideApplicationPayment(applicationId)` 추가
+- [ ] `SUBMITTED + WAITING + paymentGuidedAt 없음`이면 `결제 안내 완료` 버튼 표시
+- [ ] `SUBMITTED + WAITING + paymentGuidedAt 있음`이면 `입금 확인` 버튼 표시
+- [ ] 결제 안내 전에는 일반 입금 확인 버튼을 표시하거나 활성화하지 않음
+- [ ] 결제 안내 성공 후 신청 상세를 재조회하여 `paymentGuidedAt`, `paymentDueAt`과 가능한 다음 동작을 서버 상태 기준으로 갱신
+- [ ] 관리자 상세에 결제 안내 시각과 입금 기한을 표시
+- [ ] 요청 중 버튼 비활성화로 중복 클릭을 방지하고, 실패 시 서버 메시지와 재시도 가능한 상태를 유지
+- [ ] 프론트에서 기한을 임의 계산하지 않고 백엔드가 반환한 `paymentDueAt`을 표시
+
+#### 5-A-4. 사용자 화면 연결
+
+- [ ] 마이페이지 신청 상세가 기존 응답의 `paymentGuidedAt`, `paymentDueAt`을 누락 없이 표시하는지 확인
+- [ ] 결제 안내 전에는 `결제 안내 전` 또는 동일 의미의 상태를 표시하고 임의 기한을 보여주지 않음
+- [ ] 결제 안내 후에는 서버가 반환한 정확한 입금 기한을 표시
+- [x] 사용자 화면에는 환불 진행·완료 상태를 표시하지 않고 신청을 `취소됨`으로 표시; 환불 확인은 관리자 외부 운영 절차로 처리
+
+#### 5-A-5. 최소 테스트
+
+- [ ] Entity 테스트: 최초 안내 시각·72시간 기한, 재안내 멱등성, 잘못된 상태의 안내 거절
+- [ ] Entity 테스트: 결제 안내 전 일반 입금 확인 거절, 안내 후 입금 확인 성공
+- [ ] Entity 테스트: `PAYMENT_TIMEOUT` 자동 취소 후 늦은 입금은 `CANCELLED + CONFIRMED` 유지, 사용자 취소 후 늦은 입금은 거절
+- [ ] Controller 테스트: ADMIN 성공, USER 403, 미인증 401, 신청 없음 404, 상태 오류 응답
+- [ ] Service 테스트: 최초·중복 결제 안내가 기한을 연장하지 않고 최초 입금 확인에만 감사 로그 1건 생성
+- [ ] Scheduler 통합 테스트: 결제 안내 전 신청은 대상이 아니고 `paymentDueAt` 경과 신청만 자동 취소
+- [ ] 프론트 테스트 또는 E2E: `결제 안내 완료 → 시각·기한 표시 → 입금 확인 → 검토 시작` 순서가 실제 API와 연결되는지 검증
+- [ ] 관련 테스트와 frontend/backend build를 실행하고 전체 출력은 로그 파일에 저장; 종료 코드·테스트 집계·실패 대상·최초 원인만 보고
+
+#### 5-A 완료 조건
+
+- [ ] 관리자가 화면에서 결제 안내 완료를 기록할 수 있음
+- [ ] 결제 안내 없이는 일반 입금 확인을 진행할 수 없음
+- [ ] 안내 시각부터 정확히 72시간 뒤가 입금 기한으로 저장·표시됨
+- [ ] 기한 경과 `SUBMITTED + WAITING` 신청이 10분 설정형 스케줄러의 자동 취소 대상이 됨
+- [ ] 자동 취소 후 늦은 입금 예외가 일반 취소 신청에 잘못 적용되지 않음
+- [ ] 기존 신청·취소·결제 확인·검토 시작 흐름에 회귀가 없음
 
 ### 6. 테스트
 
@@ -585,11 +746,11 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] 결제 안내 최초 시각+72시간 기한, 재안내 시 기한 불변, 입금 확인 시 ApplicationStatus 불변을 검증
 - [ ] `CONFIRMED` 입금 확인 재호출이 200 멱등 성공하고 상태·시각·이력을 중복 변경하지 않는지 검증
 - [ ] 카드 준비 시 IssueType별 상태 전이와 `cardReadyAt`, `physicalDispatchedAt`, 조기 다운로드 허용 조건 검증
-- [x] `WAITING` 취소는 `CANCELLED + WAITING`, `CONFIRMED` 취소는 `CANCELLED + CONFIRMED + refundedAt=null` 검증
+- [x] `WAITING` 취소는 `CANCELLED + WAITING`, `CONFIRMED` 취소는 `CANCELLED + CONFIRMED`이며 결제 상태가 유지되는지 검증
 - [ ] `SUBMITTED, REVIEWING, PHOTO_REJECTED` 취소 성공과 `NAME_EDITING` 이후 거절 검증
 - [x] 중복 취소가 멱등 성공하고 일일 슬롯을 한 번만 반환하는지 검증
 - [x] 타인 신청 취소 403, 신청 없음 404 검증
-- [ ] 환불 완료 선행조건·멱등성·환불 대기 목록 제외 검증
+- [x] 환불 완료 처리와 환불 대기 목록 테스트는 최신 정책에서 범위 제외
 - [ ] 결제 안내 전, 3일 미경과는 자동 취소하지 않고 기한 경과 건만 취소하는지 검증
 - [ ] 자동 취소와 입금 확인 동시 실행 통합 테스트
 - [x] 자동 취소 후 늦은 입금이 신청을 재활성화하지 않는지 검증
@@ -598,11 +759,12 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] S3 삭제 실패에도 취소 상태와 일일 슬롯 반환이 유지되는지 검증하고 실패 key 오류 로그 유지
 - [ ] 조회·사진 재업로드·카드 다운로드·Review 작성 자격 테스트 전체 회귀 검증
 
-### 7. 최소 환불 모델 운영 한계
+### 7. 외부 환불 운영 범위
 
-- [ ] `refundedAt`은 환불 누락과 중복 완료 기록은 방지하지만 외부 계좌이체 중복 송금까지 보장하지 못함을 운영 문서에 명시
-- [ ] 초기 운영은 환불 대기 목록 + 관리자 완료 처리 + `AdminActivityLog`로 관리
-- [ ] 다중 관리자 중복 송금 문제가 실제 발생할 때만 `refundProcessingAt`, `refundedBy` 또는 Refund 엔티티 재검토
+- [x] 환불 실행과 완료 확인은 시스템 기능이 아니라 관리자 외부 은행·운영 절차의 책임으로 확정
+- [x] 시스템은 `CANCELLED + CONFIRMED` 조합까지만 제공하며 환불 완료 여부를 구분하지 않음
+- [x] `refundedAt`, 환불 전용 상태·조회·완료 API·감사 로그·전용 UI를 신규 흐름에 연결하지 않음
+- [x] 환불 누락·중복 방지는 현재 시스템 보장 범위 밖이며, 실제 운영 문제가 확인될 때만 Refund 모델을 다시 검토
 
 ## Application 개인 신청 리팩터링 로드맵
 
@@ -1159,7 +1321,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] 카드번호 저장 외 카드 생성·S3 변경 없음.
 - [x] 카드번호 Service/Controller targeted tests와 `compileJava` 통과 — 전체 스위트(REDIS_PORT=6400) 그린, 실패 0.
 
-### 1-D. 만세력 확정 결과 저장 계약 — 🔵 백엔드 완료, 프론트 미착수 (Claude, 2026-08-26)
+### 1-D. 만세력 확정 결과 저장 계약 — 🔵 기본 프론트 연결 완료, 재진입 복원 미완료 (Claude, 2026-08-26)
 
 > ⚠️ 이 섹션은 "별도 saju 결과 Excel import 보강"으로 한 번 대체됐다가, 사용자가 다시 원래 방향(HC가 timezone/DST 직접 판정)으로 최종 확정하며 되돌아왔다. 위 공통 노트의 superseded 문구 참고.
 
@@ -1174,8 +1336,8 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] 현재 활성 결과 조회: `GET /api/admin/applications/{id}/members/{memberId}/manseryeok` — 카드 띠 이미지 등에서 `confirmedPillars.year` 조회에 사용 가능.
 - [x] Google Maps API 키 미설정 시 기동은 막지 않고 호출 시점에 `GEOCODING_NOT_CONFIGURED`(503)로 거절 — 사용자 결정("구조만 먼저, 키는 나중에")에 따름. `app.google-maps.api-key`(`GOOGLE_MAPS_API_KEY`)/`app.google-maps.base-url` 설정 추가.
 - [x] 신규 테스트 24개(`BirthTimeZoneResolverTest` 12 — EXACT/NONEXISTENT/AMBIGUOUS/남반구/1970년 이전/UTC 날짜 경계 등, `GoogleBirthRegionLookupClientTest` 2, `ManseryeokServiceTest` 10 — resolve DB 미변경·confirm 무결성/이력보존/PARTIAL·조회·권한).
-- [ ] 프론트(`saju.ts`) 재작성 — 로컬시각을 그대로 쓰는 현재 방식을 버리고 백엔드가 확정한 `utcInstant`+`longitude`를 받아 진태양시 보정 후 계산하도록 변경. **미착수, 별도 세션.**
-- [ ] 관리자 화면 — 출생지역 검색·후보 선택·AMBIGUOUS 후보 선택 UI. **미착수, 별도 세션.**
+- [x] 프론트(`saju.ts`)가 백엔드에서 확정한 `utcInstant`+`longitude`를 받아 진태양시 보정 후 계산하도록 연결됨 — `computeMemberSajuFromResolved()`와 관리자 `SajuResolvePanel`에서 사용.
+- [x] 관리자 화면에 출생지역 검색·후보 선택·AMBIGUOUS offset 후보 선택·확정 저장 UI 연결.
 - [ ] "출생정보·timezone 선택·계산 엔진 버전이 바뀌면 기존 결과를 stale로 판정" 로직 — 현재는 재확정 시 이력만 보존하고 이전 결과를 active=false로 바꿀 뿐, "이 결과가 최신 입력과 다른 stale 상태"라고 명시적으로 플래그하지는 않는다. **후속 보강 필요.**
 - [ ] `tzdb`/계산 엔진 버전이 실제로 바뀌었을 때 재계산을 강제하는 배치·알림은 없음. **범위 밖으로 명시.**
 
@@ -1183,7 +1345,68 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 - [x] `CardImageCompositor`가 프론트 runtime이나 mock에 의존하지 않고 DB의 재현 가능한 확정 연주를 조회할 수 있음 — `GET .../manseryeok`으로 조회 가능(단, `CardImageCompositor` 자체 연동은 2단계 범위).
 - [x] 관리자 만세력 저장 API targeted tests와 `compileJava` 통과 — 전체 스위트(REDIS_PORT=6400) 그린, 실패 0(도중 `RestClient.Builder` 빈 미등록으로 514/694 대거 실패했던 걸 `RestClient.builder()` 직접 생성으로 수정해 해소 — 이 프로젝트가 Jackson 3(`tools.jackson`)로 옮겨가 있어 Spring Boot `RestClientAutoConfiguration`이 기대하는 classic Jackson 2가 클래스패스에 없어 빈 자체가 안 만들어졌던 것).
-- [ ] 프론트 연동까지는 미완료 — 이 섹션은 백엔드 저장 계약까지만 완료 처리한다.
+- [ ] 확정 결과 저장 후 관리자 화면 재진입·새로고침 시 활성 `ManseryeokResult`를 복원하지 못하는 공백은 아래 1-E에서 처리한다.
+
+### 1-E. 관리자 만세력 확정 결과 재진입 복원 — 다음 구현 단위
+
+목표: 관리자 화면을 닫았다 다시 열거나 브라우저를 새로고침해도 DB의 활성 `ManseryeokResult`를 Source of Truth로 복원한다. 기존 resolve/confirm/active-result API와 DB 구조를 재사용하며 만세력 계산 알고리즘과 Entity schema는 변경하지 않는다.
+
+#### 1-E-1. 복원 우선순위와 화면 상태
+
+- [ ] 활성 저장 결과가 있으면 로컬 재계산값·임시 계산값·mock보다 항상 우선 사용
+- [ ] 조회 상태를 `LOADING`, `CONFIRMED`, `NOT_CONFIRMED`, `ERROR`로 구분하고 기존 `resolvedSaju=null` 하나로 모든 상태를 표현하지 않음
+- [ ] 활성 결과 조회 중에는 추천 이름과 확정 만세력 표를 임시값으로 먼저 표시하지 않음
+- [ ] `404 MANSERYEOK_NOT_CONFIRMED`만 확정 결과 없음으로 처리하고, 401/403/5xx/네트워크 실패는 조회 오류로 표시
+- [ ] 조회 오류에서 mock 또는 로컬 계산 결과로 조용히 fallback하여 확정 결과처럼 표시하지 않음
+- [ ] 화면에 `확정 만세력`, `확정 결과 없음`, `조회 실패`를 명확히 구분하고 `timeAccuracy`, `calculatedAt`, 계산 엔진 버전을 확인 가능하게 표시
+- [ ] Member 또는 Application이 바뀌면 이전 대상의 만세력 상태를 즉시 초기화하고 늦게 도착한 이전 요청이 새 화면 상태를 덮어쓰지 않도록 방지
+
+#### 1-E-2. 프론트 응답 계약과 변환
+
+- [ ] `ManseryeokActiveResult` 타입을 백엔드 `ManseryeokActiveResultResponse`와 대조하고, 조회 응답에 없는 `inputHash`를 `ManseryeokConfirmBody` 상속으로 잘못 필수화한 계약 수정
+- [ ] `confirmedPillars.year/month/day/hour`와 `elementCounts`를 검증하여 화면의 `MockSaju` 호환 모델로 변환하는 순수 adapter 추가
+- [ ] 저장 결과의 필수 pillar 또는 오행 값이 손상·누락된 경우 임의 보정하지 않고 명시적인 데이터 오류로 처리
+- [ ] `uncertainPillars`와 `timeAccuracy`를 보존하고, 불확실한 시주를 확정값처럼 표시하거나 이름 추천 근거로 사용하지 않도록 기존 정책 적용
+- [ ] `NamingCard` mount 및 `appId/memberId` 변경 시 활성 결과를 조회하고, 정상 응답만 `resolvedSaju`에 반영
+- [ ] 만세력 확정 저장 성공 후 방금 전송한 값을 임시 확정으로만 남기지 말고 활성 결과 GET을 재호출하여 서버 저장값으로 화면 갱신
+
+#### 1-E-3. 단체 신청 일괄 복원
+
+- [ ] 최종 구조에서 단체 최대 100명의 `NamingCard`가 각각 GET을 호출하는 N+1/동시 100요청 구조를 사용하지 않음
+- [ ] Application 소속 Member들의 활성 결과를 한 번에 조회하는 관리자 API 추가: `GET /api/admin/applications/{applicationId}/manseryeok-results`
+- [ ] Repository는 대상 Application의 Member ID 목록에 대한 `active=true` 결과를 일괄 조회하고 Member별 최신 활성 결과가 최대 1건이라는 불변조건 확인
+- [ ] Service는 관리자 권한 → Application 존재 → Member 소속을 검증하고 `memberId → active result` 형태로 반환
+- [ ] 결과가 없는 Member는 응답에서 누락하거나 `null`로 표현하는 방식을 DTO에서 하나로 고정하고 프론트도 동일하게 처리
+- [ ] `ApplicationNaming` 부모 컴포넌트가 일괄 결과를 1회 조회해 `memberId` 기준 Map으로 만든 뒤 각 `NamingCard`에 전달
+- [ ] 개인 신청도 동일 일괄 API를 재사용하여 별도 단건 복원 코드 경로를 만들지 않음
+- [ ] DB migration, 새 Entity, 저장 방식 변경은 하지 않음
+
+#### 1-E-4. 예외·동시성
+
+- [ ] 화면 진입 중 관리자가 같은 Member의 만세력을 재확정한 경우 저장 완료 후 최신 active 결과를 다시 조회
+- [ ] 과거 `active=false` 이력은 복원 응답에 섞지 않음
+- [ ] 일부 Member 결과가 손상됐더라도 전체 신청 화면을 빈값이나 mock으로 덮지 않고 해당 Member만 오류 표시
+- [ ] 화면 이탈 또는 Member 변경 후 완료된 요청이 React state를 갱신하지 않도록 cleanup/cancelled guard 적용
+- [ ] 재조회 실패 시 이미 성공적으로 표시 중인 확정 결과를 mock으로 교체하지 않고 오류와 마지막 정상값을 구분
+
+#### 1-E-5. 최소 테스트
+
+- [ ] Backend Service 테스트: 개인 1명과 단체 N명의 활성 결과 일괄 조회, 결과 없는 Member, 과거 inactive 이력 제외, 다른 Application Member 제외, 비관리자 거절
+- [ ] Backend Controller 테스트: ADMIN 200, USER 403, 미인증 401, Application 없음 404 및 응답 JSON 계약
+- [ ] Frontend adapter 테스트: 정상 pillars/오행 변환, 필수값 누락 거절, `timeAccuracy`·`uncertainPillars` 보존
+- [ ] Frontend 화면 테스트: 저장 결과가 있으면 확정값 복원, 404면 미확정 UI, 5xx면 오류 UI이며 mock fallback 미사용
+- [ ] Frontend 화면 테스트: Application/Member 전환 중 늦은 응답이 새 Member 상태를 덮어쓰지 않음
+- [ ] 단체 100명 화면 진입 시 만세력 결과 조회가 Application 단위 1회인지 검증
+- [ ] 실제 흐름 검증: 만세력 확정 저장 → 관리자 상세 닫기 → 재진입 → 새로고침 후에도 동일 pillars·오행·정확도 표시
+- [ ] targeted test와 frontend/backend build를 실행하고 대량 출력은 로그 파일에 저장; 종료 코드·집계·실패 대상·최초 원인만 보고
+
+#### 1-E 완료 조건
+
+- [ ] 관리자 재진입·새로고침 후 DB 활성 결과와 동일한 만세력 정보가 표시됨
+- [ ] 저장 결과가 있는데 로컬 계산이나 mock 결과로 대체되는 경로가 없음
+- [ ] 조회 실패와 미확정 상태를 구분하여 관리자가 다음 행동을 판단할 수 있음
+- [ ] 개인·단체가 동일 복원 계약을 사용하고 단체 100명에서도 N+1 요청이 발생하지 않음
+- [ ] 기존 resolve/confirm, 카드 띠 이미지 조회, 이름 확정과 카드 Preview 흐름에 회귀가 없음
 
 ## 2. CardDesign 매핑과 단일 Member 미리보기
 
@@ -1380,8 +1603,8 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] `Application` 엔티티에 `schoolId`(nullable) 컬럼 추가. 기존 `schoolName`/`schoolType` 컬럼 구조는 그대로 유지. `createIndividual`/`createGroup`에 schoolId 포함 새 오버로드 추가(기존 호출부 하위호환 유지).
 - [x] `ApplicationService.resolveSchool()` 신설 — `schoolId` 있으면 School 존재 검증(없으면 `INVALID_INPUT`) 후 `schoolName`/`schoolType`을 School 값으로 강제 확정(클라이언트 값 무시). `schoolId` 없으면 기존 직접입력 검증(`isValidSchoolName` 등) 그대로. 개인(`createIndividual`)·단체(`createGroup`) 둘 다 적용, `BulkExcelParser` 호출도 resolvedSchool 기준으로 교체(학번/학과 열 파싱 분기가 School의 실제 schoolType을 따르도록).
 - [x] `BulkExcelParser` 자체는 변경 없음(학번/학과만 여전히 엑셀 컬럼).
-- [ ] 직접입력 신청의 카드 제작 전환을 위한 관리자 학교 연결 기능 추가(위 "직접입력 학교 처리 원칙" 4·6번 그대로) — Application.schoolType과 같은 유형의 **이미 등록된** School만 지정할 수 있고(신규 School 생성은 이 기능에 없음, 정책 5번의 별도 경로), Application.schoolId만 연결하며 Application.schoolName 스냅샷을 자동 변경하지 않는다.
-- [ ] 관리자 학교명 오타 정정 기능 추가 — REVIEWING까지 Application.schoolName만 수정 가능하고 NAME_EDITING 이후에는 거절한다. School 마스터 이름은 이 기능으로 수정하지 않는다.
+- [ ] 직접입력 신청의 카드 제작 전환을 위한 관리자 학교 연결 기능 추가 — **상세 구현 계획은 4-A-1로 분리·확정함(2026-09-14), 그쪽 체크리스트를 따른다.**
+- [ ] 관리자 학교명 오타 정정 기능 추가 — REVIEWING까지 Application.schoolName만 수정 가능하고 NAME_EDITING 이후에는 거절한다. School 마스터 이름은 이 기능으로 수정하지 않는다. (4-A-1과 별개 작업으로 분리, 이번엔 범위 아님)
 - [ ] 학교 연결·학교명 정정은 관리자 권한, Application 잠금/version, AdminActivityLog를 적용하고 카드 생성 이후 변경을 금지한다.
 - [ ] `docs/specs/application/data-model.md`/`api.md`에 `School` 테이블·`schoolId` 필드 계약 반영 — 아직 미기록.
 
@@ -1400,6 +1623,61 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] (b) "직접 입력"으로 전환해 학교명+구분을 수동 입력 후 제출 → 기존과 동일하게 정상 접수되는지 확인.
 - [ ] (c) 개인 신청·단체 신청 두 진입점 모두에서 (a)(b) 반복 확인(폼이 분리돼 있어 한쪽만 고치고 다른 쪽을 빠뜨리는 실수 방지).
 - [ ] (d) PR diff 크기 확인 — 학교 검색select 관련 파일과 `api.ts` 외에 다른 스텝/로직 파일이 포함돼 있지 않은지.
+
+### 4-A-1. 관리자 학교 연결 기능 — 구현 계획 확정 (2026-09-14, Claude, 구현 전)
+
+상태: 🔵 계획 확정, 구현 전 — 4-A의 미착수 체크박스(1606행)를 실제 구현 단위로 상세화한 것.
+
+#### 배경 — 왜 "신청인 확인"과 분리된 별도 기능인가
+
+직접입력(`schoolId=null`) 신청은 신청·검토·작명까지 기존 흐름 그대로 진행 가능하다(4-A 정책 8번) — 관리자의 신원 확인·작명 업무는 `schoolName` 스냅샷만으로 완전히 끝난다. `schoolId`는 신원 확인용 값이 아니라 **카드 렌더링이 `CardDesign`(학교별 템플릿)을 찾기 위한 매칭 키**이고, 이게 필요해지는 시점은 Preview/생성 직전뿐이다. 그래서 "신청인 식별"과 "카드 제작 준비"를 같은 단계로 묶지 않고 분리했다 — 템플릿이 아직 없는 학교라는 이유로 검토·작명까지 덩달아 막히지 않게 하기 위함(코드 재확인 완료: `ApplicationService.resolveSchool()`은 신청 생성 시점에만 쓰이고, 이미 생성된 Application에 나중에 schoolId를 연결하는 경로는 grep 0건).
+
+#### 스코프 확정 (2026-09-14, 사용자 확인)
+
+**이번 범위 = "없는 학교를 등록"하는 기능이 아니라, "이미 등록된 School을 기존 Application에 연결"하는 기능만 추가.** School 생성/수정, 중복학교 처리, 학교코드·지역 검증까지 같이 만들면 범위가 연쇄적으로 커진다는 이유로 — 4-A 정책 6·7번이 이미 그 확장을 피하려고 정한 결정이라, 이번에도 그 경계를 유지한다(운영자 DB 직접 등록 경로는 그대로 둠, 새 API/UI 없음).
+
+```
+사용자 신청 (schoolId=null, schoolName="OO고등학교")
+        ↓
+관리자 검토·작명 진행 (학교 연결 안 돼 있어도 가능, 기존 그대로)
+        ↓
+카드 제작 직전 — "학교 연결 필요" 표시(신규 UI 필요, 아래 참고)
+        ↓
+관리자가 이미 등록된 School을 검색해서 선택
+        ↓
+Application.schoolId = 선택한 School.id (신규 백엔드 API, 이번 구현 대상)
+        ↓
+schoolId + orientation으로 CardDesign 조회 (4-B, 이미 구현됨)
+        ↓
+템플릿 있으면 Preview/생성, 없으면 "카드 템플릿 등록 필요"(이미 구현됨, CARD_DESIGN_NOT_FOUND 재사용)
+```
+(없는 학교면 → 관리자 화면 밖에서 운영자에게 School 등록 요청 → 등록 후 위 흐름 재진입, 이번 기능 범위 아님)
+
+#### 구현 체크리스트 (1606행 항목의 상세화)
+
+- [ ] 신규 API: `PUT /api/admin/applications/{applicationId}/school` — 요청 바디 `{ schoolId }`(Long, 필수).
+- [ ] School 존재 검증(`SchoolService.getSchoolNameOrThrow()` 등 기존 헬퍼 재사용) — 없으면 `SCHOOL_NOT_FOUND`(기존 코드 재사용, 4-D에서 이미 추가됨).
+- [ ] `School.schoolType == Application.schoolType` 검증 — 불일치면 `INVALID_INPUT`(신규 에러코드 추가 안 함).
+- [ ] `Application.schoolId`만 갱신, `Application.schoolName`(스냅샷)은 자동으로 바꾸지 않음(4-A 정책 8번, 13번 그대로).
+- [ ] 신규 School 생성 경로는 이 API에 없음(정책 6·7번) — schoolId는 반드시 기존 School PK여야 함.
+- [ ] 관리자 권한 검증(`validateAdmin`) + Application 버전 체크(동시 수정 방지, 기존 `assignCardNumbersBatch`의 `applicationVersion` 대조 패턴 재사용 검토) + `AdminActivityLog` 신규 기록(예: `SCHOOL_LINKED`).
+- [ ] **카드 생성 이후엔 연결·변경 금지** — 해당 Application의 아무 Member나 `isCardGenerated()`(cardFrontPath != null)면 거절(기존 `CARD_NUMBER_LOCKED`류 패턴과 동일한 성격의 잠금).
+- [ ] STUDENT가 아닌 카드종류의 Application에는 이 API 자체가 의미 없음 — `cardType != STUDENT`면 거절(신규 검증).
+- [ ] 관리자 학교명 오타 정정 기능(1607행, REVIEWING까지만 schoolName 수정 가능)은 **별개 작업으로 분리** — 이번엔 손대지 않음(스코프 명확화, 섞이면 diff가 커짐).
+- [ ] `docs/specs/application/data-model.md`/`api.md`에 이 API 계약 반영(1609행 항목과 함께).
+
+#### 테스트
+
+- [ ] `ApplicationServiceTest` 또는 신규 테스트 클래스: 성공(schoolId 연결), schoolType 불일치 거절, 존재하지 않는 schoolId 거절, 비STUDENT 거절, 카드 생성 후 거절, 비관리자 거절, 타 Application 소속 미검증 필요없음(schoolId는 Application 단위라 member 소속 검증 자체가 없음) 확인.
+- [ ] `AdminApplicationControllerTest`: 위 Service 테스트와 대응하는 HTTP 계약 테스트(401/403/400/404/200).
+- [ ] `domain.application.*` 전체 재실행, 회귀 없음 확인.
+
+#### 완료 조건
+
+- [ ] 직접입력(schoolId=null) STUDENT 신청에 이미 등록된 School을 연결하면 이후 카드 디자인 조회(4-B)·Preview가 정상 동작한다.
+- [ ] School 생성/수정 관련 코드는 전혀 추가하지 않았다(스코프 경계 준수).
+- [ ] 카드 생성 완료 후에는 이 API로 schoolId를 바꿀 수 없다.
+- [ ] 신규 API·DB 컬럼은 이 기능에 필요한 최소치(엔드포인트 1개, 기존 컬럼 재사용)로 유지된다.
 
 ### 4-B. `CardDesign` 학교 매칭 + 조회 API 개방 — ✅ 완료(2026-08-30)
 
@@ -1963,3 +2241,59 @@ TODO/정책 문서 감사 중 `docs/collab/result.md` P0 BLOCKER 항목("일반 
 - [ ] 개인 비학생증 신청 실제 제출 성공 확인
 - [ ] 관리자 상세 화면 / 마이페이지에서 주소 노출 확인
 - [ ] 카드 실제 렌더링에 주소 정상 표시 확인
+
+---
+
+## 관리자 카드 제작 상태 응답 노출 누락 (2026-09-13 검증 완료, 백엔드 구현 완료)
+
+상태: 🟡 백엔드 구현 완료, 프론트 반영 전 — Claude(백엔드)
+
+### 배경
+
+관리자가 카드 제작(만세력 확정 → 이름 확정 → 카드번호 → 십이간지 디자인 → 카드 디자인/발급일자 →
+카드 생성)을 진행하다가 화면을 닫고 다시 열거나 새로고침하면, 어디까지 작업했는지 정확히 복원하기
+어렵다는 지적이 있었다. 코드로 직접 확인한 결과, 원인은 **저장(쓰기) 누락이 아니라 조회 응답(읽기)
+누락**이었다 — 아래 값들은 각 액션 시점에 이미 DB에 즉시 저장되지만, 관리자가 다시 조회할 때 쓰는
+두 응답 DTO(`AdminApplicationMemberResponse`, `MyApplicationDetailResponse`)가 그 값을 내려주지
+않는다.
+
+### 검증 결과 (코드 기준, 2026-09-13 확인)
+
+1. **`Application` 엔티티에는 이미 값이 저장돼 있다** — `zodiacDesignSet`(관리자가 지정하는 순간
+   즉시 저장, `assignZodiacDesignSet`), `cardDesignId`/`cardIssueDate`(카드 생성 성공 시 즉시 확정
+   저장, `confirmCardGeneration`) 전부 `Application.java`에 필드와 getter가 이미 존재한다.
+2. **`ApplicationMember` 엔티티에도 이미 값이 저장돼 있다** — `issueDate`/`cardFrontPath`/
+   `cardBackPath`(카드 생성 성공 시 즉시 저장, `assignCardImages`), `nameMeaning`(훈음)/
+   `nameInterpretation`(의미)(이름 확정 시 즉시 저장, `assignKoreanName`) 전부 필드와 getter가
+   이미 존재한다. "카드 생성 완료 여부"도 별도 컬럼 없이 `isCardGenerated()`(`cardFrontPath != null`
+   기준)로 이미 판정 가능하다.
+3. **그런데 두 응답 DTO에 이 필드들이 하나도 매핑돼 있지 않다** — `AdminApplicationMemberResponse`
+   (관리자 작명 화면의 멤버 응답)에는 `issueDate`/`cardFrontPath`/`cardBackPath`/`nameMeaning`/
+   `nameInterpretation` 매핑이 없고, `MyApplicationDetailResponse`(관리자 상세 조회도 이 DTO를
+   그대로 씀)에는 `zodiacDesignSet`/`cardDesignId`/`cardIssueDate` 매핑이 없다.
+4. **TODO.md/FRONTEND_API_GAPS.md 어디에도 이 조합으로 추적되고 있지 않다** — 전체 재검색 결과,
+   가장 비슷한 기존 항목은 바로 위 "개인 신청 카드 표기 주소 누락" 섹션(같은 두 DTO에 `address`
+   필드가 빠졌던 사례)뿐이고, 이번 7개 필드는 새로 발견된 별개 항목이다.
+5. **스키마 변경·저장 로직 변경·신규 엔드포인트가 전혀 필요 없다** — 이미 저장된 값을 응답 DTO
+   2곳에 매핑만 추가하면 되는 범위다.
+
+### 순서대로 해야 할 일
+
+1. ✅ **[백엔드]** `AdminApplicationMemberResponse`에 `issueDate`, `cardFrontPath`, `cardBackPath`,
+   `nameMeaning`(훈음), `nameInterpretation`(의미) 필드 추가 매핑
+2. ✅ **[백엔드]** `MyApplicationDetailResponse`에 `zodiacDesignSet`, `cardDesignId`, `cardIssueDate`
+   필드 추가 매핑
+3. ✅ **[검증]** 관련 DTO 매핑 테스트 최소 추가/보강 + `domain.application.*` 전체 재실행, 회귀 없음 확인
+4. ⚪ **[프론트, 별도]** 관리자 화면이 새 필드로 "어디까지 진행됐는지" 복원하는 UI 반영 — 이번 백엔드
+   작업 범위 밖, 별도 전달
+
+### 검증 체크리스트 (구현 후 채울 것)
+
+- [x] 1, 2(백엔드 DTO) 구현 — `AdminApplicationMemberResponse.issueDate/cardFrontPath/cardBackPath/
+      nameMeaning/nameInterpretation`, `MyApplicationDetailResponse.zodiacDesignSet/cardDesignId/
+      cardIssueDate` + 신규 테스트 4개(`ApplicationServiceAdminCardDownloadTest`: 카드 생성 전/후
+      구분 검증, `ApplicationServiceNameAssignTest`: 훈음·의미 노출 검증, `ApplicationServiceMy
+      ApplicationsTest`: zodiacDesignSet/cardDesignId/cardIssueDate 값 있음/없음 구분 검증) +
+      `domain.application.*` 전체 + `ApplicationControllerTest`/`AdminApplicationControllerTest`
+      재실행, 회귀 없음(로컬 Redis 임시 컨테이너로 세션 검증 의존성 해소 후 실행)
+- [ ] 3(프론트) 구현 — 프론트 담당자

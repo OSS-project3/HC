@@ -14,6 +14,33 @@
 ```
 
 ---
+## 2026-09-14 — Claude — `main` (단체 전체 재업로드 photoNumber 유실 수정)
+
+- 변경: 단체 신청 전체 재업로드(`POST /api/applications/{id}/photo`의 `submitFile` 경로) 시 새로 생성되는 `ApplicationMember`의 `photoNumber`가 항상 `null`이 되던 버그 수정. `ApplicationService.reuploadPhoto()`가 사진 번호 인자가 없는 legacy `ApplicationMember.createGroupRow()` 오버로드를 호출하고 있었음 — 마지막 인자로 `row.photoNumber()`를 전달하도록 한 줄만 수정.
+- 파일: `ApplicationService.java`(`reuploadPhoto()` 내 `createGroupRow()` 호출), `ApplicationServicePhotoReuploadTest.java`(신규 테스트 `reuploadPhotoForGroupPreservesPhotoNumberFromExcel` 추가).
+- 사유: 버그 수정(TDD) — 수정 전 신규 테스트로 `expected: "9" but was: null` RED 확인 → 한 줄 수정으로 GREEN. 신규 Entity/enum/DB 컬럼/API 없음, 기존 동작 변경 없음(범위 제한 준수).
+- 테스트: `ApplicationServicePhotoReuploadTest` 12개(신규 1개 포함) 전부 통과. `domain.application.*` + `api.*` 전체 재실행 및 전체 스위트(868개) 재실행, 회귀 없음.
+- 관련: `docs/collab/TODO.md` "단체 전체 재업로드 photoNumber 보존" — ✅ 완료.
+
+---
+## 2026-09-13 — Claude — `main` (관리자 카드 제작 상태 응답 노출 누락 수정)
+
+- 변경: 관리자가 화면을 새로고침해도 카드 제작 진행 상태(십이간지 디자인 세트·카드 디자인·발급일자·카드 생성 완료 여부·확정 이름의 훈음·의미)를 복원할 수 없던 문제 수정 — 값은 각 액션 시점에 이미 저장되고 있었으나 조회 응답 DTO 2곳에 매핑이 없었음. `AdminApplicationMemberResponse`에 `issueDate`/`cardFrontPath`/`cardBackPath`/`nameMeaning`/`nameInterpretation` 5개, `MyApplicationDetailResponse`(관리자 상세 조회 겸용)에 `zodiacDesignSet`/`cardDesignId`/`cardIssueDate` 3개 필드를 추가 매핑. 신규 저장 로직·스키마 변경·엔드포인트 없음.
+- 파일: `AdminApplicationMemberResponse.java`, `MyApplicationDetailResponse.java`, 테스트(`ApplicationServiceAdminCardDownloadTest`/`ApplicationServiceNameAssignTest`/`ApplicationServiceMyApplicationsTest`에 각각 신규 테스트 추가).
+- 사유: 버그 수정 — 조회 응답 매핑 누락.
+- 테스트: 신규 테스트 4개 전부 통과, `domain.application.*` + `ApplicationControllerTest`/`AdminApplicationControllerTest` 재실행 회귀 없음.
+- 관련: `docs/collab/TODO.md` "관리자 카드 제작 상태 응답 노출 누락" — ✅ 백엔드 구현 완료(프론트 반영은 별도).
+
+---
+## 2026-09-13 — Claude — `main` (환불 관련 응답 필드 최소 정리 — 최신 환불 운영 정책 반영)
+
+- 변경: 시스템이 환불 완료 여부를 관리하지 않는다는 확정 정책에 맞춰 응답 계약 정리. `MyApplicationDetailResponse`에서 `refundedAt` 필드·매핑 제거(사용자 조회 API에 노출 안 함). `ApplicationCancelResponse.refundRequired`는 API 호환성을 위해 유지하되 `Application.refundedAt`을 참조하지 않고 `paymentStatus==CONFIRMED` 여부만으로 계산하도록 변경(환불 진행 상태가 아니라 "외부 수동 환불 절차가 필요한 취소인지"를 나타내는 안내값으로 명확화). `Application.refundedAt` DB 필드·`markRefunded()`는 이전 정책의 구현 흔적으로 그대로 유지, 신규 흐름에 연결하지 않음.
+- 파일: `MyApplicationDetailResponse.java`, `ApplicationCancelResponse.java`, `docs/specs/application/api.md`(API 7/8 응답 예시·설명 갱신), `docs/FRONTEND_API_INTEGRATION_SPEC.md`, `docs/FRONTEND_API_GAPS.md`(§1.2 응답 필드 목록에서 `refundedAt` 제거).
+- 사유: 정책 정합성 — 이미 확정된 "최신 환불 운영 정책(2026-09-13)"과 실제 응답 계약 대조 중 발견된 불일치 정리.
+- 테스트: `ApplicationControllerTest`(11개, `refundRequired` 계약 검증 포함) + `domain.application.*` 전체 재실행 회귀 없음.
+- 관련: `docs/collab/TODO.md` "신청 상태·취소·환불 구조 변경 체크리스트" — 최신 환불 운영 정책 항목.
+
+---
 ## 2026-09-13 — Claude — `main` (개인 신청 카드 표기 주소 프론트 입력 필드 추가 — 버그 완결)
 
 - 변경: "개인 신청 카드 표기 주소 누락" 버그 마무리 — 프론트 `StepInfo.tsx`에 개인(비-기관) 신청자 폼 전용 주소 입력 필드를 추가했다(학생증이 아닐 때만 필수, `englishName`과 동일한 패턴). 착수 중 기관(법인·단체) 분기에도 잘못 넣었다가, 그 분기는 실제로 엑셀 업로드(단체 신청) 제출 경로라 이 폼의 값이 어디에도 전송되지 않는 죽은 필드였음을 발견하고 되돌렸다 — 기관 분기의 단체 신청 주소는 엑셀 "주소" 컬럼으로 받는다(아래 단체 신청 커밋 참고).
