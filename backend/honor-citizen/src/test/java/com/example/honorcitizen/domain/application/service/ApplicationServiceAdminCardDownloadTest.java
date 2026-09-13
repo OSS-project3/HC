@@ -163,6 +163,31 @@ class ApplicationServiceAdminCardDownloadTest {
                 });
     }
 
+    // 2026-09-13: 관리자 화면 새로고침 후 카드 제작 진행 상태 복원 검증 후속 조치 — issueDate/
+    // cardFrontPath/cardBackPath는 카드 생성 시 이미 저장되지만 이 응답에 없어 재조회로 확인할 수
+    // 없었다. 신규 저장 로직은 없고 응답 매핑만 추가한 것이라, 이미 저장된 값이 그대로 노출되는지만
+    // 검증한다.
+    @Test
+    void getApplicationMembersForAdminExposesCardProductionFields() {
+        Application application = groupApplicationInProducing(1);
+        ApplicationMember generated = addMember(application.getId(), "GeneratedMember");
+        generated.assignCardImages("cards/generated-front.png", "cards/generated-back.png", LocalDate.of(2026, 9, 13));
+        applicationMemberRepository.save(generated);
+        ApplicationMember notGenerated = addMember(application.getId(), "NotGeneratedMember");
+
+        var members = applicationService.getApplicationMembersForAdmin(adminId, application.getId());
+
+        var generatedResponse = members.stream().filter(m -> m.getMemberId().equals(generated.getId())).findFirst().orElseThrow();
+        assertThat(generatedResponse.getIssueDate()).isEqualTo(LocalDate.of(2026, 9, 13));
+        assertThat(generatedResponse.getCardFrontPath()).isEqualTo("cards/generated-front.png");
+        assertThat(generatedResponse.getCardBackPath()).isEqualTo("cards/generated-back.png");
+
+        var notGeneratedResponse = members.stream().filter(m -> m.getMemberId().equals(notGenerated.getId())).findFirst().orElseThrow();
+        assertThat(notGeneratedResponse.getIssueDate()).isNull();
+        assertThat(notGeneratedResponse.getCardFrontPath()).isNull();
+        assertThat(notGeneratedResponse.getCardBackPath()).isNull();
+    }
+
     @Test
     void adminMemberDownloadSucceedsEvenWhenOtherMembersAreNotReady() {
         Application application = groupApplicationInProducing(2);

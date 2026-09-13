@@ -183,6 +183,37 @@ class ApplicationServiceMyApplicationsTest {
         assertThat(detail.getMemberCount()).isEqualTo(1);
     }
 
+    // 2026-09-13: 관리자 화면 새로고침 후 카드 제작 진행 상태 복원 검증 후속 조치 — zodiacDesignSet/
+    // cardDesignId/cardIssueDate는 각 액션 시점에 이미 Application에 저장되지만 이 응답에 없어
+    // 재조회로 확인할 수 없었다(관리자 상세 조회도 이 응답을 그대로 씀). 응답 매핑만 추가한 것이라,
+    // 이미 저장된 값이 그대로 노출되는지만 검증한다.
+    @Test
+    void getMyApplicationDetailExposesCardProductionProgressFields() {
+        Application application = saveApplication(OWNER_ID, IssueType.MOBILE);
+        application.assignZodiacDesignSet(2);
+        application.confirmCardGeneration(99L, LocalDate.of(2026, 9, 13));
+        applicationRepository.save(application);
+
+        MyApplicationDetailResponse detail = applicationService.getMyApplicationDetail(OWNER_ID, application.getId());
+
+        assertThat(detail.getZodiacDesignSet()).isEqualTo(2);
+        assertThat(detail.getCardDesignId()).isEqualTo(99L);
+        assertThat(detail.getCardIssueDate()).isEqualTo(LocalDate.of(2026, 9, 13));
+    }
+
+    // 아직 아무것도 확정되지 않은 신청은 세 필드 모두 null이어야 한다 — "값이 있는데 안 보임"과
+    // "아직 진행 안 됨"을 구분해서 검증한다.
+    @Test
+    void getMyApplicationDetailReturnsNullCardProductionProgressFieldsBeforeAnyActionTaken() {
+        Application application = saveApplication(OWNER_ID, IssueType.MOBILE);
+
+        MyApplicationDetailResponse detail = applicationService.getMyApplicationDetail(OWNER_ID, application.getId());
+
+        assertThat(detail.getZodiacDesignSet()).isNull();
+        assertThat(detail.getCardDesignId()).isNull();
+        assertThat(detail.getCardIssueDate()).isNull();
+    }
+
     @Test
     void getMyApplicationDetailRejectsNonOwner() {
         Application application = saveApplication(OWNER_ID, IssueType.MOBILE);

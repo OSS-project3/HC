@@ -92,6 +92,21 @@ class ApplicationServiceNameAssignTest {
         assertThat(reloaded.getNameInterpretation()).isEqualTo("복을 비는 이름");
     }
 
+    // 2026-09-13: 관리자 화면 새로고침 후 카드 제작 진행 상태 복원 검증 후속 조치 — 확정 이름의
+    // 훈음(nameMeaning)·의미(nameInterpretation)는 assignMemberName 저장 시 이미 채워지지만
+    // getApplicationMembersForAdmin 응답에 없어 재조회로 확인할 수 없었다. 응답 매핑만 추가한
+    // 것이라, 이미 저장된 값이 그대로 노출되는지만 검증한다.
+    @Test
+    void getApplicationMembersForAdminExposesNameMeaningAndInterpretation() {
+        applicationService.assignMemberName(adminId, applicationId, memberId, "홍", "길동", "吉童", "길할 길, 아이 동", "복을 비는 이름");
+
+        var members = applicationService.getApplicationMembersForAdmin(adminId, applicationId);
+
+        var response = members.stream().filter(m -> m.getMemberId().equals(memberId)).findFirst().orElseThrow();
+        assertThat(response.getNameMeaning()).isEqualTo("길할 길, 아이 동");
+        assertThat(response.getNameInterpretation()).isEqualTo("복을 비는 이름");
+    }
+
     @Test
     void assignsNameWithoutSurnameDuringNameEditing() {
         applicationService.assignMemberName(adminId, applicationId, memberId, null, "길동", null, "뜻", null);

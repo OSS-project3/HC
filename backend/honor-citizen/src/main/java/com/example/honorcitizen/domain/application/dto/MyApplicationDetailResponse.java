@@ -11,6 +11,7 @@ import com.example.honorcitizen.domain.application.entity.Application;
 import com.example.honorcitizen.domain.application.entity.Receiver;
 import lombok.Getter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -30,9 +31,13 @@ public class MyApplicationDetailResponse {
     private final LocalDateTime cancelledAt;
     private final CancellationType cancellationType;
     private final CancellationReason cancellationReason;
-    private final LocalDateTime refundedAt;
     private final LocalDateTime cardReadyAt;
     private final LocalDateTime physicalDispatchedAt;
+    // 관리자가 화면을 닫았다 다시 열어도 카드 제작 진행 상태를 복원할 수 있도록 노출한다(2026-09-13
+    // 추가) — 셋 다 이미 Application에 저장돼 있던 값이고, 신규 저장 로직은 없다.
+    private final Integer zodiacDesignSet;
+    private final Long cardDesignId;
+    private final LocalDate cardIssueDate;
     private final String photoRejectReason;
     private final ApplicantSummary applicant;
     private final ReceiverSummary receiver;
@@ -50,7 +55,8 @@ public class MyApplicationDetailResponse {
             Long cardTypeId, String cardTypeName, IssueType issueType, int totalQuantity, ApplicationStatus status,
             PaymentStatus paymentStatus, LocalDateTime paymentGuidedAt, LocalDateTime paymentDueAt,
             LocalDateTime cancelledAt, CancellationType cancellationType, CancellationReason cancellationReason,
-            LocalDateTime refundedAt, LocalDateTime cardReadyAt, LocalDateTime physicalDispatchedAt,
+            LocalDateTime cardReadyAt, LocalDateTime physicalDispatchedAt,
+            Integer zodiacDesignSet, Long cardDesignId, LocalDate cardIssueDate,
             String photoRejectReason, ApplicantSummary applicant, ReceiverSummary receiver, long memberCount,
             LocalDateTime createdAt, String depositorName, String memberAddress, Long version) {
         this.applicationId = applicationId;
@@ -67,9 +73,11 @@ public class MyApplicationDetailResponse {
         this.cancelledAt = cancelledAt;
         this.cancellationType = cancellationType;
         this.cancellationReason = cancellationReason;
-        this.refundedAt = refundedAt;
         this.cardReadyAt = cardReadyAt;
         this.physicalDispatchedAt = physicalDispatchedAt;
+        this.zodiacDesignSet = zodiacDesignSet;
+        this.cardDesignId = cardDesignId;
+        this.cardIssueDate = cardIssueDate;
         this.photoRejectReason = photoRejectReason;
         this.applicant = applicant;
         this.receiver = receiver;
@@ -90,7 +98,8 @@ public class MyApplicationDetailResponse {
                 application.getIssueType(), application.getTotalQuantity(), application.getStatus(),
                 application.getPaymentStatus(), application.getPaymentGuidedAt(), application.getPaymentDueAt(),
                 application.getCancelledAt(), application.getCancellationType(), application.getCancellationReason(),
-                application.getRefundedAt(), application.getCardReadyAt(), application.getPhysicalDispatchedAt(),
+                application.getCardReadyAt(), application.getPhysicalDispatchedAt(),
+                application.getZodiacDesignSet(), application.getCardDesignId(), application.getCardIssueDate(),
                 application.getPhotoRejectReason(), ApplicantSummary.from(applicant),
                 receiver == null ? null : ReceiverSummary.from(receiver), memberCount, application.getCreatedAt(),
                 application.getDepositorName(), memberAddress, application.getVersion());
@@ -100,7 +109,8 @@ public class MyApplicationDetailResponse {
     public MyApplicationDetailResponse withTranslated(String photoRejectReason) {
         return new MyApplicationDetailResponse(applicationId, applicationNumber, applicationType, cardTypeId,
                 cardTypeName, issueType, totalQuantity, status, paymentStatus, paymentGuidedAt, paymentDueAt,
-                cancelledAt, cancellationType, cancellationReason, refundedAt, cardReadyAt, physicalDispatchedAt,
+                cancelledAt, cancellationType, cancellationReason, cardReadyAt, physicalDispatchedAt,
+                zodiacDesignSet, cardDesignId, cardIssueDate,
                 photoRejectReason, applicant, receiver, memberCount, createdAt, depositorName, memberAddress, version);
     }
 
