@@ -400,7 +400,7 @@ class AdminApplicationControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    // 십이간지 캐릭터 디자인 세트 — 비즈니스 로직(1~3 검증·잠금 없음)은
+    // 십이간지 캐릭터 디자인 세트 — 비즈니스 로직(1~5 검증·잠금 없음)은
     // ApplicationServiceZodiacDesignSetTest/ApplicationStateTransitionTest가 이미 커버, 여기선
     // HTTP 배선만 검증한다.
     @Test
@@ -417,7 +417,7 @@ class AdminApplicationControllerTest {
         mockMvc.perform(put("/api/admin/applications/" + otherUsersApplication.getId() + "/zodiac-design")
                         .header(HttpHeaders.AUTHORIZATION, adminToken)
                         .contentType("application/json")
-                        .content("{\"zodiacDesignSet\":4}"))
+                        .content("{\"zodiacDesignSet\":6}"))
                 .andExpect(status().isBadRequest());
     }
 

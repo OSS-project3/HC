@@ -135,20 +135,21 @@ class ApplicationStateTransitionTest {
         assertThat(application.getCardIssueDate()).isEqualTo(LocalDateTime.of(2026, 9, 1, 0, 0).toLocalDate());
     }
 
-    // 2026-09-06: 십이간지 캐릭터 디자인 세트 — 1~3만 허용, cardDesignId와 달리 잠금이 없어
-    // 카드 생성 확정 이후에도 계속 바꿀 수 있다(정책 확정).
+    // 2026-09-06: 십이간지 캐릭터 디자인 세트 — cardDesignId와 달리 잠금이 없어 카드 생성 확정
+    // 이후에도 계속 바꿀 수 있다(정책 확정). 2026-09-13: 1~3 → 1~5로 확장(4/5는 2/3번 스타일의
+    // 화이트 버전).
     @Test
-    void zodiacDesignSetAcceptsOnlyOneToThree() {
+    void zodiacDesignSetAcceptsOnlyOneToFive() {
         Application application = individual(IssueType.MOBILE);
         assertThat(application.getZodiacDesignSet()).isNull();
 
         application.assignZodiacDesignSet(1);
         assertThat(application.getZodiacDesignSet()).isEqualTo(1);
-        application.assignZodiacDesignSet(3);
-        assertThat(application.getZodiacDesignSet()).isEqualTo(3);
+        application.assignZodiacDesignSet(5);
+        assertThat(application.getZodiacDesignSet()).isEqualTo(5);
 
         assertThatThrownBy(() -> application.assignZodiacDesignSet(0)).isInstanceOf(CustomException.class);
-        assertThatThrownBy(() -> application.assignZodiacDesignSet(4)).isInstanceOf(CustomException.class);
+        assertThatThrownBy(() -> application.assignZodiacDesignSet(6)).isInstanceOf(CustomException.class);
     }
 
     @Test

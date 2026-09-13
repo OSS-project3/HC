@@ -117,7 +117,8 @@ public class Application extends BaseTimeEntity {
     // 관리자가 심사 후 배정하는 카드 디자인 — 신청 시점엔 항상 null(이번 리팩터링 범위 밖)
     private Long cardDesignId;
 
-    // 십이간지 캐릭터 디자인 세트(1~2~3, card-templates/zodiac/{1,2,3}/) — 2026-09-06 신규.
+    // 십이간지 캐릭터 디자인 세트(1~5, card-templates/zodiac/{1..5}/) — 2026-09-06 신규(1~3),
+    // 2026-09-13 1~5로 확장(4/5는 2/3번 스타일의 화이트 버전).
     // cardDesignId와 달리 카드종류와 무관하게 신청서 전체에 값 1개이고, 최초 카드 생성 이후에도
     // 관리자가 자유롭게 바꿀 수 있다(정책 확정 — cardDesignId처럼 한 번 확정되면 잠기지 않음).
     // 미지정(null) 상태로 카드 생성을 시도하면 CardRenderPreparation이 거절한다(기본값 자동 적용 안 함).
@@ -425,7 +426,7 @@ public class Application extends BaseTimeEntity {
     // 십이간지 디자인 세트 지정/변경 — cardDesignId와 달리 잠금이 없어 카드 생성 전후 아무 때나
     // 호출할 수 있다(2026-09-06 정책 확정).
     public void assignZodiacDesignSet(int zodiacDesignSet) {
-        if (zodiacDesignSet < 1 || zodiacDesignSet > 3) {
+        if (zodiacDesignSet < 1 || zodiacDesignSet > 5) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         this.zodiacDesignSet = zodiacDesignSet;

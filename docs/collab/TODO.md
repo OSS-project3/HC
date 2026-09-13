@@ -30,6 +30,7 @@
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
+| ✅ | 십이간지 캐릭터 디자인 세트 1~3 → 1~5 확장 (2026-09-13) | Claude | `main` | 본 문서 "십이간지 캐릭터 디자인 세트 1~5 확장" 절 | 4/5(2/3번 스타일의 화이트 버전) 자산 반입 + 범위 검증 2곳(`ZodiacDesignSetRequest`/`Application.assignZodiacDesignSet`) 확장. 상세는 아래 전용 절 참고 |
 | ✅ | 관리자 Service 계층 공통 인가 통일 (2026-09-05) | Codex | `main` | `arch.md` §4.6 | `SecurityConfig`의 `/api/admin/**` 1차 차단은 유지하고 `AdminAuthorizationService.requireAdmin(adminId)`를 공통 2차 경계로 추가. Application/Manseryeok/Card/School 템플릿의 중복 검증을 위임하고 Board/Event/Inquiry/Stats의 Service 직접 호출 공백을 해소. API 계약 변경 없음 |
 | ✅ | 단체 신청 Excel 사진 번호 고정 및 파서 정합성 | Codex | `main` | `docs/specs/application/{APPLICATION,requirements,api,service-flow}.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | v1.1 양식 3종의 A열을 사진 번호 001~100 텍스트로 사전 입력·잠금·색상·메모 처리. 파서는 사진 번호만 있는 행을 무시하고 실제 입력 행 사진만 매칭. 집중 테스트 19개 통과 |
 | ✅ | 개인·단체 신청 출생지역 필수화 및 Excel 작성 안내 갱신 | Codex | `main` | `docs/specs/application/{requirements,data-model,api}.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 개인 DTO `@NotBlank`, 단체 Parser `REQUIRED` 오류, 태어난 도시명 예시 5개, v1.1 양식 3종 F열 필수 검증 및 D열 `출생국가` 표시 병합. 신규 테스트 2개 red→green, Application 도메인 182개 통과, 워크북별 24개 자동 검증 및 전 시트 렌더 확인 |
@@ -1887,3 +1888,34 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [x] 기존 zodiac 관련 테스트(`StudentCardExploratoryRenderTest`, `SchoolCardTemplateEndToEndTest`, `BulkExcelToCardRenderingEndToEndTest`) 시그니처 변경 반영, 회귀 없음
 - [x] 전체 스위트 재실행, 856개 0 failure/0 error
 - [x] 로컬 docker 재빌드 후 실제 확인 — Docker Desktop이 중간에 내려가 있어 재기동(본 작업과 무관), 이 과정에서 관리자 인가 리팩터링(Codex, `AdminAuthorizationService`) 이후 실제 Redis로 처음 돌려본 `BoardAdminControllerTest`/`EventAdminControllerTest`/`InquiryAdminControllerTest`가 403으로 떨어지는 기존 결함(테스트 fixture가 JWT role 클레임만 ADMIN으로 만들고 DB role은 안 바꿔둠 — 예전엔 서비스 레벨 재검증이 없어서 문제없었으나 공통 인가 도입 후 노출됨)을 같이 발견·수정함(본 작업과 무관, 부수 수정). `ApplicationServiceAdminCardDownloadTest`의 오래된 30일 만료 assertion(어제 7일로 고쳤는데 테스트 미갱신)도 같이 정정
+
+---
+
+## 십이간지 캐릭터 디자인 세트 1~5 확장 (2026-09-13 완료)
+
+상태: ✅ 완료(Claude)
+
+### 배경
+
+위 절("십이간지 캐릭터 디자인 세트 선택")에서 1~3만 구현했는데, 사용자가 최종 디자인은 **총 5가지**라고 확정 — 관리자가 신청 1건당 이 5개 중 하나를 고르는 구조는 그대로다("1신청-1디자인" 정책 변경 없음). 사용자가 새 자산 폴더(`0901캐릭터수정/{1,2,2_화이트,3,3_화이트}`, 카드 디자인 선택과 별개로 관리자가 카드 생성 시 함께 고르는 흐름)를 전달 — 대조 결과 `1`/`2`/`3`은 기존 반입 자산과 **MD5 완전 일치**(개정판이 아니라 그대로), `2_화이트`/`3_화이트`가 신규 자산으로 확인됨. 즉 최종 5개 = 기존 1/2/3 + 2번 스타일의 화이트 버전 + 3번 스타일의 화이트 버전.
+
+### 정책 확인 (기존 결정 유지, 신규 결정 없음)
+
+- 선택 단위·잠금 없음·미지정 시 거절 등 기존 3개 정책 전부 그대로 적용(신규 정책 없음, 범위 값만 3→5 확장).
+- "카드 디자인 선택 시 십이간지 캐릭터도 같이 고를 수 있어야 한다"는 요구는 **이미 구조적으로 충족** — `cardDesignId`와 `zodiacDesignSet`은 애초에 독립된 필드/엔드포인트라 관리자가 같은 작업 흐름에서 순서 제약 없이 둘 다 지정할 수 있다. 두 값을 하나로 묶는 API를 새로 만들 필요는 없음(범위 밖으로 판단, 필요해지면 별도 논의).
+
+### 구현 체크리스트
+
+- [x] 자산 반입: `card-templates/zodiac/4/`, `/5/`(각 12개, 총 24개 PNG 신규) — `0901캐릭터수정/2_화이트/`, `/3_화이트/`에서 가져오고 파일명의 `2_`/`3_` 접두사 제거(기존 1~3과 동일한 순수 동물명 규칙에 맞춤). designSet 매핑: 1→`1/`, 2→`2/`, 3→`2_화이트/`, 4→`3/`, 5→`3_화이트/`
+- [x] `ZodiacDesignSetRequest.zodiacDesignSet`: `@Max(3)` → `@Max(5)`
+- [x] `Application.assignZodiacDesignSet(int)`: 범위 검증 `> 3` → `> 5`
+- [x] `ZodiacIcon`/`Application` 필드 주석 갱신(1~3→1~5)
+
+### 검증 체크리스트
+
+- [x] `ApplicationStateTransitionTest.zodiacDesignSetAcceptsOnlyOneToFive`(이름 변경): 1·5 성공, 0·6 거절로 경계값 갱신
+- [x] `ApplicationServiceZodiacDesignSetTest.rejectsOutOfRangeValue`: 거절 대상 값 4→6으로 갱신(4는 이제 유효값)
+- [x] `AdminApplicationControllerTest.assignZodiacDesignSetRejectsOutOfRangeValue`: HTTP 바디 `zodiacDesignSet:4`→`6`으로 갱신
+- [x] `ZodiacDesignSetRenderTest.rendersAllFiveZodiacDesignSets`(이름 변경, 1~3→1~5 루프): 4/5 실제 렌더링 → 파일로 남겨 육안 확인(4=2번 스타일 화이트/미니멀 라인, 5=3번 스타일 화이트/라인아트, 기존 1~3과 시각적으로 명확히 구분됨)
+- [x] 관련 테스트 전체(엔티티/서비스/렌더) 재실행 — 46개 중 23개 통과, 나머지 23개(`AdminApplicationControllerTest` 전체)는 로컬 Docker Desktop이 내려가 있어 Redis 미연결로 인한 503(본 작업과 무관한 환경 이슈, HTTP 배선 자체는 코드 리뷰로 확인 완료)
+- [ ] 로컬 docker 재빌드 후 실제 배포 확인 — Docker Desktop 재기동 대기 중

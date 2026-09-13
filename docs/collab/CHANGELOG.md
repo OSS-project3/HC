@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-13 — Claude — `main` (십이간지 캐릭터 디자인 세트 1~3 → 1~5 확장)
+
+- 변경: 최종 디자인이 총 5가지로 확정됨에 따라 `zodiacDesignSet` 허용 범위를 1~3에서 1~5로 확장. 4/5는 2/3번 스타일의 화이트 버전 — 사용자가 전달한 원본 자산 폴더(`0901캐릭터수정/{1,2,2_화이트,3,3_화이트}`)를 대조해보니 `1`/`2`/`3`은 기존 반입 자산과 MD5 완전 일치(개정판 아님), `2_화이트`/`3_화이트`만 신규였다. "카드 디자인 선택 시 십이간지도 같이 고를 수 있어야 한다"는 요구는 `cardDesignId`/`zodiacDesignSet`이 애초에 독립 필드/엔드포인트라 이미 충족되어 별도 API 통합 작업은 하지 않음.
+- 파일: `card-templates/zodiac/4/`, `/5/`(신규 24개 PNG, `2_화이트`/`3_화이트`에서 접두사 제거해 반입), `ZodiacDesignSetRequest.java`(`@Max(3)→@Max(5)`), `Application.java`(`assignZodiacDesignSet` 범위 검증+주석), `ZodiacIcon.java`(주석), 테스트(`ApplicationStateTransitionTest`/`ApplicationServiceZodiacDesignSetTest`/`AdminApplicationControllerTest`/`ZodiacDesignSetRenderTest`).
+- 사유: 요구사항 확정(최종 디자인 5종) — 정책 변경 없음, 범위 값만 확장.
+- 테스트: 엔티티/서비스/렌더 테스트 23개 전부 통과(4/5 실제 렌더링으로 다른 두 스타일 육안 확인). `AdminApplicationControllerTest`는 로컬 Docker Desktop이 내려가 있어 Redis 미연결 503(본 작업과 무관한 환경 이슈) — 재기동 후 재확인 필요.
+- 관련: `docs/collab/TODO.md` "십이간지 캐릭터 디자인 세트 1~5 확장"
+
+---
 ## 2026-09-06 — Claude — `main` (십이간지 캐릭터 디자인 세트 선택 + 테스트 fixture 결함 수정)
 
 - 변경: 카드 뒷면/앞면 띠 캐릭터가 공용 1세트로 고정돼 있던 걸 관리자가 신청 1건당 3종(1/2/3) 중 하나로 지정·변경할 수 있게 함 — `Application.zodiacDesignSet`(잠금 없음, 언제든 재지정 가능) 신규 필드 + `PUT /api/admin/applications/{id}/zodiac-design` 신규 API. 미지정 상태로 카드 미리보기·생성을 시도하면 `ZODIAC_DESIGN_NOT_SELECTED`로 거절(기본값 자동 적용 안 함, 정책 확정). 기존 공용 `card-templates/zodiac/*.png`(세트 구분 없음)는 `card-templates/zodiac/{1,2,3}/`로 대체하고 옛 자산은 삭제.

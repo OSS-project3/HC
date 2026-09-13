@@ -84,7 +84,7 @@ class ApplicationServiceZodiacDesignSetTest {
         assertThatThrownBy(() -> applicationService.assignZodiacDesignSet(adminId, applicationId, 0))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
-        assertThatThrownBy(() -> applicationService.assignZodiacDesignSet(adminId, applicationId, 4))
+        assertThatThrownBy(() -> applicationService.assignZodiacDesignSet(adminId, applicationId, 6))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }

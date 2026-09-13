@@ -7,8 +7,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.time.LocalDate;
 
-// 2026-09-06: 십이간지 캐릭터 디자인 세트(1~3) 실제 반영 확인 — 같은 "인"(호랑이) 연주로 세 세트를
-// 각각 렌더링해 실제로 다른 파일(다른 스타일)이 그려지는지 파일로 남겨 육안 확인한다(이 프로젝트 관행).
+// 2026-09-06: 십이간지 캐릭터 디자인 세트(1~3) 실제 반영 확인 — 같은 "인"(호랑이) 연주로 각
+// 세트를 렌더링해 실제로 다른 파일(다른 스타일)이 그려지는지 파일로 남겨 육안 확인한다(이 프로젝트
+// 관행). 2026-09-13: 4/5(2/3번 스타일의 화이트 버전) 추가로 1~5 전부 렌더링.
 class ZodiacDesignSetRenderTest {
 
     private static final String OUT_DIR =
@@ -17,9 +18,9 @@ class ZodiacDesignSetRenderTest {
     private final CardImageCompositor compositor = new CardImageCompositor();
 
     @Test
-    void rendersAllThreeZodiacDesignSets() throws Exception {
+    void rendersAllFiveZodiacDesignSets() throws Exception {
         new File(OUT_DIR).mkdirs();
-        for (int set = 1; set <= 3; set++) {
+        for (int set = 1; set <= 5; set++) {
             CardMemberData data = new CardMemberData("김", "성노", "Jordan Smith", "星爐",
                     "별 성(星) 풀무 노(爐)", "밝고 지혜롭게 살다.", null, "ROK-90088-0001",
                     "대한민국 전라북도 전주시", LocalDate.now(), "인", null, null, null, null, null, null,

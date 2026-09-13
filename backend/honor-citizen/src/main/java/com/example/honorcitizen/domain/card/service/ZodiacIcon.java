@@ -4,8 +4,9 @@ import java.util.Map;
 
 // 연주 지지(12지) → card-templates/zodiac/{designSet}/{name}.png 파일명. ManseryeokResult.
 // confirmedPillars.year의 branch 한 글자를 그대로 키로 쓴다(admin-saju.md "띠 이미지 결정 정책").
-// designSet(1~3)은 관리자가 신청 단위로 고르는 십이간지 캐릭터 스타일(2026-09-06 신규,
-// Application.zodiacDesignSet) — 카드종류와 무관하게 세 스타일이 공용 폴더 밑에 나뉘어 있다.
+// designSet(1~5)은 관리자가 신청 단위로 고르는 십이간지 캐릭터 스타일(2026-09-06 신규 1~3,
+// 2026-09-13 1~5로 확장 — 4/5는 2/3번 스타일의 화이트 버전) — 카드종류와 무관하게 다섯 스타일이
+// 공용 폴더 밑에 나뉘어 있다.
 final class ZodiacIcon {
 
     private static final Map<String, String> BRANCH_TO_ANIMAL = Map.ofEntries(
