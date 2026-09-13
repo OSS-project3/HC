@@ -31,6 +31,7 @@
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
 | 🔵 | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드)+프론트 담당자 | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳(1,2번) 완료. 남은 건 프론트 5개 파일(3~7번, 프론트 담당자) — 그때까지는 개인 비학생증 신청 제출이 여전히 `INVALID_INPUT`으로 실패함. 상세는 아래 전용 절 참고 |
+| ⚪ | 단체 신청 주소 필수 여부 — 정책 문서 충돌 해소 | 미정(정책 결정 필요) | `main` | `admin-saju.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | `admin-saju.md`는 "학생증 제외 모든 카드는 주소를 표시한다"(개인/단체 구분 없는 포괄 규정)인데 `BULK_EXCEL_TEMPLATE_POLICY.md:81`은 단체 엑셀 11번 "주소" 컬럼을 "선택"으로 명시 — 두 문서가 정반대. 코드도 `BulkExcelParser`/`createGroup()` 모두 검증 없음(정책 문서 따른 것, 버그 아님). 어느 쪽이 맞는지 결정 후 문서 통일 + (필수로 정해지면) `ApplicationService.createGroup()`에 주소 필수 검증 추가 필요 |
 | ✅ | 십이간지 캐릭터 디자인 세트 1~3 → 1~5 확장 (2026-09-13) | Claude | `main` | 본 문서 "십이간지 캐릭터 디자인 세트 1~5 확장" 절 | 4/5(2/3번 스타일의 화이트 버전) 자산 반입 + 범위 검증 2곳(`ZodiacDesignSetRequest`/`Application.assignZodiacDesignSet`) 확장. 상세는 아래 전용 절 참고 |
 | ✅ | 관리자 Service 계층 공통 인가 통일 (2026-09-05) | Codex | `main` | `arch.md` §4.6 | `SecurityConfig`의 `/api/admin/**` 1차 차단은 유지하고 `AdminAuthorizationService.requireAdmin(adminId)`를 공통 2차 경계로 추가. Application/Manseryeok/Card/School 템플릿의 중복 검증을 위임하고 Board/Event/Inquiry/Stats의 Service 직접 호출 공백을 해소. API 계약 변경 없음 |
 | ✅ | 단체 신청 Excel 사진 번호 고정 및 파서 정합성 | Codex | `main` | `docs/specs/application/{APPLICATION,requirements,api,service-flow}.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | v1.1 양식 3종의 A열을 사진 번호 001~100 텍스트로 사전 입력·잠금·색상·메모 처리. 파서는 사진 번호만 있는 행을 무시하고 실제 입력 행 사진만 매칭. 집중 테스트 19개 통과 |
@@ -1936,7 +1937,7 @@ TODO/정책 문서 감사 중 `docs/collab/result.md` P0 BLOCKER 항목("일반 
 1. **백엔드는 주소를 필수로 요구한다** — `ApplicationService.validateCardAddress(isStudent, address)`: 학생증이 아니면 `address`가 비어있을 때 `INVALID_INPUT`. `admin-saju.md` 확정 정책("학생증 제외 모든 카드는 주소를 표시한다", "개인 신청은 카드 표기용 주소를 신청 입력값으로 받아 저장해야 한다")과 정확히 일치하는 정상 구현.
 2. **프론트 개인 신청 폼에는 이 필드 자체가 없다** — `frontend/src/features/apply/types.ts:7-28`의 `ApplicantInfo` interface에 `address` 필드가 타입 정의부터 없음(죽은 필드가 아니라 애초에 미정의). 있는 건 `RecipientInfo.address`(30-39행, 배송지 주소)뿐 — `StepInfo.tsx:861`에 라벨도 "배송지 주소"로 명시. `ApplyPage.tsx:93`의 `member` 제출 페이로드에도 `address`가 없음.
 3. **실제로 재현되는 문제다** — 지금 프론트 코드 그대로 개인 비학생증(명예한국인증/명예시민증/방문증) 신청을 제출하면 백엔드가 100% `INVALID_INPUT`으로 거절한다.
-4. **단체 신청은 무관** — 단체는 엑셀 11번 컬럼("주소")으로 받고 `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md:81`에 "선택"으로 명시돼 이미 별도 정책으로 문서화돼있음(개인과는 다른 문제, 이번 작업 범위 아님).
+4. **단체 신청은 이번 버그와는 무관하지만, 별도의 문서 충돌이 있음** — 단체는 엑셀 11번 컬럼("주소")으로 받고 `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md:81`에 "선택"으로 명시돼있는데, `admin-saju.md`의 "학생증 제외 모든 카드는 주소를 표시한다"는 포괄 규정과 정면 충돌한다 — 위 진행 보드의 "단체 신청 주소 필수 여부 — 정책 문서 충돌 해소" 항목으로 별도 추적(이번 개인 신청 버그와는 다른 문제, 이번 작업 범위 아님).
 5. **추가로 발견한 것** — 프론트에 필드를 추가해도, 백엔드 응답 DTO 2곳(`AdminApplicationMemberResponse`, `MyApplicationDetailResponse`)에 `address`가 없어 관리자도 신청자 본인도 저장된 주소를 화면에서 확인할 방법이 없다. 이것도 같이 처리해야 반쪽짜리 수정이 안 됨.
 6. **isStudent 조건부 처리는 기존 구조에 그대로 들어맞는다** — `StepInfo.tsx:170-187`의 개인 신청자 검증 블록에 이미 `if (isStudent) { 학교 필드 필수 }` 패턴이 있어, 그 옆에 `if (!isStudent) { address 필수 }`를 대칭으로 추가하면 됨. 새 분기 구조·리팩터링 불필요.
 7. **프론트 테스트 파일 없음** — 이 레포에 `*.test.ts*`/`*.spec.ts*` 자체가 0건이라 갱신할 기존 테스트 없음.
