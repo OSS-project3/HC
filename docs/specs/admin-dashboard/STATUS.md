@@ -41,7 +41,8 @@
   (`frontend/src/lib/saju.ts`). 계산 불가 시 mock 폴백.
 - **이름 추천: 실제 데이터** — `사주 이름 결과.xlsx` + saju 레포 `names.json` 병합 700개
   (`frontend/src/data/sajuNames.json`). recommend.py 점수화 이식(자원오행×2+발음오행×1+상생/상극).
-  한 번에 **8개**, **"↻ 다른 이름 추천"** 버튼 또는 새로고침으로 새 조합.
+  한 번에 **8개**, 점수 내림차순+동점 시 사전 순서로 **결정적**(2026-09-13 정책 확정, 무작위 아님).
+  **"↻ 다른 이름 추천"** 버튼은 다음 8개로 페이지 넘김(새로고침은 다시 1~8위부터).
 - **구성원 정보 표시**: 개인=신청정보에 출신국가·성별·생년월일 / 단체=멤버별 이름·국가·성별·만세력·추천.
 - **확정 저장(백엔드)**: 이름 선택 → `POST /api/admin/applications/{id}/members/{mid}/name` → `application_members.name/chinese_name` 반영. **프론트 localStorage 미사용**.
 - **상태 전환**: 확정 이름 유무를 서버(member.assignedName)에서 판정 → 선택 전 **접수** / 선택 후 **작명 완료**(카드 compact 접힘). 새로고침해도 서버 기준 유지.

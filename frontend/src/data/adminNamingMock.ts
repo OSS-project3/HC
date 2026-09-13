@@ -1,6 +1,10 @@
 // 관리자 "이름 추천/만세력" 플로우 데이터.
 // - 추천 이름: 실제 데이터(sajuNames.json — saju 레포 names.json + 사주 이름 결과.xlsx를 병합한 700개,
-//   자원오행/발음오행/뜻 포함)를 오행 결핍 기반으로 점수화해 매번 무작위 8개를 추천한다(새로고침 시 새 조합).
+//   자원오행/발음오행/뜻 포함)를 오행 결핍 기반으로 점수화해 8개를 추천한다. 2026-09-13 정책 확정
+//   (admin-saju.md "무작위 후보 선택은 사용하지 않습니다" — 이전엔 Math.random()으로 매번 다른 조합을
+//   보여줬으나 정책 위반이라 제거) — 같은 입력이면 항상 같은 순서로 재현된다(점수 내림차순, 동점이면
+//   이름 사전 순서 오름차순). "↻ 다른 이름 추천" 버튼은 다시 뽑기가 아니라 다음 8개(9~16위, ...)를
+//   보여주는 페이지 넘김으로 의미가 바뀌었다.
 // - 만세력(四柱)은 아직 실제 계산 백엔드가 없어 mock이다(신청별 결정적 생성). 실제 연동 설계: docs/specs/admin-dashboard/DESIGN.md
 import sajuNamesRaw from "./sajuNames.json";
 
@@ -86,18 +90,16 @@ function scoreName(entry: SajuNameEntry, counts: Record<FiveElement, number>): n
   return score;
 }
 
-// 오행 결핍을 보완하는 이름을 상위 풀로 뽑고, 그 안에서 무작위 8개를 추천한다.
-// 무작위라 새로고침(컴포넌트 재마운트)마다 새로운 조합이 나온다.
-export function mockRecommendations(_seed: string, saju: MockSaju, limit = 8): RecommendedName[] {
-  const scored = SAJU_NAMES.map((n) => ({ n, score: scoreName(n, saju.elementCounts) }));
-  scored.sort((a, b) => b.score - a.score);
-  const pool = scored.slice(0, Math.max(limit * 6, 48)); // 상위 관련 이름 풀
-  // Fisher-Yates 셔플(Math.random) — 매 호출마다 다른 조합.
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  return pool.slice(0, limit).map(({ n }) => ({
+// 오행 결핍을 보완하는 이름을 점수 내림차순으로 정렬해 그중 limit개를 결정적으로 추천한다
+// (admin-saju.md 정책: 무작위 금지, 동점이면 이름 사전 순서 오름차순). 같은 saju 입력이면 page가
+// 같은 한 항상 같은 결과가 나온다 — page는 "↻ 다른 이름 추천" 버튼이 다음 묶음을 보여주기 위한
+// 페이지 번호(0=1~8위, 1=9~16위, ...)이고, 사전 끝을 넘어가면 처음으로 순환한다.
+export function mockRecommendations(_seed: string, saju: MockSaju, page = 0, limit = 8): RecommendedName[] {
+  const scored = SAJU_NAMES.map((n, index) => ({ n, index, score: scoreName(n, saju.elementCounts) }));
+  scored.sort((a, b) => b.score - a.score || a.index - b.index); // 동점이면 이름 사전 순서(=index) 오름차순
+  const start = (page * limit) % scored.length;
+  const pageSlice = scored.slice(start, start + limit);
+  return pageSlice.map(({ n }) => ({
     id: `${n.name}|${n.hanja}`,
     name: n.name,
     hanja: n.hanja,
