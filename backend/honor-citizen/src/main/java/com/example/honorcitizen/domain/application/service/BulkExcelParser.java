@@ -53,6 +53,8 @@ import java.util.zip.ZipInputStream;
  *   0:사진 번호  1:영문명  2:생년월일  3:국적  4:출생시간  5:출생지역  6:성별
  *   7:개별입국날짜  8:이메일  9:전화번호  10:주소  [11:학번  12:학과]
  *   학번·학과는 학생증 카드(isStudent=true)일 때만 필수로 읽는다.
+ *   주소는 개인 신청과 동일한 정책(2026-09-13 통일) — 학생증이면 값이 있으면 거절, 그 외
+ *   카드종류는 필수.
  *
  * [오류 처리 정책 — 전체 실패(all-or-nothing)]
  * 오류가 하나라도 있으면 성공한 행도 버리고 전체를 실패 처리한다.
@@ -302,7 +304,17 @@ class BulkExcelParser {
         // phone 형식 검증은 보류: 국제 전화번호 정책(외국인 신청자 고려)이 아직 확정되지 않아
         // 국내향 정규식을 임의로 적용하지 않는다(PENDING_DECISIONS.md 참고). 필수 여부만 확인한다.
         String phone = requireText(stringValue(row, 9, formatter), rowNumber, "phone", errors);
-        String address = checkMaxLength(stringValue(row, 10, formatter), 255, rowNumber, "address", errors); // 선택 항목
+        // 주소는 개인 신청과 동일한 정책(admin-saju.md 확정, 2026-09-13 단체까지 통일) — 학생증은
+        // 카드에 주소를 표시하지 않으므로 값이 있으면 거절하고, 그 외 카드종류는 필수로 받는다.
+        String address = null;
+        if (isStudent) {
+            if (stringValue(row, 10, formatter) != null) {
+                errors.add(new ValidationErrorDetail(rowNumber, "address", "INVALID_INPUT", "학생증은 주소를 입력할 수 없습니다."));
+            }
+        } else {
+            address = requireText(stringValue(row, 10, formatter), rowNumber, "address", errors);
+            address = checkMaxLength(address, 255, rowNumber, "address", errors);
+        }
 
         String studentId = null;
         String department = null;
@@ -334,6 +346,8 @@ class BulkExcelParser {
         // errors에는 이미 해당 필드의 오류 메시지가 추가되어 있다.
         boolean hasRowError = englishName == null || birthDate == null || nationality == null || birthRegion == null || gender == null
                 || email == null || phone == null || photo == null
+                || (!isStudent && address == null)
+                || (isStudent && stringValue(row, 10, formatter) != null)
                 || (isStudent && schoolType == SchoolType.UNIVERSITY && (studentId == null || department == null))
                 || (isStudent && schoolType == SchoolType.HIGH_SCHOOL
                         && (stringValue(row, 11, formatter) != null || stringValue(row, 12, formatter) != null));

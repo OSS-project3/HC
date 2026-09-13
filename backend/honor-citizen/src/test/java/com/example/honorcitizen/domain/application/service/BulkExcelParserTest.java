@@ -256,7 +256,9 @@ class BulkExcelParserTest {
     @Test
     void parseAllowsHighSchoolStudentWithoutStudentIdOrDepartment() throws Exception {
         // 고등학교는 학번·학과 열 자체가 없는 11열 템플릿이라 studentId/department 자리가 비어있다.
-        byte[] excel = buildExcel(ROW_1);
+        // 학생증은 주소도 없어야 하므로(2026-09-13 정책 통일) ROW_1의 주소("Seoul")를 비운 행을 쓴다.
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|";
+        byte[] excel = buildExcel(studentRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
         List<BulkMemberRow> rows = parser.parse(zip, true, SchoolType.HIGH_SCHOOL);
