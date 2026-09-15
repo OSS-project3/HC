@@ -88,7 +88,7 @@ function TermsItem({ title, checked, onChange }: { title: string; checked: boole
         <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
         <span>{t(title)}</span>
       </label>
-      <div style={{ maxHeight: 120, overflow: "auto", padding: 12, border: "1px solid #e5ded2", background: "#faf8f4", fontSize: 13, color: "#4b5563", borderRadius: 8 }}>
+      <div style={{ maxHeight: 120, overflow: "auto", padding: 12, border: "1px solid var(--color-content-border)", background: "var(--color-content-surface)", fontSize: 13, color: "var(--color-content-text)", borderRadius: 8 }}>
         {t("[TBD] 약관 본문은 정책 확정 후 반영됩니다.")}
       </div>
     </div>

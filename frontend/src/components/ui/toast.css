@@ -18,7 +18,7 @@
   padding: 12px 22px;
   border-radius: var(--radius-pill);
   font-size: 14px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+  box-shadow: 0 8px 24px var(--color-shadow-toast);
   animation: toast-in 200ms ease;
 }
 

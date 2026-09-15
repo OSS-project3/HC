@@ -181,7 +181,23 @@ export interface ManseryeokConfirmBody {
   calculationEngineVersion: string;
   inputHash: string;
 }
-export interface ManseryeokActiveResult extends ManseryeokConfirmBody { tzdbVersion: string; calculatedAt: string; }
+// 활성 만세력 결과 조회 응답 — 백엔드 ManseryeokActiveResultResponse와 1:1(inputHash는 응답에 없다 —
+// ManseryeokConfirmBody 상속으로 잘못 필수화하지 않는다, TODO 1-E-2).
+export interface ManseryeokActiveResult {
+  timezoneId: string;
+  longitude?: number;
+  selectedOffset?: string;
+  utcInstant?: string;
+  timeAccuracy: TimeAccuracy;
+  confirmedPillars?: Record<string, SajuPillar>;
+  uncertainPillars?: string[];
+  elementCounts?: Record<string, number>;
+  tzdbVersion?: string;
+  calculationEngineVersion?: string;
+  calculatedAt: string;
+}
+// 재진입 일괄 복원(1-E-3) 응답 항목 — 활성 결과가 없는 멤버는 목록에서 누락된다(누락=미확정).
+export interface ManseryeokMemberResult { memberId: number; result: ManseryeokActiveResult; }
 export interface CardDesignOption { id: number; designNumber: number; name: string; orientation: "LANDSCAPE" | "PORTRAIT"; isDefault: boolean; active: boolean; }
 export interface CardPreviewImages { front: string; back: string; }
 export interface CardGenerateResult { cardFrontPath: string; cardBackPath: string; issueDate: string; }
@@ -205,7 +221,6 @@ export const api = {
   withdraw: () => request<void>("/api/users/me/withdraw", { method: "POST" }),
   changePassword: (currentPassword: string, newPassword: string) => request<void>("/api/users/me/password", { method: "PATCH", body: JSON.stringify({ currentPassword, newPassword }) }),
   agreeTerms: (body: { privacyAgreed: boolean; imageUploadAgreed: boolean; shippingAgreed: boolean }) => request("/api/auth/terms", { method: "POST", body: JSON.stringify(body) }),
-  refresh: () => request<void>("/api/auth/refresh", { method: "POST" }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   loginWithPassword: (email: string, password: string) => request<ApiUser>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   // 일반 이메일 회원가입 — 인증코드 요청 → 확인(signupToken) → 가입.
@@ -257,8 +272,9 @@ export const api = {
     request<ManseryeokResolveResponse>(`/api/admin/applications/${applicationId}/members/${memberId}/manseryeok/resolve`, { method: "POST", body: JSON.stringify(body) }),
   confirmManseryeokResult: (applicationId: number, memberId: number, body: ManseryeokConfirmBody) =>
     request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/manseryeok`, { method: "POST", body: JSON.stringify(body) }),
-  getActiveManseryeokResult: (applicationId: number, memberId: number) =>
-    request<ManseryeokActiveResult>(`/api/admin/applications/${applicationId}/members/${memberId}/manseryeok`),
+  // 재진입 복원(1-E) — Application 소속 전체 멤버의 활성 확정 결과를 한 번에 조회(개인·단체 공통, N+1 방지).
+  listManseryeokResults: (applicationId: number) =>
+    request<ManseryeokMemberResult[]>(`/api/admin/applications/${applicationId}/manseryeok-results`),
   listCardDesigns: (params: { cardTypeId: number; active?: boolean; applicationId?: number }) =>
     request<CardDesignOption[]>(`/api/admin/card-designs${qs({ ...params })}`),
   getCardPreview: (applicationId: number, memberId: number, body: { cardDesignId: number; issueDate: string }) =>

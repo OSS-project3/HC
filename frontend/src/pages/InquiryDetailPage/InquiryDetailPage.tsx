@@ -14,20 +14,20 @@ function formatDate(iso: string, locale: string) {
 
 export function InquiryDetailPage() {
   const { inquiryId } = useParams();
-  const { user } = useAuth();
+  const { user, status } = useAuth();
   const { t, language } = useLanguage();
   const dateLocale = language === "en" ? "en-US" : "ko-KR";
   // 본인 문의만 조회하는 GET /api/my/inquiries/{id}로 불러온다(서버 세션 필요).
   const [inquiry, setInquiry] = useState<InquiryDetail | null>(null);
 
   useEffect(() => {
-    if (!inquiryId || user?.source !== "api") return;
+    if (!inquiryId || status !== "authenticated") return;
     let cancelled = false;
     api.getMyInquiry(Number(inquiryId))
       .then((d) => { if (!cancelled) setInquiry(d); })
       .catch(() => { if (!cancelled) setInquiry(null); });
     return () => { cancelled = true; };
-  }, [inquiryId, user?.source, language]); // 언어 전환 시 번역된 내용으로 재조회
+  }, [inquiryId, status, language]); // 언어 전환 시 번역된 내용으로 재조회
 
   if (!inquiry) {
     return (

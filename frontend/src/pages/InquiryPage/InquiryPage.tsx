@@ -23,8 +23,8 @@ export function InquiryPage() {
       return;
     }
     // 문의는 백엔드(POST /api/inquiries)에 저장한다 — 서버 세션(실제 로그인)이 필요하다.
-    if (user?.source !== "api") {
-      showToast("실제 로그인 후 문의를 접수할 수 있습니다.");
+    if (!user) {
+      showToast("로그인 후 문의를 접수할 수 있습니다.");
       return;
     }
     const form = event.currentTarget;

@@ -79,8 +79,8 @@
 .admin-panel__title { font-size: 20px; color: var(--color-text-primary); margin-top: 2px; }
 .admin-panel__count { color: var(--color-text-secondary); font-size: 14px; }
 .admin-panel__note { color: var(--color-text-muted); font-size: 14px; padding: 10px 0; }
-.admin-panel__note--error { color: #b3402f; }
-.admin-panel__note--warn { color: #9a6a1c; background: #fbf3e2; border-radius: 6px; padding: 10px 12px; }
+.admin-panel__note--error { color: var(--color-danger); }
+.admin-panel__note--warn { color: var(--color-warning); background: var(--color-warning-surface); border-radius: 6px; padding: 10px 12px; }
 .admin-panel__toolbar {
   display: flex;
   justify-content: space-between;
@@ -148,14 +148,14 @@
   display: inline-block; padding: 3px 9px; border-radius: var(--radius-pill);
   font-size: 12px; background: var(--color-surface-soft); color: var(--color-text-secondary); white-space: nowrap;
 }
-.admin__badge.is-inquiry { background: #eef2f8; color: var(--color-primary); }
+.admin__badge.is-inquiry { background: var(--color-info-surface); color: var(--color-primary); }
 
 .admin__status-pill {
   padding: 4px 10px; border-radius: var(--radius-pill); border: 1px solid transparent;
   font-size: 12px; cursor: pointer;
 }
-.admin__status-pill.is-waiting { background: #fbf3e2; color: #9a6a1c; }
-.admin__status-pill.is-completed { background: #e6f2ea; color: #2f7d4f; }
+.admin__status-pill.is-waiting { background: var(--color-warning-surface); color: var(--color-warning); }
+.admin__status-pill.is-completed { background: var(--color-success-surface); color: var(--color-success); }
 
 /* ── Buttons ─────────────────────────────────────────── */
 .admin__btn {
@@ -166,9 +166,9 @@
 .admin__btn:hover { border-color: var(--color-border-accent); }
 .admin__btn:disabled { opacity: 0.55; cursor: default; }
 .admin__btn--primary { background: var(--color-primary); color: var(--color-primary-foreground); border-color: var(--color-primary); }
-.admin__btn--danger { color: #b3402f; border-color: #e2b5ac; }
-.admin__btn--danger:hover { background: #fbeeeb; border-color: #d98c7c; }
-.admin__btn--chosen { background: #e6f2ea; color: #2f7d4f; border-color: #a9d3b8; }
+.admin__btn--danger { color: var(--color-danger); border-color: var(--color-danger-border-soft); }
+.admin__btn--danger:hover { background: var(--color-danger-surface); border-color: var(--color-danger-border-hover); }
+.admin__btn--chosen { background: var(--color-success-surface); color: var(--color-success); border-color: var(--color-success-border); }
 
 /* ── Detail grid ─────────────────────────────────────── */
 .admin__detail-row td { background: var(--color-surface-soft); }
@@ -189,16 +189,15 @@
 .admin-naming__status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 8px; background: var(--color-surface-soft); border: 1px solid var(--color-border-soft); border-radius: 8px; }
 .admin-naming__status-select { margin-left: auto; width: auto; max-width: 260px; padding: 8px 12px; cursor: pointer; }
 .admin-naming__status-select:disabled { cursor: default; opacity: 0.7; }
-.admin-naming__mock-banner { font-size: 13px; color: #9a6a1c; background: #fbf3e2; border-radius: 6px; padding: 10px 12px; line-height: 1.55; }
+.admin-naming__preview-banner { font-size: 13px; color: var(--color-warning); background: var(--color-warning-surface); border-radius: 6px; padding: 10px 12px; line-height: 1.55; }
 .admin-naming__card { border: 1px solid var(--color-border-soft); border-radius: 8px; padding: 16px; background: var(--color-surface); }
 .admin-naming__card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
 .admin-naming__head-left { display: inline-flex; align-items: center; gap: 8px; }
 /* 작명 완료(창 접힘) 상태 */
-.admin-naming__card.is-done { background: #f2f9f4; border-color: #a9d3b8; }
+.admin-naming__card.is-done { background: var(--color-success-surface-soft); border-color: var(--color-success-border); }
 .admin-naming__done { display: flex; align-items: baseline; gap: 12px; padding: 2px 0; }
-.admin-naming__done-name { font-size: 22px; font-weight: 800; color: #2f7d4f; display: inline-flex; align-items: baseline; gap: 8px; }
+.admin-naming__done-name { font-size: 22px; font-weight: 800; color: var(--color-success); display: inline-flex; align-items: baseline; gap: 8px; }
 .admin-naming__done-name em { font-style: normal; font-size: 16px; font-weight: 600; color: var(--color-text-secondary); }
-.admin-naming__mock-tag { font-style: normal; font-size: 11px; background: var(--color-surface-soft); color: var(--color-text-muted); padding: 1px 6px; border-radius: var(--radius-pill); margin-left: 4px; }
 
 .admin-naming__saju { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; margin-bottom: 14px; }
 .admin-naming__pillars { border-collapse: collapse; font-size: 13px; }
@@ -217,18 +216,18 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   min-height: 92px; padding: 14px 8px;
   border: none; border-radius: 0;
-  color: #fff;
+  color: var(--color-text-on-dark);
 }
 .admin-naming__el-icon {
-  font-style: normal; font-size: 30px; font-weight: 800; line-height: 1; color: #fff;
+  font-style: normal; font-size: 30px; font-weight: 800; line-height: 1; color: var(--color-text-on-dark);
 }
-.admin-naming__el-count { font-size: 20px; font-weight: 800; line-height: 1; color: #fff; opacity: 0.92; }
+.admin-naming__el-count { font-size: 20px; font-weight: 800; line-height: 1; color: var(--color-text-on-dark); opacity: 0.92; }
 /* 원소별 저채도·어두운 박스 색 (목=딥세이지/화=딥브릭/토=딥오커/금=차콜그레이/수=딥슬레이트) */
-.admin-naming__el.el-mok { background: #46604f; }
-.admin-naming__el.el-hwa { background: #834f46; }
-.admin-naming__el.el-to { background: #7c663a; }
-.admin-naming__el.el-geum { background: #5c616b; }
-.admin-naming__el.el-su { background: #445872; }
+.admin-naming__el.el-mok { background: var(--color-element-wood); }
+.admin-naming__el.el-hwa { background: var(--color-element-fire); }
+.admin-naming__el.el-to { background: var(--color-element-earth); }
+.admin-naming__el.el-geum { background: var(--color-element-metal); }
+.admin-naming__el.el-su { background: var(--color-element-water); }
 /* 결핍(0개): 박스를 흐리게 처리해 부족함을 표시 */
 .admin-naming__el.is-missing { opacity: 0.45; }
 .admin-naming__missing-note { grid-column: 1 / -1; font-size: 12px; color: var(--color-text-muted); text-align: right; margin-top: 2px; }
@@ -246,23 +245,23 @@
 .admin-naming__offsets { display: flex; flex-wrap: wrap; gap: 8px; }
 .admin-naming__recs { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .admin-naming__rec { border: 1px solid var(--color-border-soft); border-radius: 8px; padding: 12px; display: grid; gap: 5px; }
-.admin-naming__rec.is-chosen { border-color: #a9d3b8; background: #f2f9f4; }
+.admin-naming__rec.is-chosen { border-color: var(--color-success-border); background: var(--color-success-surface-soft); }
 .admin-naming__rec-main { display: flex; align-items: baseline; gap: 6px; }
 .admin-naming__rec-main b { font-size: 16px; color: var(--color-text-primary); }
 .admin-naming__rec-el { margin-left: auto; font-size: 12px; color: var(--color-text-muted); }
 .admin-naming__rec-sub { font-size: 12.5px; color: var(--color-text-secondary); line-height: 1.45; }
 .admin-naming__rec-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 /* 선택 이력: 선명하게(굵게) */
-.admin-apps .admin-naming__rec-foot .admin__muted { font-weight: 700; color: #4a3728; }
+.admin-apps .admin-naming__rec-foot .admin__muted { font-weight: 700; color: var(--color-admin-text); }
 
 /* ── 제작신청 관리 전용 오버라이드 ──────────────────── */
-.admin-apps { --admin-brown: #4a3728; }
+.admin-apps { --admin-brown: var(--color-admin-text); }
 /* 표: 외곽선·radius 제거 + 밝은 배경 */
 .admin-apps .admin__table-wrap { border: none; border-radius: 0; }
-.admin-apps .admin__table thead th { background: #fbf6ee; }
-.admin-apps .admin__table td { background: #fffdf8; }
+.admin-apps .admin__table thead th { background: var(--color-admin-table-heading); }
+.admin-apps .admin__table td { background: var(--color-admin-table-cell); }
 .admin-apps .admin__table tr.is-open td,
-.admin-apps .admin__detail-row td { background: #fdf8f0; }
+.admin-apps .admin__detail-row td { background: var(--color-admin-detail-surface); }
 /* 내부 폰트 전부 고동색 (액션 버튼·상태 배지·오행 배지는 자체 색 유지) */
 .admin-apps .admin-panel__title,
 .admin-apps .eyebrow,
@@ -303,7 +302,7 @@
 
 /* 카드번호 입력(개인) + 일괄 입력(단체) */
 .admin-naming__cardnum { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
-.admin-naming__cardnum .field__label { font-size: 0.85rem; color: #555; }
+.admin-naming__cardnum .field__label { font-size: 0.85rem; color: var(--color-text-label); }
 .admin-naming__cardbatch { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .admin-naming__cardbatch textarea { font-family: monospace; resize: vertical; }
 .admin-naming__cardbatch-actions { display: flex; align-items: center; gap: 10px; }
@@ -314,15 +313,19 @@
 .admin-card-tools__row .field__select { width: auto; min-width: 180px; }
 .admin-card-tools__date { width: 150px; }
 .admin-card-tools__preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; max-width: 720px; }
-.admin-card-tools__preview img { width: 100%; height: auto; border: 1px solid var(--color-border-soft); border-radius: 6px; background: #fff; }
+.admin-card-tools__preview img { width: 100%; height: auto; border: 1px solid var(--color-border-soft); border-radius: 6px; background: var(--color-surface-white); }
 
 /* 학생증 템플릿 */
 .admin-template__controls { display: grid; grid-template-columns: minmax(240px, 1fr) 180px; gap: 10px; align-items: start; margin-bottom: 16px; }
 .admin-template__preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; min-height: 120px; margin-bottom: 16px; }
-.admin-template__preview img { width: 100%; height: auto; border: 1px solid var(--color-border-soft); border-radius: 6px; background: #fff; }
+.admin-template__preview img { width: 100%; height: auto; border: 1px solid var(--color-border-soft); border-radius: 6px; background: var(--color-surface-white); }
 .admin-template__upload { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)) auto; gap: 10px; align-items: end; }
 
 @media (max-width: 720px) {
   .admin-template__controls,
   .admin-template__upload { grid-template-columns: 1fr; }
 }
+
+/* 목록 페이지 이동(§1.20) */
+.admin-pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; }
+.admin-pager__label { font-size: 13px; color: var(--color-text-muted); min-width: 56px; text-align: center; }

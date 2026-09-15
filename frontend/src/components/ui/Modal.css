@@ -3,7 +3,7 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgb(30 26 22 / 45%);
+  background: var(--color-overlay-modal);
   display: grid;
   place-items: center;
   padding: clamp(16px, 4vw, 48px);
@@ -18,14 +18,14 @@
 
 .modal__dialog {
   position: relative;
-  background: #ffffff;
+  background: var(--color-surface-white);
   /* Corners: only very slightly rounded, per the client's note. */
   border-radius: 6px;
   width: min(100%, 640px);
   max-height: min(82vh, 760px);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 24px 60px rgb(0 0 0 / 22%);
+  box-shadow: 0 24px 60px var(--color-overlay-footer);
   overflow: hidden;
 }
 
@@ -35,30 +35,30 @@
   justify-content: space-between;
   gap: 12px;
   padding: 20px 24px;
-  border-bottom: 1px solid #ece7df;
+  border-bottom: 1px solid var(--color-modal-border);
 }
 .modal__title {
   font-family: var(--font-serif);
   font-size: clamp(17px, 2vw, 21px);
   font-weight: 700;
-  color: #2a2a26;
+  color: var(--color-modal-title);
 }
 .modal__close {
   font-size: 16px;
-  color: #8a8377;
+  color: var(--color-modal-muted);
   width: 32px;
   height: 32px;
   border-radius: 4px;
 }
 .modal__close:hover {
-  background: #f3efe8;
-  color: #3a3a34;
+  background: var(--color-modal-close-surface);
+  color: var(--color-modal-close-text);
 }
 
 .modal__body {
   padding: 22px 26px 28px;
   overflow-y: auto;
-  color: #43423c;
+  color: var(--color-modal-text);
   font-size: 14.5px;
   line-height: 1.85;
 }
@@ -75,13 +75,13 @@
   top: 50%;
   transform: translateY(-50%);
   font-size: 30px;
-  color: #b7b0a5;
+  color: var(--color-modal-disabled);
   width: 40px;
   height: 40px;
   z-index: 2;
 }
 .modal__nav:hover {
-  color: #7d766b;
+  color: var(--color-modal-caption);
 }
 .modal__nav--prev {
   left: -4px;

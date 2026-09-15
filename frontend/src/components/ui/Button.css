@@ -53,13 +53,13 @@
 
 /* 이전 버튼: cream background, navy text; hover fills beige. */
 .btn--soft {
-  background: #f7f0e9;
+  background: var(--color-button-soft);
   color: var(--color-primary);
   border: 1px solid var(--color-border-soft);
 }
 .btn--soft:hover,
 .btn--soft:focus-visible {
-  background: #f2e9df;
+  background: var(--color-warm-beige);
 }
 
 .btn:disabled,

@@ -1,20 +1,26 @@
-// Auth context/provider: mock login, logout, and current-user state.
+// Auth context/provider: 서버 세션(HttpOnly 쿠키)이 Source of Truth인 인증 상태.
+// 앱 시작 시 GET /api/users/me로 로그인 여부를 확정하고, localStorage에는 사용자 정보를 저장하지 않는다.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api } from "../../services/api";
+import { api, ApiError } from "../../services/api";
 
 export type Role = "user" | "admin";
+/**
+ * loading: 앱 시작 후 /me 확인 전 · authenticated: 서버 세션 확인됨 ·
+ * unauthenticated: 최종 401/403(refresh 실패 포함) · error: 네트워크 장애·5xx(로그아웃 아님).
+ */
+export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "error";
 
 export interface AuthUser {
   name: string;
   email: string;
   role: Role;
-  source?: "api" | "local";
   phone?: string;
   address?: string;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
+  status: AuthStatus;
   isAdmin: boolean;
   login: (user: AuthUser) => void;
   logout: () => void;
@@ -22,61 +28,87 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const STORAGE_KEY = "auth-user";
+// 새로고침 직후 관리자 메뉴 표시 복원용 UI 힌트 — 권한 근거가 아니다(서버가 /api/admin/**를 최종 검증).
+// /api/users/me 응답에 role이 없으므로(확정 정책) 로그인 응답의 role만 최소 캐시한다.
+const ROLE_HINT_KEY = "auth-role";
+// 과거 mock 인증이 쓰던 전체 사용자 저장 키 — 발견 시 제거만 한다.
+const LEGACY_STORAGE_KEY = "auth-user";
 
-/**
- * Lightweight mock auth. Persists the current user in localStorage so the admin
- * menu stays visible across reloads. This is front-end only — real auth must be
- * verified on the server.
- */
+function readRoleHint(): Role {
+  try {
+    return localStorage.getItem(ROLE_HINT_KEY) === "admin" ? "admin" : "user";
+  } catch {
+    return "user";
+  }
+}
+
+function writeRoleHint(role: Role | null) {
+  try {
+    if (role) localStorage.setItem(ROLE_HINT_KEY, role);
+    else localStorage.removeItem(ROLE_HINT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as AuthUser) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [status, setStatus] = useState<AuthStatus>("loading");
 
   const refreshProfile = useCallback(async () => {
     try {
       const profile = await api.getMe();
-      // /api/users/me는 role을 포함하지 않는다(백엔드 설계 결정) — 로그인 시 확정된 기존 role을 유지하고
-      // 프로필 표시 정보만 서버 기준으로 갱신한다. (role을 profile에서 파생하면 admin이 user로 강등된다.)
       setUser((prev) => ({
         name: profile.name,
         email: profile.email,
-        role: prev?.role ?? "user",
-        source: "api",
+        // /me에는 role이 없다 — 로그인 시점 role(메모리) → 로그인 응답에서 캐시한 힌트 순으로 복원.
+        role: prev?.role ?? readRoleHint(),
         phone: profile.phone,
         address: profile.address,
       }));
-    } catch {
-      // A local account or unauthenticated visitor keeps the existing mock state.
+      setStatus("authenticated");
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        // refresh 재시도까지 실패한 최종 401/403 — 비로그인 상태로 확정한다.
+        setUser(null);
+        setStatus("unauthenticated");
+        writeRoleHint(null);
+      } else {
+        // 네트워크 장애·timeout·5xx — 로그아웃으로 단정하지 않는다. 이미 확인된 세션은 유지.
+        setStatus((prev) => (prev === "authenticated" ? prev : "error"));
+      }
     }
   }, []);
 
-  useEffect(() => { void refreshProfile(); }, [refreshProfile]);
-
   useEffect(() => {
     try {
-      if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-      else localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
     } catch {
       /* ignore */
     }
-  }, [user]);
+    void refreshProfile();
+  }, [refreshProfile]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      status,
       isAdmin: user?.role === "admin",
-      login: (u) => setUser({ ...u, source: u.source ?? "local" }),
-      logout: () => { if (user?.source === "api") void api.logout().catch(() => undefined); setUser(null); },
+      // 서버 로그인 성공 직후 호출된다(LoginPage 등) — 로그인 응답의 사용자·role로 즉시 동기화.
+      login: (u) => {
+        setUser(u);
+        setStatus("authenticated");
+        writeRoleHint(u.role);
+      },
+      logout: () => {
+        void api.logout().catch(() => undefined);
+        setUser(null);
+        setStatus("unauthenticated");
+        writeRoleHint(null);
+      },
       refreshProfile,
     }),
-    [user, refreshProfile],
+    [user, status, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

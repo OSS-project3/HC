@@ -116,8 +116,8 @@
   line-height: 1.45;
 }
 .field__input[aria-invalid="true"] {
-  border-color: #c94747;
-  box-shadow: 0 0 0 2px rgb(201 71 71 / 9%);
+  border-color: var(--color-auth-invalid-border);
+  box-shadow: 0 0 0 2px var(--color-auth-invalid-ring);
 }
 
 .auth__social {
@@ -138,7 +138,7 @@
 }
 .auth__social-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 7px 18px rgb(35 43 54 / 12%);
+  box-shadow: 0 7px 18px var(--color-shadow-auth);
 }
 .auth__social-button:active { transform: translateY(0); }
 .auth__social-button:focus-visible {
@@ -146,17 +146,17 @@
   outline-offset: 2px;
 }
 .auth__social-button--google {
-  border: 1px solid #d7dbe0;
-  background: #fff;
-  color: #31343a;
+  border: 1px solid var(--color-google-border);
+  background: var(--color-surface-white);
+  color: var(--color-google-text);
 }
-.auth__social-button--google:hover { border-color: #b7bdc6; background: #fbfcfd; }
+.auth__social-button--google:hover { border-color: var(--color-google-border-hover); background: var(--color-google-surface-hover); }
 .auth__social-button--naver {
-  border: 1px solid #03c75a;
-  background: #03c75a;
-  color: #fff;
+  border: 1px solid var(--color-naver);
+  background: var(--color-naver);
+  color: var(--color-text-on-dark);
 }
-.auth__social-button--naver:hover { background: #02b351; border-color: #02b351; }
+.auth__social-button--naver:hover { background: var(--color-naver-hover); border-color: var(--color-naver-hover); }
 .auth__social-logo {
   position: absolute;
   left: 17px;
@@ -173,7 +173,7 @@
   height: 24px;
   padding: 2px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-surface-white);
 }
 .auth__switch {
   margin-top: 22px;
@@ -190,6 +190,6 @@
   text-decoration: underline;
 }
 
-.auth__field-hint--ok { color: #2f7d4f; font-weight: 600; }
+.auth__field-hint--ok { color: var(--color-success); font-weight: 600; }
 
-.auth__form-error { margin: 4px 0 2px; color: #c0392b; font-size: 0.9rem; font-weight: 600; text-align: center; }
+.auth__form-error { margin: 4px 0 2px; color: var(--color-auth-error); font-size: 0.9rem; font-weight: 600; text-align: center; }

@@ -20,7 +20,7 @@ import { useLanguage } from "../../features/i18n/LanguageContext";
 
 export function ApplyPage() {
   const { t, language } = useLanguage();
-  const { user } = useAuth();
+  const { user, status } = useAuth();
   const [params] = useSearchParams();
   const { pathname, search } = useLocation();
   const routeDesignId = pathname.endsWith("/visitor")
@@ -63,8 +63,8 @@ export function ApplyPage() {
 
   const submit = async () => {
     // 신청은 백엔드(POST /api/applications)에만 저장한다 — 서버 세션(실제 로그인)이 필요하다. localStorage 미사용.
-    if (user?.source !== "api") {
-      showToast("제작 신청은 실제 로그인 후 이용할 수 있습니다.");
+    if (!user) {
+      showToast("제작 신청은 로그인 후 이용할 수 있습니다.");
       return;
     }
     try {
@@ -132,6 +132,18 @@ export function ApplyPage() {
   const logoOverlay = step >= 2 ? draft.logoFile?.previewUrl : undefined;
   const sealOverlay = step >= 2 ? draft.sealFile?.previewUrl : undefined;
 
+  // 세션 확인 전에는 로그인 안내 화면을 먼저 그리지 않는다(새로고침 직후 잠깐 비로그인으로 보이는 것 방지).
+  if (status === "loading") {
+    return (
+      <div className="apply">
+        <header className="apply__page-head subpage-hero page-container">
+          <p className="eyebrow">{t("제작 신청")}</p>
+          <h1 className="apply__title subpage-hero__title">{title}</h1>
+          <p className="section-lead">{t("로그인 상태를 확인하는 중입니다…")}</p>
+        </header>
+      </div>
+    );
+  }
   if (!user) {
     return (
       <div className="apply">
@@ -182,7 +194,7 @@ export function ApplyPage() {
                 applicationNumber={applicationNumber}
                 onDone={async (depositorName) => {
                   // 입금자명을 서버에 저장(PATCH /api/applications/{id}/depositor) 후 임시 개인정보 정리.
-                  if (applicationId && depositorName && user?.source === "api") {
+                  if (applicationId && depositorName) {
                     try { await api.updateDepositor(applicationId, depositorName); } catch (e) { showToast(e instanceof ApiError ? e.message : "입금자명 저장에 실패했습니다."); }
                   }
                   clear();

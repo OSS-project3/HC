@@ -174,7 +174,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: rgb(0 0 0 / 22%);
+  background: var(--color-overlay-footer);
   opacity: 0;
   transition: opacity 120ms ease;
 }

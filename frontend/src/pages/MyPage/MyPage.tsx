@@ -14,18 +14,23 @@ const APP_STATUS_LABELS: Record<ApplicationStatus, string> = {
 };
 // 취소 가능 상태(백엔드 canCancelByUser와 동일).
 const CANCELLABLE = new Set<ApplicationStatus>(["SUBMITTED", "REVIEWING", "PHOTO_REJECTED"]);
+// 신청·후기 목록 페이지 크기(서버 Pageable, §1.20).
+const PAGE_SIZE = 20;
 
 export function MyPage() {
   const { t, language } = useLanguage();
-  const { user, refreshProfile, logout } = useAuth();
+  const { user, status, refreshProfile, logout } = useAuth();
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState(() => ({ name: user?.name || "", phone: user?.phone || "", address: user?.address || "" }));
-  // 비밀번호 변경(PATCH /api/users/me/password) — 서버 세션(source "api")에서만 노출.
+  // 비밀번호 변경(PATCH /api/users/me/password).
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
-  // 내 후기/신청/문의는 모두 백엔드 my-* API로 조회한다(서버 세션 = source "api"일 때만).
+  // 내 후기/신청/문의는 모두 백엔드 my-* API로 조회한다(서버 세션 확인 후에만).
+  // 신청·후기 목록은 서버 페이지네이션(§1.20)과 연결한다 — 첫 페이지 로드 후 "더보기"로 누적.
   const [myReviews, setMyReviews] = useState<{ id: string; title: string; createdAt: string }[]>([]);
+  const [reviewsPaging, setReviewsPaging] = useState({ page: 0, totalPages: 1 });
   const [myApplications, setMyApplications] = useState<AdminApplicationListItem[]>([]);
+  const [appsPaging, setAppsPaging] = useState({ page: 0, totalPages: 1 });
   const [myInquiries, setMyInquiries] = useState<InquiryListItem[]>([]);
   // 내 신청 상세(GET /api/my/applications/{id}) — 행을 펼치면 로드.
   const [openAppId, setOpenAppId] = useState<number | null>(null);
@@ -33,20 +38,44 @@ export function MyPage() {
   const [appDetailLoading, setAppDetailLoading] = useState(false);
 
   useEffect(() => {
-    if (user?.source !== "api") { setMyReviews([]); setMyApplications([]); setMyInquiries([]); return; }
+    if (status !== "authenticated") { setMyReviews([]); setMyApplications([]); setMyInquiries([]); return; }
     let cancelled = false;
     Promise.all([
-      api.listMyReviews({ size: 100 }).then((d) => d.content.map(toReviewPost).map((r) => ({ id: r.id, title: r.title, createdAt: r.createdAt }))).catch(() => []),
-      api.listMyApplications({ size: 100 }).then((d) => d.content).catch(() => []),
+      api.listMyReviews({ page: 0, size: PAGE_SIZE }).catch(() => null),
+      api.listMyApplications({ page: 0, size: PAGE_SIZE }).catch(() => null),
       api.listMyInquiries().catch(() => []),
     ]).then(([reviews, apps, inquiries]) => {
       if (cancelled) return;
-      setMyReviews(reviews);
-      setMyApplications(apps);
+      setMyReviews(reviews ? reviews.content.map(toReviewPost).map((r) => ({ id: r.id, title: r.title, createdAt: r.createdAt })) : []);
+      setReviewsPaging({ page: 0, totalPages: reviews ? Math.max(1, reviews.totalPages) : 1 });
+      setMyApplications(apps ? apps.content : []);
+      setAppsPaging({ page: 0, totalPages: apps ? Math.max(1, apps.totalPages) : 1 });
       setMyInquiries(inquiries);
     });
     return () => { cancelled = true; };
-  }, [user?.source, language]); // 언어 전환 시 번역된 내용(사진 반려 사유·문의·후기)으로 재조회
+  }, [status, language]); // 언어 전환 시 번역된 내용(사진 반려 사유·문의·후기)으로 재조회
+
+  const loadMoreApplications = async () => {
+    const next = appsPaging.page + 1;
+    try {
+      const result = await api.listMyApplications({ page: next, size: PAGE_SIZE });
+      setMyApplications((cur) => [...cur, ...result.content]);
+      setAppsPaging({ page: next, totalPages: Math.max(1, result.totalPages) });
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "목록을 더 불러오지 못했습니다.");
+    }
+  };
+
+  const loadMoreReviews = async () => {
+    const next = reviewsPaging.page + 1;
+    try {
+      const result = await api.listMyReviews({ page: next, size: PAGE_SIZE });
+      setMyReviews((cur) => [...cur, ...result.content.map(toReviewPost).map((r) => ({ id: r.id, title: r.title, createdAt: r.createdAt }))]);
+      setReviewsPaging({ page: next, totalPages: Math.max(1, result.totalPages) });
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "목록을 더 불러오지 못했습니다.");
+    }
+  };
 
   const submitPassword = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -87,13 +116,32 @@ export function MyPage() {
     try {
       await api.cancelApplication(id);
       showToast("신청이 취소되었습니다.");
-      const page = await api.listMyApplications({ size: 100 });
-      setMyApplications(page.content);
+      // 취소 후에는 첫 페이지부터 다시 조회한다("더보기"로 누적된 상태는 초기화).
+      const result = await api.listMyApplications({ page: 0, size: PAGE_SIZE });
+      setMyApplications(result.content);
+      setAppsPaging({ page: 0, totalPages: Math.max(1, result.totalPages) });
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "취소에 실패했습니다.");
     }
   };
 
+  // 세션 확인 전(loading)에는 비로그인 화면을 먼저 그리지 않는다. 네트워크 장애(error)는 로그아웃과 구분해 재시도를 안내한다.
+  if (status === "loading") {
+    return (
+      <section className="mypage mypage--guest page-container">
+        <p>{t("로그인 상태를 확인하는 중입니다…")}</p>
+      </section>
+    );
+  }
+  if (status === "error") {
+    return (
+      <section className="mypage mypage--guest page-container">
+        <h1>{t("일시적인 오류가 발생했습니다.")}</h1>
+        <p>{t("네트워크 상태를 확인한 뒤 다시 시도해 주세요.")}</p>
+        <button type="button" className="mypage__edit" onClick={() => { void refreshProfile(); }}>{t("다시 시도")}</button>
+      </section>
+    );
+  }
   if (!user) {
     return (
       <section className="mypage mypage--guest page-container">
@@ -117,8 +165,8 @@ export function MyPage() {
         <button type="button" className="mypage__edit" onClick={() => setEditing(!editing)}>
           {t("수정")} <span aria-hidden="true">›</span>
         </button>
-        {user.source === "api" && <button type="button" className="mypage__edit" onClick={() => setPwOpen(!pwOpen)}>{t("비밀번호 변경")} <span aria-hidden="true">›</span></button>}
-        {user.source === "api" && <button type="button" className="mypage__edit mypage__edit--muted" onClick={async () => { if (!confirm(t("회원 탈퇴를 진행할까요?"))) return; await api.withdraw(); logout(); }}>{t("회원 탈퇴")}</button>}
+        <button type="button" className="mypage__edit" onClick={() => setPwOpen(!pwOpen)}>{t("비밀번호 변경")} <span aria-hidden="true">›</span></button>
+        <button type="button" className="mypage__edit mypage__edit--muted" onClick={async () => { if (!confirm(t("회원 탈퇴를 진행할까요?"))) return; await api.withdraw(); logout(); }}>{t("회원 탈퇴")}</button>
       </div>
       <section className="mypage__profile page-container">
         <div><span>{t("이름")}</span><strong>{user.name}</strong></div>
@@ -126,12 +174,12 @@ export function MyPage() {
         <div><span>{t("전화번호")}</span><strong>{user.phone || "-"}</strong></div>
       </section>
       {/* PATCH /api/users/me는 name·phone만 처리한다(주소 수정은 백엔드 미지원 — FRONTEND_API_GAPS §1.9). */}
-      {editing && <form className="mypage__profile page-container" onSubmit={async (event) => { event.preventDefault(); if (user.source === "api") { await api.updateMe({ name: profile.name, phone: profile.phone }); await refreshProfile(); } setEditing(false); }}>
+      {editing && <form className="mypage__profile page-container" onSubmit={async (event) => { event.preventDefault(); await api.updateMe({ name: profile.name, phone: profile.phone }); await refreshProfile(); setEditing(false); }}>
         <label className="field"><span className="field__label">{t("이름")}</span><input className="field__input" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
         <label className="field"><span className="field__label">{t("전화번호")}</span><input className="field__input" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} /></label>
         <Button type="submit">{t("저장")}</Button>
       </form>}
-      {pwOpen && user.source === "api" && <form className="mypage__profile page-container" onSubmit={submitPassword}>
+      {pwOpen && <form className="mypage__profile page-container" onSubmit={submitPassword}>
         <label className="field"><span className="field__label">{t("현재 비밀번호")}</span><input className="field__input" type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} required /></label>
         <label className="field"><span className="field__label">{t("새 비밀번호")}</span><input className="field__input" type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} placeholder={t("8~72자")} required /></label>
         <label className="field"><span className="field__label">{t("새 비밀번호 확인")}</span><input className="field__input" type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required /></label>
@@ -143,6 +191,9 @@ export function MyPage() {
           <div className="mypage-list__head"><span>{t("신청번호")}</span><span>{t("카드 종류")}</span><span>{t("신청일")}</span><span>{t("상태")}</span></div>
           {myApplications.map((application) => <Fragment key={application.applicationId}><article><strong><button type="button" className="mypage-appnum" onClick={() => toggleAppDetail(application.applicationId)} aria-expanded={openAppId === application.applicationId}>{application.applicationNumber}</button></strong><span>{application.cardTypeName}</span><time>{new Date(application.createdAt).toLocaleDateString(language === "en" ? "en-US" : "ko-KR")}</time><span className="mypage-status-cell"><b className="mypage-status">{t(APP_STATUS_LABELS[application.status])}</b>{CANCELLABLE.has(application.status) && <button type="button" className="mypage-cancel" onClick={() => cancelApplication(application.applicationId)}>{t("신청 취소")}</button>}</span></article>{openAppId === application.applicationId && <ApplicationDetail loading={appDetailLoading} detail={appDetail} />}</Fragment>)}
           {myApplications.length === 0 && <p className="mypage-list__empty">{t("제작 신청 내역이 없습니다.")}</p>}
+          {appsPaging.page + 1 < appsPaging.totalPages && (
+            <button type="button" className="mypage__edit" onClick={() => void loadMoreApplications()}>{t("더보기")} ›</button>
+          )}
         </div>
       </MySection>
 
@@ -150,6 +201,9 @@ export function MyPage() {
         <div className="mypage-list mypage-list--activity">
           {myReviews.map((review) => <article key={review.id}><Link to={`/reviews/${encodeURIComponent(review.id)}`}><strong>{review.title}</strong></Link><time>{review.createdAt.replace(/-/g, ".")}</time><Link className="mypage-list__edit" to={`/reviews/${encodeURIComponent(review.id)}/edit`} aria-label={language === "en" ? `Edit review "${review.title}"` : `${review.title} 후기 수정`}>{t("수정")}</Link></article>)}
           {myReviews.length === 0 && <p className="mypage-list__empty">{t("작성한 후기가 없습니다.")}</p>}
+          {reviewsPaging.page + 1 < reviewsPaging.totalPages && (
+            <button type="button" className="mypage__edit" onClick={() => void loadMoreReviews()}>{t("더보기")} ›</button>
+          )}
         </div>
       </MySection>
 
