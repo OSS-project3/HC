@@ -14,6 +14,24 @@
 ```
 
 ---
+## 2026-09-15 — Codex — `main` (프론트 구조·문서·스타일 정리)
+
+- 변경: `StepInfo`를 개인/단체/학교/수령인 섹션과 검증·검색 hook으로, 관리자 신청 화면을 목록/상세/작명/만세력/카드 기능으로 분리했다. 운영 추천 파일·타입에서 mock 명칭을 제거하고 미사용 무작위 유틸·단건 만세력 래퍼를 정리했다. UI theme 색상을 의미 기반 CSS 토큰으로 통합했다.
+- 문서: 프론트 README와 API 갭·연동 명세를 현재 코드 기준으로 재작성하고 초기 조사/TODO 문서의 역사 자료 성격을 표시했다. `/me` role, 신청 동의 이력, 공개 100건 목록과 선택적 서버화 항목을 현재 갭으로 분리했다.
+- 검증: typecheck(strict+unused) PASS, Vite build PASS, 이름 추천/만세력 테스트 7 PASS, 빌드 결과 Edge 격리 브라우저 회귀 5 PASS. 구조 전후 API 호출 집합·횟수 동일(미사용 래퍼 1개만 제거), CSS 토큰 역치환 비교 34개 파일 동일. Docker 엔진 미기동으로 실제 백엔드 통합 E2E는 미실행.
+- 파일: `frontend/src/components/apply/{steps/StepInfo,info/*}`, `features/apply/use{InfoValidation,SchoolSearch}`, `components/admin/{sections/ApplicationsSection,applications/*}`, `features/admin/useManseryeokResults`, `lib/{namingRecommendations,saju}`, `styles/tokens.css`와 UI CSS, frontend Playwright 회귀 파일, frontend/README.md, docs 프론트·인덱스·협업 문서.
+- 관련: `docs/FRONTEND_API_GAPS.md`, `docs/FRONTEND_API_INTEGRATION_SPEC.md`
+
+## 2026-09-14 — Claude — `main` (FRONTEND_API_GAPS 잔여 갭 일괄 구현 — 20차)
+
+- 변경(프론트): ① §1.1-d 인증 서버 세션 단일화 — `AuthContext` 재작성(`auth-user` localStorage/데모 인증 제거, `/me` 부트스트랩, `loading/authenticated/unauthenticated/error` 상태, role은 로그인 응답만 `auth-role`로 최소 캐시), 소비처 9개 파일의 `user.source === "api"` 분기 제거, AdminPage/MyPage/ApplyPage loading·error 가드. ② §1.19 결정적 추천 — `adminNamingMock.ts`에서 `Math.random()` 셔플·`mockSaju()` 제거, `recommendNames()`(score DESC→사전 index ASC 상위 5) 신설, "다른 이름 추천" 버튼 제거. ③ §1.15-d/TODO 1-E 재진입 복원 — `ApplicationNaming`이 신규 일괄 API를 1회 호출해 Map 전달, `NamingCard` 상태머신(조회중/확정/미확정/조회실패/손상), adapter `fromActiveManseryeokResult()`(lib/saju.ts), confirm 성공 후 재조회, mock 폴백 전면 제거. ④ §1.20 페이지네이션 — 공용 `AdminPager` 신설, ApplicationsSection/ReviewsSection/BoardsSection/EventAdminPanel/MyPage(2목록, 더보기)/NoticesPage(더미 페이저→실연동) 서버 `page`/`totalPages` 연결. ⑤ §3.1 — EventsPage PROGRAM 카드 정적화, `ContentAdminPanel.tsx` 삭제, `eventFeedPosts.ts` 미사용 정적 배열·localStorage 헬퍼 제거.
+- 변경(백엔드, 최소 범위 2건): ① 1-E-3 일괄 복원 API `GET /api/admin/applications/{id}/manseryeok-results` — `ManseryeokService.listActiveManseryeokResults`(관리자→Application 존재→active=true 일괄, Member당 1건 불변조건, 결과 없는 Member 누락), `ManseryeokMemberResultResponse` DTO, repository `findByApplicationMemberIdInAndActiveTrue` 추가. ② §1.16 — `NamingResultExcelParser`에 선택적 "성씨" 열(하위 호환·한글 1~2자 검증·행 단위 거절), `ApplicationMember.assignKoreanName(surname, name, chineseName)` 3-인자 오버로드(뜻·훈음 보존), `applyNamingResult()` 분기 호출.
+- 파일: frontend — AuthContext.tsx, LoginPage.tsx, ApplyPage.tsx, MyPage.tsx, InquiryPage.tsx, InquiryDetailPage.tsx, ReviewEditorPage.tsx, AdminPage.tsx(+css), ApplicationsSection.tsx, ReviewsSection.tsx, BoardsSection.tsx, EventAdminPanel.tsx(+css), AdminPager.tsx(신규), NoticesPage.tsx, EventsPage.tsx, ContentAdminPanel.tsx(삭제), eventFeedPosts.ts, adminNamingMock.ts, lib/saju.ts, services/api.ts, e2e/naming-determinism.spec.ts(신규) / backend — AdminApplicationController.java, ManseryeokService.java, ManseryeokResultRepository.java, ManseryeokMemberResultResponse.java(신규), NamingResultExcelParser.java, ApplicationMember.java, ApplicationService.java + 테스트(ManseryeokServiceTest +5, AdminApplicationControllerTest +4, NamingResultExcelParserTest +4, ApplicationServiceNamingResultTest +2).
+- 사유: `docs/FRONTEND_API_GAPS.md` 기준 잔여 미완료 항목 일괄 해소(문서 20차 갱신 참고). §1.7/§1.18/§1.4는 코드 재확인 결과 기연동이라 문서만 정정.
+- 테스트: frontend `tsc`·`vite build` 그린, 순수 로직 테스트 7/7 통과(`npx playwright test e2e/naming-determinism.spec.ts` — 브라우저 불필요). backend targeted 4개 클래스 그린(참고: 한글 사용자 경로에서 Gradle 테스트 워커가 부트스트랩 실패해 `C:\hc-src` junction + `GRADLE_USER_HOME=C:\gradle-home` + Redis(6400 컨테이너)로 실행).
+- 관련: `docs/FRONTEND_API_GAPS.md` 20차, `docs/collab/TODO.md` 1-E(✅), `docs/specs/admin-dashboard/DESIGN.md:124` 정정.
+
+---
 ## 2026-09-14 — Claude — `main` (단체 전체 재업로드 photoNumber 유실 수정)
 
 - 변경: 단체 신청 전체 재업로드(`POST /api/applications/{id}/photo`의 `submitFile` 경로) 시 새로 생성되는 `ApplicationMember`의 `photoNumber`가 항상 `null`이 되던 버그 수정. `ApplicationService.reuploadPhoto()`가 사진 번호 인자가 없는 legacy `ApplicationMember.createGroupRow()` 오버로드를 호출하고 있었음 — 마지막 인자로 `row.photoNumber()`를 전달하도록 한 줄만 수정.

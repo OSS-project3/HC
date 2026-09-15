@@ -1,6 +1,6 @@
 # 관리자 대시보드 — 설계 및 API 갭 문서
 
-> ⚠️ **정정(2026-08-25) — 이 설계문서의 "❌ 없음/미구현" 표기가 실제 구현과 어긋난다(문서 §1 vs §3 내부 모순 포함).** 실제로는 전부 구현·연동됨: 이름 선택이력(+1, `name_selection_stats` + `GET /api/admin/name-selection-stats`), 상태전이 8종(`confirm-payment`·`start-review`·`approve-naming`·`reject-photo`·`complete-naming`·`start-producing`·`card-ready`·`dispatch`), 엑셀 내보내기(`POST /api/admin/applications/export`), 작명결과 엑셀(`naming-result`). 미구현은 통계 집계(`GET /api/admin/stats`)·카드디자인 배정 뿐. 현재 상태는 `docs/FRONTEND_API_GAPS.md` §1.4.
+> **상태 안내(2026-09-15):** 이 문서는 설계 경위를 보존한다. 현재 구현·연동 상태는 `docs/FRONTEND_API_GAPS.md`와 `docs/FRONTEND_API_INTEGRATION_SPEC.md`를 따른다. 통계·카드 디자인·작명·만세력·Excel·상태 전이는 현재 연결되어 있다.
 
 작성 배경: 관리자 페이지를 대시보드 형식으로 신규 구축하면서, **이미 존재하는 API는 연결**하고
 **존재하지 않는 기능은 프론트엔드 UI만 먼저** 구현했다. 이 문서는 (1) 데이터 소스 현황,
@@ -120,16 +120,19 @@ POST /api/admin/applications/export        // 여러 건을 하나의 엑셀로
   README는 `backend/data/*`(이름 corpus)를 "민감 데이터"로 명시하고 서버측에 둔다고 밝힌다.
 - 따라서 **names.json/코드/데이터를 재배포하려면 저자(05solar)의 허락이 필요**하다(05solar가 본 프로젝트 소유자/협업자면 무방).
 - ✅ 현재 상태: 소유자 제공 데이터(`사주 이름 결과.xlsx`) + saju 레포 `names.json`(자원/발음오행)을 병합한
-  **실제 이름 700개**를 `frontend/src/data/sajuNames.json`으로 번들하고, `adminNamingMock.ts`가 recommend.py
-  점수화 로직(자원오행×2+발음오행×1+상생/상극 보정)을 이식해 오행 결핍 기반으로 매번 무작위 8개를 추천한다.
+  **실제 이름 700개**를 `frontend/src/data/sajuNames.json`으로 번들하고, `namingRecommendations.ts`가 recommend.py
+  점수화 로직(자원오행×2+발음오행×1+상생/상극 보정)을 이식해 오행 결핍 기반으로 **결정적 상위 5개**를 추천한다
+  (2026-09-14 정정: `admin-saju.md` 정책에 맞춰 무작위 셔플 제거 — score DESC, 동점 시 사전 index ASC.
+  같은 확정 만세력·같은 사전이면 항상 같은 후보가 같은 순서로 나온다).
 - ✅ **만세력(四柱) 계산도 실제 적용됨**: saju 레포와 동일하게 npm `manseryeok`를 프론트에서 사용
-  (`frontend/src/lib/saju.ts`). 구성원의 생년월일/출생시간으로 4주·오행 분포를 실제 계산해 추천에 반영한다.
-  (해외 출생 진태양시 보정은 아직 미적용 — 필요 시 birthCities의 시차로 확장.)
+  (`frontend/src/lib/saju.ts`). 화면 표시·추천은 DB의 활성 확정 결과(`ManseryeokResult`)만 사용하며,
+  확정 결과가 없으면 추천을 비활성화한다(mock/로컬 계산 폴백 없음). 해외 출생 진태양시 보정은
+  `computeMemberSajuFromResolved(utcInstant, longitude)`로 적용됨(2026-09-14 갱신).
 - ✅ **구성원 조회 API 신설**: `GET /api/admin/applications/{id}/members` — 이름·출신국가·성별·생년월일 등.
   개인=1명/단체=엑셀 행 N명. 작명 화면이 이 데이터로 만세력을 계산하고 멤버별 정보를 표시한다.
 - ✅ **이름 확정 저장·선택이력 = 백엔드 완료**: 대시보드에서 이름 선택 → `POST /api/admin/applications/{id}/members/{mid}/name`로
   `application_members`에 저장 + `name_selection_stats` +1. **프론트 localStorage 미사용**(데이터 유출 방지). 상세는 [`BACKEND_TODO.md`](./BACKEND_TODO.md).
-- 🟡 남은 것: **엑셀 내보내기(export)** 만 미구현.
+- ✅ 엑셀 내보내기와 작명 결과 가져오기는 관리자 신청 상세에 연결되어 있다.
 - `manseryeok` npm 패키지도 **별도 라이선스 확인** 후 사용한다.
 - 추가 한계: 데이터가 성(姓) 없는 2글자 이름 700개뿐 → 성명학(획수) 기반 감명이나 성-이름 궁합은 추가 데이터 필요.
 

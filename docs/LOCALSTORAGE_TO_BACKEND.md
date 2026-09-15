@@ -1,5 +1,7 @@
 # localStorage → 백엔드 이전 필요 목록 (2026-08-25)
 
+> **현재 상태 정정(2026-09-15):** 사용자·업무 데이터의 localStorage 사용은 제거됐다. `managed-content:*`와 `ContentAdminPanel`도 제거되어 행사 PROGRAM은 정적으로 렌더링한다. 인증은 서버 HttpOnly 쿠키와 `/api/users/me`가 기준이며 `auth-user`는 시작 시 삭제한다. 남은 `auth-role`은 `/me`가 role을 반환할 때까지의 비인가 UI 힌트다. 아래 §1~§4는 2026-08-25 조사 이력이며 이 정정과 충돌하면 정정을 따른다.
+
 원칙: **사용자/업무 데이터는 브라우저 localStorage에 저장하지 않는다. 반드시 백엔드 DB에 저장하고 API로 주고받는다.**
 이 문서는 프론트엔드 전체(`frontend/src`)를 순회해 localStorage/sessionStorage에 저장 중인 모든 항목을 찾아,
 **백엔드로 옮겨야 하는 것**과 **그대로 둬도 되는 것**을 구분하고, 각 항목에 필요한 API·DB·프론트 변경을 정리한다.
@@ -20,8 +22,9 @@
 |---|---|---|---|---|
 | ~~`admin-applications`~~ | ✅ 제거됨 | `ApplyPage`→`POST /api/applications`, `MyPage`→`GET /api/my/applications` | 제출 신청 | ✅ **백엔드 연결 완료** |
 | ~~`customer-inquiries`~~ | ✅ 제거됨 | `InquiryPage`→`POST /api/inquiries`, `MyPage`/`InquiryDetailPage`→`GET /api/my/inquiries` | 문의 | ✅ **백엔드 연결 완료** |
-| `managed-content:*` (`events` 등) | localStorage | `data/eventFeedPosts.ts`, `components/admin/ContentAdminPanel.tsx`, `pages/EventsPage` | 관리자 편집 공개 콘텐츠(이벤트/피드) | 🟠 **백엔드 이전 권장** |
-| `auth-user` | localStorage | `features/auth/AuthContext.tsx` | 로그인 사용자 {name,email,role,phone,address} | 🟠 **실제 로그인 전환 필요** |
+| ~~`managed-content:*`~~ | ✅ 제거됨 | 행사 PROGRAM 정적화, Event 피드는 서버 API | 관리자 편집 공개 콘텐츠 | ✅ **제거 완료** |
+| ~~`auth-user`~~ | ✅ 제거됨 | `AuthContext`가 앱 시작 시 레거시 키 제거 | 과거 로그인 사용자 캐시 | ✅ **서버 세션 전환 완료** |
+| `auth-role` | localStorage | `features/auth/AuthContext.tsx` | 관리자 메뉴 복원용 role 힌트 | 🟡 `/me` role 계약 후 제거. 인가 근거 아님 |
 | `application-draft` | sessionStorage | `features/apply/useApplicationDraft.ts` | 작성 중 신청서(PII, 파일 제외) | 🟢 유지 가능(세션·임시) |
 | `last-application-lookup` | sessionStorage | `pages/MobileCardPage.tsx` | 조회 결과(마스킹 이름) | 🟢 유지 가능(세션·임시) |
 | `site-language` | localStorage | `features/i18n/LanguageContext.tsx` | 언어 설정 ko/en | 🟢 유지 가능(UI 설정) |
@@ -43,7 +46,7 @@
 
 ---
 
-## 3. 🟠 백엔드 이전 권장
+## 3. 완료된 이전 경로의 2026-08-25 조사 이력
 
 ### 3.1 관리자 편집 콘텐츠 `managed-content:*` — ⚠️ 부분 (백엔드는 있음, 프론트 레거시 경로 잔존)
 - **현황(2026-08-25)**: 행사 **부스/협업 피드**는 이미 실 API 연결됨 — `EventsPage.tsx`가 `api.listEvents({type})`로 조회(`:30-31`), 관리자 편집은 `EventAdminPanel`이 `/api/admin/events` CRUD로 수행(API 테스트 §2.4 통과).
@@ -59,7 +62,7 @@
 ## 4. 공통 선행 과제 — 실제 로그인 세션
 
 위 2.1·2.2의 `/api/my/*`(내 신청·내 문의)는 **서버 인증 세션**이 있어야 동작한다.
-현재 일반 사용자는 **mock 로그인**(`LoginPage`가 아무 이메일로 클라이언트 상태만 세팅)이라 서버 세션이 없어 `/api/my/*`가 401이 난다.
+2026-09-15 현재 일반 로그인은 실제 API와 서버 세션을 사용한다. 아래 항목은 당시 전환 배경이다.
 - 백엔드는 `POST /api/auth/login`(이메일+비밀번호) 존재.
 - 프론트 일반 로그인을 실제 API 로그인으로 전환해야 §2 이전이 실효를 가진다(임시 admin 하드코딩과 별개 — `TEMP_ADMIN_LOGIN.md`).
 
@@ -75,12 +78,12 @@
 
 ## 6. 우선순위 · 체크리스트
 
-- [x] **P0** 실제 로그인 세션 전환(§4) — `LoginPage`가 `POST /api/auth/login` 시도(실패 시 mock 폴백).
+- [x] **P0** 실제 로그인 세션 전환(§4) — `LoginPage`가 `POST /api/auth/login`을 사용하며 실패 시 가짜 성공으로 대체하지 않는다.
 - [x] **P0** 문의(§2.2): `createInquiry`/`listMyInquiries`/`getMyInquiry` 추가 → InquiryPage/MyPage/InquiryDetailPage 전환 → `data/inquiries.ts` 삭제. (E2E: 접수 201 → 내 문의 표시 확인)
 - [x] **P0** 신청(§2.1): `listMyApplications`/`getMyApplication` 추가 → MyPage를 `/api/my/applications`로 → `saveLocalApplication`/`data/adminMock.ts` 삭제 → LookupPage localStorage 매칭 제거.
 - [x] **P0** 입금자명(`depositorName`) 서버 저장 — `PATCH /api/applications/{id}/depositor` 신설(본인 소유·결제 확인 전만), 완료 화면(`StepComplete`)에서 저장. 2026-08-25 완료.
-- [ ] **P1** 관리자 콘텐츠(§3.1): `managed-content:*` 실제 API 이관 또는 제거.
-- [ ] **P1** `auth-user`(§3.2): 실제 로그인 후 클라이언트 저장 최소화.
+- [x] **P1** 관리자 콘텐츠(§3.1): `managed-content:*` 제거, 행사 PROGRAM 정적화.
+- [x] **P1** `auth-user`(§3.2): 전체 사용자 캐시 제거, 서버 세션 기준으로 전환.
 - [x] 유지: `application-draft`, `last-application-lookup`, `site-language`.
 
 > 완료 기준: 프론트 코드에서 **사용자/업무 데이터를 쓰는 `localStorage.setItem` 호출이 0개**가 되고(§5의 UI 설정 제외),

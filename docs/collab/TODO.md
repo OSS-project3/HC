@@ -1,11 +1,24 @@
 # TODO (작업 보드)
 
+> **이 문서는 누적 작업 이력과 장기 로드맵이다.** 아래 오래된 절의 “미구현/미연동” 문구는 작성 당시 상태일 수 있다. 2026-09-15 현재 프론트 상태는 `docs/FRONTEND_API_GAPS.md`, 실제 연동 방식은 `docs/FRONTEND_API_INTEGRATION_SPEC.md`를 먼저 확인한다. 상단의 단체 Excel 성씨 정책은 현재 워킹 트리의 선택적 성씨 열 구현과 충돌하며 병합 전 정합화가 필요한 현행 결정 사항이다.
+
 상태 아이콘: ✅ 완료 · 🔵 진행중 · ⚪ 대기 · 🔴 블로킹(질문 대기)
 
 작업을 시작할 때 상태를 `🔵 진행중`으로, 담당자를 채우고 커밋한다.
 작업을 마칠 때 `✅ 완료`로 바꾸고 `CHANGELOG.md`에 항목을 추가한다.
 
 ---
+
+## 2026-09-15 프론트 구조·문서 정리 — ✅ 완료
+
+- [x] `StepInfo`를 단계 조립, 개인·단체·학교·수령인 섹션, 공통 검증·학교 검색 hook으로 분리
+- [x] `ApplicationsSection`을 목록, 상세·상태, 이름 추천, 만세력, 카드 제작·번호 기능으로 분리
+- [x] 운영 추천 코드 `adminNamingMock.ts`/`MockSaju`를 `namingRecommendations.ts`/`SajuSnapshot`으로 변경
+- [x] UI theme 직접 색상을 `tokens.css` 의미 기반 토큰으로 이전하고 브랜드 SVG·장식 효과만 예외 유지
+- [x] API 래퍼·호출 회귀 비교, typecheck, build, 순수 로직 테스트, 격리 브라우저 테스트 완료
+- [x] `frontend/README.md`, `FRONTEND_API_GAPS.md`, `FRONTEND_API_INTEGRATION_SPEC.md` 현재 코드 기준 재작성
+
+검증 결과와 현재 미완료 갭은 `docs/FRONTEND_API_GAPS.md` §1·§4를 따른다.
 
 ## 확정 정책 — 단체 작명 Excel·사용자 역할 복원·카드 생성 동시성 (2026-09-14)
 
@@ -1345,68 +1358,70 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 
 - [x] `CardImageCompositor`가 프론트 runtime이나 mock에 의존하지 않고 DB의 재현 가능한 확정 연주를 조회할 수 있음 — `GET .../manseryeok`으로 조회 가능(단, `CardImageCompositor` 자체 연동은 2단계 범위).
 - [x] 관리자 만세력 저장 API targeted tests와 `compileJava` 통과 — 전체 스위트(REDIS_PORT=6400) 그린, 실패 0(도중 `RestClient.Builder` 빈 미등록으로 514/694 대거 실패했던 걸 `RestClient.builder()` 직접 생성으로 수정해 해소 — 이 프로젝트가 Jackson 3(`tools.jackson`)로 옮겨가 있어 Spring Boot `RestClientAutoConfiguration`이 기대하는 classic Jackson 2가 클래스패스에 없어 빈 자체가 안 만들어졌던 것).
-- [ ] 확정 결과 저장 후 관리자 화면 재진입·새로고침 시 활성 `ManseryeokResult`를 복원하지 못하는 공백은 아래 1-E에서 처리한다.
+- [x] 확정 결과 저장 후 관리자 화면 재진입·새로고침 시 활성 `ManseryeokResult`를 복원하지 못하는 공백은 아래 1-E에서 처리한다. — ✅ 2026-09-14(Claude 세션) 1-E 구현 완료.
 
-### 1-E. 관리자 만세력 확정 결과 재진입 복원 — 다음 구현 단위
+### 1-E. 관리자 만세력 확정 결과 재진입 복원 — ✅ 구현 완료(2026-09-14, Claude 세션)
+
+> 구현 요약: 백엔드 `GET /api/admin/applications/{applicationId}/manseryeok-results`(일괄, `ManseryeokService.listActiveManseryeokResults`) 신설 + 프론트 `ApplicationNaming`이 Application 단위 1회 조회해 `memberId→활성결과` Map을 각 `NamingCard`에 전달. 복원은 GET만 사용(confirm 재호출 없음). adapter는 `frontend/src/lib/saju.ts fromActiveManseryeokResult()`. 미완 항목은 아래 체크박스에 사유를 남김.
 
 목표: 관리자 화면을 닫았다 다시 열거나 브라우저를 새로고침해도 DB의 활성 `ManseryeokResult`를 Source of Truth로 복원한다. 기존 resolve/confirm/active-result API와 DB 구조를 재사용하며 만세력 계산 알고리즘과 Entity schema는 변경하지 않는다.
 
 #### 1-E-1. 복원 우선순위와 화면 상태
 
-- [ ] 활성 저장 결과가 있으면 로컬 재계산값·임시 계산값·mock보다 항상 우선 사용
-- [ ] 조회 상태를 `LOADING`, `CONFIRMED`, `NOT_CONFIRMED`, `ERROR`로 구분하고 기존 `resolvedSaju=null` 하나로 모든 상태를 표현하지 않음
-- [ ] 활성 결과 조회 중에는 추천 이름과 확정 만세력 표를 임시값으로 먼저 표시하지 않음
-- [ ] `404 MANSERYEOK_NOT_CONFIRMED`만 확정 결과 없음으로 처리하고, 401/403/5xx/네트워크 실패는 조회 오류로 표시
-- [ ] 조회 오류에서 mock 또는 로컬 계산 결과로 조용히 fallback하여 확정 결과처럼 표시하지 않음
-- [ ] 화면에 `확정 만세력`, `확정 결과 없음`, `조회 실패`를 명확히 구분하고 `timeAccuracy`, `calculatedAt`, 계산 엔진 버전을 확인 가능하게 표시
-- [ ] Member 또는 Application이 바뀌면 이전 대상의 만세력 상태를 즉시 초기화하고 늦게 도착한 이전 요청이 새 화면 상태를 덮어쓰지 않도록 방지
+- [x] 활성 저장 결과가 있으면 로컬 재계산값·임시 계산값·mock보다 항상 우선 사용 — mock/로컬 폴백 경로 자체를 제거
+- [x] 조회 상태를 `LOADING`, `CONFIRMED`, `NOT_CONFIRMED`, `ERROR`로 구분하고 기존 `resolvedSaju=null` 하나로 모든 상태를 표현하지 않음
+- [x] 활성 결과 조회 중에는 추천 이름과 확정 만세력 표를 임시값으로 먼저 표시하지 않음
+- [x] 확정 결과 없음(일괄 응답에서 해당 memberId 누락)과 조회 오류(네트워크/5xx)를 구분해 표시 — 일괄 API 채택으로 단건 404 분기 대신 "응답 누락=미확정" 계약으로 동일 목적 달성
+- [x] 조회 오류에서 mock 또는 로컬 계산 결과로 조용히 fallback하여 확정 결과처럼 표시하지 않음
+- [x] 화면에 `확정 만세력`, `확정 결과 없음`, `조회 실패`를 명확히 구분하고 `timeAccuracy`, `calculatedAt`, 계산 엔진 버전을 확인 가능하게 표시
+- [x] Member 또는 Application이 바뀌면 이전 대상의 만세력 상태를 즉시 초기화하고 늦게 도착한 이전 요청이 새 화면 상태를 덮어쓰지 않도록 방지 — generation counter + unmount 시 무효화
 
 #### 1-E-2. 프론트 응답 계약과 변환
 
-- [ ] `ManseryeokActiveResult` 타입을 백엔드 `ManseryeokActiveResultResponse`와 대조하고, 조회 응답에 없는 `inputHash`를 `ManseryeokConfirmBody` 상속으로 잘못 필수화한 계약 수정
-- [ ] `confirmedPillars.year/month/day/hour`와 `elementCounts`를 검증하여 화면의 `MockSaju` 호환 모델로 변환하는 순수 adapter 추가
-- [ ] 저장 결과의 필수 pillar 또는 오행 값이 손상·누락된 경우 임의 보정하지 않고 명시적인 데이터 오류로 처리
-- [ ] `uncertainPillars`와 `timeAccuracy`를 보존하고, 불확실한 시주를 확정값처럼 표시하거나 이름 추천 근거로 사용하지 않도록 기존 정책 적용
-- [ ] `NamingCard` mount 및 `appId/memberId` 변경 시 활성 결과를 조회하고, 정상 응답만 `resolvedSaju`에 반영
-- [ ] 만세력 확정 저장 성공 후 방금 전송한 값을 임시 확정으로만 남기지 말고 활성 결과 GET을 재호출하여 서버 저장값으로 화면 갱신
+- [x] `ManseryeokActiveResult` 타입을 백엔드 `ManseryeokActiveResultResponse`와 대조하고, 조회 응답에 없는 `inputHash`를 `ManseryeokConfirmBody` 상속으로 잘못 필수화한 계약 수정 — 독립 인터페이스로 재정의
+- [x] `confirmedPillars.year/month/day/hour`와 `elementCounts`를 검증하여 화면의 `SajuSnapshot` 모델로 변환하는 순수 adapter 추가 — `fromActiveManseryeokResult()`
+- [x] 저장 결과의 필수 pillar 또는 오행 값이 손상·누락된 경우 임의 보정하지 않고 명시적인 데이터 오류로 처리
+- [x] `uncertainPillars`와 `timeAccuracy`를 보존하고, 불확실한 시주를 확정값처럼 표시하거나 이름 추천 근거로 사용하지 않도록 기존 정책 적용 — 미확정 주는 "—"로 마스킹
+- [x] 활성 결과 조회는 `ApplicationNaming`(부모) mount·applicationId 변경 시 일괄 1회 수행하고, 정상 응답만 각 카드에 반영(단건 mount-조회 대신 1-E-3 구조를 처음부터 채택)
+- [x] 만세력 확정 저장 성공 후 방금 전송한 값을 임시 확정으로만 남기지 말고 활성 결과 GET을 재호출하여 서버 저장값으로 화면 갱신
 
 #### 1-E-3. 단체 신청 일괄 복원
 
-- [ ] 최종 구조에서 단체 최대 100명의 `NamingCard`가 각각 GET을 호출하는 N+1/동시 100요청 구조를 사용하지 않음
-- [ ] Application 소속 Member들의 활성 결과를 한 번에 조회하는 관리자 API 추가: `GET /api/admin/applications/{applicationId}/manseryeok-results`
-- [ ] Repository는 대상 Application의 Member ID 목록에 대한 `active=true` 결과를 일괄 조회하고 Member별 최신 활성 결과가 최대 1건이라는 불변조건 확인
-- [ ] Service는 관리자 권한 → Application 존재 → Member 소속을 검증하고 `memberId → active result` 형태로 반환
-- [ ] 결과가 없는 Member는 응답에서 누락하거나 `null`로 표현하는 방식을 DTO에서 하나로 고정하고 프론트도 동일하게 처리
-- [ ] `ApplicationNaming` 부모 컴포넌트가 일괄 결과를 1회 조회해 `memberId` 기준 Map으로 만든 뒤 각 `NamingCard`에 전달
-- [ ] 개인 신청도 동일 일괄 API를 재사용하여 별도 단건 복원 코드 경로를 만들지 않음
-- [ ] DB migration, 새 Entity, 저장 방식 변경은 하지 않음
+- [x] 최종 구조에서 단체 최대 100명의 `NamingCard`가 각각 GET을 호출하는 N+1/동시 100요청 구조를 사용하지 않음
+- [x] Application 소속 Member들의 활성 결과를 한 번에 조회하는 관리자 API 추가: `GET /api/admin/applications/{applicationId}/manseryeok-results`
+- [x] Repository는 대상 Application의 Member ID 목록에 대한 `active=true` 결과를 일괄 조회하고 Member별 최신 활성 결과가 최대 1건이라는 불변조건 확인(`findByApplicationMemberIdInAndActiveTrue`, 위반 시 `INTERNAL_ERROR`)
+- [x] Service는 관리자 권한 → Application 존재 → Member 소속을 검증하고 `memberId → active result` 형태로 반환
+- [x] 결과가 없는 Member는 응답에서 누락하거나 `null`로 표현하는 방식을 DTO에서 하나로 고정하고 프론트도 동일하게 처리 — "누락=미확정"으로 고정(`ManseryeokMemberResultResponse` 주석에 명시)
+- [x] `ApplicationNaming` 부모 컴포넌트가 일괄 결과를 1회 조회해 `memberId` 기준 Map으로 만든 뒤 각 `NamingCard`에 전달
+- [x] 개인 신청도 동일 일괄 API를 재사용하여 별도 단건 복원 코드 경로를 만들지 않음
+- [x] DB migration, 새 Entity, 저장 방식 변경은 하지 않음
 
 #### 1-E-4. 예외·동시성
 
-- [ ] 화면 진입 중 관리자가 같은 Member의 만세력을 재확정한 경우 저장 완료 후 최신 active 결과를 다시 조회
-- [ ] 과거 `active=false` 이력은 복원 응답에 섞지 않음
-- [ ] 일부 Member 결과가 손상됐더라도 전체 신청 화면을 빈값이나 mock으로 덮지 않고 해당 Member만 오류 표시
-- [ ] 화면 이탈 또는 Member 변경 후 완료된 요청이 React state를 갱신하지 않도록 cleanup/cancelled guard 적용
-- [ ] 재조회 실패 시 이미 성공적으로 표시 중인 확정 결과를 mock으로 교체하지 않고 오류와 마지막 정상값을 구분
+- [x] 화면 진입 중 관리자가 같은 Member의 만세력을 재확정한 경우 저장 완료 후 최신 active 결과를 다시 조회
+- [x] 과거 `active=false` 이력은 복원 응답에 섞지 않음(쿼리 자체가 active=true만)
+- [x] 일부 Member 결과가 손상됐더라도 전체 신청 화면을 빈값이나 mock으로 덮지 않고 해당 Member만 오류 표시(adapter가 카드 단위로 거절)
+- [x] 화면 이탈 또는 Member 변경 후 완료된 요청이 React state를 갱신하지 않도록 cleanup/cancelled guard 적용(generation counter)
+- [x] 재조회 실패 시 이미 성공적으로 표시 중인 확정 결과를 mock으로 교체하지 않고 오류와 마지막 정상값을 구분(마지막 정상 Map 유지 + 경고 표시)
 
 #### 1-E-5. 최소 테스트
 
-- [ ] Backend Service 테스트: 개인 1명과 단체 N명의 활성 결과 일괄 조회, 결과 없는 Member, 과거 inactive 이력 제외, 다른 Application Member 제외, 비관리자 거절
-- [ ] Backend Controller 테스트: ADMIN 200, USER 403, 미인증 401, Application 없음 404 및 응답 JSON 계약
-- [ ] Frontend adapter 테스트: 정상 pillars/오행 변환, 필수값 누락 거절, `timeAccuracy`·`uncertainPillars` 보존
-- [ ] Frontend 화면 테스트: 저장 결과가 있으면 확정값 복원, 404면 미확정 UI, 5xx면 오류 UI이며 mock fallback 미사용
-- [ ] Frontend 화면 테스트: Application/Member 전환 중 늦은 응답이 새 Member 상태를 덮어쓰지 않음
-- [ ] 단체 100명 화면 진입 시 만세력 결과 조회가 Application 단위 1회인지 검증
-- [ ] 실제 흐름 검증: 만세력 확정 저장 → 관리자 상세 닫기 → 재진입 → 새로고침 후에도 동일 pillars·오행·정확도 표시
-- [ ] targeted test와 frontend/backend build를 실행하고 대량 출력은 로그 파일에 저장; 종료 코드·집계·실패 대상·최초 원인만 보고
+- [x] Backend Service 테스트: 개인 1명과 단체 N명의 활성 결과 일괄 조회, 결과 없는 Member, 과거 inactive 이력 제외, 다른 Application Member 제외, 비관리자 거절(`ManseryeokServiceTest` 5개 신규)
+- [x] Backend Controller 테스트: ADMIN 200, USER 403, 미인증 401, Application 없음 404 및 응답 JSON 계약(`AdminApplicationControllerTest` 4개 신규)
+- [x] Frontend adapter 테스트: 정상 pillars/오행 변환, 필수값 누락 거절, `timeAccuracy`·`uncertainPillars` 보존(`frontend/e2e/naming-determinism.spec.ts`, 브라우저 없이 실행)
+- [ ] Frontend 화면 테스트(컴포넌트 렌더 단위): 프론트에 컴포넌트 테스트 러너(vitest/jest)가 없어 미작성 — 인프라 도입 결정 필요(로직은 adapter 테스트로 커버)
+- [ ] Frontend 화면 테스트: Application/Member 전환 중 늦은 응답 미덮어쓰기 — 위와 동일 사유로 미작성(generation counter로 구현은 완료)
+- [x] 단체 100명 화면 진입 시 만세력 결과 조회가 Application 단위 1회인지 — 구조상 보장(`ApplicationNaming` 1회 조회, `NamingCard`에는 조회 코드 없음)
+- [ ] 실제 흐름 검증(확정 저장→재진입→새로고침): 실행 중인 백엔드 스택이 필요해 이 세션에서 미수행 — e2e 스택(docker-compose.e2e.yml)에서 확인 필요
+- [x] targeted test와 frontend/backend build 실행(2026-09-14 세션 — frontend tsc/build 그린, backend targeted 테스트는 세션 로그 참고)
 
 #### 1-E 완료 조건
 
-- [ ] 관리자 재진입·새로고침 후 DB 활성 결과와 동일한 만세력 정보가 표시됨
-- [ ] 저장 결과가 있는데 로컬 계산이나 mock 결과로 대체되는 경로가 없음
-- [ ] 조회 실패와 미확정 상태를 구분하여 관리자가 다음 행동을 판단할 수 있음
-- [ ] 개인·단체가 동일 복원 계약을 사용하고 단체 100명에서도 N+1 요청이 발생하지 않음
-- [ ] 기존 resolve/confirm, 카드 띠 이미지 조회, 이름 확정과 카드 Preview 흐름에 회귀가 없음
+- [x] 관리자 재진입·새로고침 후 DB 활성 결과와 동일한 만세력 정보가 표시됨(코드 구현 완료 — 실 브라우저 흐름 검증은 1-E-5 미수행 항목 참고)
+- [x] 저장 결과가 있는데 로컬 계산이나 mock 결과로 대체되는 경로가 없음(mockSaju 삭제·폴백 체인 제거)
+- [x] 조회 실패와 미확정 상태를 구분하여 관리자가 다음 행동을 판단할 수 있음
+- [x] 개인·단체가 동일 복원 계약을 사용하고 단체 100명에서도 N+1 요청이 발생하지 않음
+- [x] 기존 resolve/confirm, 카드 띠 이미지 조회, 이름 확정과 카드 Preview 흐름에 회귀가 없음(계약 무변경 — confirm 성공 후 재조회만 추가)
 
 ## 2. CardDesign 매핑과 단일 Member 미리보기
 

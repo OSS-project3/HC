@@ -77,7 +77,7 @@ GET /api/admin/applications/{id}/members/{mid}/name-recommendations?limit=8
    ] }
 ```
 - 입력: 멤버 사주 오행 counts(만세력 결과, API-4). 내부에서 `recommend.py` 점수화 로직 이식 사용.
-- 현재: 프론트 `adminNamingMock.ts`가 브라우저에서 계산 중 → 백엔드로 이관.
+- 현재: 프론트 `namingRecommendations.ts`가 확정 만세력으로 결정적 추천을 계산한다. 백엔드 이관은 선택 사항이다.
 
 ### API-2 이름 확정 저장 (+선택이력)
 ```
@@ -114,7 +114,7 @@ POST /api/admin/applications/export
 | DATA-2 | 확정(선택)된 이름 | ~~localStorage~~ → **DB** | ✅ **완료** — `application_members.name/chinese_name`(API-2). localStorage 제거됨 |
 | DATA-3 | 이름 선택 이력(+1 카운트) | ~~localStorage~~ → **DB** | ✅ **완료** — 신규 테이블 `name_selection_stats`(API-2/2b) |
 | DATA-1 | 미리 지어진 이름 700개(한자·오행·뜻) | 프론트 번들 `sajuNames.json` | ⬜ 선택 — DB 테이블 `saju_names`로 옮겨 추천을 백엔드화할 때 |
-| DATA-4 | 추천 점수화 로직 | 프론트 `adminNamingMock.ts` | ⬜ 선택 — 백엔드 `@Service`(recommend.py 이식) |
+| DATA-4 | 추천 점수화 로직 | 프론트 `namingRecommendations.ts` | ⬜ 선택 — 백엔드 `@Service`(recommend.py 이식) |
 | DATA-5 | 만세력 계산 로직 | 프론트 `lib/saju.ts`(manseryeok) | ⬜ 선택 — (API-4 참조) |
 
 > ✅ 확정 이름·선택이력은 **DB 저장으로 이전 완료**(프론트 localStorage 미사용).
@@ -174,5 +174,5 @@ CREATE TABLE name_selection_log (
 
 - `frontend/src/services/api.ts` — 신규 엔드포인트 client 함수 추가.
 - `frontend/src/components/admin/sections/ApplicationsSection.tsx` — 추천/확정/선택이력 호출을 API로 교체.
-- `frontend/src/data/adminNamingMock.ts` · `frontend/src/data/sajuNames.json` — 백엔드 이관 후 제거/축소.
+- `frontend/src/lib/namingRecommendations.ts` · `frontend/src/data/sajuNames.json` — 백엔드 이관을 결정할 경우 제거/축소.
 - `frontend/src/lib/saju.ts` — 만세력을 서버화하면 제거(유지 시 존치).
