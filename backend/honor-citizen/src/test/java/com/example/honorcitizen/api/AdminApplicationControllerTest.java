@@ -400,6 +400,37 @@ class AdminApplicationControllerTest {
                 .andExpect(status().isForbidden());
     }
 
+    // 만세력 재진입 일괄 복원(1-E-3) — 비즈니스 로직(활성만·소속 검증·불변조건)은
+    // ManseryeokServiceTest에서 이미 커버, 여기선 HTTP/JSON 배선만 검증한다.
+    @Test
+    void manseryeokResultsReturnsEmptyListWhenNothingConfirmed() throws Exception {
+        mockMvc.perform(get("/api/admin/applications/" + otherUsersApplication.getId() + "/manseryeok-results")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void manseryeokResultsForMissingApplicationReturnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/admin/applications/999999/manseryeok-results")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void manseryeokResultsForNonAdminReturnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/admin/applications/" + otherUsersApplication.getId() + "/manseryeok-results")
+                        .header(HttpHeaders.AUTHORIZATION, userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void manseryeokResultsWithoutTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/admin/applications/" + otherUsersApplication.getId() + "/manseryeok-results"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // 십이간지 캐릭터 디자인 세트 — 비즈니스 로직(1~5 검증·잠금 없음)은
     // ApplicationServiceZodiacDesignSetTest/ApplicationStateTransitionTest가 이미 커버, 여기선
     // HTTP 배선만 검증한다.

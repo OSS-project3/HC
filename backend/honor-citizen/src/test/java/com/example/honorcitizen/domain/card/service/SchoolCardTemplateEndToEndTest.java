@@ -28,6 +28,7 @@ import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepositor
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -194,6 +195,9 @@ class SchoolCardTemplateEndToEndTest {
     }
 
     private MockMultipartFile realPng(String part, String assetFileName) throws Exception {
+        // 디자이너 원본 자산은 별도 saju 리포에만 있다 — 없는 머신에서는 실패 대신 건너뛴다.
+        Assumptions.assumeTrue(new File(SAJU_ASSET_ROOT + assetFileName).exists(),
+                "디자이너 학생증 자산 없음: " + SAJU_ASSET_ROOT + assetFileName);
         byte[] bytes;
         try (FileInputStream in = new FileInputStream(SAJU_ASSET_ROOT + assetFileName)) {
             bytes = in.readAllBytes();

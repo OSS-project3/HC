@@ -186,10 +186,21 @@ public class ApplicationMember extends BaseTimeEntity {
     }
 
     // 작명 단계(saju 프로그램에서 확정된 결과를 관리자가 반영) — 이미 값이 있어도 덮어쓴다.
-    // 성씨는 이 경로로 저장하지 않는다 — 엑셀 왕복의 "사주이름"은 외부 saju 프로그램이 돌려주는
-    // 값이라 성씨·의미 구분이 없다(admin-saju.md 성씨 분리 정책은 관리자 인앱 확정 전용).
+    // 성씨는 이 경로로 저장하지 않는다 — 성씨 열이 없는 기존 엑셀 양식용(있으면 아래 3-인자 오버로드).
+    // 기존에 인앱으로 저장해 둔 성씨가 있다면 그대로 유지한다.
     public void assignKoreanName(String name, String chineseName) {
         validateNameFormat(name, chineseName);
+        this.name = name;
+        this.chineseName = chineseName;
+    }
+
+    // 엑셀 작명 반영(성씨 열이 있는 새 양식) — 성씨·이름·한자만 저장하고 뜻·훈음(nameMeaning/
+    // nameInterpretation)은 건드리지 않는다(엑셀 왕복에는 해당 값이 없음, §1.16).
+    public void assignKoreanName(String surname, String name, String chineseName) {
+        validateNameFormat(name, chineseName);
+        validateSurnameFormat(surname);
+        this.surname = surname;
+        this.surnameHanja = SURNAME_HANJA.get(surname);
         this.name = name;
         this.chineseName = chineseName;
     }

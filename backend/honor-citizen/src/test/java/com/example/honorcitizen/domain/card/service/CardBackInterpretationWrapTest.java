@@ -2,6 +2,7 @@ package com.example.honorcitizen.domain.card.service;
 
 import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
@@ -101,8 +102,11 @@ class CardBackInterpretationWrapTest {
 
     private void renderStudentBack(CardDesignOrientation orientation, String templateFile, String label,
             String interpretation) throws Exception {
+        // 디자이너 원본 자산은 별도 saju 리포에만 있다 — 없는 머신에서는 실패 대신 건너뛴다.
+        File template = new File("D:/HC-worktrees/saju/시안/시안/학생증/" + templateFile);
+        Assumptions.assumeTrue(template.exists(), "디자이너 학생증 자산 없음: " + template);
         byte[] templateBack;
-        try (FileInputStream in = new FileInputStream("D:/HC-worktrees/saju/시안/시안/학생증/" + templateFile)) {
+        try (FileInputStream in = new FileInputStream(template)) {
             templateBack = in.readAllBytes();
         }
         CardMemberData data = new CardMemberData(

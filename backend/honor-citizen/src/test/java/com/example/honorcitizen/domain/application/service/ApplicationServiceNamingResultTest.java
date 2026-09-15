@@ -140,6 +140,60 @@ class ApplicationServiceNamingResultTest {
         assertThat(reloadedB.getName()).isEqualTo("수민");
     }
 
+    // "성씨" 열이 있는 새 양식(§1.16) — 기존 12열 + 성씨.
+    private byte[] buildExcelWithSurname(String... rows) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("신청자명단");
+            sheet.createRow(0).createCell(0).setCellValue("공통 입국날짜");
+            sheet.createRow(1).createCell(0).setCellValue("1.1");
+            Row header = sheet.createRow(2);
+            for (int i = 0; i < HEADERS.length; i++) {
+                header.createCell(i).setCellValue(HEADERS[i]);
+            }
+            header.createCell(HEADERS.length).setCellValue("성씨");
+            int rowIndex = 3;
+            for (String rowCsv : rows) {
+                String[] cols = rowCsv.split("\\|", -1);
+                Row row = sheet.createRow(rowIndex++);
+                for (int i = 0; i < cols.length; i++) {
+                    if (!cols[i].isEmpty()) {
+                        row.createCell(i).setCellValue(cols[i]);
+                    }
+                }
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    @Test
+    void appliesSurnameWhenSurnameColumnPresent() throws Exception {
+        byte[] excel = buildExcelWithSurname(
+                "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||지호(智毫)|김");
+
+        applicationService.applyNamingResult(adminId, applicationId, toMultipart(excel));
+
+        ApplicationMember reloaded = applicationMemberRepository.findById(memberA.getId()).orElseThrow();
+        assertThat(reloaded.getSurname()).isEqualTo("김");
+        assertThat(reloaded.getSurnameHanja()).isEqualTo("金"); // 10대 성씨 자동 유도
+        assertThat(reloaded.getName()).isEqualTo("지호");
+    }
+
+    @Test
+    void legacyFormatKeepsExistingSurnameAssignedInApp() throws Exception {
+        // 인앱으로 성씨까지 저장돼 있던 멤버에 성씨 열 없는 기존 양식 엑셀을 다시 반영해도 성씨는 유지된다.
+        memberA.assignKoreanName("박", "구명", "旧名", "훈음", "풀이");
+        applicationMemberRepository.saveAndFlush(memberA);
+
+        byte[] excel = buildExcel("1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||새이름");
+        applicationService.applyNamingResult(adminId, applicationId, toMultipart(excel));
+
+        ApplicationMember reloaded = applicationMemberRepository.findById(memberA.getId()).orElseThrow();
+        assertThat(reloaded.getSurname()).isEqualTo("박");
+        assertThat(reloaded.getName()).isEqualTo("새이름");
+    }
+
     @Test
     void logsKoreanNameRegisterForFirstAssignment() throws Exception {
         byte[] excel = buildExcel(
