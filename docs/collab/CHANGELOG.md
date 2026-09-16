@@ -14,6 +14,24 @@
 ```
 
 ---
+## 2026-09-14 — Claude — `main` (카드 생성 완료 집계 검증 — startProducing/markCardReady)
+
+- 변경: 카드가 하나도(또는 일부만) 생성되지 않은 신청도 관리자가 "제작 시작"·"카드 발급 완료"를 눌러버릴 수 있던 gap 수정(TODO 3-F). `ApplicationService`에 공통 private 메서드 `requireCardGenerationComplete(Application)`를 신설해 `startProducing()`/`markCardReady()` 둘 다 각자 Entity 상태 전이 메서드 호출 직전에 호출한다 — 실제 Member 수==totalQuantity, cardDesignId/cardIssueDate 확정 여부, 전 Member의 cardNumber/cardFrontPath/cardBackPath/issueDate 일치를 검사하고 하나라도 실패하면 신규 `CARD_GENERATION_INCOMPLETE`(400)로 거절. Entity의 상태 전이 메서드(`Application.startProducing()`/`markCardReady()`) 자체는 무변경.
+- 파일: `ErrorCode.java`(`CARD_GENERATION_INCOMPLETE` 추가), `ApplicationService.java`(`requireCardGenerationComplete` 신설 + 두 메서드에서 호출), `ApplicationServiceAdminTransitionTest.java`(신규 테스트 2개 + 기존 3개 픽스처에 카드 생성 완료 데이터 추가), `AdminApplicationControllerTest.java`(기존 2개 픽스처 갱신).
+- 사유: 버그 수정(TDD) — TODO.md 3-F에 이미 정책·검증 항목이 확정돼 있던 걸 그대로 구현. RED(신규 테스트 2/13 실패 확인) → 구현 → GREEN.
+- 테스트: `ApplicationServiceAdminTransitionTest`(13개)·`AdminApplicationControllerTest`(34개) 전부 통과. `domain.application.*`(302개) 재실행 회귀 없음. 전체 백엔드 스위트 883개 중 무관한 기존 flaky 1건(`HighSchoolSeederIntegrationTest`, 단독 실행 시 통과— `HighSchoolSeeder`가 프로필 조건 없이 항상 실행되는 CommandLineRunner라 전체 스위트 실행 순서에 따라 씨딩 개수가 달라지는 기존 테스트 격리 문제, 이번 작업과 무관)만 제외하고 전부 통과.
+- 관련: `docs/collab/TODO.md` "3-F. 후속 강화" — 해당 항목 ✅ 완료.
+
+---
+## 2026-09-14 — Claude — `main` (관리자 학교 연결 API 신규 구현)
+
+- 변경: 직접입력(`schoolId=null`)으로 접수된 STUDENT 신청을 이미 등록된 `School`에 연결하는 관리자 API 신규 구현 — `PUT /api/admin/applications/{applicationId}/school`. School 신규 생성·수정 경로는 없음(이미 등록된 School만 지정 가능, 정책 경계 유지). `Application.linkSchool(schoolId)` mutator 신규(schoolName 스냅샷은 안 바꿈), schoolType 불일치·비STUDENT·카드 생성 후 연결 시도는 각각 `INVALID_INPUT`/`SCHOOL_ALREADY_LOCKED`(신규 에러코드)로 거절, `applicationVersion` 대조로 동시 수정 방지, `AdminActivityLog.SCHOOL_LINKED` 신규 기록.
+- 파일: `ErrorCode.java`(`SCHOOL_ALREADY_LOCKED` 추가), `AdminActivityLog.java`(`SCHOOL_LINKED` 추가), `SchoolLinkRequest.java`(신규 DTO), `Application.java`(`linkSchool` mutator), `ApplicationService.java`(`linkSchool` 메서드), `AdminApplicationController.java`(`PUT .../school` 엔드포인트), 신규 테스트 `ApplicationServiceSchoolLinkTest`(8개) + `AdminApplicationControllerTest`(5개 추가).
+- 사유: 신규 기능(TODO.md 4-A-1) — 카드 생성 파이프라인이 STUDENT 신청의 `schoolId`를 요구하는데, 직접입력 신청을 나중에 School에 연결할 방법이 없었던 공백을 메움.
+- 테스트: TDD로 진행(신규 테스트 RED 7/8 확인 → 구현 → GREEN 8/8). `domain.application.*` 전체(302개) 재실행 회귀 없음(Redis 불필요). `AdminApplicationControllerTest` 신규 5개는 작성·컴파일만 완료 — 로컬 Redis 미기동으로 실행 미확인, 다음 세션에 재실행 필요.
+- 관련: `docs/collab/TODO.md` "4-A-1. 관리자 학교 연결 기능" — 백엔드 구현 완료, 프론트 UI·spec 문서 반영은 별도.
+
+---
 ## 2026-09-14 — Claude — `main` (단체 전체 재업로드 photoNumber 유실 수정)
 
 - 변경: 단체 신청 전체 재업로드(`POST /api/applications/{id}/photo`의 `submitFile` 경로) 시 새로 생성되는 `ApplicationMember`의 `photoNumber`가 항상 `null`이 되던 버그 수정. `ApplicationService.reuploadPhoto()`가 사진 번호 인자가 없는 legacy `ApplicationMember.createGroupRow()` 오버로드를 호출하고 있었음 — 마지막 인자로 `row.photoNumber()`를 전달하도록 한 줄만 수정.

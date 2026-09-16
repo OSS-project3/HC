@@ -1,6 +1,12 @@
 # 프론트 ↔ 백엔드 API 갭 · 목데이터 전환 목록
 
-> **갱신: 2026-09-14(19차, Codex) — §1.1(d) 인증 상태 Source of Truth 정리.** 백엔드는 HttpOnly `accessToken`/`refreshToken` 쿠키, `GET /api/users/me`, 401 시 refresh 후 원 요청 1회 재시도, 서버 logout까지 이미 구현돼 있어 추가 작업이 없다. 프론트 `AuthContext`에는 과거 `localStorage` 사용자 복원과 `source: local`, 데모 인증, `getMe()` 오류 전체 무시가 남아 있으므로 서버 세션을 인증 기준으로 삼도록 프론트만 정리해야 한다. 정적 콘텐츠 유지 정책과는 무관하다.
+> **갱신: 2026-09-14(22차, Codex) — 확정 정책 반영 및 최신 코드 정합성 정리.** ① 단체 작명 Excel은 성씨를 받지 않고 이름·한자·뜻만 반영하며 기존 성씨를 보존하는 것으로 확정했다. 현재 파서는 이름·한자만 반영하므로 뜻 저장은 백엔드 보강 대상이다. ② 새로고침 후 관리자 UI 복원을 위해 `GET /api/users/me`에 `role`을 추가하는 것으로 확정했으므로, 19차의 “백엔드 추가 작업 없음” 설명을 정정했다. ③ 카드 생성 중 버튼 비활성화는 `CardProductionTools.busy`로 이미 구현돼 있음을 확인했다. ④ 직접입력 학생증 신청(`schoolId=null`)은 카드 제작 전 등록 School 연결이 필요하지만 관리자 API/UI가 아직 없어 §1.22에 추가했다. 결제 안내는 핵심 규칙·Controller가 백엔드 작업이지만 관리자가 호출할 버튼과 기한 표시는 프론트 작업도 필요하므로 §6 분류를 정정했다.
+>
+> **갱신: 2026-09-14(21차, Claude 세션) — §1.19 이름 추천 계약 상세화(사용자 확정).** 확정 저장→재조회→`timeAccuracy==EXACT`일 때만 추천이라는 순서를 명시하고, `UNKNOWN_TIME`에 임의 정오 등 대체 시각으로 계산·저장하는 경로를 명시적으로 금지했다. 추천 후보를 표시하면 안 되는 상태 8가지(만세력 미확정·출생지역 검색 실패·`NONEXISTENT_LOCAL_TIME`·`PARTIAL`·`UNKNOWN`·계산 실패·후보 0개·조회 실패)를 나열하고, 그중 "후보 0개"만 별도 빈 상태로 구분하도록 했다. mock 사주 결과는 저장 API·카드 제작 어느 쪽에도 쓰지 않는다는 것도 명시. 전체 플로우(신청자 정보 조회 → 출생지역 검색 → timezone/DST 판정 → utcInstant/longitude 확정 → 프론트 계산 → 백엔드 저장 → 재조회 → EXACT 검사 → 상위 5개 표시 → 선택+성씨 → 저장)를 다이어그램으로 기록. 코드는 수정하지 않음(문서 반영만).
+>
+> **갱신: 2026-09-14(20차, Claude 세션) — §1.21 신규(P0 하드 블로커): 십이간지 디자인 세트 선택 UI 없음. §1.16/§1.18 추가 보강.** 카드 생성까지 실제 화면에서 끝까지 가려면 `zodiacDesignSet`(1~5) 값이 필수인데, 백엔드 API(`PUT /api/admin/applications/{id}/zodiac-design`)는 있지만 프론트 래퍼·UI가 전혀 없어(grep 0건) 미리보기·생성이 `ZODIAC_DESIGN_NOT_SELECTED`로 무조건 막힌다는 걸 코드로 확인 — §1.15(만세력·카드디자인·카드미리보기 6개 API 연동 완료)와는 별개 API라 혼동 주의. §1.16(엑셀 작명 반영)도 재확인해 성씨뿐 아니라 **훈음·의미(reading/meaning)까지 통째로 안 저장된다**는 것 추가 기록(`NamingResultExcelParser.NamingResultRow`에 그 필드 자체가 없음). §1.18(관리자 카드 다운로드)은 실제로 연동 완료 상태인데 문서만 낡아 있어 정정. 결제 안내 Controller 부재·카드 제작 상태 선행조건 검증 부재는 백엔드 전용 잔여 항목으로 §6에 별도 기록(프론트 작업 아님). §0/§1.16/§1.18/§1.21/§6 갱신, 코드는 수정하지 않음(문서 반영만).
+>
+> **갱신: 2026-09-14(19차, Codex, 22차에서 정책 정정) — §1.1(d) 인증 상태 Source of Truth 정리.** 백엔드는 HttpOnly `accessToken`/`refreshToken` 쿠키, `GET /api/users/me`, 401 시 refresh 후 원 요청 1회 재시도, 서버 logout까지 구현돼 있다. 이후 사용자 확정으로 새로고침 시 관리자 UI까지 서버 응답만으로 복원하도록 `GET /api/users/me` 응답에 `role`을 추가하기로 했으므로, 백엔드에는 응답 DTO·매핑·직접 테스트·API 문서의 작은 변경이 남았다. 프론트 `AuthContext`는 `localStorage` 사용자·역할을 인증 근거로 쓰지 않고 서버 세션을 기준으로 정리한다.
 >
 > **갱신: 2026-09-14(18차, Claude 세션) — §1.15/§1.16/§1.17/§0/§6 재대조: "래퍼 자체 없음"·"진입점 없음"·"성씨 미전송" 서술이 낡음, 대부분 실제로는 연동 완료.** `docs/collab/TODO.md`(1294행, "관리자 만세력 확정 결과 재진입 복원") 상세 계획과 대조하던 중 이 문서의 §1.15가 여전히 "프론트 연동 0%"로 적혀 있어 코드로 재확인 — **실제로는 (a)~(f) 6개 API 전부 `services/api.ts`에 래퍼가 있고(`searchBirthRegion`/`resolveManseryeokBirthTime`/`confirmManseryeokResult`/`getActiveManseryeokResult`/`listCardDesigns`/`getCardPreview`, grep 6건), `ApplicationsSection.tsx`의 `SajuResolvePanel`/`CardProductionTools`가 전부 실호출한다.** §1.15(c)가 지적했던 진태양시(`trueSolarTime`) 정확도 버그도 `lib/saju.ts`에 `computeMemberSajuFromResolved(utcInstant, longitude)`가 신설되어 해소됨(`trueSolarTime: { longitude, applyHistoricalDst: false }` 확인). §1.17(학생증 카드 템플릿 업로드)도 `SchoolTemplateSection.tsx`가 신설·`AdminPage.tsx`에 실제로 마운트돼 있어 마찬가지로 해소됨. **다만 `getActiveManseryeokResult`는 `services/api.ts`에 정의만 있고 호출부가 전체 프론트에 0건**(grep 확인) — 관리자가 화면을 새로고침해도 이미 확정된 만세력 결과를 복원하지 못한다. 이건 `TODO.md`의 "1-D. 만세력 확정 결과 저장 계약"이 이미 "🔵 재진입 복원 미완료"로 정확히 표시해뒀고, "1-E. 관리자 만세력 확정 결과 재진입 복원"(1294행)에 상세 구현 계획이 있는 **아직 진짜로 남은 갭**이다. 추가로 §1.16(성씨)도 재확인 — 인앱 작명(`saveMemberName`)은 surname 포함 실호출로 해소됐으나, **단체 엑셀 작명 반영(`applyNamingResult`)만 여전히 미해결**(백엔드 `NamingResultExcelParser`에 surname 컬럼 자체가 없음, 엑셀 양식+파서까지 걸친 별도 결정 필요). §0/§1.15/§1.16/§1.17/§6을 이 재확인 결과로 갱신, 코드는 안 건드림(문서 반영만).
 >
@@ -44,20 +50,22 @@
 | 후기(Review) CRUD + 내 후기 + 다중 이미지 | ✅ 실 API | ✅ 구현(2026-08-24, 0~5장) | **연동 완료** — §1.8 "정책 공백"은 다중 허용으로 확정·구현 완료돼 해소됨 |
 | 공지/FAQ(Board) | ✅ 실 API | ✅ 구현 + 데모 시드 추가(2026-08-24) | **연동 완료(2026-09-02 재검증)** — `FaqPage.tsx`·`SupportPage.tsx` 둘 다 `api.listBoards({type:"FAQ"/"NOTICE"})` 실호출로 통합됨, 예전의 "SupportPage만 하드코딩" 문제 해소 확인(§1.14) |
 | 행사(Event) | ✅ 실 API | ✅ 구현(2026-08-21) | **연동 완료(2026-08-24)** — `EventAdminPanel.tsx`가 관리자 전체목록·생성·수정(갤러리·로고 유지/교체/삭제)·삭제까지 실 API로 전환 완료, `company`/`logoUrl` 필드 매핑도 그대로 대입 (§1.6) |
-| **인증 상태 Source of Truth** | 🔴 서버 쿠키와 `localStorage`/데모 인증 혼합 | ✅ 쿠키 세션·조회·refresh·logout 구현 완료 | **프론트 전용 수정** — 인증 기준은 HttpOnly 쿠키와 서버 응답이다. `auth-user` 복원·`source: local`·데모 인증을 제거하고 앱 시작 시 `/api/users/me`로 상태를 확정하며, 인증 실패와 네트워크 장애를 구분한다(§1.1-d) |
+| **인증 상태 Source of Truth** | 🔴 서버 쿠키와 `localStorage`/데모 인증 혼합 | ⚠️ 쿠키 세션·조회·refresh·logout 구현, `/api/users/me.role` 추가 필요 | **양쪽 수정** — 백엔드는 `UserMeResponse`에 서버 결정 `role`을 추가한다. 프론트는 `auth-user` 복원·`source: local`·데모 인증을 제거하고 앱 시작 시 `/api/users/me`의 사용자·role로 UI를 복원한다. 실제 권한은 계속 서버가 최종 판단한다(§1.1-d) |
 | **일반 이메일 회원가입(인증 포함)** | ✅ 실 API | ✅ 구현·`main` 반영 완료(`bc7d7ce`) | **연동 완료(2026-09-02 재검증)** — `SignupPage.tsx`가 `requestSignupEmailCode`/`confirmSignupEmailCode`/`signup`을 실호출하는 인라인 인증코드 UI로 구현돼 있음 확인(§1.1) |
 | **일반 이메일 로그인·이메일 중복확인·비밀번호 변경** | ✅ 실 API | ✅ 구현·`main` 반영 완료 | **연동 완료(2026-09-02 재검증)** — `loginWithPassword`/`checkEmail`/`changePassword` 전부 실호출 확인(§1.1) |
 | **계정 복구(아이디/비밀번호 찾기)** | ✅ 실 API(2026-08-24) | ✅ 구현 | **연동 완료** — `AccountRecoveryPage.tsx`가 요청→확인(마스킹 이메일/비밀번호 재설정)까지 4개 API 전부 호출 (§1.1) |
 | **내 신청 목록·상세(마이페이지)** | ✅ 실 API | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 완료(2026-09-02 재검증)** — `MyPage.tsx`가 `listMyApplications`/`getMyApplication` 실호출로 목록·상세·취소 버튼까지 렌더링함 확인(§1.2) |
 | **1:1 문의(Inquiry)** | ✅ 실 API | ✅ 구현·`main` 반영 완료(사용자 작성 API·관리자 답변 API 둘 다) | **연동 완료(2026-09-02 재검증)** — `InquiryPage.tsx`가 `privacyConsent: true` 전송, 관리자 `InquiriesSection.tsx`가 `listAdminInquiries`/`getAdminInquiry`/`answerInquiry`/`updateInquiryStatus` 전부 실호출함 확인(예전 "관리자 화면은 여전히 mock" 서술은 낡음, §1.3·§1.4) |
-| 관리자 신청관리(조회·상태전이·작명·카드번호) | ✅ 실 API | ✅ 구현 | **인앱 작명은 성씨 포함 연동 완료(2026-09-14 재확인)** — 조회·상태전이·카드번호·인앱 작명(`saveMemberName`, surname 포함) 전부 정상. **단체 엑셀 작명 반영(`applyNamingResult`)만 여전히 성씨 미지원**(백엔드 `NamingResultExcelParser`에 surname 컬럼 자체가 없음, §1.16). 통계(`GET /api/admin/stats`)는 **백엔드 완료(2026-09-05)**, 프론트는 여전히 자체 계산 중(§1.4) |
+| 관리자 신청관리(조회·상태전이·작명·카드번호) | ✅ 실 API | ⚠️ 단체 작명 Excel 뜻 반영 보강 필요 | **인앱 작명은 성씨 포함 연동 완료.** 단체 작명 Excel은 성씨를 받지 않고 기존 성씨를 보존하는 것으로 확정했으므로 surname 컬럼 부재는 갭이 아니다. 다만 현재 `NamingResultExcelParser`는 이름·한자만 반영하고 확정 정책의 뜻 필드를 저장하지 않아 보강이 필요하다(§1.16). 통계 API는 백엔드 완료, 프론트 연결만 남음 |
 | **관리자 작명 확정·카드 제작(만세력·카드디자인·카드미리보기)** | ✅ 실 API(6개 래퍼+UI 전부 연동, 2026-09-14 재확인) | ✅ 구현·실 API 검증 완료 | **연동 완료, 재진입 복원만 남음** — `searchBirthRegion`/`resolveManseryeokBirthTime`/`confirmManseryeokResult`/`getActiveManseryeokResult`/`listCardDesigns`/`getCardPreview` 전부 `ApplicationsSection.tsx`가 실호출(예전 "래퍼 자체 없음" 서술은 낡음). `trueSolarTime` 정확도 버그도 `computeMemberSajuFromResolved()` 신설로 해소. 단 `getActiveManseryeokResult`는 정의만 있고 호출부 0건 — 새로고침 시 확정 결과 복원 안 됨(`TODO.md` 1-E, 다음 구현 단위) (§1.15) |
 | **학생증 카드 템플릿 업로드(관리자)** | ✅ 실 API(`SchoolTemplateSection.tsx`, 2026-09-14 재확인) | ✅ 구현·통합 검증 완료(2026-09-01, 4-D) | **연동 완료** — `getSchoolCardTemplate`/`uploadSchoolCardTemplate` 래퍼 + `SchoolTemplateSection.tsx`가 `AdminPage.tsx`에 마운트돼 실호출(예전 "진입점 자체 없음" 서술은 낡음) (§1.17) |
 | **신청 취소** | ✅ 실 API | ✅ 구현·`main` 반영 완료(`b5f6140`) | **연동 완료(2026-09-02 재검증)** — `MyPage.tsx`의 `cancelApplication` 실호출, 취소 가능 상태에서만 버튼 노출 확인(§1.5) |
 | 공지 서버 검색 | ⚠️ 클라 검색(미연결) | ✅ 구현 완료(2026-09-05) | **백엔드 완료, 프론트 파라미터 추가만 남음** — `GET /api/boards`에 `searchType`/`keyword` 추가됨(`72dad09`). `NoticesPage.tsx`/`listBoards()`는 여전히 전체를 받아 클라이언트에서만 `.filter()` — 서버 파라미터로 교체만 하면 됨 (§1.7) |
-| **관리자 카드 다운로드(전체 ZIP/개별 재인쇄)** | ❌ 진입점 자체 없음 | ✅ 구현 완료(2026-09-05) | **신규, 미착수** — `cardFrontPath`/`cardBackPath` 존재 여부로 판단(제작 중에도 허용), 전체 ZIP 또는 멤버 개별 다운로드. `services/api.ts`에 래퍼 없음(grep 0건) (§1.18) |
+| **관리자 카드 다운로드(전체 ZIP/개별 재인쇄)** | ✅ 실 API(`ApplicationsSection.tsx`, 2026-09-14 재확인) | ✅ 구현 완료(2026-09-05) | **연동 완료** — `cardFrontPath`/`cardBackPath` 존재 여부로 판단(제작 중에도 허용), 전체 ZIP 또는 멤버 개별 다운로드 둘 다 실호출 확인(예전 "진입점 없음" 서술은 낡음) (§1.18) |
 | **관리자 이름 추천** | 🔴 8개·`Math.random()`·mock 사주 fallback으로 정책 위반 | ✅ 필요한 기반 API 구현됨 | **프론트 수정 필요, 백엔드 추천 API 불필요** — 활성 확정 `ManseryeokResult`가 있을 때만 `sajuNames.json`을 점수화하고 상위 5개를 `score DESC`, 동점 시 고정 식별자 ASC로 반환. 관리자는 후보 선택 후 성씨를 별도 입력하고 기존 이름 확정 API로 저장(§1.19) |
 | **관리자·마이페이지 목록 페이지네이션** | 🔴 고정 `size:50~100` 단일 호출, 페이지 이동 UI 없음 | ✅ 6개 endpoint 전부 `Pageable` 구현 완료 | **프론트 전용 작업, 백엔드 추가 구현 불필요** — 관리자 신청/후기/공지·FAQ/행사 4곳 + 마이페이지 1곳(제작내역·후기)이 `page` 파라미터를 안 쓰고 첫 배치 안에서만 클라 사이드로 검색·필터함. 데이터가 그 이상이면 뒤쪽은 화면에 안 보임(§1.20) |
+| **십이간지 디자인 세트(`zodiacDesignSet`) 선택** | 🔴 P0 — 래퍼·UI 전혀 없음(grep 0건) | ✅ 구현·검증 완료 | **카드 생성 자체를 막는 하드 블로커** — 값 없으면 카드 미리보기·생성이 `ZODIAC_DESIGN_NOT_SELECTED`로 무조건 거절됨(`CardRenderPreparation.java`). 만세력·이름·카드번호·카드디자인을 다 끝내도 이거 하나 때문에 화면에서 카드 생성까지 못 간다(§1.21) |
+| **직접입력 학생증 학교 연결** | 🔴 관리자 연결 UI 없음 | 🔴 관리자 School 연결 API 없음 | `schoolId=null` 신청은 검토·작명까지 가능하지만 Preview/카드 생성 전 등록 School 연결이 필수다. 기존 School 선택 API와 Application 연결 명령/UI가 없어 직접입력 학교 신청은 카드 제작에서 막힌다(§1.22) |
 | 회원정보 address 수정 | ⚠️ 화면엔 없음(정책상 제거된 상태) | ❌ 미지원(확정 정책) | **갭 아님** — 조회는 이름·전화번호·이메일만, 수정도 이름·전화번호만(§1.9-a) |
 | 학생증 schoolName/schoolId | ✅ 검색select+직접입력 | ✅ School 마스터+schoolId 위변조 차단 | **연동 완료(2026-08-27)** — 실 브라우저 E2E(단체는 실제 제출·DB 반영까지) 검증 완료 (§1.9) |
 | 카드 종류·디자인 카탈로그 | 정적(`cards.ts`) | 🟡 내부만 존재 | **STATIC 확정**(공개 API 신설 안 함) (§2.1) |
@@ -119,7 +127,7 @@
 - `POST /api/auth/logout`: 서버 refresh 세션을 무효화하고 인증 쿠키를 만료시킨다.
 - 공통 `request()`와 `requestFile()`은 이미 `credentials: include`를 사용하며, 401이면 refresh 후 원 요청을 한 번만 재시도한다.
 - 인증과 권한은 `SecurityConfig`, JWT role 클레임 및 관리자 Service 인가에서 서버가 최종 검증한다. 브라우저의 사용자·role 값을 신뢰하지 않는다.
-- 따라서 로그인 상태 동기화에 필요한 백엔드 기능은 구현돼 있으며, 이번 갭의 기본 수정 범위는 프론트다.
+- 쿠키 세션·프로필 조회·refresh·logout은 구현돼 있다. 다만 확정 정책상 새로고침 후 관리자 UI도 서버 응답만으로 복원해야 하므로 `GET /api/users/me` 응답에 `role`을 추가하는 작은 백엔드 변경이 남았다.
 
 **현재 프론트 불일치**
 
@@ -131,20 +139,20 @@
 **프론트 구현 체크리스트**
 
 1. `AuthContext`의 초기 `user`는 `null`, 인증 확인 상태는 `loading`으로 시작한다.
-2. 앱 시작 시 `GET /api/users/me`를 호출하고 성공한 경우에만 로그인 상태를 복원한다.
-3. `localStorage[auth-user]` 전체 사용자 저장·복원, `source: local`, 운영 화면의 데모 로그인 분기를 제거한다.
-4. 공통 요청이 refresh까지 실패한 최종 401을 반환하면 `user=null`로 만들고 보호 라우트에서 로그인 화면으로 이동한다.
-5. 403은 세션 만료로 처리하지 않고 권한 부족 또는 서버 errorCode에 맞는 안내를 표시한다.
-6. 네트워크 오류·timeout·5xx는 로그아웃으로 단정하지 않고 일시 장애와 재시도 상태를 표시한다. 로컬 사용자 값으로 성공 상태를 대신하지 않는다.
-7. 로그아웃은 `POST /api/auth/logout`을 호출한 뒤 현재 탭의 사용자 상태와 남아 있는 레거시 인증 캐시를 비운다.
-8. OAuth 로그인, 이메일 로그인, 회원가입 직후와 새로고침 후 모두 같은 초기 세션 확인 흐름을 사용한다.
+2. 백엔드는 `UserMeResponse`와 매핑에 서버가 결정한 `role`을 추가하고 직접 테스트·API 문서를 갱신한다.
+3. 앱 시작 시 `GET /api/users/me`를 호출하고 성공한 경우에만 사용자와 `role`을 복원한다.
+4. `localStorage[auth-user]` 전체 사용자 저장·복원, `source: local`, 운영 화면의 데모 로그인 분기를 제거한다.
+5. 공통 요청이 refresh까지 실패한 최종 401을 반환하면 `user=null`로 만들고 보호 라우트에서 로그인 화면으로 이동한다.
+6. 403은 세션 만료로 처리하지 않고 권한 부족 또는 서버 errorCode에 맞는 안내를 표시한다.
+7. 네트워크 오류·timeout·5xx는 로그아웃으로 단정하지 않고 일시 장애와 재시도 상태를 표시한다. 로컬 사용자 값으로 성공 상태를 대신하지 않는다.
+8. 로그아웃은 `POST /api/auth/logout`을 호출한 뒤 현재 탭의 사용자 상태와 남아 있는 레거시 인증 캐시를 비운다.
+9. OAuth 로그인, 이메일 로그인, 회원가입 직후와 새로고침 후 모두 같은 초기 세션 확인 흐름을 사용한다.
 
-**role 복원 시 주의사항**
+**role 복원 확정 계약**
 
-- `LoginResponse`에는 `role`이 있지만 `GET /api/users/me`의 `UserMeResponse`에는 기존 확정 정책에 따라 `role`이 없다.
-- 따라서 전체 `auth-user` 저장을 제거하면 새로고침 후 로그인 여부는 `/me`로 복원할 수 있어도 `isAdmin`을 그 응답 하나만으로 다시 계산할 수 없다.
-- 이번 작업을 프론트 변경만으로 한정하려면 로그인 응답의 role을 UI 힌트로만 최소 캐시할 수 있다. 이 값은 관리자 권한의 근거가 아니며, 모든 관리자 요청은 기존 서버 인가 결과를 최종 기준으로 삼고 403이면 관리자 UI를 해제한다.
-- 브라우저 role 캐시까지 완전히 없애면서 새로고침 직후 관리자 메뉴도 정확히 복원하려면 향후 `/api/auth/session` 같은 세션 조회 응답에 role을 포함하거나 `/api/users/me` 계약을 재검토해야 한다. 이는 보안 기능의 미구현이 아니라 프론트 표시 상태 복원 계약의 개선 사항이며 이번 프론트 정리 범위에는 포함하지 않는다.
+- `GET /api/users/me`가 `role`을 반환한다. 별도 `/api/auth/session` API는 만들지 않는다.
+- 프론트는 로그인 응답이나 `localStorage`에 저장한 role을 새로고침 후 권한 근거로 사용하지 않고 `/api/users/me.role`로 관리자 UI를 복원한다.
+- 화면에서 관리자 메뉴를 표시하는 판단과 실제 인가는 구분한다. 조작된 클라이언트 상태로 권한을 얻을 수 없으며 `/api/admin/**` 접근은 기존 백엔드 Security가 최종 판단한다.
 
 **완료 조건**
 
@@ -152,7 +160,7 @@
 - access 만료·refresh 유효 상태에서는 refresh 후 원 요청이 한 번만 재시도된다.
 - 네트워크 장애와 최종 401/403이 서로 다른 상태와 안내로 처리된다.
 - 브라우저 저장값을 조작해도 관리자 API 권한을 획득할 수 없다.
-- 백엔드 코드와 신규 API는 이번 작업에서 변경하지 않는다.
+- `GET /api/users/me`가 서버 결정 `role`을 반환하며, 프론트는 브라우저 저장값 없이 일반 사용자·관리자 UI를 복원한다.
 
 ### 1.2 내 신청 목록·상세(마이페이지) — ✅ 연동 완료(2026-09-02 재검증)
 - **✅ 재검증 결과(2026-09-02)**: 아래 있던 문제(localStorage mock만 읽던 것)는 해소됐다 — `MyPage.tsx`가 `api.listMyApplications`/`api.getMyApplication`을 실호출하고, 상태별 취소 버튼(`CANCELLABLE` 상태 집합)까지 렌더링한다. 아래는 문제가 있었던 당시(2026-08-20)의 기록.
@@ -353,10 +361,10 @@
 
 **정리하면 이 순서가 실제 관리자 사용 흐름이다**: (a) 도시명 검색 → (b) timezone 판정(DST 중복이면 후보 선택 후 재호출) → 프론트가 `manseryeok` 패키지로 진태양시 보정 사주 계산 → (c) 결과 저장 → (e) 디자인 선택 → (f) 발급일자 입력 후 미리보기. **6개 API 모두 백엔드는 실제 curl 검증까지 끝났지만 프론트는 어느 하나도 시작 전이다.**
 
-### 1.16 관리자 인앱 작명·엑셀 작명 반영 — 성씨(surname) 필드 누락 (2026-08-31 신규, 인앱 작명은 2026-09-14 해소 확인, 엑셀 작명 반영은 아직 미해결)
+### 1.16 관리자 인앱 작명·엑셀 작명 반영 — Excel 뜻 필드 누락 (인앱 작명·성씨 정책 확정, Excel 보강 필요)
 
 > **✅ 2026-09-14 재확인 — 인앱 작명(`saveMemberName`, 개인·단체 공통 화면에서 관리자가 이름 하나씩 고르는 경로)은 해소됨.** `services/api.ts`의 `saveMemberName` 타입에 `surname?: string`이 추가됐고, `ApplicationsSection.tsx`의 `NamingCard`에 성씨 입력 필드(`placeholder="김"`, `maxLength={2}`)가 있으며 "이 이름 선택" 클릭 시 `{ surname: cleanSurname, ... }`으로 실제 전송한다(정규식 `/^[가-힣]{1,2}$/` 검증 포함). "작명 완료" 배지 조건도 `member.surname && member.assignedName`로 성씨 존재를 함께 확인하도록 바뀌어 있음.
-> **⚠️ 단, 엑셀 작명 반영(`applyNamingResult`, 단체 신청의 일괄 업로드 경로)은 여전히 미해결.** 백엔드 `NamingResultExcelParser.NamingResultRow`에 여전히 `surname` 컬럼이 없고(`rowNumber, email, phone, name, chineseName` 5개뿐), `ApplicationService.applyNamingResult()`도 여전히 surname 없는 2-인자 `assignKoreanName(name, chineseName)`만 호출한다(2026-09-14 코드 재확인). 아래 원본 기록의 배경·해결 방향은 이 경로에 대해서는 그대로 유효하다 — 엑셀 양식에 성씨 열 추가 여부부터 정책 결정 필요(프론트만의 문제 아님, 아래 4번 참고).
+> **⚠️ 2026-09-14 확정 계약:** 단체 작명 Excel은 `이름·한자·뜻`만 반영하며 **성씨 열을 두지 않는다**. 성씨는 관리자 화면에서 별도 입력하고, Excel 재가져오기는 기존 성씨를 `null`로 덮어쓰지 않는다. 현재 `NamingResultExcelParser.NamingResultRow`는 `(rowNumber, email, phone, name, chineseName)`만 지원하고 `ApplicationService.applyNamingResult()`도 뜻을 저장하지 않으므로, 남은 백엔드 갭은 **뜻 필드 파싱·저장**이다. 현재 2-인자 `assignKoreanName(name, chineseName)` 호출은 성씨를 보존하므로 그 동작을 회귀 테스트로 고정한다.
 
 - **배경(2026-08-31 최초 발견 당시)**: §1.4에서 "연동 완료"로 분류했던 인앱 작명(`saveMemberName`)과 엑셀 작명 반영(`applyNamingResult`) 둘 다, 실제로는 **성씨를 저장하지 않는다**. 관리자가 이름을 다 확정해도 `completeNaming()`(작명 완료 처리)에서 전원 거절되는 결과로 이어진다.
 - **백엔드는 성씨를 "추천 이름 선택과 한 번에" 받도록 이미 설계돼 있다** — 성씨를 추천해주는 게 아니라(추천 데이터셋 자체에 성씨가 없음, 아래 참고), **API 계약이 이름 확정과 성씨 확정을 한 호출로 같이 받게 되어 있다**는 뜻이다. `NameAssignRequest`(`POST /api/admin/applications/{applicationId}/members/{memberId}/name`)는 `{ surname?, name(필수), hanja?, reading?, meaning(필수) }`로 다섯 필드를 한 번에 받는다. `ApplicationMember.assignKoreanName(surname, name, chineseName, nameMeaning, nameInterpretation)`도 다섯 값을 한꺼번에 저장한다.
@@ -364,13 +372,13 @@
   - `services/api.ts`의 `saveMemberName` 타입에 `surname`이 아예 없다: `(applicationId, memberId, body: { name: string; hanja?: string; reading?: string; meaning?: string })`.
   - 추천 이름 데이터셋(`frontend/src/data/sajuNames.json`, 700개)에도 성씨 필드가 없다(`{"name":"가헌","hanja":"佳憲",...}` — 이름만) — 성씨는 애초에 알고리즘이 추천할 대상이 아니라 **관리자가 직접 입력해야 하는 값**이다(백엔드 검증도 `validateSurnameFormat`: 그냥 한글 1~2자 형식 확인뿐, 점수·추천 없음).
   - `frontend/src` 전체에 `surname`/`성씨`를 다루는 코드가 **0건**이다(무관한 회사소개 페이지 문구 1건 제외, 전체 grep 확인).
-  - 단체 엑셀 업로드 경로(`applyNamingResult`)도 동일 — 백엔드가 이 경로에서 호출하는 `ApplicationMember.assignKoreanName(name, chineseName)`은 surname을 안 받는 **2-인자 오버로드**다. 엑셀 서식 자체에 성씨 열이 있는지도 이번에 같이 확인 필요(미확인).
+  - 단체 엑셀 업로드 경로(`applyNamingResult`)도 동일 — 백엔드가 이 경로에서 호출하는 `ApplicationMember.assignKoreanName(name, chineseName)`은 surname을 안 받는 **2-인자 오버로드**다. 이 항목은 최초 조사 당시에는 성씨 열 정책이 미확정이었으나, 2026-09-14에 **성씨 열을 두지 않고 기존 성씨를 보존**하는 것으로 확정됐다.
 - **실제로 발생하는 문제(코드로 확인)**: `ApplicationsSection.tsx`의 `NamingCard`가 "작명 완료" 배지를 `member.assignedName`(주어진 이름 존재 여부)만으로 띄운다(`:408,429`) — 성씨는 체크하지 않는다. 그래서 관리자 눈엔 멤버마다 "작명 완료"로 보이는데, 정작 최종 "작명 완료 처리" 버튼(`completeNaming`)을 누르면 `ApplicationService.java:663-666`의 집계 검증이 성씨 없는 멤버 전원을 `NAMING_INCOMPLETE`(`{field:"surname", code:"REQUIRED"}`)로 한꺼번에 거절한다 — 개별 카드 표시와 실제 서버 판정이 어긋나는 UX 결함이기도 하다.
 - **프론트가 필요한 것(2026-08-31 당시)**:
   1. `services/api.ts`의 `saveMemberName` 타입에 `surname?: string` 추가. **✅ 2026-09-14 해소 확인.**
   2. `NamingCard`(또는 그 상위)에 **성씨 입력용 텍스트 필드 신규**(한글 1~2자) — 추천 목록엔 없으니 관리자가 직접 타이핑. "이 이름 선택" 클릭 시 이 값을 `surname`으로 같이 전송. **✅ 2026-09-14 해소 확인.**
   3. "작명 완료" 배지 조건에 성씨 존재 여부도 포함(지금은 주어진 이름만 봄) — 그래야 화면 표시와 `completeNaming()` 실제 판정이 일치한다. **✅ 2026-09-14 해소 확인.**
-  4. 단체 엑셀 경로: 서식에 성씨 열이 있는지 확인 후, 없으면 열 추가 여부부터 정책 결정 필요(이건 프론트만의 문제가 아니라 엑셀 양식+백엔드 파서까지 걸친 별도 결정 사항). **⚠️ 2026-09-14 재확인 — 아직 미해결, 진짜로 남은 갭.**
+  4. 단체 Excel 서식에는 성씨 열을 추가하지 않는다. 대신 뜻 열을 파서·적용 서비스까지 연결하고, 재가져오기 후에도 관리자 화면에서 입력한 기존 성씨가 유지되는지 검증한다. **⚠️ 백엔드 보강 필요.**
 
 ### 1.17 학생증 카드 템플릿 업로드(관리자) — ✅ 백엔드+프론트 연동 완료(2026-09-14 재확인)
 
@@ -396,7 +404,9 @@
 - **상세 계약**: `docs/api/school-card-template.md` 참고(요청/응답 예시, 구현 메모 포함).
 - 백엔드 검증: 서비스/컨트롤러 테스트 + **실제 업로드 API로 업로드한 템플릿이 실제 카드 미리보기 API까지 정상 렌더링되는 통합 테스트**까지 완료(`SchoolCardTemplateEndToEndTest`).
 
-### 1.18 관리자 카드 다운로드(전체 ZIP/개별 재인쇄) — 백엔드 구현 완료(2026-09-05), 프론트 진입점 자체가 없음(신규)
+### 1.18 관리자 카드 다운로드(전체 ZIP/개별 재인쇄) — ✅ 백엔드+프론트 연동 완료(2026-09-14 재확인)
+
+> **✅ 2026-09-14 재확인**: 아래 제목·"프론트가 필요한 것"은 2026-09-05 최초 발견 당시("진입점 자체가 없음") 기록이라 지금은 낡았다 — `services/api.ts`에 `getAdminApplicationCardsZip`/`getAdminMemberCardDownload` 래퍼가 있고, `ApplicationsSection.tsx`(287행 전체 ZIP, 761행 개별 재인쇄)가 실호출한다.
 
 - **배경**: 실물 제작 과정에서 관리자가 렌더링된 카드 이미지를 내려받아야 한다. 사용자용 `getCardDownload`(§1.4 참고 없음, `application.status === COMPLETED`일 때만 허용)와는 별개 정책·별개 API다 — 관리자는 `PRODUCING` 중에도 렌더링만 끝나면 다운로드할 수 있어야 한다(재인쇄·품질확인 용도).
 - **공통 인가**: `/api/admin/**` → `hasRole("ADMIN")`(SecurityConfig) + `validateAdmin()` 이중 검증.
@@ -414,32 +424,69 @@
 - 그 멤버의 front/back이 없으면 `400 CARD_NOT_READY`, 다른 신청 소속 멤버 id를 넘기면 `404`.
 - 성공 시에도 `AdminActivityLog.CARD_DOWNLOAD` 기록.
 
-**프론트가 필요한 것(전부 신규, 진입점 자체가 없음)**:
-1. `services/api.ts`에 `getAdminApplicationCardsZip(applicationId)`(blob 응답 → 다운로드 트리거)와 `getAdminMemberCardDownload(applicationId, memberId)`(URL 2개 받아 `<a>`/새 탭으로 열기) 래퍼 추가.
-2. `ApplicationsSection.tsx`(또는 상세 화면)에 "전체 카드 다운로드(ZIP)" 버튼(단체) + 멤버별 "카드 다운로드/재인쇄" 버튼(개인·단체 공통) 추가.
-3. 전체 ZIP 거절 시 응답의 멤버별 결측 목록을 관리자가 바로 알아볼 수 있게 표시(예: "OO님 카드 미생성 — 작명/카드번호 확인 필요" 등).
+**프론트가 필요한 것(2026-09-05 당시, 전부 신규라고 적혀 있었음)**:
+1. `services/api.ts`에 `getAdminApplicationCardsZip(applicationId)`(blob 응답 → 다운로드 트리거)와 `getAdminMemberCardDownload(applicationId, memberId)`(URL 2개 받아 `<a>`/새 탭으로 열기) 래퍼 추가. **✅ 2026-09-14 해소 확인.**
+2. `ApplicationsSection.tsx`(또는 상세 화면)에 "전체 카드 다운로드(ZIP)" 버튼(단체) + 멤버별 "카드 다운로드/재인쇄" 버튼(개인·단체 공통) 추가. **✅ 2026-09-14 해소 확인.**
+3. 전체 ZIP 거절 시 응답의 멤버별 결측 목록을 관리자가 바로 알아볼 수 있게 표시(예: "OO님 카드 미생성 — 작명/카드번호 확인 필요" 등). (표시 방식까지는 이번 재확인에서 안 봄, 필요시 별도 확인)
 - **검증**: `ApplicationServiceAdminCardDownloadTest`(7개)·`AdminApplicationControllerTest` 신규 5개, 전부 통과. `docs/collab/TODO.md`(2026-09-05 완료 섹션) 참고.
 
-### 1.19 관리자 이름 추천 — 프론트 책임 및 최종 계약 (2026-09-13 확정)
+### 1.19 관리자 이름 추천 — 프론트 책임 및 최종 계약 (2026-09-13 확정, 2026-09-14 상태 전이·플로우 상세화)
 
 **최종 계약(아래 최초 조사 내용보다 우선)**:
 
 - 백엔드는 출생지역 resolve, timezone/DST 판정, 확정 `ManseryeokResult` 저장·조회, 최종 성씨·이름 저장을 담당한다.
 - 프론트는 활성 확정 `ManseryeokResult`를 조회한 뒤 번들 `sajuNames.json`으로 이름 후보를 계산한다. 백엔드 이름 추천 API는 추가하지 않는다.
 - 활성 확정 결과가 없거나 조회에 실패하면 추천을 비활성화한다. 로컬 계산값이나 `mockSaju()`로 대신 추천하지 않는다.
+- **추천은 확정 저장 → 재조회 → `timeAccuracy == EXACT`인 경우에만 계산한다** — 방금 프론트가 계산해서 보낸 값을 그대로 재사용하지 않고, 저장 API 성공 후 반드시 활성 결과 GET을 다시 호출해 그 응답만 신뢰한다(2026-09-14 명확화, 아래 "전체 플로우" 참고).
+- **`UNKNOWN_TIME`(출생시간 모름)일 때 임의로 정오(12:00) 등 대체 시각을 넣어 계산하거나 그 결과를 저장하지 않는다**(2026-09-14 명확화) — 출생시간을 모르면 시주(時柱)를 결정할 수 없으므로, `UNKNOWN`은 `UNKNOWN`으로만 저장·표시하고 추천은 비활성화한다. 대체 시각으로 계산한 "그럴듯한" 결과를 저장하면 다음에 재조회했을 때 마치 확정된 것처럼 보이는 게 더 위험하다.
+- **`timeAccuracy`가 `PARTIAL`/`UNKNOWN`이면(활성 결과 자체는 존재해도) 추천을 표시하지 않는다** — "결과 없음"과 "결과는 있지만 불확실"을 같은 비활성 상태로 묶어서 처리하되, 화면 문구는 구분한다(아래 상태 목록 참고).
 - 전체 이름 사전을 점수화하여 상위 **5개**만 표시한다. `score DESC`, 동점이면 이름 사전의 고정 식별자 ASC로 정렬하며 `Math.random()`을 사용하지 않는다.
+- **점수화 결과 적합 후보가 0개면 전용 빈 상태를 보여준다** — "만세력 미확정" 빈 상태와 다른 문구("이 사주에 맞는 이름을 찾지 못했습니다" 등)로 구분해야 한다. 조건 미충족(비활성)과 조건은 충족했지만 결과가 0개인 것을 같은 화면으로 보여주면 관리자가 원인을 구분할 수 없다.
+- **mock 사주(`mockSaju()`)로 계산한 결과는 저장 API 호출에도, 카드 제작(미리보기·생성)에도 절대 사용하지 않는다** — 참고용으로 화면에 잠깐 보여주는 것조차 활성 확정 결과와 시각적으로 명확히 구분해야 한다(구분할 방법이 없으면 아예 보여주지 않는다).
 - 관리자는 후보 중 하나를 선택하고 성씨를 별도로 입력한 뒤 기존 이름 확정 API로 저장한다.
 - 무작위 재추첨 목적의 “다른 이름 추천” 동작은 제거한다.
 
-**현재 코드 상태**: HEAD `194a270`에서 일부 결정적 정렬을 적용했던 `8b09d01`이 revert되어 기본 8개·`Math.random()`·`resolvedSaju ?? fallbackSaju ?? mockSaju(memberKey)`가 다시 사용되고 있다. `8b09d01`도 8개 유지·mock fallback 미제거 상태였으므로 그대로 복구하지 말고 위 최종 계약 전체를 구현해야 한다.
+**추천 후보를 표시하면 안 되는 상태 전체 목록(2026-09-14 신규, 전부 "추천 비활성" 또는 "전용 빈 상태"로 처리 — 후보 리스트를 절대 안 보여줌)**:
+
+1. 만세력 미확정(활성 `ManseryeokResult` 자체가 없음, `GET .../manseryeok` 404)
+2. 출생지역 검색 실패((a) API 오류 — Google Geocoding 실패 등)
+3. `NONEXISTENT_LOCAL_TIME`(존재하지 않는 현지시각 — DST 전환 시 비는 구간)
+4. `timeAccuracy == PARTIAL`
+5. `timeAccuracy == UNKNOWN`
+6. 만세력 계산 실패(프론트 `calculateFourPillars` 호출 자체가 예외를 던짐)
+7. 이름 사전(`sajuNames.json`)에 점수 조건을 만족하는 후보가 0개(이 경우만 "결과 없음" 전용 빈 상태, 나머지는 "추천 불가" 상태)
+8. 확정 결과 조회 실패((d) `GET .../manseryeok`가 404가 아닌 401/403/5xx/네트워크 오류로 실패)
+
+(참고: `AMBIGUOUS_LOCAL_TIME`은 관리자가 offset 후보를 선택해 확정해야 하는 중간 상태라 위 목록과는 별개로, 확정 전까지는 당연히 후보가 없다 — 별도 상태로 취급.)
+
+**전체 플로우(2026-09-14, 확정)**:
+
+```
+신청자의 생년월일·출생시간·출생지역 조회
+  → 백엔드 출생지역 검색                         (a)
+  → 백엔드 timezone/DST 판정                      (b)
+  → utcInstant + longitude 확정
+  → 프론트 진태양시·만세력 계산    (computeMemberSajuFromResolved)
+  → 백엔드 ManseryeokResult 확정 저장              (c)
+  → 저장된 결과 재조회                             (d)
+  → timeAccuracy == EXACT일 때만 이름 점수 계산
+  → 상위 5개를 score DESC, id ASC로 표시
+  → 관리자가 이름 선택 + 성씨 입력
+  → 백엔드 저장                          (saveMemberName)
+```
+
+**현재 코드 상태**: HEAD `194a270`에서 일부 결정적 정렬을 적용했던 `8b09d01`이 revert되어 기본 8개·`Math.random()`·`resolvedSaju ?? fallbackSaju ?? mockSaju(memberKey)`가 다시 사용되고 있다. `8b09d01`도 8개 유지·mock fallback 미제거 상태였으므로 그대로 복구하지 말고 위 최종 계약 전체(상태 목록·플로우 포함)를 구현해야 한다.
 
 **프론트 완료 조건**:
 
 1. 화면 재진입·멤버 변경 시 활성 확정 만세력 결과를 조회하고 복원한다.
-2. 확정 결과가 없으면 추천·선택·저장을 비활성화한다.
-3. 같은 확정 결과와 같은 이름 사전 버전이면 항상 동일한 후보 5개·점수·순서를 반환한다.
-4. 선택한 이름의 한글·한자·훈음·의미와 관리자 입력 성씨를 기존 이름 확정 API에 함께 전송한다.
-5. 위 계약을 프론트 테스트로 검증한다.
+2. 확정 결과가 없거나(404) `timeAccuracy`가 `PARTIAL`/`UNKNOWN`이면 추천·선택·저장을 비활성화한다.
+3. `UNKNOWN_TIME`에 임의 시각(정오 등)을 넣어 계산·저장하는 경로가 없다.
+4. 같은 확정 결과와 같은 이름 사전 버전이면 항상 동일한 후보 5개·점수·순서를 반환한다.
+5. 점수 조건을 만족하는 후보가 0개인 경우와 추천 자체가 비활성인 경우를 서로 다른 화면 문구로 구분한다.
+6. mock 사주 계산값이 저장 API·카드 제작 어느 쪽에도 전달되지 않는다.
+7. 선택한 이름의 한글·한자·훈음·의미와 관리자 입력 성씨를 기존 이름 확정 API에 함께 전송한다.
+8. 위 계약을 프론트 테스트로 검증한다(위 8개 상태 목록 각각 최소 1개 케이스).
 
 **백엔드 추가 구현**: 없음.
 
@@ -483,13 +530,38 @@
   2. 응답의 `totalPages`/`totalElements`로 "더 있음" 여부를 판단(하드코딩된 `size` 값으로 추측하지 않음).
   3. 클라이언트 사이드 검색/필터를 그대로 둘지, 서버 파라미터(가능한 곳)로 옮길지는 화면별로 별도 결정 필요.
 
+### 1.21 십이간지 디자인 세트(zodiacDesignSet) 선택 UI 없음 — P0, 카드 생성 자체를 막는 하드 블로커 (2026-09-14 신규)
+
+- **배경**: `Application.zodiacDesignSet`(1~5)은 카드 뒷면에 그릴 십이간지 캐릭터 스타일을 정하는 값이다. 카드종류·`cardDesignId`와 무관하게 신청서 전체에 값 1개이고, 카드 생성 전후 언제든 관리자가 자유롭게 바꿀 수 있다(잠금 없음 — `Application.assignZodiacDesignSet()` 참고). **십이간지 동물(예: 뱀·용)은 만세력 확정 연주(`ManseryeokResult.confirmedPillars.year.branch`)에서 자동으로 정해지고, 이 값은 그 동물을 그릴 캐릭터 그림체(1~5번 중 어느 스타일로 그릴지)만 정한다 — 둘을 혼동하지 않는다.**
+- **API**: `PUT /api/admin/applications/{applicationId}/zodiac-design`, 요청 바디 `{ zodiacDesignSet: number(1~5) }`, 응답 `ApiResponse<Void>`. 관리자 권한만 필요, Application 상태 제약 없음.
+- **막히는 지점(코드로 확인)**: `CardRenderPreparation.java`가 카드 미리보기(f)·생성 둘 다에서 `Application.zodiacDesignSet`이 `null`이면 `ZODIAC_DESIGN_NOT_SELECTED`(400)로 무조건 거절한다(`CardRenderPreparation.java:199-208`). 이 값을 지정할 방법이 프론트에 없으니, 실제 관리자 화면에서 만세력 확정 → 이름·성씨 확정 → 카드번호 입력 → 카드 디자인 선택까지 전부 정상적으로 끝내도 **미리보기 버튼을 누르는 순간 이 에러로 막힌다.**
+- **프론트 현황**: `services/api.ts`/`frontend/src` 전체에 `zodiacDesignSet`/`zodiac-design` grep 0건(2026-09-14 재확인) — 래퍼도 UI도 전혀 없음. §1.15의 (a)~(f) 6개 API는 전부 연동됐지만 이 API는 그 목록에 애초에 없었다(별개 API, §1.15와 혼동 주의).
+- **프론트가 필요한 것**:
+  1. `services/api.ts`에 `assignZodiacDesignSet(applicationId, zodiacDesignSet)` 래퍼 추가.
+  2. 관리자 작명/카드 제작 화면(`CardProductionTools` 또는 그 주변)에 1~5 선택 UI(라디오/셀렉트) 추가 — 카드 디자인 선택과 마찬가지로 카드 생성 전 필수 입력으로 안내.
+  3. 미확정 상태에서 미리보기/생성 시도 시 `ZODIAC_DESIGN_NOT_SELECTED`를 "십이간지 디자인을 먼저 선택해 주세요" 같은 명확한 안내로 매핑(현재는 일반 에러 메시지로만 뜰 가능성).
+- **백엔드 추가 작업**: 없음 — API·검증·렌더링 로직 전부 이미 구현·검증 완료(`docs/collab/TODO.md` "십이간지 캐릭터 디자인 세트" 절 참고).
+
+### 1.22 직접입력 학생증 신청의 School 연결 — 관리자 API/UI 없음 (2026-09-14 신규)
+
+- **확정 정책**: 목록에 없는 학교는 사용자가 직접 입력할 수 있고 신청 시 `schoolId=null`, `Application.schoolName`에는 입력 당시 표시명 스냅샷을 저장한다. 검토·작명까지는 진행할 수 있으나 카드 Preview/최종 생성 전에는 반드시 등록된 `School`과 연결되어야 한다.
+- **현재 백엔드**: School 검색·마스터와 학교별 CardDesign/템플릿은 존재하지만, 관리자가 기존 Application의 `schoolId`를 연결하고 필요하면 `schoolName` 오타를 정정하는 명령 API가 없다.
+- **현재 프론트**: 신청 화면의 학교 검색+직접입력은 구현돼 있으나, 관리자 신청 상세에서 미연결 학교를 검색·선택해 연결하는 UI와 API 래퍼가 없다.
+- **필요 작업**:
+  1. 백엔드에 관리자 전용 Application-School 연결 API를 추가한다. 대상이 STUDENT인지, 등록 School과 신청의 `schoolType`이 일치하는지, 카드 제작 전 상태인지 검증하고 `schoolId`를 저장한다.
+  2. 연결 시 `Application.schoolName`은 사용자 입력 스냅샷을 기본 보존하되, 관리자 검토 단계에서 명시적으로 정정한 값만 갱신한다. 이후 `School.name` 변경은 기존 신청에 소급하지 않는다.
+  3. 프론트 관리자 상세에 미연결 안내, School 검색·선택, 연결/정정 UI를 추가한다. 연결 전 Preview/생성 버튼은 비활성화하고 사유를 안내한다.
+  4. 연결 완료 후 해당 학교+방향의 활성 CardDesign이 없으면 템플릿 등록 화면으로 이어지도록 안내한다.
+- **상세 구현 계획**: `docs/collab/TODO.md` 4-A-1을 기준으로 한다.
+
 ### 1.11 신청 폼이 수집하나 백엔드가 저장하지 않는 입력 (프론트 유지 · 백엔드 보강)
 프론트 화면에는 입력/표시가 있으나 백엔드 request DTO·도메인에 대응이 없어 값이 서버에 남지 않는 항목. **프론트 UI는 그대로 유지**하고 백엔드 보강 시 연결한다. 상세·조치는 `BACKEND_API_GAPS.md P1-4`.
 
 | 프론트 입력 | 위치 | 백엔드 현황 |
 |---|---|---|
-| 입금자명 + 입금 확인/취소 | `StepComplete` | 결제·입금(Payment) 도메인 없음(입금 안내는 정적 계좌) |
 | 상담확인·유의사항 동의 | `StepType` | 신청 건별 동의 이력 저장 없음 |
+
+> 입금자명 저장과 입금 확인은 현재 백엔드·프론트에 연결돼 있으므로 위 갭에서 제외한다. 결제 안내 실행과 72시간 기한 시작은 별도 미완료 흐름이며 §6의 "결제 안내 API/UI 연결" 및 `docs/collab/TODO.md` 5-A를 따른다.
 
 > 단체 "신청 수량"은 백엔드가 엑셀 인원 수로 산정하는 정상 계약이라 프론트 입력을 제거함(응답 `totalQuantity` 사용) — 위 목록과 성격이 다름.
 
@@ -611,18 +683,24 @@
 | ~~후기(Review) 다중 이미지~~ | 0~5장 정책 확정·백엔드/프론트 구현 완료(2026-08-24) | §1.8 |
 | ~~관리자 작명 확정·카드 제작(만세력·카드디자인·카드미리보기)~~ | API 바인딩 6개 전부 `ApplicationsSection.tsx`가 실호출, 진태양시 보정도 `computeMemberSajuFromResolved()`로 구현 완료(2026-09-14 재확인) — 단 재진입 복원은 별도 미완료(`TODO.md` 1-E) | §1.15 |
 | ~~학생증 카드 템플릿 업로드(관리자)~~ | `SchoolTemplateSection.tsx` 신설·`AdminPage.tsx`에 마운트돼 실호출(2026-09-14 재확인) | §1.17 |
+| ~~관리자 카드 다운로드(전체 ZIP/개별 재인쇄)~~ | `ApplicationsSection.tsx`(287·761행)가 `getAdminApplicationCardsZip`/`getAdminMemberCardDownload` 실호출(2026-09-14 재확인) | §1.18 |
 
 ### 남은 작업 (우선순위 순)
 
 | 순위 | 항목 | 상태 | 관련 절 |
 |---|---|---|---|
-| 1 | **인증 상태 서버 세션 단일화** | 백엔드 쿠키 인증·`getMe`·refresh·logout은 완료. 프론트 `AuthContext`에서 전체 `auth-user` 저장·복원과 데모 인증을 제거하고 401/403/네트워크 오류를 구분한다. 단, `/me`에 role이 없어 관리자 UI role 복원은 §1.1-d 주의사항을 따른다 | §1.1-d |
-| 1 | **단체 엑셀 작명 반영 — 성씨(surname) 필드 추가** | 인앱 작명은 2026-09-14 해소 확인(surname 포함 실호출). **단체 엑셀 업로드 경로(`applyNamingResult`)만 남음** — 엑셀 서식에 성씨 열이 없고 백엔드 `NamingResultExcelParser`도 안 받음. 프론트만의 문제가 아니라 엑셀 양식+백엔드 파서까지 걸친 결정 필요 | §1.16 |
+| **P0** | **십이간지 디자인 세트(`zodiacDesignSet`) 선택 UI — 카드 생성 자체를 막는 하드 블로커(2026-09-14 신규)** | 백엔드 API(`PUT /api/admin/applications/{id}/zodiac-design`)는 이미 있는데 `services/api.ts` 래퍼·관리자 선택 UI가 전부 없음(grep 0건, 재확인). 값이 없으면 카드 미리보기·생성이 `ZODIAC_DESIGN_NOT_SELECTED`(`CardRenderPreparation.java`)로 무조건 거절된다 — 만세력 확정→이름·성씨 확정→카드번호→디자인 선택까지 다 끝내도 **이 값 하나가 없어서 카드 생성 화면 끝까지 못 간다.** 상세는 §1.21 | §1.21 |
+| 1 | **인증 상태 서버 세션 단일화** | 백엔드 쿠키 인증·`getMe`·refresh·logout은 완료했지만 `/api/users/me`에 `role`을 추가해야 한다. 프론트 `AuthContext`는 전체 `auth-user` 저장·복원과 데모 인증을 제거하고 `/me`의 사용자·role로 UI를 복원하며 401/403/네트워크 오류를 구분한다 | §1.1-d |
+| 1 | **단체 Excel 작명 반영 — 뜻 필드 추가·성씨 보존** | 인앱 작명은 surname 포함 연동 완료. Excel에는 확정 정책대로 이름·한자·뜻만 포함하고 성씨 열은 추가하지 않는다. 백엔드는 `NamingResultExcelParser`와 적용 로직에 뜻을 연결하며 재가져오기 때 기존 성씨가 유지되는지 검증한다 | §1.16 |
+| 1 | **직접입력 학생증 학교 연결** | 백엔드 관리자 연결 API와 프론트 관리자 연결 UI가 모두 필요하다. `schoolId=null` 신청은 작명까지 가능하지만 School 연결과 해당 방향의 활성 CardDesign이 없으면 Preview/카드 생성이 막힌다 | §1.22 |
 | 2 | **관리자 이름 추천 정책 정합성 수정** | 백엔드 추가 구현 없음. 프론트에서 활성 확정 만세력 결과만 사용하고 mock/무작위 추천을 제거한 뒤 결정적 상위 5개로 변경 | §1.19 |
 | 2 | **관리자 만세력 확정 결과 재진입 복원** | `getActiveManseryeokResult` 래퍼는 있으나 호출부 0건(2026-09-14 재확인) — 새로고침 시 확정 결과 복원 안 됨. 상세 구현 계획은 `docs/collab/TODO.md` 1-E(다음 구현 단위) | §1.15 |
 | 3 | 공지 서버 검색(`searchType`/`keyword`) | **백엔드 완료(2026-09-05)** — `listBoards`에 파라미터 추가 + `NoticesPage.tsx` 클라이언트 `.filter()` 제거만 하면 됨. 작업량 작음 | §1.7 |
-| 3 | 관리자 카드 다운로드(전체 ZIP/개별 재인쇄) | **백엔드 완료(2026-09-05)** — API 래퍼 2개 + 다운로드/재인쇄 버튼 UI 신규. 실물 제작 흐름에 필요 | §1.18 |
 | 4 | 관리자 통계 대시보드(`GET /api/admin/stats`) | **백엔드 완료(2026-09-05)** — API 래퍼 1개 + `OverviewSection`의 `size=100` 자체 계산을 이 호출로 교체 | §1.4 |
 | 5 | 한국이름 조회 API 전환, 정적 마케팅 CMS화, 하이브리드 목데이터(§5) 정리 | 우선순위 낮음, 필요 시에만 | §2.2, §3, §5 |
 
-**진행 원칙**: 1번은 이미 연동된 기능이 절반만 동작하는 회귀성 결함이라 가장 먼저. 2번은 작업량이 크지만 백엔드는 이미 다 준비돼 있어 프론트 작업만으로 끝난다. 3번(공지 검색·카드 다운로드)도 백엔드가 이미 끝나 있어 프론트만으로 끝나는 작은 항목들이다. 4번 이후는 백엔드 작업이나 정책 결정이 먼저 필요해 프론트 혼자 진행할 수 없는 항목.
+**백엔드 선행 또는 양쪽 연결이 필요한 잔여 항목(참고용)** — 카드 제작 전체 흐름이 실제로 완결되려면 아래 항목도 같이 필요하다:
+- **결제 안내 API/UI 연결** — `ApplicationService.guidePayment()`는 있으나 호출 Controller 엔드포인트가 없다(grep 0건, 2026-09-14 재확인). 백엔드는 Controller·상태/멱등 검증을 연결하고, 프론트는 관리자가 결제 안내를 실행하는 버튼과 `paymentGuidedAt`/`paymentDueAt` 표시가 필요하다. 현재처럼 바로 입금 확인(`confirmApplicationPayment`)만 호출하면 72시간 미입금 자동 취소 기한이 시작되지 않는다. `docs/collab/TODO.md` 5-A에 상세 계획이 있다.
+- **카드 제작 상태 선행조건 검증 없음** — `startProducing()`/`markCardReady()`가 전체 Member의 카드 생성 완료 여부를 집계 검증하지 않아, 일부만(또는 전혀) 생성 안 된 Application도 관리자가 "제작 시작"·"카드 발급 완료"를 누를 수 있다(2026-09-14 재확인). `docs/collab/TODO.md` 3-F에 이미 원인·설계 방향 기록됨, 아직 미착수.
+
+**진행 원칙**: P0 십이간지 선택은 카드 생성 하드 블로커이므로 우선한다. 인증 role·단체 Excel 뜻·직접입력 학교 연결은 확정 정책대로 백엔드 계약을 먼저 보강한 뒤 프론트를 연결한다. 이름 추천·만세력 재진입·공지 검색·통계는 백엔드 기반이 이미 있어 프론트 작업으로 진행할 수 있다. 결제 안내와 카드 제작 상태 방어는 `TODO.md`의 백엔드 작업을 선행한다.

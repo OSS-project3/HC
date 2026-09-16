@@ -21,9 +21,10 @@
 **구현 체크리스트**
 
 - [ ] 작명 Excel import가 기존 `surname`을 변경하지 않는지 확인하고 직접 테스트로 보장한다.
+- [ ] 작명 Excel의 이름·한자·뜻을 파싱하여 기존 `ApplicationMember`의 대응 필드에 저장한다. 현재 `NamingResultExcelParser`는 이름·한자만 반환하므로 뜻 필드 파싱·저장 계약을 보강한다.
 - [ ] 관리자 화면에서 Member별 성씨를 입력·저장하는 기존 흐름을 유지한다.
 - [ ] `completeNaming`이 모든 Member의 성씨 누락을 검사하고 한 명이라도 누락되면 상태 전이를 거절하도록 검증한다.
-- [ ] Excel 재가져오기 후에도 기존 성씨가 보존되는 회귀 테스트를 추가한다.
+- [ ] Excel 재가져오기 후에도 기존 성씨가 보존되고 이름·한자·뜻만 갱신되는 회귀 테스트를 추가한다.
 
 ### 2. 사용자 역할 복원
 
@@ -55,10 +56,10 @@
 
 **구현 체크리스트**
 
-- [ ] 카드 생성 요청 중 프론트 버튼 비활성화·로딩 표시·중복 클릭 차단을 적용한다.
+- [x] 카드 생성 요청 중 프론트 버튼 비활성화·로딩 표시·중복 클릭 차단 적용 확인 — `ApplicationsSection.tsx`의 `CardProductionTools`가 `busy` 상태에서 미리보기·생성·다운로드 버튼과 디자인 선택을 비활성화한다(2026-09-14 코드 대조).
 - [ ] 전체 Member의 필수 카드 결과가 준비되기 전 `startProducing`·`markCardReady` 상태 전이를 거절한다.
 - [ ] 제작 단계 이후 이름·작명 결과 수정이 허용되지 않도록 기존 상태 게이트를 검증한다.
-- [ ] 신규 잠금 구현은 이번 범위에 포함하지 않으며 기존 `Application.@Version`을 유지한다.
+- [x] 신규 잠금 구현은 이번 범위에 포함하지 않으며 기존 `Application.@Version`을 유지한다 — 초기 운영 관리자 1명 정책으로 확정(2026-09-14).
 - [ ] 동시 관리자 운영이 시작되면 카드 생성 경합 위험을 재검토한다.
 
 ---
@@ -136,6 +137,8 @@
 | ⚪ | 관리자(Admin) 신청 목록·상태변경·통계 API | 미정 | `main` | `docs/FRONTEND_API_GAPS.md` §1.2·§1.4 | `GET /api/admin/applications`(목록, 상태·유형 필터), `GET /api/admin/applications/{id}`, 상태별 명령 API, `GET /api/admin/stats`가 아직 없음. 백엔드 확정 상태는 `SUBMITTED→REVIEWING↔PHOTO_REJECTED→NAME_EDITING→PRODUCTION_READY→PRODUCING→COMPLETED/CANCELLED`이며 PaymentStatus는 별도 관리 |
 | ✅ | "내 후기" 목록 조회 API | Claude | `main` | `docs/BACKEND_API_GAPS.md` P0-2 | ⚠️ 2026-08-19 정정: 이 행이 미정으로 남아있었으나 실제로는 이미 구현·연동 완료된 상태였다(코드로 재확인). `GET /api/my/reviews`(`MyReviewController`, `page`/`size` 페이지네이션) 구현 완료, 프론트 `MyPage` 내 후기 섹션에서 실 연동까지 완료(`docs/BACKEND_API_GAPS.md` P0-2 표 참고). 문서만 정정, 코드 작업 없음 |
 | ⚪ | 단체신청 Excel 양식 다운로드 API 필요 여부 확정 | 미정 | `main` | `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 백엔드에 template 관련 엔드포인트가 확인되지 않음(코드 검색 결과 없음) — 프론트에도 양식 다운로드 버튼 자체가 없음. 신규 API가 필요한 건지, 정적 파일 제공으로 충분한지 정책 확인부터 필요 |
+| 🔴 | 십이간지 디자인 세트(`zodiacDesignSet`) 선택 UI 없음 — 카드 생성 자체를 막는 P0 하드 블로커 (2026-09-14 신규) | 프론트 담당자 | `main` | `docs/FRONTEND_API_GAPS.md` §1.21 | 백엔드 API(`PUT /api/admin/applications/{id}/zodiac-design`)는 구현·검증 완료됐으나 `services/api.ts` 래퍼·관리자 선택 UI가 전혀 없음(grep 0건). 값이 없으면 카드 미리보기·생성이 `ZODIAC_DESIGN_NOT_SELECTED`로 무조건 거절되어, 만세력 확정→이름·성씨 확정→카드번호→카드디자인까지 다 끝내도 이 값 하나 때문에 카드 생성까지 못 감. 상세 계약·완료 조건은 GAPS.md §1.21 참고, 백엔드 추가 작업 없음 |
+| 🔴 | GitHub Actions self-hosted 배포 러너(`ec2-hc-runner`) 오프라인 — 배포 파이프라인 전면 중단 (2026-09-14 발견) | 서버 접근 가능한 담당자 | - | 본 문서 없음, 대화 기록 참고 | `gh api repos/OSS-project3/HC/actions/runners` 확인 결과 `status: offline`. 최근 푸시(`ef66751` 포함, 2026-09-13T16:09:40Z부터)의 Deploy 워크플로가 전부 `queued`로 멈춰있어 그 이후 커밋이 하나도 실제 배포되지 않음 — 현재 라이브 도메인(`name.hanse.kr`)의 문제(JS 번들 `net::ERR_CONTENT_LENGTH_MISMATCH`로 잘려 화면이 빈 채로 뜸)는 최근 작업과 무관하게 그 이전에 이미 배포돼 있던 버전의 문제. EC2에서 러너 프로세스 재시작 필요(`sudo systemctl status/start actions.runner.*` 또는 `~/actions-runner/svc.sh status/start`) — 코드 수정으로 해결 불가, 서버 접근 필수 |
 
 > 아래 "Task 1~4" 4행 요약은 이 로드맵이 Task 1~6(5-A/5-B 포함)으로 세분화되기 전의 옛 버전이라 삭제함 — 최신 진행 상태는 바로 아래 "Application 개인 신청 리팩터링 로드맵" 절 참고.
 
@@ -1512,7 +1515,7 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] DB 반영(commit) 자체가 실패하면 이번 요청에서 새로 올린 두 key를 보상 삭제.
 - [ ] **재생성(regenerate) — 멱등성 없이 항상 재실행(2026-08-30 명확화)**: 동일 Member·동일 요청을 다시 호출해도 "이전과 같은 요청이니 스킵" 같은 멱등 처리를 하지 않는다 — 매 호출은 상태 게이트를 통과하는 한 항상 새로 렌더링·업로드·재확정한다. 이미 `cardFrontPath`/`cardBackPath`가 있는 Member도 상태 게이트(`PRODUCTION_READY` 또는 `PRODUCING && cardReadyAt == null` — `PRODUCING && cardReadyAt != null`이면 재생성도 거절)를 통과하면 재생성할 수 있다. 새 두 파일을 먼저 올리고 DB commit이 성공한 이후에만 기존 두 파일을 삭제한다(성공 전에는 기존 파일을 지우지 않음 — 실패해도 기존 카드가 그대로 남는다). 기존 파일 삭제 실패는 조용히 무시(고아 파일 1건, 수동 정리 대상 — 자동 정리 재시도 큐는 이번 스코프에 없음). 재생성 전 "기존 카드 결과가 대체됩니다" 확인 경고는 프론트 책임(3-D 참고, 백엔드는 별도 확인 파라미터를 요구하지 않는다).
 - [ ] 카드번호는 이 API가 새로 생성하지 않고 기존 관리자 확정값을 그대로 사용(`isCardGenerated()` 이후 카드번호 변경 금지 로직에 영향 없음).
-- [ ] **동시성 방어는 이번 최소 버전에 없음(2026-08-30 스코프 재검토 — 최초엔 `ApplicationMember` `@Version`으로 구현했다가 제외)**: 상세 근거와 재설계 방향은 3-F 참고. 지금은 위 "준비 시점 이후 최종 재검증"(stale 상태 재확인)과 3-D의 프론트 버튼 비활성화(중복 클릭 방지)만으로 방어한다 — 완전 동시 요청(정확히 같은 순간 두 요청)까지는 막지 못한다.
+- [x] **카드 생성 전용 신규 잠금은 이번 최소 버전에 추가하지 않음(2026-09-14 확정)**: 초기 운영은 관리자 1명으로 가정하고, 준비 시점 이후 최종 재검증과 프론트 `busy` 상태의 버튼 비활성화로 중복 실행을 줄인다. 기존 `Application.@Version`은 유지하되 `ApplicationMember.@Version`, 분산락, 비관적 락은 추가하지 않는다. 완전 동시 요청까지 막지 못하는 잔여 리스크는 실제 다중 관리자 운영 필요가 생길 때 재검토한다.
 - [ ] **상태 자동전환 금지(2026-08-29 확정)**: 이 API는 `startProducing`/`markCardReady`/`markPhysicalDispatched` 등 어떤 `ApplicationStatus` 전이 메서드도 호출하지 않는다. 카드 생성/저장은 Member 카드 결과를 준비하는 책임만 지고, `PRODUCTION_READY → PRODUCING → COMPLETED` 전이는 기존 "관리자 신청 상태 전이 API"(별도 절, 861행)에서만 처리한다.
 - [ ] **AdminActivityLog 액션 상수(2026-08-30 재확인 — CARD_ISSUE는 실사용 중, 이전 서술 정정)**: `CARD_ISSUE`는 미사용이 아니라 이미 `ApplicationService.markCardReady()`(`:628`)에서 "카드 발급 완료"로 실사용 중이고 `ApplicationServiceAdminTransitionTest`(`:140`)가 검증한다 — 관리자가 Application 전체의 "카드 준비 완료"를 선언하는 이벤트다. Member 1명 단위로 반복 호출되는 "이미지 렌더링+S3 저장" 이벤트는 의미가 다르므로 `CARD_ISSUE`를 재사용하지 않는다(재사용하면 두 의미가 로그에서 섞인다). 신규 상수 `CARD_IMAGE_GENERATED`를 추가해 생성 성공/실패/충돌/재생성 여부와 관리자 ID를 기록한다. `CARD_ISSUE`는 그대로 두고 손대지 않는다.
 
@@ -1547,8 +1550,8 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 §3 구현을 진행하던 중 아래 4가지를 "카드가 실제로 저장되기 시작하면서 새로 의미가 생기는 안전장치"로 판단해 §3에 같이 넣었었다. 재검토 결과 전부 §3의 핵심 동작("카드를 렌더링해 S3에 저장하고 DB에 연결한다")과 독립적이고, 각각 §3 밖의 기존 도메인 API·상태머신·엔티티에 영향을 주는 부수효과가 있어 제외했다. 삭제가 아니라 근거를 남기고 후속 항목으로 미룬다 — 아래 각 항목은 왜 필요하다고 판단했는지와 왜 지금은 보류하는지를 같이 적는다.
 
 - [ ] **작명 수정 API(`applyNamingResult`, `assignMemberName`) `NAME_EDITING` 제한** — **왜 필요:** 둘 다(`ApplicationService.java` `:527`/`:481` 부근) 현재 `Application.status`를 전혀 검증하지 않아, 카드 이미지가 이미 생성된 이후(`PRODUCTION_READY`/`PRODUCING`)에도 관리자가 이름을 조용히 바꿀 수 있다 — 이미 렌더링된 카드 PNG와 DB 값이 어긋나는 gap. **왜 보류:** §3의 생성·저장·보상삭제·재생성 로직 어디도 이 두 API에 의존하지 않는다 — 카드가 아직 하나도 없던 지금까지는 이 gap이 실질적 피해가 없었고(정확히는 이 문제가 §3 도입 이전부터 있던 기존 gap), §3 자체의 정상 동작에는 영향이 없다. 두 API를 같이 막아야 우회를 막을 수 있으므로(하나만 제한하면 다른 쪽으로 우회 가능) 별도 작업 단위로 한 번에 처리한다.
-- [ ] **`startProducing`/`markCardReady` 카드 생성 완료 집계 검증** — **왜 필요:** 카드가 하나도 생성되지 않은(또는 일부만 생성된) Application도 관리자가 제작 시작·카드 발급완료를 눌러버릴 수 있다. 검증 항목(재검토 시점 기준): 실제 `ApplicationMember` 수 == `Application.totalQuantity`, `Application.cardDesignId`/`cardIssueDate` 존재, 모든 Member의 `cardNumber`/`cardFrontPath`/`cardBackPath` 존재, 모든 Member의 `issueDate == Application.cardIssueDate` — 하나라도 실패하면 신규 `CARD_GENERATION_INCOMPLETE` 에러로 거절(Entity 상태 전이 메서드는 그대로 쓰고 Service에서 집계만 선행). **왜 보류:** §3의 `CardGenerationService`/`CardGenerationPersistenceService`는 이 두 메서드를 호출하지도, 이 두 메서드에 의존하지도 않는다 — §3만 놓고 보면 없어도 정상 동작한다. "카드 없이 제작 전이"라는 시나리오 자체가 §3이 배포된 **이후에** 의미가 생기는 후속 방어라 별도 작업 단위로 분리한다.
-- [ ] **카드 생성 동시성 방어 재설계** — **왜 필요:** 사용자가 명시적으로 요구한 요구사항("동일 멤버에 대한 카드 생성 요청이 동시에 여러 개 처리되지 않도록... 백엔드 동시성 방어를 적용") 자체는 여전히 유효하다. **왜 지금 없음:** 최초 구현은 `ApplicationMember`에 `@Version`(낙관적 락)을 붙였는데, 이건 `ApplicationMember`를 쓰는 **다른 모든 기존 API**(작명 확정 2종, 카드번호 단건 지정, 사진 재업로드 등)에도 "동시 요청이 겹치면 `ObjectOptimisticLockingFailureException`이 발생할 수 있다"는, 지금까지 없던 실패 경로를 만든다 — 그런데 `GlobalExceptionHandler`에 이 예외의 전역 처리가 없어(바로 아래 항목) 그 다른 API들에서는 raw 500으로 노출된다. 카드 생성 기능 하나를 위해 기존 API 전체의 동시성 의미를 바꾸는 건 과하다고 판단해 제외했다. **재설계 방향(둘 중 선택 필요):** (a) 카드 생성 경로에만 한정된 방식으로 다시 설계(예: `CardGenerationPersistenceService.persist()` 트랜잭션 안에서 짧게 값을 재확인하는 지금의 재검증만으로 충분한지 먼저 판단, 부족하면 카드 생성 전용 락 컬럼/메커니즘 도입), 또는 (b) 초기 운영 규모(관리자 수·동시 접속 빈도)에서 필요성이 낮다고 보고 이번엔 보류 — 프론트의 "생성 중 버튼 비활성화"(3-D)가 실무적으로 대부분의 경합을 막아준다. **지금 없을 때 남는 리스크:** 완전 동시 요청 시 나중에 commit되는 쪽이 조용히 덮어쓴다(에러 없음) — 두 관리자가 정확히 같은 순간 같은 Member를 다시 생성하는 극히 드문 경우에만 발생.
+- [x] **`startProducing`/`markCardReady` 카드 생성 완료 집계 검증 — ✅ 완료(2026-09-14, Claude)** — **왜 필요:** 카드가 하나도 생성되지 않은(또는 일부만 생성된) Application도 관리자가 제작 시작·카드 발급완료를 눌러버릴 수 있다. **구현**: 검증 항목 그대로(실제 `ApplicationMember` 수 == `Application.totalQuantity`, `Application.cardDesignId`/`cardIssueDate` 존재, 모든 Member의 `cardNumber`/`cardFrontPath`/`cardBackPath` 존재, 모든 Member의 `issueDate == Application.cardIssueDate`) — 하나라도 실패하면 신규 `CARD_GENERATION_INCOMPLETE`(400)로 거절. `ApplicationService`에 공통 private 메서드 `requireCardGenerationComplete(Application)`로 분리해 `startProducing()`/`markCardReady()` 둘 다 각자 Entity 상태 전이 메서드 호출 직전에 호출(Entity 메서드 자체는 무변경). TDD로 진행(RED 2/13 확인 → 구현 → GREEN). 기존 `startProducingTransitionsAndLogs`/`markCardReadyCompletesMobileOnlyApplicationAndLogs`/`dispatchPhysicalStoresTrackingNumberAndCompletesAndLogs`(Service) + `startProducingEndpointTransitionsStatus`/`cardReadyEndpointCompletesMobileApplication`(Controller) 5개는 카드 생성 완료 픽스처를 추가해 계속 통과하도록 갱신. 신규 테스트 4개(Service 2 + 검증 자체는 아니지만 회귀 확인용 기존 갱신). `domain.application.*`(302개) + `AdminApplicationControllerTest`(34개) 재실행 회귀 없음, 전체 스위트 883개 중 무관한 기존 flaky 1건(`HighSchoolSeederIntegrationTest`, 단독 실행 시 통과 확인)만 제외하고 전부 통과.
+- [x] **카드 생성 전용 동시성 방어 추가는 보류로 확정(2026-09-14)** — 초기 운영 관리자 1명, 프론트 생성 중 버튼 비활성화, Service의 상태·완료 여부 재검증을 적용한다. `ApplicationMember.@Version`·분산락·비관적 락은 이번 범위에 추가하지 않는다. 기존 `Application.@Version`은 유지한다. 다중 관리자 운영에서 실제 충돌이 확인되면 카드 생성 전용 잠금과 409 응답을 별도 작업으로 다시 연다.
 - [ ] **`GlobalExceptionHandler`의 `ObjectOptimisticLockingFailureException` 전역 처리 부재** — **왜 필요:** 이번 검토 중 발견 — `Application`에는 이미 `@Version`이 있지만(`Application.java:97`), 이 예외를 전역적으로 처리하는 핸들러가 없다. 실제로 지금까지 이 예외를 잡는 곳은 백그라운드 스케줄러(`ApplicationPaymentTimeoutScheduler`, 실패해도 로그만 남기고 조용히 넘어감) 하나뿐이라, HTTP 요청 경로에서 이 예외가 발생하면 `@ExceptionHandler(Exception.class)` catch-all로 떨어져 500 `INTERNAL_ERROR`로 나간다. **왜 보류:** 이건 §3이나 이번 카드 생성 기능이 만든 문제가 아니라 **기존에 이미 있던 gap**이고, 위 "동시성 방어 재설계" 항목의 결론(락을 어디에 어떻게 걸지)이 먼저 나와야 이 핸들러를 어떤 에러코드로 매핑할지도 정할 수 있어 함께 묶어 후속으로 남긴다.
 
 ---
@@ -1624,9 +1627,9 @@ Java `BufferedImage`/`Graphics2D`로 명예한국인증/1 실제 렌더링 후 `
 - [ ] (c) 개인 신청·단체 신청 두 진입점 모두에서 (a)(b) 반복 확인(폼이 분리돼 있어 한쪽만 고치고 다른 쪽을 빠뜨리는 실수 방지).
 - [ ] (d) PR diff 크기 확인 — 학교 검색select 관련 파일과 `api.ts` 외에 다른 스텝/로직 파일이 포함돼 있지 않은지.
 
-### 4-A-1. 관리자 학교 연결 기능 — 구현 계획 확정 (2026-09-14, Claude, 구현 전)
+### 4-A-1. 관리자 학교 연결 기능 — 백엔드 구현 완료 (2026-09-14, Claude)
 
-상태: 🔵 계획 확정, 구현 전 — 4-A의 미착수 체크박스(1606행)를 실제 구현 단위로 상세화한 것.
+상태: ✅ 백엔드 구현·테스트 전부 완료(Service 8개 + Controller 5개, 전부 GREEN) — spec 문서(`api.md`/`data-model.md`) 반영과 프론트 UI만 남음. 4-A의 미착수 체크박스(1606행)를 실제 구현 단위로 상세화한 것.
 
 #### 배경 — 왜 "신청인 확인"과 분리된 별도 기능인가
 
@@ -1655,29 +1658,30 @@ schoolId + orientation으로 CardDesign 조회 (4-B, 이미 구현됨)
 
 #### 구현 체크리스트 (1606행 항목의 상세화)
 
-- [ ] 신규 API: `PUT /api/admin/applications/{applicationId}/school` — 요청 바디 `{ schoolId }`(Long, 필수).
-- [ ] School 존재 검증(`SchoolService.getSchoolNameOrThrow()` 등 기존 헬퍼 재사용) — 없으면 `SCHOOL_NOT_FOUND`(기존 코드 재사용, 4-D에서 이미 추가됨).
-- [ ] `School.schoolType == Application.schoolType` 검증 — 불일치면 `INVALID_INPUT`(신규 에러코드 추가 안 함).
-- [ ] `Application.schoolId`만 갱신, `Application.schoolName`(스냅샷)은 자동으로 바꾸지 않음(4-A 정책 8번, 13번 그대로).
-- [ ] 신규 School 생성 경로는 이 API에 없음(정책 6·7번) — schoolId는 반드시 기존 School PK여야 함.
-- [ ] 관리자 권한 검증(`validateAdmin`) + Application 버전 체크(동시 수정 방지, 기존 `assignCardNumbersBatch`의 `applicationVersion` 대조 패턴 재사용 검토) + `AdminActivityLog` 신규 기록(예: `SCHOOL_LINKED`).
-- [ ] **카드 생성 이후엔 연결·변경 금지** — 해당 Application의 아무 Member나 `isCardGenerated()`(cardFrontPath != null)면 거절(기존 `CARD_NUMBER_LOCKED`류 패턴과 동일한 성격의 잠금).
-- [ ] STUDENT가 아닌 카드종류의 Application에는 이 API 자체가 의미 없음 — `cardType != STUDENT`면 거절(신규 검증).
-- [ ] 관리자 학교명 오타 정정 기능(1607행, REVIEWING까지만 schoolName 수정 가능)은 **별개 작업으로 분리** — 이번엔 손대지 않음(스코프 명확화, 섞이면 diff가 커짐).
-- [ ] `docs/specs/application/data-model.md`/`api.md`에 이 API 계약 반영(1609행 항목과 함께).
+- [x] 신규 API: `PUT /api/admin/applications/{applicationId}/school` — 요청 바디 `{ schoolId, applicationVersion }`(둘 다 Long, 필수).
+- [x] School 존재 검증(`SchoolRepository.findById`, `ApplicationService`가 이미 직접 주입해 재사용) — 없으면 `SCHOOL_NOT_FOUND`.
+- [x] `School.schoolType == Application.schoolType` 검증 — 불일치면 `INVALID_INPUT`(신규 에러코드 추가 안 함).
+- [x] `Application.schoolId`만 갱신, `Application.schoolName`(스냅샷)은 자동으로 바꾸지 않음(4-A 정책 8번, 13번 그대로) — `Application.linkSchool(schoolId)` 신규 mutator.
+- [x] 신규 School 생성 경로는 이 API에 없음(정책 6·7번) — schoolId는 반드시 기존 School PK여야 함.
+- [x] 관리자 권한 검증(`validateAdmin`) + Application 버전 체크(`findByIdForUpdate` + `applicationVersion` 대조, `assignCardNumbersBatch`와 동일 패턴) + `AdminActivityLog.SCHOOL_LINKED` 신규 기록.
+- [x] **카드 생성 이후엔 연결·변경 금지** — 해당 Application의 아무 Member나 `isCardGenerated()`(cardFrontPath != null)면 신규 `SCHOOL_ALREADY_LOCKED`(400)로 거절.
+- [x] STUDENT가 아닌 카드종류의 Application에는 이 API 자체가 의미 없음 — `cardType != STUDENT`면 `INVALID_INPUT`으로 거절.
+- [x] 관리자 학교명 오타 정정 기능(1607행)은 **별개 작업으로 분리** — 이번엔 손대지 않음.
+- [ ] `docs/specs/application/data-model.md`/`api.md`에 이 API 계약 반영(1609행 항목과 함께) — 아직 미착수.
 
 #### 테스트
 
-- [ ] `ApplicationServiceTest` 또는 신규 테스트 클래스: 성공(schoolId 연결), schoolType 불일치 거절, 존재하지 않는 schoolId 거절, 비STUDENT 거절, 카드 생성 후 거절, 비관리자 거절, 타 Application 소속 미검증 필요없음(schoolId는 Application 단위라 member 소속 검증 자체가 없음) 확인.
-- [ ] `AdminApplicationControllerTest`: 위 Service 테스트와 대응하는 HTTP 계약 테스트(401/403/400/404/200).
-- [ ] `domain.application.*` 전체 재실행, 회귀 없음 확인.
+- [x] `ApplicationServiceSchoolLinkTest`(신규 8개): 성공(schoolId 연결), schoolType 불일치 거절, 존재하지 않는 schoolId 거절, 비STUDENT 거절, 카드 생성 후 거절, 비관리자 거절, version 충돌 거절, 신청 없음 거절 — TDD로 진행(RED 7/8 실패 확인 → 구현 → GREEN 8/8).
+- [x] `AdminApplicationControllerTest`(신규 5개): 성공(200), 필수값 누락(400), 비관리자(403), 토큰 없음(401), 신청 없음(404) — **2026-09-14 로컬 Redis로 재실행 완료, 클래스 전체 34/34 GREEN 확인.**
+- [x] `domain.application.*` 전체 재실행(302개), 회귀 없음 확인(Redis 불필요, 실제 실행 완료).
 
 #### 완료 조건
 
-- [ ] 직접입력(schoolId=null) STUDENT 신청에 이미 등록된 School을 연결하면 이후 카드 디자인 조회(4-B)·Preview가 정상 동작한다.
-- [ ] School 생성/수정 관련 코드는 전혀 추가하지 않았다(스코프 경계 준수).
-- [ ] 카드 생성 완료 후에는 이 API로 schoolId를 바꿀 수 없다.
-- [ ] 신규 API·DB 컬럼은 이 기능에 필요한 최소치(엔드포인트 1개, 기존 컬럼 재사용)로 유지된다.
+- [x] 직접입력(schoolId=null) STUDENT 신청에 이미 등록된 School을 연결하면 이후 카드 디자인 조회(4-B)·Preview가 정상 동작할 수 있는 상태가 됨(schoolId 연결 자체는 Service 테스트로 확인, 4-B 연동까지의 종단 확인은 아직 안 함).
+- [x] School 생성/수정 관련 코드는 전혀 추가하지 않았다(스코프 경계 준수).
+- [x] 카드 생성 완료 후에는 이 API로 schoolId를 바꿀 수 없다.
+- [x] 신규 API·DB 컬럼은 이 기능에 필요한 최소치(엔드포인트 1개, 기존 컬럼 재사용, DB 컬럼 신규 없음)로 유지된다.
+- [x] `AdminApplicationControllerTest` 신규 5개를 Redis 있는 환경에서 재실행해 실제 GREEN 확인 — 2026-09-14 완료.
 
 ### 4-B. `CardDesign` 학교 매칭 + 조회 API 개방 — ✅ 완료(2026-08-30)
 
