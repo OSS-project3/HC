@@ -1,6 +1,6 @@
 # 프론트엔드 API 연동 명세
 
-> 현재 코드 기준: 2026-09-15
+> 현재 코드 기준: 2026-09-16
 >
 > 대상: `frontend/src/services/api.ts`와 실제 호출 화면
 >
@@ -108,7 +108,7 @@ interface PageResponse<T> {
 
 ### 단체 신청
 
-`POST /api/applications/bulk`에 `request`, `zipFile`, `logo`, 조건부 `seal`을 보낸다. 수량은 클라이언트 입력값이 아니라 서버가 Excel 유효 행 수로 계산한다. 서버의 행 Validation은 `ApiError.errors[]`로 유지한다.
+`POST /api/applications/bulk`에 `request`, `submitFile`(Excel·사진 ZIP), `logo`, 조건부 `seal`을 보낸다. 수량은 클라이언트 입력값이 아니라 서버가 Excel 유효 행 수로 계산한다. 서버의 행 Validation은 `ApiError.errors[]`로 유지한다.
 
 ### 신청 draft
 
@@ -170,6 +170,7 @@ interface PageResponse<T> {
 | Excel export | `POST /api/admin/applications/export` |
 | 작명 결과 Excel | `POST /api/admin/applications/{id}/naming-result` |
 | 전체 카드 ZIP | `GET /api/admin/applications/{id}/cards/download` |
+| 이름 선택 이력 통계 | `GET /api/admin/name-selection-stats` |
 
 상태 전이는 결제 확인, 검토 시작, 사진 반려, 작명 승인·완료, 제작 시작, 카드 준비, 배송 발송 API를 현재 상태에 맞춰 노출한다. 가능한 전이는 서버가 최종 검증한다.
 
@@ -230,5 +231,6 @@ interface PageResponse<T> {
 
 | 날짜 | 변경 |
 |---|---|
+| 2026-09-16 | 코드 전수 재대조. 단체 신청 ZIP part 명칭을 실제 계약(`submitFile`)으로 정정, 이름 선택 이력 통계 API 추가 |
 | 2026-09-15 | 2026-08-18 준비도 스냅샷을 제거하고 현재 공통 클라이언트와 실제 화면 호출 중심으로 전면 재작성 |
 | 2026-08-18~09-14 | 단계별 API 준비도 조사와 연결 수행. 상세 내역은 Git 및 `docs/collab/CHANGELOG.md` 참고 |
