@@ -9,8 +9,8 @@
   width: 100%;
   height: 100%;
   min-height: 48px;
-  background: #111112;
-  color: #efe9df;
+  background: var(--color-placeholder-background);
+  color: var(--color-placeholder-text);
   border-radius: 4px;
   padding: 10px;
   text-align: center;
@@ -21,15 +21,15 @@
   font-size: clamp(11px, 1.1vw, 14px);
   font-weight: 500;
   line-height: 1.35;
-  color: #f2ede4;
+  color: var(--color-placeholder-caption);
   word-break: keep-all;
 }
 
 .img-ph__tag {
   font-size: 10px;
   letter-spacing: 0.1em;
-  color: #111112;
-  background: #d9cbb5;
+  color: var(--color-placeholder-background);
+  background: var(--color-placeholder-label);
   padding: 2px 8px;
   border-radius: 999px;
   white-space: nowrap;

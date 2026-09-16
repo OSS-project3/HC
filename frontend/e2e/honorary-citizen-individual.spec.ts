@@ -162,7 +162,7 @@ test.describe.serial("개인 명예시민증 신청→관리자 처리→카드 
     await page.goto("/admin");
     await page.getByRole("button", { name: applicationNumber }).click();
 
-    // 추천은 프론트 클라이언트 mock(adminNamingMock.ts)이라 특정 이름을 강제하지 않고,
+    // 추천은 프론트의 namingRecommendations.ts가 확정 만세력으로 계산하므로 특정 이름을 강제하지 않고,
     // "목록이 뜨고 하나를 선택할 수 있다"만 확인한다(정책 위반 이슈는 별도 트랙).
     await page.locator(".admin-naming__surname input").fill("김");
     const firstRec = page.locator(".admin-naming__rec").first();

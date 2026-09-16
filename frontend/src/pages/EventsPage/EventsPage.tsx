@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { useLanguage } from "../../features/i18n/LanguageContext";
-import { ContentAdminPanel, loadManagedContent, type ManagedContent } from "../../components/admin/ContentAdminPanel";
 import { EventAdminPanel } from "../../components/admin/EventAdminPanel";
 import { ImagePlaceholder } from "../../components/ui/ImagePlaceholder";
 import { Modal } from "../../components/ui/Modal";
@@ -11,6 +10,8 @@ import { api } from "../../services/api";
 import "../../styles/ContentPages.css";
 import "./EventsPage.css";
 
+// PROGRAM 카드는 고정 문구로 확정(2026-09-13 사용자 결정, FRONTEND_API_GAPS §3.1) — 관리자 편집
+// UI·localStorage 저장을 제거하고 이 배열을 그대로 렌더링한다. 백엔드 API는 만들지 않는다.
 const programs = [
   { tag: "문화 체험", title: "한국 이름 만들기", text: "참가자의 정보를 바탕으로 한국 이름을 제안하고 이름에 담긴 뜻과 이야기를 소개합니다." },
   { tag: "기관·단체", title: "맞춤형 카드 제작", text: "행사 성격과 기관의 목적에 맞춰 명예한국인증·방문증 등 카드 콘텐츠를 구성합니다." },
@@ -22,10 +23,6 @@ const process = ["상담 및 목적 확인", "참가자 정보 접수", "이름�
 export function EventsPage() {
   const { isAdmin } = useAuth();
   const { t, language } = useLanguage();
-  // PROGRAM 카드는 백엔드에 대응 API가 없어 로컬 목데이터로 유지한다(FRONTEND_API_REQUIREMENTS §12 CMS 범위).
-  const defaults: ManagedContent[] = programs.map((program, index) => ({ id: `event-${index}`, title: program.title, content: program.text, meta: program.tag }));
-  const [managedPrograms, setManagedPrograms] = useState(() => loadManagedContent("events", defaults));
-  const updatePrograms = (items: ManagedContent[]) => { localStorage.setItem("managed-content:events", JSON.stringify(items)); setManagedPrograms(items); };
 
   const [managedBoothPosts, setManagedBoothPosts] = useState<FeedPost[]>([]);
   const [managedCollabPosts, setManagedCollabPosts] = useState<FeedPost[]>([]);
@@ -42,18 +39,17 @@ export function EventsPage() {
       </header>
 
       <section className="event-programs page-container">
-        {isAdmin && <ContentAdminPanel label="이벤트" items={managedPrograms} onChange={updatePrograms} />}
         <div className="content-section-head">
           <p className="content-kicker">PROGRAM</p>
           <h2>{t("행사에 맞춰 다양하게 구성합니다.")}</h2>
         </div>
         <div className="program-grid">
-          {managedPrograms.map((program, index) => (
+          {programs.map((program, index) => (
             <article className="program-card" key={program.title}>
-              <span>{t(program.meta ?? "")}</span>
+              <span>{t(program.tag)}</span>
               <b>{String(index + 1).padStart(2, "0")}</b>
               <h3>{t(program.title)}</h3>
-              <p>{t(program.content)}</p>
+              <p>{t(program.text)}</p>
             </article>
           ))}
         </div>

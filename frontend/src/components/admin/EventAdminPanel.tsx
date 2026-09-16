@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { showToast } from "../ui/toast";
 import { api, type EventAdminListItem, type EventImage, type EventType } from "../../services/api";
+import { AdminPager } from "./AdminPager";
 import "./EventFeedAdminPanel.css";
 
 interface Draft {
@@ -34,6 +35,10 @@ export function EventAdminPanel({ label, eventType, onChanged }: { label: string
   const isCollab = eventType === "COLLABORATION";
 
   const [items, setItems] = useState<EventAdminListItem[]>([]);
+  // 서버 페이지네이션(§1.20) — 고정 size 단일 호출 대신 page/totalPages를 연결한다.
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [thumbnail, setThumbnail] = useState<File | null>(null);
   const [logo, setLogo] = useState<File | null>(null);
@@ -47,11 +52,11 @@ export function EventAdminPanel({ label, eventType, onChanged }: { label: string
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(() => {
-    api.listAdminEvents({ type: eventType, size: 100 })
-      .then((d) => setItems(d.content))
+    api.listAdminEvents({ type: eventType, page, size: 20 })
+      .then((d) => { setItems(d.content); setTotalPages(Math.max(1, d.totalPages)); setTotal(d.totalElements); })
       .catch(() => showToast(`${label}을(를) 불러오지 못했습니다.`));
     onChanged?.();
-  }, [eventType, label, onChanged]);
+  }, [eventType, label, onChanged, page]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -149,7 +154,7 @@ export function EventAdminPanel({ label, eventType, onChanged }: { label: string
   return (
     <section className="event-feed-admin page-container">
       <div className="event-feed-admin__head">
-        <strong>{label} 관리 <span className="event-feed-admin__count">({items.length})</span></strong>
+        <strong>{label} 관리 <span className="event-feed-admin__count">({total})</span></strong>
         <button type="button" onClick={beginCreate}>글쓰기</button>
       </div>
 
@@ -230,6 +235,7 @@ export function EventAdminPanel({ label, eventType, onChanged }: { label: string
           </div>
         ))}
       </div>
+      <AdminPager page={page} totalPages={totalPages} onChange={setPage} />
     </section>
   );
 }

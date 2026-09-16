@@ -19,6 +19,11 @@ export function NoticesPage() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [searchBy, setSearchBy] = useState<BoardSearchType>("ALL");
+  // 서버 페이지네이션(§1.20) — 검색 조건이 바뀌면 항상 첫 페이지부터 다시 조회한다.
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => { setPage(0); }, [submittedQuery, searchBy, language]);
 
   const reload = useCallback(() => {
     setStatus("loading");
@@ -26,11 +31,12 @@ export function NoticesPage() {
       type: "NOTICE",
       searchType: submittedQuery ? searchBy : undefined,
       keyword: submittedQuery || undefined,
-      size: 100,
+      page,
+      size: 10,
     })
-      .then((data) => { setNotices(data.content); setStatus("ready"); })
+      .then((data) => { setNotices(data.content); setTotalPages(Math.max(1, data.totalPages)); setStatus("ready"); })
       .catch(() => setStatus("error"));
-  }, [language, searchBy, submittedQuery]); // Accept-Language가 응답 언어를 바꾸므로 언어 전환 시 재조회
+  }, [language, searchBy, submittedQuery, page]); // Accept-Language가 응답 언어를 바꾸므로 언어 전환 시 재조회
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -78,7 +84,9 @@ export function NoticesPage() {
         </div>
 
         <nav className="support-pagination" aria-label={t("공지사항 페이지")}>
-          <button aria-label={t("이전 페이지")} disabled>‹</button><b>1</b><button aria-label={t("다음 페이지")} disabled>›</button>
+          <button aria-label={t("이전 페이지")} disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>‹</button>
+          <b>{page + 1}</b>
+          <button aria-label={t("다음 페이지")} disabled={page >= totalPages - 1} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>›</button>
         </nav>
       </section>
     </div>

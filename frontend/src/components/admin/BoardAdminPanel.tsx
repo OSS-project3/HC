@@ -71,7 +71,7 @@ export function BoardAdminPanel({ boardType, items, onChanged }: { boardType: Bo
   const label = boardType === "NOTICE" ? "공지사항" : "FAQ";
 
   return (
-    <section className="content-admin" style={{ margin: "24px 0", padding: 20, border: "1px solid #d8d1c4" }}>
+    <section className="content-admin" style={{ margin: "24px 0", padding: 20, border: "1px solid var(--color-editor-border)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <strong>{label} 관리</strong>
         <Button type="button" onClick={beginCreate}>글쓰기</Button>
@@ -83,8 +83,8 @@ export function BoardAdminPanel({ boardType, items, onChanged }: { boardType: Bo
           <textarea className="field__textarea" aria-label="내용" placeholder={boardType === "FAQ" ? "답변" : "내용"} value={editing.content} onChange={(e) => setEditing({ ...editing, content: e.target.value })} required />
 
           {allowAttachment && (
-            <div style={{ display: "grid", gap: 8, padding: 12, border: "1px solid #e5ded2", background: "#fff" }}>
-              <strong style={{ fontSize: 13, color: "#263d5b" }}>첨부파일</strong>
+            <div style={{ display: "grid", gap: 8, padding: 12, border: "1px solid var(--color-content-border)", background: "var(--color-surface-white)" }}>
+              <strong style={{ fontSize: 13, color: "var(--color-primary)" }}>첨부파일</strong>
               {editing.existingAttachments.map((att) => (
                 <label key={att.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input type="checkbox" checked={editing.keepIds.includes(att.id)} onChange={(e) => setEditing({ ...editing, keepIds: e.target.checked ? [...editing.keepIds, att.id] : editing.keepIds.filter((k) => k !== att.id) })} />
@@ -98,7 +98,7 @@ export function BoardAdminPanel({ boardType, items, onChanged }: { boardType: Bo
                 multiple
                 onChange={(e) => setEditing({ ...editing, newFiles: Array.from(e.target.files ?? []) })}
               />
-              <small style={{ color: "#6b7280" }}>체크 해제한 기존 첨부파일은 저장 시 삭제됩니다. (개당 10MB, 최대 10개)</small>
+              <small style={{ color: "var(--color-editor-hint)" }}>체크 해제한 기존 첨부파일은 저장 시 삭제됩니다. (개당 10MB, 최대 10개)</small>
             </div>
           )}
 

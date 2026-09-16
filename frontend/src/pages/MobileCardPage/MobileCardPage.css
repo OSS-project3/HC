@@ -66,7 +66,7 @@
   border-radius: 3px;
   background: var(--color-border-accent);
   transform: translateX(-50%) rotateY(90deg);
-  box-shadow: 0 0 8px rgb(80 60 30 / 18%);
+  box-shadow: 0 0 8px var(--color-shadow-flip-card);
 }
 .mobile-card__face img {
   display: block;
@@ -110,4 +110,4 @@
   }
 }
 
-.mobile-card-page__reject { display: block; color: #c0392b; font-size: 0.8rem; margin: 4px 0 8px; }
+.mobile-card-page__reject { display: block; color: var(--color-auth-error); font-size: 0.8rem; margin: 4px 0 8px; }

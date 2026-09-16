@@ -582,7 +582,12 @@ public class ApplicationService {
             NamingResultExcelParser.NamingResultRow row = rows.get(i);
             ApplicationMember member = matchedTargets.get(i);
             boolean isUpdate = member.getName() != null;
-            member.assignKoreanName(row.name(), row.chineseName());
+            // 성씨 열이 있는 새 양식이면 성씨까지 반영, 없으면 기존처럼 이름·한자만(기존 성씨 유지 — §1.16).
+            if (row.surname() != null) {
+                member.assignKoreanName(row.surname(), row.name(), row.chineseName());
+            } else {
+                member.assignKoreanName(row.name(), row.chineseName());
+            }
             adminActivityLogRepository.save(AdminActivityLog.create(adminId,
                     isUpdate ? AdminActivityLog.KOREAN_NAME_UPDATE : AdminActivityLog.KOREAN_NAME_REGISTER,
                     applicationId, member.getEmail() + " → " + row.name()));

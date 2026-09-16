@@ -1,4 +1,4 @@
-// Hook managing multi-step application draft state (with localStorage persistence).
+// Hook managing multi-step application draft state (with sessionStorage persistence).
 import { useCallback, useEffect, useState } from "react";
 import { createEmptyDraft, type ApplicationDraft } from "./types";
 

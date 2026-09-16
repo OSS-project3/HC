@@ -34,7 +34,7 @@ export function LoginPage() {
       // 실제 백엔드 로그인 — 성공하면 서버 세션(HttpOnly 쿠키) 확보. 로그인 상태로 홈(또는 returnTo)으로 이동.
       const me = await api.loginWithPassword(email.trim(), password);
       const role = me.role === "ADMIN" ? "admin" : "user";
-      login({ name: me.name, email: me.email, role, source: "api", phone: me.phone, address: me.address });
+      login({ name: me.name, email: me.email, role, phone: me.phone, address: me.address });
       const dest = role === "admin" && safeReturnTo === "/" ? "/admin" : safeReturnTo;
       navigate(dest, { replace: true });
     } catch (err) {

@@ -115,10 +115,10 @@ export function LookupPage() {
       });
       return;
     } catch {
-      // API 미연동 구간에서는 아래 로컬 데모 데이터로 폴백한다.
+      // 조회 API 실패(백엔드 미기동·미발급 등) 시에만 아래 데모 카드 경로로 넘어간다.
     }
 
-    // 3) 로컬 데모 데이터 폴백.
+    // 3) 데모 전용 자격(안내용 고정 번호·연락처)과 일치할 때만 데모 카드를 보여 준다.
     const contactMatches =
       normalizePhone(phone) === DEMO_PHONE && email.trim().toLowerCase() === DEMO_EMAIL;
     const cardMatches = normalizeCardNumber(cardNumber) === normalizeCardNumber(DEMO_CARD_NUMBER);

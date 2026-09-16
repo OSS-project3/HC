@@ -37,6 +37,11 @@ import java.util.regex.Pattern;
  * 이메일·전화번호가 없거나 매칭 대상이 없는 행, "사주이름" 형식이 이상한 행이 하나라도 있으면
  * 전체 반영을 거절한다(BulkValidationException.errors[]로 전부 반환). 아직 이름이 지정되지 않아
  * "사주이름" 셀이 빈 행은 오류가 아니라 그냥 건너뛴다.
+ *
+ * [성씨(surname) 열 — 선택, 하위 호환(2026-09-14, FRONTEND_API_GAPS §1.16)]
+ * "성씨" 헤더가 있으면 그 열의 값(한글 1~2자)을 함께 반영한다. 헤더 자체가 없는 기존 양식은
+ * 지금까지처럼 이름·한자만 반영되고 성씨는 건드리지 않는다(관리자가 인앱에서 별도 입력).
+ * 성씨 셀이 비어 있는 행도 오류가 아니다 — 그 행만 성씨 없이 이름만 반영된다.
  */
 @Component
 class NamingResultExcelParser {
@@ -49,7 +54,10 @@ class NamingResultExcelParser {
     // 매칭 자체가 실패해 아래에서 오류로 처리된다.
     private static final Pattern SAJU_NAME_PATTERN = Pattern.compile("^([^()]+)(?:\\(([^()]+)\\))?$");
 
-    record NamingResultRow(int rowNumber, String email, String phone, String name, String chineseName) {
+    // 성씨는 한글 1~2자만 허용(ApplicationMember.validateSurnameFormat과 동일 규칙).
+    private static final Pattern SURNAME_PATTERN = Pattern.compile("[가-힣]{1,2}");
+
+    record NamingResultRow(int rowNumber, String email, String phone, String surname, String name, String chineseName) {
     }
 
     List<NamingResultRow> parse(MultipartFile file) {
@@ -67,6 +75,7 @@ class NamingResultExcelParser {
             int emailCol = -1;
             int phoneCol = -1;
             int sajuNameCol = -1;
+            int surnameCol = -1; // 선택 열 — 없으면 기존 양식(성씨 미반영)
             for (Cell cell : header) {
                 String text = formatter.formatCellValue(cell).trim();
                 if ("이메일".equals(text)) {
@@ -75,6 +84,8 @@ class NamingResultExcelParser {
                     phoneCol = cell.getColumnIndex();
                 } else if ("사주이름".equals(text)) {
                     sajuNameCol = cell.getColumnIndex();
+                } else if ("성씨".equals(text)) {
+                    surnameCol = cell.getColumnIndex();
                 }
             }
             if (emailCol < 0 || phoneCol < 0 || sajuNameCol < 0) {
@@ -90,6 +101,7 @@ class NamingResultExcelParser {
                 String email = stringValue(row, emailCol, formatter);
                 String phone = stringValue(row, phoneCol, formatter);
                 String sajuName = stringValue(row, sajuNameCol, formatter);
+                String surname = surnameCol >= 0 ? stringValue(row, surnameCol, formatter) : null;
                 int rowNumber = r + 1;
 
                 if (email == null && phone == null && sajuName == null) {
@@ -110,7 +122,12 @@ class NamingResultExcelParser {
                             "사주이름 형식이 올바르지 않습니다."));
                     continue;
                 }
-                rows.add(new NamingResultRow(rowNumber, email, phone, matcher.group(1).trim(), matcher.group(2)));
+                if (surname != null && !SURNAME_PATTERN.matcher(surname).matches()) {
+                    errors.add(new ValidationErrorDetail(rowNumber, "surname", "INVALID_FORMAT",
+                            "성씨는 한글 1~2자여야 합니다."));
+                    continue;
+                }
+                rows.add(new NamingResultRow(rowNumber, email, phone, surname, matcher.group(1).trim(), matcher.group(2)));
             }
         } catch (IOException e) {
             throw new CustomException(ErrorCode.INVALID_INPUT);

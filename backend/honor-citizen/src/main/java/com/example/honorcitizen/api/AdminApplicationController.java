@@ -26,6 +26,7 @@ import com.example.honorcitizen.domain.card.service.CardGenerationService;
 import com.example.honorcitizen.domain.card.service.CardPreviewService;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokActiveResultResponse;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokConfirmRequest;
+import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokMemberResultResponse;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokResolveRequest;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokResolveResponse;
 import com.example.honorcitizen.domain.manseryeok.service.ManseryeokService;
@@ -183,6 +184,16 @@ public class AdminApplicationController {
             @PathVariable Long memberId) {
         return ResponseEntity.ok(ApiResponse.success(
                 manseryeokService.getActiveManseryeokResult(adminId, applicationId, memberId)));
+    }
+
+    // 재진입 일괄 복원(1-E-3) — Application 소속 전체 Member의 활성 만세력 결과를 한 번에 조회한다.
+    // 개인·단체가 같은 계약을 쓴다(개인=1명). 활성 결과가 없는 Member는 응답 목록에서 누락된다.
+    @GetMapping("/{applicationId}/manseryeok-results")
+    public ResponseEntity<ApiResponse<List<ManseryeokMemberResultResponse>>> listManseryeokResults(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                manseryeokService.listActiveManseryeokResults(adminId, applicationId)));
     }
 
     // 저장 없는 카드 미리보기(2-C) — DB row·S3 object를 만들지 않고 실제 신청 데이터로 앞/뒤 PNG를

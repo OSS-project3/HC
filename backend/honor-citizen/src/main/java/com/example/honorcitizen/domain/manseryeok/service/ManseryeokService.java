@@ -5,11 +5,13 @@ import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.application.entity.ApplicationMember;
 import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
+import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
 import com.example.honorcitizen.domain.log.entity.AdminActivityLog;
 import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository;
 import com.example.honorcitizen.domain.manseryeok.dto.BirthRegionCandidateResponse;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokActiveResultResponse;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokConfirmRequest;
+import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokMemberResultResponse;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokResolveRequest;
 import com.example.honorcitizen.domain.manseryeok.dto.ManseryeokResolveResponse;
 import com.example.honorcitizen.domain.manseryeok.entity.ManseryeokResult;
@@ -27,6 +29,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.zone.ZoneRulesException;
 import java.time.zone.ZoneRulesProvider;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -42,6 +45,7 @@ import java.util.NoSuchElementException;
 public class ManseryeokService {
 
     private final AdminAuthorizationService adminAuthorizationService;
+    private final ApplicationRepository applicationRepository;
     private final ApplicationMemberRepository applicationMemberRepository;
     private final ManseryeokResultRepository manseryeokResultRepository;
     private final AdminActivityLogRepository adminActivityLogRepository;
@@ -119,6 +123,37 @@ public class ManseryeokService {
         findMember(applicationId, memberId);
         ManseryeokResult result = manseryeokResultRepository.findByApplicationMemberIdAndActiveTrue(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        return toActiveResultResponse(result);
+    }
+
+    // 재진입 일괄 복원(1-E-3) — Application 소속 전체 Member의 활성 결과를 한 번에 조회한다(개인·단체 공통).
+    // 활성 결과가 없는 Member는 응답에서 누락된다(프론트는 누락=미확정으로 처리).
+    @Transactional(readOnly = true)
+    public List<ManseryeokMemberResultResponse> listActiveManseryeokResults(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        if (!applicationRepository.existsById(applicationId)) {
+            throw new CustomException(ErrorCode.APPLICATION_NOT_FOUND);
+        }
+        List<Long> memberIds = applicationMemberRepository.findByApplicationId(applicationId).stream()
+                .map(ApplicationMember::getId)
+                .toList();
+        if (memberIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, ManseryeokResult> byMember = new HashMap<>();
+        for (ManseryeokResult result : manseryeokResultRepository.findByApplicationMemberIdInAndActiveTrue(memberIds)) {
+            // Member당 활성 결과 최대 1건 불변조건(confirm이 기존 활성을 비활성화) — 깨졌으면 데이터 오류.
+            if (byMember.put(result.getApplicationMemberId(), result) != null) {
+                throw new CustomException(ErrorCode.INTERNAL_ERROR);
+            }
+        }
+        return memberIds.stream()
+                .filter(byMember::containsKey)
+                .map(id -> new ManseryeokMemberResultResponse(id, toActiveResultResponse(byMember.get(id))))
+                .toList();
+    }
+
+    private ManseryeokActiveResultResponse toActiveResultResponse(ManseryeokResult result) {
         return new ManseryeokActiveResultResponse(result,
                 readJson(result.getConfirmedPillarsJson(), new TypeReference<Map<String, Map<String, String>>>() { }),
                 readJson(result.getUncertainPillarsJson(), new TypeReference<List<String>>() { }),

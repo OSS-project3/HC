@@ -11,7 +11,7 @@
 .header--scrolled {
   background: color-mix(in srgb, var(--color-bg-top) 90%, transparent);
   backdrop-filter: blur(10px) saturate(1.1);
-  box-shadow: 0 6px 20px rgb(80 60 30 / 8%);
+  box-shadow: 0 6px 20px var(--color-shadow-header);
 }
 
 .header__inner {
@@ -146,7 +146,7 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: #fff;
+  background: var(--color-surface-white);
   border: 1px solid var(--color-border-soft);
   border-radius: 6px;
   box-shadow: var(--shadow-panel);
@@ -253,7 +253,7 @@
 .drawer__backdrop {
   position: absolute;
   inset: 0;
-  background: rgb(30 26 22 / 40%);
+  background: var(--color-overlay-navigation);
   opacity: 0;
   transition: opacity var(--ease);
 }
@@ -268,7 +268,7 @@
   height: auto;
   width: min(82vw, 320px);
   background: var(--color-background);
-  box-shadow: -8px 0 30px rgb(0 0 0 / 15%);
+  box-shadow: -8px 0 30px var(--color-shadow-navigation);
   transform: translateX(100%);
   transition: transform 220ms ease;
   padding: 84px 22px 24px;

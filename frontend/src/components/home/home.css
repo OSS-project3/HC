@@ -727,7 +727,7 @@
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--color-surface-soft) 40%, #fff);
+  background: color-mix(in srgb, var(--color-surface-soft) 40%, var(--color-surface-white));
   border-radius: 14px;
   box-shadow: var(--shadow-card);
 }
@@ -790,7 +790,7 @@
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
-  color: #5d4533;
+  color: var(--color-wordmark);
   font: inherit;
   line-height: 1.7;
   text-align: center;
@@ -800,13 +800,13 @@
 .info-card:hover,
 .info-card:focus-visible,
 .info-card.is-active {
-  border-color: #bc996e;
-  background: #f2e9df;
-  color: #4d453e;
+  border-color: var(--color-border-accent);
+  background: var(--color-warm-beige);
+  color: var(--color-accent-bar);
   box-shadow: var(--shadow-card-hover);
 }
 .info-card:focus-visible {
-  outline: 2px solid #bc996e;
+  outline: 2px solid var(--color-border-accent);
   outline-offset: 4px;
 }
 .info-card__summary,

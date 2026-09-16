@@ -30,7 +30,7 @@ export function ZodiacIcon({ sign, size = 88, highlighted = false }: ZodiacIconP
         height: size,
         transition: "transform 180ms ease, box-shadow 180ms ease",
         transform: highlighted ? "scale(1.08)" : "scale(1)",
-        boxShadow: highlighted ? "0 0 0 4px #fff, 0 6px 16px rgb(80 79 51 / 22%)" : "none",
+        boxShadow: highlighted ? "0 0 0 4px var(--color-surface-white), 0 6px 16px var(--color-shadow-zodiac-selected)" : "none",
         borderRadius: 6,
       }}
     >

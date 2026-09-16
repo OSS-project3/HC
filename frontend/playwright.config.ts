@@ -4,6 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: "structure-regression.spec.ts", // isolated HTTP fixtures use playwright.ui.config.ts
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false, // 신청 데이터가 상태를 공유하므로 순차 실행

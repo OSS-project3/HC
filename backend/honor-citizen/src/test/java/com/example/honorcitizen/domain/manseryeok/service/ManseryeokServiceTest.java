@@ -233,6 +233,70 @@ class ManseryeokServiceTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
 
+    @Test
+    void listActiveResultsReturnsOnlyMembersWithActiveResult() throws Exception {
+        // 같은 신청에 멤버 1명 추가(확정 안 함) — 확정된 멤버만 응답에 포함돼야 한다.
+        ApplicationMember unconfirmed = applicationMemberRepository.save(ApplicationMember.createIndividual(
+                applicationId, "No Result", LocalDate.of(1999, 1, 1), "US",
+                LocalTime.of(10, 0), "Boston", Gender.FEMALE, null, null, null, "photos/b.jpg"));
+        manseryeokService.confirmManseryeokResult(adminId, applicationId, memberId, confirmRequest(
+                "America/New_York", "-04:00", Instant.parse("2000-10-29T05:30:00Z"), TimeAccuracy.EXACT));
+
+        var results = manseryeokService.listActiveManseryeokResults(adminId, applicationId);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getMemberId()).isEqualTo(memberId);
+        assertThat(results.get(0).getResult().getConfirmedPillars().get("year").get("stem")).isEqualTo("갑");
+        assertThat(results).noneMatch(r -> r.getMemberId().equals(unconfirmed.getId()));
+    }
+
+    @Test
+    void listActiveResultsExcludesInactiveHistory() throws Exception {
+        manseryeokService.confirmManseryeokResult(adminId, applicationId, memberId, confirmRequest(
+                "America/New_York", "-04:00", Instant.parse("2000-10-29T05:30:00Z"), TimeAccuracy.EXACT));
+        // 재확정 — 기존 활성 결과는 비활성 이력으로 남고, 응답에는 최신 활성 1건만 나와야 한다.
+        manseryeokService.confirmManseryeokResult(adminId, applicationId, memberId, confirmRequest(
+                "America/New_York", "-05:00", Instant.parse("2000-10-29T06:30:00Z"), TimeAccuracy.EXACT));
+
+        var results = manseryeokService.listActiveManseryeokResults(adminId, applicationId);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getResult().getSelectedOffset()).isEqualTo("-05:00");
+    }
+
+    @Test
+    void listActiveResultsRejectsUnknownApplication() {
+        assertThatThrownBy(() -> manseryeokService.listActiveManseryeokResults(adminId, 999_999L))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.APPLICATION_NOT_FOUND);
+    }
+
+    @Test
+    void listActiveResultsExcludesOtherApplicationMembers() throws Exception {
+        manseryeokService.confirmManseryeokResult(adminId, applicationId, memberId, confirmRequest(
+                "America/New_York", "-04:00", Instant.parse("2000-10-29T05:30:00Z"), TimeAccuracy.EXACT));
+        Application other = applicationRepository.save(Application.createIndividual(
+                applicationRepository.findById(applicationId).orElseThrow().getUserId(),
+                "APP-2026-970003", cardTypeRepository.findAll().get(0).getId(), IssueType.MOBILE, true, null, null));
+        applicationMemberRepository.save(ApplicationMember.createIndividual(
+                other.getId(), "Other App", LocalDate.of(1998, 2, 2), "US",
+                LocalTime.of(9, 0), "Chicago", Gender.MALE, null, null, null, "photos/c.jpg"));
+
+        var results = manseryeokService.listActiveManseryeokResults(adminId, other.getId());
+
+        assertThat(results).isEmpty();
+    }
+
+    @Test
+    void listActiveResultsRejectsNonAdminCaller() {
+        User user = userRepository.save(
+                User.createOAuthUser("manseryeok-bulk-plain@example.com", "oauth-manseryeok-bulk-plain", "google", "User"));
+
+        assertThatThrownBy(() -> manseryeokService.listActiveManseryeokResults(user.getId(), applicationId))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
     private ManseryeokResolveRequest resolveRequest(double lat, double lng, String timezoneId, String selectedOffset) {
         String json = """
                 {

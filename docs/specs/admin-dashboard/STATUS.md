@@ -1,6 +1,6 @@
 # 관리자 대시보드 · 작명 플로우 — 작업 현황 (2026-08-24)
 
-> ⚠️ **정정(2026-08-25):** 이 문서가 "🟡 버튼만 / export 엔드포인트 미구현"으로 적은 **엑셀 내보내기(`POST /api/admin/applications/export`)는 구현·프론트 연동 완료**. 상태전이 8종·작명확정·선택이력·naming-result도 전부 실 API 연동됨. 미구현은 통계(`GET /api/admin/stats`) 뿐. 현재 상태는 `docs/FRONTEND_API_GAPS.md` §1.4 / `docs/API_TEST_REPORT.md`.
+> ⚠️ **정정(2026-08-25):** 이 문서가 "🟡 버튼만 / export 엔드포인트 미구현"으로 적은 **엑셀 내보내기(`POST /api/admin/applications/export`)는 구현·프론트 연동 완료**. 상태전이 8종·작명확정·선택이력·naming-result도 전부 실 API 연동됨. 미구현은 통계(`GET /api/admin/stats`) 뿐이었다. **정정 2(2026-09-15):** 통계도 구현·연동 완료(`OverviewSection`). 현재 미완료 갭은 `docs/FRONTEND_API_GAPS.md` §1, 완료 상태는 같은 문서 §2를 따른다.
 
 이 문서는 "어디까지 했는지"를 한눈에 정리한 진행 현황이다.
 설계/미구현 API 계약은 [`DESIGN.md`](./DESIGN.md), 임시 로그인 제거 가이드는 [`../../TEMP_ADMIN_LOGIN.md`](../../TEMP_ADMIN_LOGIN.md) 참고.
@@ -38,7 +38,7 @@
 - 구성원: **실제 API 신규** `GET /api/admin/applications/{id}/members` — 이름·출신국가·성별·생년월일 등.
 - 개인/단체 탭 분리. 개인은 여러 건 선택 → (엑셀 버튼).
 - **만세력(四柱): 실제 계산** — npm `manseryeok`으로 구성원 생년월일/시간에서 4주·오행 분포 산출
-  (`frontend/src/lib/saju.ts`). 계산 불가 시 mock 폴백.
+  (`frontend/src/lib/saju.ts`). 실제 멤버는 서버에 저장된 활성 확정 결과만 사용하며 계산 불가 시 추천을 비활성화한다.
 - **이름 추천: 실제 데이터** — `사주 이름 결과.xlsx` + saju 레포 `names.json` 병합 700개
   (`frontend/src/data/sajuNames.json`). recommend.py 점수화 이식(자원오행×2+발음오행×1+상생/상극).
   한 번에 **8개**, **"↻ 다른 이름 추천"** 버튼 또는 새로고침으로 새 조합.
@@ -86,7 +86,7 @@
 - `pages/AdminPage/AdminPage.tsx`(재작성) + `AdminPage.css`.
 - `components/admin/sections/{Applications,Boards,Reviews,Inquiries}Section.tsx` — 신규.
 - `lib/saju.ts` — 실제 만세력(manseryeok).
-- `data/sajuNames.json`(700개) · `data/adminNamingMock.ts`(추천 점수화·선택/확정 helper).
+- `data/sajuNames.json`(700개) · `lib/namingRecommendations.ts`(결정적 추천 점수화).
 - `services/api.ts` — admin applications/inquiries/members, `loginWithPassword`.
 - `features/auth/AuthContext.tsx`(role 유지 버그 수정) · `pages/LoginPage/LoginPage.tsx`(임시 admin).
 - 의존성: `manseryeok@^2.0.0`.

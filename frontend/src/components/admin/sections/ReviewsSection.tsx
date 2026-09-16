@@ -1,11 +1,17 @@
 // 후기 관리 — 실제 API(/api/reviews) 연결. 전용 admin 목록 API는 없어 공개 목록을 사용하고,
 // 관리자는 임의 후기를 삭제할 수 있다(백엔드 ReviewService가 ADMIN 삭제를 허용).
+// 목록은 서버 페이지네이션(page/totalPages)과 연결한다(§1.20).
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type ReviewListItem } from "../../../services/api";
 import { showToast } from "../../ui/toast";
+import { AdminPager } from "../AdminPager";
+
+const PAGE_SIZE = 20;
 
 export function ReviewsSection() {
   const [items, setItems] = useState<ReviewListItem[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -14,15 +20,16 @@ export function ReviewsSection() {
     setLoading(true);
     setError(null);
     try {
-      const page = await api.listReviews({ size: 50 });
-      setItems(page.content);
-      setTotal(page.totalElements);
+      const result = await api.listReviews({ page, size: PAGE_SIZE });
+      setItems(result.content);
+      setTotalPages(Math.max(1, result.totalPages));
+      setTotal(result.totalElements);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "후기를 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -31,7 +38,9 @@ export function ReviewsSection() {
     try {
       await api.deleteReview(id);
       showToast("후기가 삭제되었습니다.");
-      await load();
+      // 페이지 마지막 항목을 지웠으면 이전 페이지로(빈 페이지 방지) — setPage가 load를 다시 트리거한다.
+      if (items.length === 1 && page > 0) setPage(page - 1);
+      else await load();
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "삭제에 실패했습니다. 관리자 권한(서버 인증)이 필요합니다.");
     }
@@ -65,6 +74,7 @@ export function ReviewsSection() {
           </table>
         </div>
       )}
+      {!error && <AdminPager page={page} totalPages={totalPages} disabled={loading} onChange={setPage} />}
     </div>
   );
 }

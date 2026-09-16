@@ -93,3 +93,7 @@
   .event-feed-admin__list b { flex-basis: calc(100% - 90px); }
   .event-feed-admin__row-title { max-width: 100%; }
 }
+
+/* 목록 페이지 이동(§1.20) — 관리자 대시보드 밖(EventsPage)에서도 스타일이 적용되도록 여기에도 정의 */
+.event-feed-admin .admin-pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; }
+.event-feed-admin .admin-pager__label { font-size: 13px; color: var(--color-text-neutral-muted); min-width: 56px; text-align: center; }

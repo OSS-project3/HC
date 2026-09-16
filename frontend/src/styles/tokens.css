@@ -1,9 +1,9 @@
 /*
- * Design tokens — the SINGLE source of truth for colours.
+ * UI theme tokens. Preserve artwork / SVG brand colors in their assets.
  *
  * Values come from the manager's black-labelled colour chips (not eyedropper
  * values) and the green annotations on the mock-ups. Do NOT hard-code hex
- * values anywhere else in the codebase — reference these variables instead.
+ * UI values in components — reference semantic variables instead.
  */
 :root {
   /* Surfaces */
@@ -42,6 +42,88 @@
   --color-sejong-ink: #5d4533;      /* 세종대왕 line-art ink — 건곤감리 marks */
   --color-wordmark: #5d4533;        /* 한글과 세종 wordmark, footer 사명, SNS glyphs */
   --color-title-accent: #8f6943;    /* 히어로 타이틀 + 아이브로 외곽선 */
+
+  /* Semantic UI colors; existing rendered values preserved. */
+  --color-surface-white: #fff;
+  --color-text-on-dark: #fff;
+  --color-button-soft: #f7f0e9;
+  --color-danger: #b3402f;
+  --color-danger-border: #c8543f;
+  --color-danger-border-soft: #e2b5ac;
+  --color-danger-surface: #fbeeeb;
+  --color-danger-border-hover: #d98c7c;
+  --color-warning: #9a6a1c;
+  --color-warning-surface: #fbf3e2;
+  --color-success: #2f7d4f;
+  --color-success-surface: #e6f2ea;
+  --color-success-border: #a9d3b8;
+  --color-success-surface-soft: #f2f9f4;
+  --color-info-surface: #eef2f8;
+  --color-admin-text: #4a3728;
+  --color-admin-table-heading: #fbf6ee;
+  --color-admin-table-cell: #fffdf8;
+  --color-admin-detail-surface: #fdf8f0;
+  --color-text-label: #555;
+  --color-text-neutral-muted: #666;
+  --color-element-wood: #46604f;
+  --color-element-fire: #834f46;
+  --color-element-earth: #7c663a;
+  --color-element-metal: #5c616b;
+  --color-element-water: #445872;
+  --color-inquiry-waiting-surface: #f6e6cf;
+  --color-inquiry-waiting-text: #8a5a1f;
+  --color-inquiry-completed-surface: #dce7dd;
+  --color-inquiry-completed-text: #35603f;
+  --color-inquiry-status-text: #77606e;
+  --color-auth-invalid-border: #c94747;
+  --color-auth-error: #c0392b;
+  --color-google-border: #d7dbe0;
+  --color-google-text: #31343a;
+  --color-google-border-hover: #b7bdc6;
+  --color-google-surface-hover: #fbfcfd;
+  --color-naver: #03c75a;
+  --color-naver-hover: #02b351;
+  --color-detail-surface: #f7f7f9;
+  --color-detail-label: #777;
+  --color-content-border: #e5ded2;
+  --color-content-surface: #faf8f4;
+  --color-content-text: #4b5563;
+  --color-editor-border: #d8d1c4;
+  --color-editor-hint: #6b7280;
+  --color-modal-border: #ece7df;
+  --color-modal-title: #2a2a26;
+  --color-modal-muted: #8a8377;
+  --color-modal-close-surface: #f3efe8;
+  --color-modal-close-text: #3a3a34;
+  --color-modal-text: #43423c;
+  --color-modal-disabled: #b7b0a5;
+  --color-modal-caption: #7d766b;
+  --color-placeholder-background: #111112;
+  --color-placeholder-text: #efe9df;
+  --color-placeholder-caption: #f2ede4;
+  --color-placeholder-label: #d9cbb5;
+  --color-content-overlay: rgb(38 61 91 / 10%);
+  --color-event-close-surface: rgb(255 255 255 / 72%);
+  --color-review-close-surface: rgb(255 255 255 / 86%);
+  --color-auth-invalid-ring: rgb(201 71 71 / 9%);
+  --color-shadow-auth: rgb(35 43 54 / 12%);
+  --color-shadow-review: rgb(38 31 25 / 14%);
+  --color-shadow-toast: rgb(0 0 0 / 20%);
+  --color-overlay-modal: rgb(30 26 22 / 45%);
+  --color-shadow-modal: rgb(0 0 0 / 22%);
+  --color-shadow-header: rgb(80 60 30 / 8%);
+  --color-overlay-navigation: rgb(30 26 22 / 40%);
+  --color-shadow-navigation: rgb(0 0 0 / 15%);
+  --color-shadow-flip-card: rgb(80 60 30 / 18%);
+  --color-overlay-footer: rgb(0 0 0 / 22%);
+  --color-carousel-navy-ring: rgba(38, 61, 91, 0.34);
+  --color-carousel-brown-ring: rgba(138, 105, 69, 0.34);
+  --color-carousel-red-ring: rgba(178, 59, 74, 0.32);
+  --color-carousel-olive-ring: rgba(80, 79, 51, 0.34);
+  --color-shadow-zodiac-selected: rgb(80 79 51 / 22%);
+
+  --color-inquiry-category-surface: #e6ebf2;
+  --color-inquiry-category-text: #35506e;
 
   /* Layout */
   --page-max: 1440px;

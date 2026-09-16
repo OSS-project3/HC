@@ -62,7 +62,7 @@
   border-radius: 3px;
   background: var(--color-border-accent);
   transform: translateX(-50%) rotateY(90deg);
-  box-shadow: 0 0 8px rgb(80 60 30 / 18%);
+  box-shadow: 0 0 8px var(--color-shadow-flip-card);
 }
 .flipcard__face img {
   display: block;

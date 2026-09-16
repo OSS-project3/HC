@@ -1,5 +1,4 @@
-// 관리자 대시보드. 좌측 사이드바로 섹션을 전환한다. API가 있는 영역은 실제 연결,
-// 없는 영역(제작신청 작명/만세력/엑셀)은 UI만(mock) — docs/specs/admin-dashboard/DESIGN.md 참고.
+// 관리자 대시보드. 좌측 사이드바로 섹션을 전환한다. 전 섹션이 실제 관리자 API와 연결돼 있다.
 // 클라이언트 가드일 뿐이며 서버가 /api/admin/**를 ADMIN으로 재검증한다.
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
@@ -27,7 +26,7 @@ const SECTIONS: { id: SectionId; label: string; group: string }[] = [
 ];
 
 export function AdminPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, status, refreshProfile } = useAuth();
   const [section, setSection] = useState<SectionId>(() => {
     const hash = window.location.hash.replace("#", "") as SectionId;
     return SECTIONS.some((s) => s.id === hash) ? hash : "overview";
@@ -35,6 +34,16 @@ export function AdminPage() {
 
   useEffect(() => { window.location.hash = section; }, [section]);
 
+  // 세션 확인 전에는 로그인 화면으로 튕기지 않는다(새로고침 직후 loading 상태).
+  if (status === "loading") return <div className="admin-dash page-container"><p className="admin__muted">로그인 상태를 확인하는 중입니다…</p></div>;
+  if (status === "error") {
+    return (
+      <div className="admin-dash page-container">
+        <p className="admin__muted">일시적인 오류로 로그인 상태를 확인하지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.</p>
+        <button type="button" className="admin-dash__nav-item" onClick={() => { void refreshProfile(); }}>다시 시도</button>
+      </div>
+    );
+  }
   // Front-end guard only — the server must also enforce admin access.
   if (!isAdmin) return <Navigate to="/login?returnTo=%2Fadmin" replace />;
 
@@ -78,7 +87,7 @@ export function AdminPage() {
   );
 }
 
-// 개요: 실제 API에서 집계. 서버 관리자 세션이 없으면(하드코딩 로그인) 401이 나며 안내를 표시한다.
+// 개요: 실제 API(GET /api/admin/stats)에서 집계한다.
 function OverviewSection({ onGo }: { onGo: (s: SectionId) => void }) {
   const [stats, setStats] = useState<{ applications: number | null; individual: number | null; group: number | null; inquiries: number | null; pendingInquiries: number | null; completedInquiries: number | null }>({
     applications: null, individual: null, group: null, inquiries: null, pendingInquiries: null, completedInquiries: null,
@@ -101,7 +110,7 @@ function OverviewSection({ onGo }: { onGo: (s: SectionId) => void }) {
         });
       } catch (e) {
         if (alive) setWarn(e instanceof ApiError && e.status === 401
-          ? "서버 관리자 세션이 없어 실시간 집계를 불러오지 못했습니다. (임시 하드코딩 로그인은 서버 토큰이 없습니다 — TEMP_ADMIN_LOGIN.md 참고)"
+          ? "서버 관리자 세션이 만료되어 실시간 집계를 불러오지 못했습니다. 다시 로그인해 주세요."
           : "집계를 불러오지 못했습니다.");
       }
     })();

@@ -92,10 +92,9 @@ export function ReviewEditorPage() {
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
-    // 후기 등록/수정은 서버 인증 세션이 필요하다(POST/PATCH /api/reviews → hasAnyRole). 데모/mock 로그인(source local)은
-    // 서버 쿠키가 없어 제출 시 401이 나므로, 미리 막고 실제 로그인을 안내한다.
-    if (user?.source !== "api") {
-      showToast("후기 작성은 실제 로그인(서버 세션) 후 이용할 수 있습니다. 다시 로그인해 주세요.");
+    // 후기 등록/수정은 서버 인증 세션이 필요하다(POST/PATCH /api/reviews → hasAnyRole).
+    if (!user) {
+      showToast("후기 작성은 로그인 후 이용할 수 있습니다. 다시 로그인해 주세요.");
       return;
     }
     const data = new FormData(event.currentTarget);

@@ -37,7 +37,7 @@
 .mypage-list article strong { color: var(--color-wordmark); font-weight: 600; }
 .mypage-list time { color: var(--color-text-muted); font-size: 13px; }
 .mypage-status, .mypage-answer { justify-self: start; padding: 4px 10px; border-radius: var(--radius-pill); background: var(--color-primary); color: var(--color-primary-foreground); font-size: 11px; font-weight: 500; }
-.mypage-answer.is-waiting { background: #f6e6cf; color: #8a5a1f; }
+.mypage-answer.is-waiting { background: var(--color-inquiry-waiting-surface); color: var(--color-inquiry-waiting-text); }
 .mypage-list__empty { padding: 34px 16px; border-bottom: 1px solid var(--color-border-soft); color: var(--color-text-muted); font-size: 13px; text-align: center; }
 .mypage-list--activity article { grid-template-columns: 1fr auto auto; gap: 24px; }
 .mypage-list--activity article a:hover strong { color: var(--color-primary); }
@@ -75,13 +75,13 @@
 
 /* 제작 내역 취소 버튼 */
 .mypage-status-cell { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.mypage-cancel { font-size: 12px; color: #b3402f; background: none; border: 1px solid #e2b5ac; border-radius: 5px; padding: 3px 8px; cursor: pointer; }
-.mypage-cancel:hover { background: #fbeeeb; }
+.mypage-cancel { font-size: 12px; color: var(--color-danger); background: none; border: 1px solid var(--color-danger-border-soft); border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+.mypage-cancel:hover { background: var(--color-danger-surface); }
 
 /* 내 신청 상세(펼침) */
 .mypage-appnum { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.mypage-appdetail { padding: 12px 16px; background: #f7f7f9; border-radius: 8px; margin: 4px 0 10px; font-size: 0.9rem; }
+.mypage-appdetail { padding: 12px 16px; background: var(--color-detail-surface); border-radius: 8px; margin: 4px 0 10px; font-size: 0.9rem; }
 .mypage-appdetail dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 20px; margin: 0; }
 .mypage-appdetail dl > div { display: flex; gap: 10px; }
-.mypage-appdetail dt { color: #777; min-width: 84px; }
+.mypage-appdetail dt { color: var(--color-detail-label); min-width: 84px; }
 .mypage-appdetail dd { margin: 0; font-weight: 600; }

@@ -15,10 +15,10 @@ interface CardCarouselProps {
 // Per-page tint over the cards. Placeholder until the real variant art lands.
 const PAGE_TINTS: Record<number, string> = {
   1: "transparent",
-  2: "rgba(38, 61, 91, 0.34)", // navy
-  3: "rgba(138, 105, 69, 0.34)", // brown
-  4: "rgba(178, 59, 74, 0.32)", // red
-  5: "rgba(80, 79, 51, 0.34)", // olive
+  2: "var(--color-carousel-navy-ring)", // navy
+  3: "var(--color-carousel-brown-ring)", // brown
+  4: "var(--color-carousel-red-ring)", // red
+  5: "var(--color-carousel-olive-ring)", // olive
 };
 
 /** A single card slot with its page-tint overlay. */

@@ -71,7 +71,7 @@
 .notice-search label {
   height: 48px;
   border: 1px solid var(--color-surface-soft);
-  background: #fff;
+  background: var(--color-surface-white);
   border-radius: 5px;
 }
 .notice-search select {
@@ -302,7 +302,7 @@
   font-size: clamp(15px, 1.3vw, 18px);
   line-height: 1.45;
   box-shadow: var(--shadow-card);
-  background: color-mix(in srgb, var(--color-background) 86%, #fff);
+  background: color-mix(in srgb, var(--color-background) 86%, var(--color-surface-white));
   transition: transform var(--ease), box-shadow var(--ease);
 }
 .story-card:hover {
