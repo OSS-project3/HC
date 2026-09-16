@@ -432,6 +432,13 @@ public class Application extends BaseTimeEntity {
         this.zodiacDesignSet = zodiacDesignSet;
     }
 
+    // 관리자 학교 연결(4-A-1) — 직접입력(schoolId=null)으로 접수된 신청을 이미 등록된 School에
+    // 연결한다. schoolId만 갱신하고 schoolName 스냅샷은 그대로 둔다(정책 8·13번) — School 존재·
+    // schoolType 일치·카드 생성 여부 검증은 Service가 담당한다(Entity는 Member/School을 모른다).
+    public void linkSchool(Long schoolId) {
+        this.schoolId = schoolId;
+    }
+
     public void clearManagedFileReferences() {
         this.logoFileId = null;
         this.sealFileId = null;

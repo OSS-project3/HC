@@ -16,6 +16,7 @@ import com.example.honorcitizen.domain.application.dto.MyApplicationListItemResp
 import com.example.honorcitizen.domain.application.dto.NameAssignRequest;
 import com.example.honorcitizen.domain.application.dto.NamingResultApplyResponse;
 import com.example.honorcitizen.domain.application.dto.RejectPhotoRequest;
+import com.example.honorcitizen.domain.application.dto.SchoolLinkRequest;
 import com.example.honorcitizen.domain.application.dto.ZodiacDesignSetRequest;
 import com.example.honorcitizen.domain.application.service.ApplicationService;
 import com.example.honorcitizen.domain.card.dto.CardGenerateResponse;
@@ -138,6 +139,17 @@ public class AdminApplicationController {
             @PathVariable Long applicationId,
             @Valid @RequestBody ZodiacDesignSetRequest request) {
         applicationService.assignZodiacDesignSet(adminId, applicationId, request.getZodiacDesignSet());
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    // 관리자 학교 연결(4-A-1) — 직접입력(schoolId=null)으로 접수된 STUDENT 신청을 이미 등록된
+    // School에 연결한다. 신규 School 생성은 이 API에 없음(운영자 DB 직접 등록 경로는 별개).
+    @PutMapping("/{applicationId}/school")
+    public ResponseEntity<ApiResponse<Void>> linkSchool(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @Valid @RequestBody SchoolLinkRequest request) {
+        applicationService.linkSchool(adminId, applicationId, request);
         return ResponseEntity.ok(ApiResponse.success());
     }
 

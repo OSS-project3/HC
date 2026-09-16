@@ -105,6 +105,19 @@ class ApplicationServiceAdminTransitionTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_STATUS_TRANSITION);
     }
 
+    // 카드 생성 완료 집계 검증(3-F) — 이 helper로 만든 Member는 카드번호·앞뒤 이미지·발급일자가 전부
+    // 확정된 상태다. Application도 confirmCardGeneration()으로 cardDesignId/cardIssueDate를 확정해야
+    // startProducing()/markCardReady()의 새 집계 검증을 통과한다.
+    private ApplicationMember cardGeneratedMember(Long applicationId, LocalDate issueDate) {
+        ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createIndividual(
+                applicationId, "Hong Gildong", LocalDate.of(1990, 1, 1), "KR",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg"));
+        member.assignCardNumber("ROK-00001-0001");
+        member.assignCardImages("cards/front.png", "cards/back.png", issueDate);
+        applicationMemberRepository.saveAndFlush(member);
+        return member;
+    }
+
     @Test
     void startProducingTransitionsAndLogs() {
         Application application = newApplication("APP-2026-940003", IssueType.MOBILE);
@@ -112,13 +125,33 @@ class ApplicationServiceAdminTransitionTest {
         application.startReview();
         application.approveToNaming();
         application.completeNaming();
+        LocalDate issueDate = LocalDate.of(2026, 9, 14);
+        application.confirmCardGeneration(1L, issueDate);
         applicationRepository.saveAndFlush(application);
+        cardGeneratedMember(application.getId(), issueDate);
 
         ApplicationStatusResponse response = applicationService.startProducing(adminId, application.getId());
 
         assertThat(response.getStatus()).isEqualTo(ApplicationStatus.PRODUCING);
         assertThat(adminActivityLogRepository.findAll())
                 .anySatisfy(log -> assertThat(log.getActionType()).isEqualTo(AdminActivityLog.PRODUCTION_START));
+    }
+
+    @Test
+    void startProducingRejectsWhenCardGenerationIncomplete() {
+        Application application = newApplication("APP-2026-940011", IssueType.MOBILE);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application.completeNaming();
+        applicationRepository.saveAndFlush(application);
+        // totalQuantity=1인데 Member를 하나도 안 만듦 — 인원 수 불일치로 거절돼야 한다.
+
+        assertThatThrownBy(() -> applicationService.startProducing(adminId, application.getId()))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_GENERATION_INCOMPLETE);
+        Application reloaded = applicationRepository.findById(application.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(ApplicationStatus.PRODUCTION_READY);
     }
 
     @Test
@@ -129,7 +162,10 @@ class ApplicationServiceAdminTransitionTest {
         application.approveToNaming();
         application.completeNaming();
         application.startProducing();
+        LocalDate issueDate = LocalDate.of(2026, 9, 14);
+        application.confirmCardGeneration(1L, issueDate);
         applicationRepository.saveAndFlush(application);
+        cardGeneratedMember(application.getId(), issueDate);
 
         ApplicationStatusResponse response = applicationService.markCardReady(adminId, application.getId());
 
@@ -141,6 +177,30 @@ class ApplicationServiceAdminTransitionTest {
     }
 
     @Test
+    void markCardReadyRejectsWhenSomeMembersCardImagesMissing() {
+        Application application = newApplication("APP-2026-940012", IssueType.MOBILE_AND_PHYSICAL);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application.completeNaming();
+        application.startProducing();
+        application.updateTotalQuantity(2);
+        LocalDate issueDate = LocalDate.of(2026, 9, 14);
+        application.confirmCardGeneration(1L, issueDate);
+        applicationRepository.saveAndFlush(application);
+        cardGeneratedMember(application.getId(), issueDate);
+        applicationMemberRepository.save(ApplicationMember.createIndividual(
+                application.getId(), "Kim Cheolsu", LocalDate.of(1991, 2, 2), "KR",
+                null, null, Gender.MALE, null, null, null, "photos/b.jpg")); // 카드 미생성
+
+        assertThatThrownBy(() -> applicationService.markCardReady(adminId, application.getId()))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_GENERATION_INCOMPLETE);
+        Application reloaded = applicationRepository.findById(application.getId()).orElseThrow();
+        assertThat(reloaded.getCardReadyAt()).isNull();
+    }
+
+    @Test
     void dispatchPhysicalStoresTrackingNumberAndCompletesAndLogs() {
         Application application = newApplication("APP-2026-940005", IssueType.MOBILE_AND_PHYSICAL);
         application.confirmPayment();
@@ -148,7 +208,10 @@ class ApplicationServiceAdminTransitionTest {
         application.approveToNaming();
         application.completeNaming();
         application.startProducing();
+        LocalDate issueDate = LocalDate.of(2026, 9, 14);
+        application.confirmCardGeneration(1L, issueDate);
         applicationRepository.saveAndFlush(application);
+        cardGeneratedMember(application.getId(), issueDate);
         applicationService.markCardReady(adminId, application.getId());
 
         ApplicationStatusResponse response =

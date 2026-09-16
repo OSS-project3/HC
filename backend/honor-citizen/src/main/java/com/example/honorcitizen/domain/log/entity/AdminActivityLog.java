@@ -70,4 +70,5 @@ public class AdminActivityLog {
     // 관리자 카드 다운로드(전체 ZIP 또는 멤버 1명) — 2026-09-05, 실물 제작 과정에서 완성된 카드
     // 이미지를 가져다 쓸 때 남긴다. detail로 전체/멤버 단위를 구분한다(getAdminCardsZip 참고).
     public static final String CARD_DOWNLOAD = "CARD_DOWNLOAD";
+    public static final String SCHOOL_LINKED = "SCHOOL_LINKED";
 }

@@ -11,8 +11,12 @@ import com.example.honorcitizen.domain.application.repository.ApplicantRepositor
 import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
 import com.example.honorcitizen.domain.application.repository.ReceiverRepository;
+import com.example.honorcitizen.common.enums.Orientation;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
+import com.example.honorcitizen.domain.school.entity.School;
+import com.example.honorcitizen.domain.school.repository.SchoolRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
 import com.example.honorcitizen.infra.security.JwtTokenProvider;
@@ -63,6 +67,8 @@ class AdminApplicationControllerTest {
     private ReceiverRepository receiverRepository;
     @Autowired
     private ApplicationMemberRepository applicationMemberRepository;
+    @Autowired
+    private SchoolRepository schoolRepository;
 
     private String adminToken;
     private String userToken;
@@ -76,6 +82,7 @@ class AdminApplicationControllerTest {
         applicantRepository.deleteAll();
         applicationRepository.deleteAll();
         cardTypeRepository.deleteAll();
+        schoolRepository.deleteAll();
         userRepository.deleteAll();
 
         User admin = User.createOAuthUser("admin-app-admin@example.com", "oauth-admin-app-admin", "google", "Admin");
@@ -248,6 +255,20 @@ class AdminApplicationControllerTest {
                 .andExpect(jsonPath("$.data.status").value("PHOTO_REJECTED"));
     }
 
+    // 카드 생성 완료 집계 검증(3-F) — start-producing/card-ready 둘 다 Member의 카드번호·앞뒤 이미지·
+    // 발급일자와 Application의 cardDesignId/cardIssueDate가 전부 확정돼 있어야 통과한다.
+    private void completeCardGenerationFor(Application application, LocalDate issueDate) throws Exception {
+        ApplicationMember member = applicationMemberRepository.findByApplicationId(application.getId()).get(0);
+        member.assignCardNumber("ROK-00001-0001");
+        member.assignCardImages("cards/front.png", "cards/back.png", issueDate);
+        applicationMemberRepository.saveAndFlush(member);
+        // application 파라미터를 그대로 재사용하면 이전 saveAndFlush로 detach된 stale 인스턴스라
+        // ObjectOptimisticLockingFailureException이 난다 — 최신 상태로 다시 조회해서 반영한다.
+        Application reloaded = applicationRepository.findById(application.getId()).orElseThrow();
+        reloaded.confirmCardGeneration(1L, issueDate);
+        applicationRepository.saveAndFlush(reloaded);
+    }
+
     @Test
     void startProducingEndpointTransitionsStatus() throws Exception {
         otherUsersApplication.confirmPayment();
@@ -255,6 +276,7 @@ class AdminApplicationControllerTest {
         otherUsersApplication.approveToNaming();
         otherUsersApplication.completeNaming();
         applicationRepository.saveAndFlush(otherUsersApplication);
+        completeCardGenerationFor(otherUsersApplication, LocalDate.of(2026, 9, 14));
 
         mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/start-producing")
                         .header(HttpHeaders.AUTHORIZATION, adminToken))
@@ -270,6 +292,7 @@ class AdminApplicationControllerTest {
         otherUsersApplication.completeNaming();
         otherUsersApplication.startProducing();
         applicationRepository.saveAndFlush(otherUsersApplication);
+        completeCardGenerationFor(otherUsersApplication, LocalDate.of(2026, 9, 14));
 
         mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/card-ready")
                         .header(HttpHeaders.AUTHORIZATION, adminToken))
@@ -436,5 +459,82 @@ class AdminApplicationControllerTest {
                         .contentType("application/json")
                         .content("{\"zodiacDesignSet\":1}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // 관리자 학교 연결(4-A-1) — 직접입력(schoolId=null) STUDENT 신청을 이미 등록된 School에 연결.
+    private Application directInputStudentApplication(String applicationNumber, Long ownerId, Long cardTypeId) {
+        Application application = applicationRepository.save(Application.createIndividual(
+                ownerId, applicationNumber, cardTypeId, IssueType.MOBILE, true, null, null,
+                Orientation.LANDSCAPE, SchoolType.HIGH_SCHOOL, "직접입력고등학교", null));
+        applicationMemberRepository.save(ApplicationMember.createIndividual(
+                application.getId(), "Kim Student", LocalDate.of(2008, 1, 1), "KR",
+                null, null, Gender.MALE, null, null, null, "photos/student.jpg"));
+        return application;
+    }
+
+    @Test
+    void linkSchoolSucceeds() throws Exception {
+        CardType studentCardType = cardTypeRepository.save(
+                CardType.create(CardTypeCode.STUDENT, "학생증-adminctrl-link1", null, BigDecimal.valueOf(20000)));
+        School highSchool = schoolRepository.save(School.create("전주고등학교-link1", SchoolType.HIGH_SCHOOL));
+        Application application = directInputStudentApplication(
+                "APP-2026-920001", otherUsersApplication.getUserId(), studentCardType.getId());
+
+        mockMvc.perform(put("/api/admin/applications/" + application.getId() + "/school")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"schoolId\":" + highSchool.getId() + ",\"applicationVersion\":" + application.getVersion() + "}"))
+                .andExpect(status().isOk());
+
+        Application reloaded = applicationRepository.findById(application.getId()).orElseThrow();
+        assertThat(reloaded.getSchoolId()).isEqualTo(highSchool.getId());
+    }
+
+    @Test
+    void linkSchoolRejectsMissingSchoolIdAsBadRequest() throws Exception {
+        CardType studentCardType = cardTypeRepository.save(
+                CardType.create(CardTypeCode.STUDENT, "학생증-adminctrl-link2", null, BigDecimal.valueOf(20000)));
+        Application application = directInputStudentApplication(
+                "APP-2026-920002", otherUsersApplication.getUserId(), studentCardType.getId());
+
+        mockMvc.perform(put("/api/admin/applications/" + application.getId() + "/school")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"applicationVersion\":" + application.getVersion() + "}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void linkSchoolForNonAdminReturnsForbidden() throws Exception {
+        CardType studentCardType = cardTypeRepository.save(
+                CardType.create(CardTypeCode.STUDENT, "학생증-adminctrl-link3", null, BigDecimal.valueOf(20000)));
+        School highSchool = schoolRepository.save(School.create("전주고등학교-link3", SchoolType.HIGH_SCHOOL));
+        Application application = directInputStudentApplication(
+                "APP-2026-920003", otherUsersApplication.getUserId(), studentCardType.getId());
+
+        mockMvc.perform(put("/api/admin/applications/" + application.getId() + "/school")
+                        .header(HttpHeaders.AUTHORIZATION, userToken)
+                        .contentType("application/json")
+                        .content("{\"schoolId\":" + highSchool.getId() + ",\"applicationVersion\":" + application.getVersion() + "}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void linkSchoolWithoutTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(put("/api/admin/applications/" + otherUsersApplication.getId() + "/school")
+                        .contentType("application/json")
+                        .content("{\"schoolId\":1,\"applicationVersion\":0}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void linkSchoolForMissingApplicationReturnsNotFound() throws Exception {
+        School highSchool = schoolRepository.save(School.create("전주고등학교-link5", SchoolType.HIGH_SCHOOL));
+
+        mockMvc.perform(put("/api/admin/applications/999999/school")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"schoolId\":" + highSchool.getId() + ",\"applicationVersion\":0}"))
+                .andExpect(status().isNotFound());
     }
 }

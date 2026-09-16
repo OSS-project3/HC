@@ -15,6 +15,7 @@ import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberRes
 import com.example.honorcitizen.domain.application.dto.AdminMemberCardDownloadResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
 import com.example.honorcitizen.domain.application.dto.CardNumberBatchAssignRequest;
+import com.example.honorcitizen.domain.application.dto.SchoolLinkRequest;
 import com.example.honorcitizen.domain.application.dto.CardNumberBatchAssignResponse;
 import com.example.honorcitizen.domain.application.dto.NameSelectionStatResponse;
 import com.example.honorcitizen.domain.application.entity.NameSelectionStat;
@@ -638,6 +639,7 @@ public class ApplicationService {
     public ApplicationStatusResponse startProducing(Long adminId, Long applicationId) {
         validateAdmin(adminId);
         Application application = findApplication(applicationId);
+        requireCardGenerationComplete(application);
         application.startProducing();
         adminActivityLogRepository.save(AdminActivityLog.create(
                 adminId, AdminActivityLog.PRODUCTION_START, applicationId, "제작 시작"));
@@ -648,10 +650,39 @@ public class ApplicationService {
     public ApplicationStatusResponse markCardReady(Long adminId, Long applicationId) {
         validateAdmin(adminId);
         Application application = findApplication(applicationId);
+        requireCardGenerationComplete(application);
         application.markCardReady(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS));
         adminActivityLogRepository.save(AdminActivityLog.create(
                 adminId, AdminActivityLog.CARD_ISSUE, applicationId, "카드 발급 완료"));
         return ApplicationStatusResponse.of(applicationId, application.getStatus());
+    }
+
+    // 카드 생성 완료 집계 검증(3-F) — startProducing()/markCardReady() 둘 다 이 검증을 공유한다.
+    // Entity 상태 전이 메서드(startProducing/markCardReady)는 건드리지 않고, 그 호출 직전에 Service가
+    // 먼저 전원 완료 여부를 확인해 미완성 상태로 다음 단계로 넘어가는 걸 막는다.
+    private void requireCardGenerationComplete(Application application) {
+        List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(application.getId());
+        List<ValidationErrorDetail> errors = new ArrayList<>();
+        if (members.size() != application.getTotalQuantity()) {
+            errors.add(new ValidationErrorDetail(null, "totalQuantity", "MEMBER_COUNT_MISMATCH",
+                    "구성원 수가 신청 수량과 일치하지 않습니다."));
+        }
+        if (application.getCardDesignId() == null || application.getCardIssueDate() == null) {
+            errors.add(new ValidationErrorDetail(null, "cardDesignId", "NOT_CONFIRMED",
+                    "카드 디자인과 발급일자가 확정되지 않았습니다."));
+        }
+        for (ApplicationMember member : members) {
+            if (member.getCardNumber() == null || member.getCardFrontPath() == null || member.getCardBackPath() == null) {
+                errors.add(new ValidationErrorDetail(member.getId().intValue(), "cardImage", "NOT_READY",
+                        "카드가 아직 생성되지 않았습니다."));
+            } else if (application.getCardIssueDate() != null && !application.getCardIssueDate().equals(member.getIssueDate())) {
+                errors.add(new ValidationErrorDetail(member.getId().intValue(), "issueDate", "MISMATCH",
+                        "발급일자가 신청 발급일자와 다릅니다."));
+            }
+        }
+        if (!errors.isEmpty()) {
+            throw new BulkValidationException(ErrorCode.CARD_GENERATION_INCOMPLETE, errors);
+        }
     }
 
     @Transactional
@@ -732,6 +763,38 @@ public class ApplicationService {
                 .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
         application.assignZodiacDesignSet(zodiacDesignSet);
         applicationRepository.save(application);
+    }
+
+    // 관리자 학교 연결(4-A-1) — 직접입력(schoolId=null)으로 접수된 STUDENT 신청을 이미 등록된
+    // School에 연결한다. School 신규 생성은 이 메서드 범위 밖(정책 6·7번) — schoolId는 반드시 기존
+    // School PK여야 한다. Application.schoolName 스냅샷은 그대로 두고 schoolId만 갱신한다.
+    @Transactional
+    public void linkSchool(Long adminId, Long applicationId, SchoolLinkRequest request) {
+        validateAdmin(adminId);
+        Application application = applicationRepository.findByIdForUpdate(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        if (!application.getVersion().equals(request.getApplicationVersion())) {
+            throw new CustomException(ErrorCode.APPLICATION_VERSION_CONFLICT);
+        }
+        CardType cardType = cardTypeRepository.findById(application.getCardTypeId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        if (!cardType.isStudentCard()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        boolean anyCardGenerated = applicationMemberRepository.findByApplicationId(applicationId).stream()
+                .anyMatch(ApplicationMember::isCardGenerated);
+        if (anyCardGenerated) {
+            throw new CustomException(ErrorCode.SCHOOL_ALREADY_LOCKED);
+        }
+        School school = schoolRepository.findById(request.getSchoolId())
+                .orElseThrow(() -> new CustomException(ErrorCode.SCHOOL_NOT_FOUND));
+        if (school.getSchoolType() != application.getSchoolType()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        application.linkSchool(school.getId());
+        applicationRepository.save(application);
+        adminActivityLogRepository.save(AdminActivityLog.create(
+                adminId, AdminActivityLog.SCHOOL_LINKED, applicationId, "schoolId=" + school.getId()));
     }
 
     /**
