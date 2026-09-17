@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-17 — Claude — `main` (`/api/users/me` role 복원)
+
+- 변경: `UserMeResponse`에 `role`(`USER`|`ADMIN`) 필드를 추가했다. `from(User)` 팩토리 하나만 수정해서 회원가입·내 정보 조회·내 정보 수정 응답 전부에 자동 반영됨(2026-08-20 결정을 2026-09-14 정책 확정으로 정정).
+- 파일: `domain/user/dto/UserMeResponse.java`, `docs/api/user.md`, `api/UserControllerTest.java`(신규 ADMIN role 테스트 포함), `api/AuthControllerSignupTest.java`, `flow/UserApplicationFlowTest.java`(role 부재를 단언하던 낡은 테스트 갱신)
+- 사유: 새로고침 후 관리자 UI를 서버 응답만으로 복원하기 위한 정책 확정(`TODO.md` "확정 정책 — ... 사용자 역할 복원"). 실제 관리자 API 인가는 계속 서버 JWT 클레임이 판단.
+- 테스트: `UserControllerTest`(2개 신규/수정) TDD RED→GREEN 확인 후 전체 회귀 898/898 통과(스킵 2, 무관).
+- 관련: `TODO.md` "확정 정책 — 단체 작명 Excel·사용자 역할 복원·카드 생성 동시성" §2
+
+---
 ## 2026-09-15 — Codex — `main` (프론트 구조·문서·스타일 정리)
 
 - 변경: `StepInfo`를 개인/단체/학교/수령인 섹션과 검증·검색 hook으로, 관리자 신청 화면을 목록/상세/작명/만세력/카드 기능으로 분리했다. 운영 추천 파일·타입에서 mock 명칭을 제거하고 미사용 무작위 유틸·단건 만세력 래퍼를 정리했다. UI theme 색상을 의미 기반 CSS 토큰으로 통합했다.

@@ -52,9 +52,22 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data.id").value(user.getId()))
                 .andExpect(jsonPath("$.data.name").value("Jane"))
                 .andExpect(jsonPath("$.data.email").value("jane@example.com"))
-                .andExpect(jsonPath("$.data.role").doesNotExist())
+                .andExpect(jsonPath("$.data.role").value("USER"))
                 .andExpect(jsonPath("$.data.phone").isEmpty())
                 .andExpect(jsonPath("$.data.address").isEmpty());
+    }
+
+    @Test
+    void getMeReturnsAdminRoleForAdminUser() throws Exception {
+        User admin = User.createOAuthUser("admin@example.com", "oauth-admin", "google", "Admin");
+        admin.promoteToAdmin();
+        admin = userRepository.save(admin);
+        String adminToken = "Bearer " + jwtTokenProvider.generateAccessToken(admin.getId(), admin.getRole());
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("ADMIN"));
     }
 
     @Test

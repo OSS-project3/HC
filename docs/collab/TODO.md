@@ -50,11 +50,11 @@
 
 **구현 체크리스트**
 
-- [ ] `/api/users/me` 응답 DTO와 매핑에 `role`을 추가한다.
-- [ ] USER와 ADMIN 각각의 `/api/users/me` 응답에서 올바른 `role`이 반환되는 직접 테스트를 보강한다.
-- [ ] API 명세에 `role` 필드와 enum 계약을 반영한다.
-- [ ] 프론트가 새로고침 시 `/api/users/me`로 인증 상태와 역할을 복원하도록 연결한다.
-- [ ] 프론트의 localStorage 사용자·역할 값은 인증 판단에서 제거하되 백엔드 관리자 권한 검증은 변경하지 않는다.
+- [x] `/api/users/me` 응답 DTO와 매핑에 `role`을 추가한다. — ✅ 완료(2026-09-17, Claude). `UserMeResponse`에 `role: UserRole` 필드 추가, `from(User)`에서 `user.getRole()` 매핑. `AuthController`(회원가입)·`UserService`(내 정보 조회/수정) 전부 동일 팩토리를 재사용하므로 별도 수정 없이 role이 함께 내려감.
+- [x] USER와 ADMIN 각각의 `/api/users/me` 응답에서 올바른 `role`이 반환되는 직접 테스트를 보강한다. — ✅ `UserControllerTest.getMeReturnsCurrentUserInfo`(USER)·`getMeReturnsAdminRoleForAdminUser`(신규, ADMIN) 통과. 기존에 `role` 부재를 단언하던 낡은 테스트 3건(`UserControllerTest`, `AuthControllerSignupTest`, `UserApplicationFlowTest`)도 새 계약에 맞게 갱신. 전체 회귀 898/898 통과(스킵 2, 무관).
+- [x] API 명세에 `role` 필드와 enum 계약을 반영한다. — ✅ `docs/api/user.md` API 2/3/5 응답 예시·DB 컬럼 매핑 표 갱신.
+- [ ] 프론트가 새로고침 시 `/api/users/me`로 인증 상태와 역할을 복원하도록 연결한다. — 프론트 작업, 이번 범위 아님.
+- [ ] 프론트의 localStorage 사용자·역할 값은 인증 판단에서 제거하되 백엔드 관리자 권한 검증은 변경하지 않는다. — 프론트 작업, 이번 범위 아님.
 
 ### 3. 카드 생성 동시성
 

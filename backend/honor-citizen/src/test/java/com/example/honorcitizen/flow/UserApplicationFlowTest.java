@@ -115,7 +115,7 @@ class UserApplicationFlowTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.id").value(user.getId()))
                 .andExpect(jsonPath("$.data.email").value("flow-user@example.com"))
-                .andExpect(jsonPath("$.data.role").doesNotExist());
+                .andExpect(jsonPath("$.data.role").value("USER"));
 
         // ── 2-1) 약관 동의 (신청 전 필수) — 미동의 시 신청 생성이 TERMS_NOT_AGREED(403)로 거부된다 ──
         mockMvc.perform(post("/api/auth/terms")
