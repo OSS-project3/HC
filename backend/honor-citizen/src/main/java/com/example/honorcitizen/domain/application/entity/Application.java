@@ -332,6 +332,15 @@ public class Application extends BaseTimeEntity {
         transitionTo(ApplicationStatus.PRODUCTION_READY);
     }
 
+    // 인앱 이름 수정·작명 결과 엑셀 반영이 순수 Member 변경이라 상태 전이 메서드를 거치지 않으므로,
+    // 두 Service 메서드가 공통으로 호출하는 명시적 게이트(2026-09-18). completeNaming()은 이미
+    // transitionTo()가 NAME_EDITING만 허용해 자체 검증되므로 별도 호출이 필요 없다.
+    public void requireNamingEditable() {
+        if (this.status != ApplicationStatus.NAME_EDITING) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+    }
+
     public void startProducing() {
         if (this.paymentStatus != PaymentStatus.CONFIRMED) {
             throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);

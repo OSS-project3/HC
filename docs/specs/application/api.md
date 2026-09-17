@@ -774,6 +774,7 @@ Cookie: accessToken={JWT}
 - `name`/`meaning`은 `@NotBlank` — 없으면 `INVALID_INPUT`.
 - 저장 시점 형식 검증(`ApplicationMember.assignKoreanName`, 엑셀 왕복 경로와 공유): `name`은 성씨를 제외한 한글 2~3글자, `surname`은 한글 1~2글자, `hanja`가 있으면 `name`과 Unicode 글자 수가 같아야 한다. 하나라도 위반하면 `INVALID_INPUT`.
 - ✅ 2026-09-08 신규: **성씨 한자(`surnameHanja`)는 요청 바디에 없다** — 이 API로 입력받지 않고, 저장 시 `surname` 값으로부터 서버가 자동 유도한다(10대 성씨만 매핑, 그 외는 `NULL`). 카드 뒷면 한자 표기는 이 유도값을 이름 한자 앞에 합쳐서 그린다. 관리자 조회 응답(`AdminApplicationMemberResponse.surnameHanja`)에서 확인 가능.
+- ✅ 2026-09-18 신규: **`Application.status`가 `NAME_EDITING`일 때만 허용한다.** 그 외 상태(카드 제작 단계 포함)에서 호출하면 `errorCode=INVALID_STATUS_TRANSITION`(400)으로 거절하고 아무것도 저장하지 않는다. `completeNaming()`과 동일하게 Application row를 잠그고(`findByIdForUpdate`) 검사해, "상태 확인 후 커밋 전에 completeNaming이 먼저 PRODUCTION_READY로 넘어가는" 경합을 막는다(`admin-saju.md` 참고).
 
 ### 관리자 작명 결과 엑셀 반영 — `POST /api/admin/applications/{applicationId}/naming-result`
 
@@ -784,6 +785,7 @@ Cookie: accessToken={JWT}
 - 헤더 자체가 없거나(구 양식) 개별 셀이 비어 있으면 오류가 아니라 그 값만 기존에 저장돼 있던 값을 그대로 유지한다(성씨·뜻 각각 독립적으로 적용).
 - 값 형식 검증은 성씨(한글 1~2자)만 하고, 뜻은 한자·괄호가 섞인 자유 텍스트라 형식 검증을 하지 않는다.
 - (참고) 2026-09-18 기준 saju 쪽 내보내기는 아직 뜻 컬럼을 채우지 않으므로, 실제 왕복 파일에서는 이 선택 컬럼이 항상 비어 있는 상태(성씨는 반영, 뜻은 스킵)로만 들어온다 — saju가 뜻을 내보내도록 갱신되면 자동으로 반영된다.
+- ✅ 2026-09-18 신규: 관리자 인앱 작명 확정과 동일하게 **`Application.status`가 `NAME_EDITING`일 때만 허용한다.** 그 외 상태에서 호출하면 파일을 파싱하기 전에 `errorCode=INVALID_STATUS_TRANSITION`(400)으로 거절하고 아무 Member도 갱신하지 않는다.
 
 ### 관리자 작명 완료 — `POST /api/admin/applications/{applicationId}/complete-naming`
 

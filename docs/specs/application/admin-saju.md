@@ -310,7 +310,7 @@ HC 신청 데이터 Excel 내보내기
 - 카드의 한글 이름은 렌더링 시 `surname + name`으로 조합합니다.
 - 현재 범위에서 `chineseName`은 이름에 대응하는 한자만 저장하며 성씨 한자 필드는 추가하지 않습니다.
 - 이름 추천 결과와 이름 사전에는 성씨를 저장하지 않습니다.
-- 카드 제작 단계에 들어간 후에는 성씨와 이름을 수정할 수 없습니다.
+- 카드 제작 단계에 들어간 후에는 성씨와 이름을 수정할 수 없습니다. (2026-09-18 강제 구현) `Application.requireNamingEditable()`이 `NAME_EDITING`이 아니면 `INVALID_STATUS_TRANSITION`으로 거절하며, 인앱 작명(`assignMemberName`)·작명 결과 엑셀 반영(`applyNamingResult`) 둘 다 이 게이트를 거친다. `completeNaming()`과 동일하게 `findByIdForUpdate`(Application row 비관적 잠금)를 사용해, "이름 수정이 NAME_EDITING을 확인한 뒤 completeNaming이 먼저 커밋해 PRODUCTION_READY로 넘어가고 그 뒤에 이름 수정이 뒤늦게 반영되는" 경합을 막는다.
 - 관리자 작명 저장 요청은 `surname`, `name`, 선택 `hanja`, `reading`, 필수 `meaning`을 함께 받습니다.
 
 ### 이름 입력 형식

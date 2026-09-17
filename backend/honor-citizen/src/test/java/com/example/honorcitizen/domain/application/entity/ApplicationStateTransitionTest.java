@@ -163,6 +163,63 @@ class ApplicationStateTransitionTest {
         assertThat(application.getZodiacDesignSet()).isEqualTo(2);
     }
 
+    @Test
+    void requireNamingEditableSucceedsInNameEditing() {
+        Application application = individual(IssueType.MOBILE);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+
+        application.requireNamingEditable();
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.NAME_EDITING);
+    }
+
+    @Test
+    void requireNamingEditableRejectsEveryOtherStatus() {
+        assertThatThrownBy(() -> individual(IssueType.MOBILE).requireNamingEditable())
+                .isInstanceOf(CustomException.class); // SUBMITTED
+
+        Application reviewing = individual(IssueType.MOBILE);
+        reviewing.confirmPayment();
+        reviewing.startReview();
+        assertThatThrownBy(reviewing::requireNamingEditable).isInstanceOf(CustomException.class);
+
+        Application photoRejected = individual(IssueType.MOBILE);
+        photoRejected.confirmPayment();
+        photoRejected.startReview();
+        photoRejected.rejectPhoto("사진이 흐립니다.");
+        assertThatThrownBy(photoRejected::requireNamingEditable).isInstanceOf(CustomException.class);
+
+        Application productionReady = individual(IssueType.MOBILE);
+        productionReady.confirmPayment();
+        productionReady.startReview();
+        productionReady.approveToNaming();
+        productionReady.completeNaming();
+        assertThatThrownBy(productionReady::requireNamingEditable).isInstanceOf(CustomException.class);
+
+        Application producing = individual(IssueType.MOBILE);
+        producing.confirmPayment();
+        producing.startReview();
+        producing.approveToNaming();
+        producing.completeNaming();
+        producing.startProducing();
+        assertThatThrownBy(producing::requireNamingEditable).isInstanceOf(CustomException.class);
+
+        Application completed = individual(IssueType.MOBILE);
+        completed.confirmPayment();
+        completed.startReview();
+        completed.approveToNaming();
+        completed.completeNaming();
+        completed.startProducing();
+        completed.markCardReady(NOW);
+        assertThatThrownBy(completed::requireNamingEditable).isInstanceOf(CustomException.class);
+
+        Application cancelled = individual(IssueType.MOBILE);
+        cancelled.cancelByUser(NOW);
+        assertThatThrownBy(cancelled::requireNamingEditable).isInstanceOf(CustomException.class);
+    }
+
     private Application individual(IssueType issueType) {
         return Application.createIndividual(
                 1L, "APP-2026-000001", 10L, issueType, issueType == IssueType.MOBILE, null, null);

@@ -67,8 +67,12 @@ class ApplicationServiceNameAssignTest {
                 User.createOAuthUser("name-assign-owner@example.com", "oauth-name-assign-owner", "google", "Owner"));
         CardType cardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-nameassign", null, BigDecimal.valueOf(30000)));
-        Application application = applicationRepository.save(Application.createIndividual(
-                owner.getId(), "APP-2026-950001", cardType.getId(), IssueType.MOBILE, true, null, null));
+        Application application = Application.createIndividual(
+                owner.getId(), "APP-2026-950001", cardType.getId(), IssueType.MOBILE, true, null, null);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application = applicationRepository.save(application);
         applicationId = application.getId();
 
         ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createIndividual(
@@ -141,14 +145,34 @@ class ApplicationServiceNameAssignTest {
 
     @Test
     void rejectsWhenMemberDoesNotBelongToApplication() {
-        Application otherApplication = applicationRepository.save(Application.createIndividual(
+        Application otherApplicationDraft = Application.createIndividual(
                 applicationRepository.findById(applicationId).orElseThrow().getUserId(),
-                "APP-2026-950002", cardTypeRepository.findAll().get(0).getId(), IssueType.MOBILE, true, null, null));
+                "APP-2026-950002", cardTypeRepository.findAll().get(0).getId(), IssueType.MOBILE, true, null, null);
+        otherApplicationDraft.confirmPayment();
+        otherApplicationDraft.startReview();
+        otherApplicationDraft.approveToNaming();
+        Long otherApplicationId = applicationRepository.save(otherApplicationDraft).getId();
 
         assertThatThrownBy(() -> applicationService.assignMemberName(
-                adminId, otherApplication.getId(), memberId, "홍", "길동", null, "뜻", null))
+                adminId, otherApplicationId, memberId, "홍", "길동", null, "뜻", null))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void rejectsWhenApplicationIsNotInNameEditing() {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        application.completeNaming();
+        applicationRepository.save(application);
+
+        assertThatThrownBy(() -> applicationService.assignMemberName(
+                adminId, applicationId, memberId, "홍", "길동", "吉童", "뜻", null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_STATUS_TRANSITION);
+
+        ApplicationMember reloaded = applicationMemberRepository.findById(memberId).orElseThrow();
+        assertThat(reloaded.getName()).isNull();
+        assertThat(nameSelectionStatRepository.findByNameAndHanja("길동", "吉童")).isEmpty();
     }
 
     @Test

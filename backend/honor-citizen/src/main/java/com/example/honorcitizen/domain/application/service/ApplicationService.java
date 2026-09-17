@@ -507,6 +507,8 @@ public class ApplicationService {
     public void assignMemberName(Long adminId, Long applicationId, Long memberId,
             String surname, String name, String hanja, String reading, String meaning) {
         validateAdmin(adminId);
+        Application application = findApplicationForUpdate(applicationId);
+        application.requireNamingEditable();
         ApplicationMember member = applicationMemberRepository.findById(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
         if (!member.getApplicationId().equals(applicationId)) {
@@ -552,8 +554,8 @@ public class ApplicationService {
     @Transactional
     public NamingResultApplyResponse applyNamingResult(Long adminId, Long applicationId, MultipartFile file) {
         validateAdmin(adminId);
-        applicationRepository.findById(applicationId)
-                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+        Application application = findApplicationForUpdate(applicationId);
+        application.requireNamingEditable();
 
         List<NamingResultExcelParser.NamingResultRow> rows = namingResultExcelParser.parse(file);
         List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(applicationId);
@@ -707,7 +709,7 @@ public class ApplicationService {
     @Transactional
     public ApplicationStatusResponse completeNaming(Long adminId, Long applicationId) {
         validateAdmin(adminId);
-        Application application = findApplication(applicationId);
+        Application application = findApplicationForUpdate(applicationId);
         List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(applicationId);
         List<ValidationErrorDetail> errors = validateNamingComplete(members);
         if (!errors.isEmpty()) {
@@ -991,6 +993,15 @@ public class ApplicationService {
 
     private Application findApplication(Long applicationId) {
         return applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+    }
+
+    // 이름 수정(assignMemberName/applyNamingResult)과 completeNaming() 사이의 경합을 막기 위해
+    // Application row를 잠근다(2026-09-18) — 둘 다 같은 잠금을 거쳐야 "NAME_EDITING 확인 후 커밋
+    // 전에 completeNaming이 먼저 커밋"하는 순서 역전을 방지할 수 있다. linkSchool/
+    // assignCardNumbersBatch와 동일한 findByIdForUpdate 패턴.
+    private Application findApplicationForUpdate(Long applicationId) {
+        return applicationRepository.findByIdForUpdate(applicationId)
                 .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
     }
 

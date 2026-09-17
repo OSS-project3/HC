@@ -196,8 +196,12 @@ class AdminApplicationControllerTest {
     void applyNamingResultUpdatesMatchingGroupMember() throws Exception {
         User groupOwner = userRepository.save(
                 User.createOAuthUser("naming-group-owner@example.com", "oauth-naming-group-owner", "google", "Owner"));
-        Application groupApplication = applicationRepository.save(Application.createGroup(
-                groupOwner.getId(), "APP-2026-930001", cardType.getId(), IssueType.MOBILE, true, 1, null, null, null));
+        Application groupApplicationDraft = Application.createGroup(
+                groupOwner.getId(), "APP-2026-930001", cardType.getId(), IssueType.MOBILE, true, 1, null, null, null);
+        groupApplicationDraft.confirmPayment();
+        groupApplicationDraft.startReview();
+        groupApplicationDraft.approveToNaming();
+        Application groupApplication = applicationRepository.save(groupApplicationDraft);
         ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createGroupRow(
                 groupApplication.getId(), "Jane Park", LocalDate.of(1995, 5, 5), "US", null, "Chicago",
                 Gender.FEMALE, null, "jane@example.com", "010-5555-6666", "Seoul", null, null, null));

@@ -82,8 +82,12 @@ class ApplicationServiceNamingResultTest {
         CardType cardType = cardTypeRepository.save(
                 CardType.create(CardTypeCode.HONOR_KOREAN, "명예한국인증-naming", null, BigDecimal.valueOf(30000)));
 
-        Application application = applicationRepository.save(Application.createGroup(
-                owner.getId(), "APP-2026-920001", cardType.getId(), IssueType.MOBILE, true, 2, null, null, null));
+        Application application = Application.createGroup(
+                owner.getId(), "APP-2026-920001", cardType.getId(), IssueType.MOBILE, true, 2, null, null, null);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application = applicationRepository.save(application);
         applicationId = application.getId();
 
         memberA = applicationMemberRepository.save(ApplicationMember.createGroupRow(
@@ -407,6 +411,23 @@ class ApplicationServiceNamingResultTest {
         applicationService.applyNamingResult(adminId, applicationId, toMultipart(excel));
 
         Application reloaded = applicationRepository.findById(applicationId).orElseThrow();
-        assertThat(reloaded.getStatus().name()).isEqualTo("SUBMITTED");
+        assertThat(reloaded.getStatus().name()).isEqualTo("NAME_EDITING");
+    }
+
+    @Test
+    void rejectsWhenApplicationIsNotInNameEditing() throws Exception {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        application.completeNaming();
+        applicationRepository.save(application);
+
+        byte[] excel = buildExcel("1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||지호");
+
+        assertThatThrownBy(() -> applicationService.applyNamingResult(adminId, applicationId, toMultipart(excel)))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_STATUS_TRANSITION);
+
+        ApplicationMember reloadedA = applicationMemberRepository.findById(memberA.getId()).orElseThrow();
+        assertThat(reloadedA.getName()).isNull();
+        assertThat(adminActivityLogRepository.findAll()).isEmpty();
     }
 }
