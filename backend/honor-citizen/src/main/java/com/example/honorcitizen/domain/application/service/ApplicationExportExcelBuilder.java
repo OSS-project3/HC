@@ -118,8 +118,10 @@ class ApplicationExportExcelBuilder {
 
             int nameCol = lastCol + 1;
             int hanjaCol = lastCol + 2;
+            int meaningCol = lastCol + 3;
             header.createCell(nameCol).setCellValue("이름");
             header.createCell(hanjaCol).setCellValue("한자");
+            header.createCell(meaningCol).setCellValue("뜻");
 
             Map<String, ApplicationMember> byEmailPhone = members.stream()
                     .filter(m -> m.getEmail() != null && m.getPhone() != null)
@@ -143,6 +145,7 @@ class ApplicationExportExcelBuilder {
                 }
                 setCell(row, nameCol, member.getName());
                 setCell(row, hanjaCol, member.getChineseName());
+                setCell(row, meaningCol, member.getNameMeaning());
             }
 
             return toBytes(workbook);

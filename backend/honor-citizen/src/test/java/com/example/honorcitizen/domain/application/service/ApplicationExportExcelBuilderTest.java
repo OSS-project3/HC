@@ -131,6 +131,37 @@ class ApplicationExportExcelBuilderTest {
     }
 
     @Test
+    void appendsMeaningColumnAfterNameAndHanja() throws Exception {
+        byte[] zip = buildGroupOriginalZip(
+                "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul",
+                "2|Mike Kim|1992-03-03|US||Chicago|MALE||mike@example.com|010-3333-4444|Busan");
+
+        ApplicationMember memberA = ApplicationMember.createGroupRow(
+                10L, "John Doe", LocalDate.of(1988, 1, 1), "US", null, "Chicago",
+                Gender.MALE, null, "john@example.com", "010-1111-2222", "Seoul", null, null, null);
+        memberA.assignKoreanName("김", "지호", "智毫", "아름다울 가(佳) 법 헌(憲)", "긴 풀이 문단");
+        ApplicationMember memberB = ApplicationMember.createGroupRow(
+                10L, "Mike Kim", LocalDate.of(1992, 3, 3), "US", null, "Chicago",
+                Gender.MALE, null, "mike@example.com", "010-3333-4444", "Busan", null, null, null);
+
+        byte[] result = builder.appendNamesToGroupWorkbook(zip, List.of(memberA, memberB));
+
+        try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(result))) {
+            Sheet sheet = workbook.getSheetAt(0);
+            Row header = sheet.getRow(2);
+            assertThat(header.getCell(11).getStringCellValue()).isEqualTo("이름");
+            assertThat(header.getCell(12).getStringCellValue()).isEqualTo("한자");
+            assertThat(header.getCell(13).getStringCellValue()).isEqualTo("뜻");
+
+            Row row1 = sheet.getRow(3);
+            assertThat(row1.getCell(13).getStringCellValue()).isEqualTo("아름다울 가(佳) 법 헌(憲)");
+
+            Row row2 = sheet.getRow(4);
+            assertThat(row2.getCell(13)).isNull(); // 미확정 — 공란
+        }
+    }
+
+    @Test
     void throwsWhenZipHasNoExcel() throws Exception {
         ByteArrayOutputStream zipOut = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(zipOut)) {
