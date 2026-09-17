@@ -582,9 +582,13 @@ public class ApplicationService {
             NamingResultExcelParser.NamingResultRow row = rows.get(i);
             ApplicationMember member = matchedTargets.get(i);
             boolean isUpdate = member.getName() != null;
-            // 성씨 열이 있는 새 양식이면 성씨까지 반영, 없으면 기존처럼 이름·한자만(기존 성씨 유지 — §1.16).
-            if (row.surname() != null) {
+            // 성씨/뜻 열은 각각 선택 — 있는 조합에 맞는 오버로드로 반영, 없으면 기존 값 유지(§1.16, 2026-09-18).
+            if (row.surname() != null && row.meaning() != null) {
+                member.assignKoreanNameWithMeaning(row.surname(), row.name(), row.chineseName(), row.meaning());
+            } else if (row.surname() != null) {
                 member.assignKoreanName(row.surname(), row.name(), row.chineseName());
+            } else if (row.meaning() != null) {
+                member.assignKoreanNameWithMeaning(row.name(), row.chineseName(), row.meaning());
             } else {
                 member.assignKoreanName(row.name(), row.chineseName());
             }

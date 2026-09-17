@@ -205,6 +205,29 @@ public class ApplicationMember extends BaseTimeEntity {
         this.chineseName = chineseName;
     }
 
+    // 엑셀 작명 반영(성씨 열 없음 + 뜻 열 있는 양식, 2026-09-18) — 이름·한자·뜻(nameMeaning)만
+    // 저장하고 성씨·긴 풀이(nameInterpretation)는 건드리지 않는다(엑셀 왕복에 해당 값이 없음).
+    // (String,String,String) 시그니처가 기존 성씨용 3-인자 오버로드와 겹쳐서 오버로드가 아닌
+    // 별도 메서드명을 쓴다.
+    public void assignKoreanNameWithMeaning(String name, String chineseName, String nameMeaning) {
+        validateNameFormat(name, chineseName);
+        this.name = name;
+        this.chineseName = chineseName;
+        this.nameMeaning = nameMeaning;
+    }
+
+    // 엑셀 작명 반영(성씨 열 + 뜻 열이 모두 있는 양식, 2026-09-18) — 성씨·이름·한자·뜻(nameMeaning)을
+    // 저장하고 긴 풀이(nameInterpretation)는 건드리지 않는다(엑셀 왕복에 해당 값이 없음).
+    public void assignKoreanNameWithMeaning(String surname, String name, String chineseName, String nameMeaning) {
+        validateNameFormat(name, chineseName);
+        validateSurnameFormat(surname);
+        this.surname = surname;
+        this.surnameHanja = SURNAME_HANJA.get(surname);
+        this.name = name;
+        this.chineseName = chineseName;
+        this.nameMeaning = nameMeaning;
+    }
+
     // 관리자 대시보드 인앱 작명 확정 — 성씨·뜻·훈음까지 함께 저장한다(모두 덮어쓴다).
     // surname은 NAME_EDITING 중에는 null을 허용한다(completeNaming() 집계 검증은 Service에서 수행).
     public void assignKoreanName(String surname, String name, String chineseName,

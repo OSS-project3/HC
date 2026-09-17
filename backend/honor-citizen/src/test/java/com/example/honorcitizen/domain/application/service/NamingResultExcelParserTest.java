@@ -121,6 +121,61 @@ class NamingResultExcelParserTest {
                         .anySatisfy(detail -> assertThat(detail.field()).isEqualTo("surname")));
     }
 
+    // "성씨"+"뜻" 열이 모두 있는 새 양식 — 기존 12열 + 성씨 + 뜻.
+    private static final String[] HEADERS_WITH_SURNAME_AND_MEANING = {
+            "사진 번호", "영문명", "생년월일", "출생국가", "출생시간", "출생지역", "성별",
+            "개별입국날짜", "이메일", "전화번호", "주소", "사주이름", "성씨", "뜻",
+    };
+
+    private byte[] buildExcelWithSurnameAndMeaning(String... rows) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("신청자명단");
+            sheet.createRow(0).createCell(0).setCellValue("공통 입국날짜");
+            sheet.createRow(1).createCell(0).setCellValue("1.1");
+            Row header = sheet.createRow(2);
+            for (int i = 0; i < HEADERS_WITH_SURNAME_AND_MEANING.length; i++) {
+                header.createCell(i).setCellValue(HEADERS_WITH_SURNAME_AND_MEANING[i]);
+            }
+            int rowIndex = 3;
+            for (String rowCsv : rows) {
+                String[] cols = rowCsv.split("\\|", -1);
+                Row row = sheet.createRow(rowIndex++);
+                for (int i = 0; i < cols.length; i++) {
+                    if (!cols[i].isEmpty()) {
+                        row.createCell(i).setCellValue(cols[i]);
+                    }
+                }
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    @Test
+    void parsesMeaningColumnWhenPresent() throws Exception {
+        byte[] excel = buildExcelWithSurnameAndMeaning(
+                "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||지호(智毫)|김|아름다울 가(佳) 법 헌(憲)",
+                "2|Mike Kim|1992-03-03|US||Chicago|MALE||mike@example.com|010-3333-4444||수민|||");
+
+        List<NamingResultExcelParser.NamingResultRow> rows = parser.parse(toMultipart(excel));
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0).meaning()).isEqualTo("아름다울 가(佳) 법 헌(憲)");
+        assertThat(rows.get(1).meaning()).isNull(); // 뜻 셀이 빈 행은 뜻 없이 이름만 반영
+    }
+
+    @Test
+    void legacyFormatWithoutMeaningHeaderStillParsesWithNullMeaning() throws Exception {
+        byte[] excel = buildExcel(
+                "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||지호");
+
+        List<NamingResultExcelParser.NamingResultRow> rows = parser.parse(toMultipart(excel));
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).meaning()).isNull();
+    }
+
     @Test
     void parsesHangulOnlyAndHangulWithHanjaNames() throws Exception {
         byte[] excel = buildExcel(
