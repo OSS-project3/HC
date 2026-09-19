@@ -2,6 +2,7 @@ package com.example.honorcitizen.domain.card.service;
 
 import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import com.example.honorcitizen.common.enums.StudentTextColor;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.application.entity.Application;
@@ -84,6 +85,7 @@ class CardRenderPreparation {
         validateNamingComplete(member);
         validateCardNumber(member);
         validateIssuerAssets(application, cardType.getCode());
+        validateStudentTextColorRequest(request, cardType.getCode());
 
         String zodiacBranch = resolveZodiacBranch(member);
         int zodiacDesignSet = resolveZodiacDesignSet(application);
@@ -122,12 +124,41 @@ class CardRenderPreparation {
         // 추가된 별개 enum이라 타입은 다르지만 값(LANDSCAPE/PORTRAIT)은 같다 — 이름으로 변환한다
         // (CardDesignService.listStudentCardDesigns()와 동일한 변환).
         CardDesignOrientation orientation = CardDesignOrientation.valueOf(application.getOrientation().name());
+        StudentTextColor frontTextColor = resolveStudentTextColor(
+                application.getStudentFrontTextColor(), request.getStudentFrontTextColor());
+        StudentTextColor backTextColor = resolveStudentTextColor(
+                application.getStudentBackTextColor(), request.getStudentBackTextColor());
         return new CardMemberData(
                 member.getSurname(), member.getName(), member.getEnglishName(), combinedChineseName(member),
                 member.getNameMeaning(), member.getNameInterpretation(), photo, member.getCardNumber(),
                 member.getAddress(), request.getIssueDate(), zodiacBranch, null, null,
                 application.getSchoolType(), orientation, member.getStudentId(), member.getDepartment(),
-                member.getBirthDate(), templateFront, templateBack, zodiacDesignSet);
+                member.getBirthDate(), templateFront, templateBack, zodiacDesignSet,
+                frontTextColor, backTextColor);
+    }
+
+    // 학생증 텍스트 색상(checklist.md §6) — 카드종류·요청값·기존 확정값을 여기서 한 번만 검증하고
+    // 미리보기·생성 둘 다 같은 로직을 타도록 한다(prepare()가 공통 경로이므로 별도 분기 불필요).
+    // 비학생증이 색상 필드를 보내면 조합 자체가 잘못된 요청이라 기존 INVALID_INPUT을 재사용한다
+    // (새 ErrorCode 신설 안 함 — 이 문서·정책의 "재사용 가능하면 재사용" 원칙).
+    private void validateStudentTextColorRequest(CardPreviewRequest request, CardTypeCode cardType) {
+        if (cardType != CardTypeCode.STUDENT
+                && (request.getStudentFrontTextColor() != null || request.getStudentBackTextColor() != null)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+    }
+
+    // confirmed(Application에 이미 확정된 값)가 있으면 requested는 없거나 같아야 한다 — 다르면
+    // 단체 카드 색상 통일·최초 확정 후 잠금 정책 위반이라 거절한다. confirmed가 아직 없으면(최초
+    // 생성 전) requested를 쓰고, 그마저 없으면 하위호환 기본값 DARK_GRAY로 해석한다.
+    private StudentTextColor resolveStudentTextColor(StudentTextColor confirmed, StudentTextColor requested) {
+        if (confirmed != null) {
+            if (requested != null && requested != confirmed) {
+                throw new CustomException(ErrorCode.STUDENT_TEXT_COLOR_MISMATCH);
+            }
+            return confirmed;
+        }
+        return requested != null ? requested : StudentTextColor.DARK_GRAY;
     }
 
     // 카드에는 성 한자+이름 한자를 합쳐서 하나의 괄호 안에 표시한다(한글 이름을 surname+name으로

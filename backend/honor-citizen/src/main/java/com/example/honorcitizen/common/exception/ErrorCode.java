@@ -73,6 +73,7 @@ public enum ErrorCode {
     CARD_ISSUER_ASSETS_MISSING(400, "단체 신청은 로고와 직인 이미지가 모두 있어야 합니다."),
     CARD_ISSUE_DATE_MISMATCH(400, "이미 확정된 발급일자와 다릅니다."),
     ZODIAC_DESIGN_NOT_SELECTED(400, "십이간지 디자인이 선택되지 않았습니다."),
+    STUDENT_TEXT_COLOR_MISMATCH(400, "이미 확정된 학생증 텍스트 색상과 다릅니다."),
     // 4-D: MIME 불일치는 기존 UNSUPPORTED_FILE_TYPE 재사용(다른 파일 검증기들과 동일) — 형식은
     // 맞지만 카드 비율/최소 해상도에 안 맞는 경우만 이 코드를 쓴다.
     CARD_TEMPLATE_INVALID_RESOLUTION(400, "카드 템플릿 이미지의 크기 또는 비율이 올바르지 않습니다."),

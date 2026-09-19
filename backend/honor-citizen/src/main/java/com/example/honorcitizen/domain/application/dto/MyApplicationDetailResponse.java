@@ -6,6 +6,7 @@ import com.example.honorcitizen.common.enums.CancellationReason;
 import com.example.honorcitizen.common.enums.CancellationType;
 import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.PaymentStatus;
+import com.example.honorcitizen.common.enums.StudentTextColor;
 import com.example.honorcitizen.domain.application.entity.Applicant;
 import com.example.honorcitizen.domain.application.entity.Application;
 import com.example.honorcitizen.domain.application.entity.Receiver;
@@ -38,6 +39,10 @@ public class MyApplicationDetailResponse {
     private final Integer zodiacDesignSet;
     private final Long cardDesignId;
     private final LocalDate cardIssueDate;
+    // 학생증 앞·뒷면 텍스트 색상(checklist.md §6) — zodiacDesignSet과 동일한 이유로 새로고침 후
+    // 복원용 노출. 카드 생성 전이면 null(미확정) — 프론트가 기본값(DARK_GRAY)으로 해석한다.
+    private final StudentTextColor studentFrontTextColor;
+    private final StudentTextColor studentBackTextColor;
     private final String photoRejectReason;
     private final ApplicantSummary applicant;
     private final ReceiverSummary receiver;
@@ -57,6 +62,7 @@ public class MyApplicationDetailResponse {
             LocalDateTime cancelledAt, CancellationType cancellationType, CancellationReason cancellationReason,
             LocalDateTime cardReadyAt, LocalDateTime physicalDispatchedAt,
             Integer zodiacDesignSet, Long cardDesignId, LocalDate cardIssueDate,
+            StudentTextColor studentFrontTextColor, StudentTextColor studentBackTextColor,
             String photoRejectReason, ApplicantSummary applicant, ReceiverSummary receiver, long memberCount,
             LocalDateTime createdAt, String depositorName, String memberAddress, Long version) {
         this.applicationId = applicationId;
@@ -78,6 +84,8 @@ public class MyApplicationDetailResponse {
         this.zodiacDesignSet = zodiacDesignSet;
         this.cardDesignId = cardDesignId;
         this.cardIssueDate = cardIssueDate;
+        this.studentFrontTextColor = studentFrontTextColor;
+        this.studentBackTextColor = studentBackTextColor;
         this.photoRejectReason = photoRejectReason;
         this.applicant = applicant;
         this.receiver = receiver;
@@ -100,6 +108,7 @@ public class MyApplicationDetailResponse {
                 application.getCancelledAt(), application.getCancellationType(), application.getCancellationReason(),
                 application.getCardReadyAt(), application.getPhysicalDispatchedAt(),
                 application.getZodiacDesignSet(), application.getCardDesignId(), application.getCardIssueDate(),
+                application.getStudentFrontTextColor(), application.getStudentBackTextColor(),
                 application.getPhotoRejectReason(), ApplicantSummary.from(applicant),
                 receiver == null ? null : ReceiverSummary.from(receiver), memberCount, application.getCreatedAt(),
                 application.getDepositorName(), memberAddress, application.getVersion());
@@ -110,7 +119,7 @@ public class MyApplicationDetailResponse {
         return new MyApplicationDetailResponse(applicationId, applicationNumber, applicationType, cardTypeId,
                 cardTypeName, issueType, totalQuantity, status, paymentStatus, paymentGuidedAt, paymentDueAt,
                 cancelledAt, cancellationType, cancellationReason, cardReadyAt, physicalDispatchedAt,
-                zodiacDesignSet, cardDesignId, cardIssueDate,
+                zodiacDesignSet, cardDesignId, cardIssueDate, studentFrontTextColor, studentBackTextColor,
                 photoRejectReason, applicant, receiver, memberCount, createdAt, depositorName, memberAddress, version);
     }
 

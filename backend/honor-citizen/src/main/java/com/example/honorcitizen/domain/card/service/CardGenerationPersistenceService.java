@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.card.service;
 
+import com.example.honorcitizen.common.enums.StudentTextColor;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.application.entity.Application;
@@ -31,6 +32,7 @@ class CardGenerationPersistenceService {
 
     @Transactional
     PersistResult persist(Long applicationId, Long memberId, Long cardDesignId, LocalDate issueDate,
+            StudentTextColor requestedFrontTextColor, StudentTextColor requestedBackTextColor,
             String frontKey, String backKey, Predicate<Application> statusGate) {
         Application application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
@@ -56,13 +58,32 @@ class CardGenerationPersistenceService {
             throw new CustomException(ErrorCode.CARD_ISSUE_DATE_MISMATCH);
         }
 
+        StudentTextColor frontTextColor = resolveStudentTextColor(
+                application.getStudentFrontTextColor(), requestedFrontTextColor);
+        StudentTextColor backTextColor = resolveStudentTextColor(
+                application.getStudentBackTextColor(), requestedBackTextColor);
+
         String oldFrontPath = member.getCardFrontPath();
         String oldBackPath = member.getCardBackPath();
         boolean regenerated = member.isCardGenerated();
 
-        application.confirmCardGeneration(cardDesignId, issueDate);
+        application.confirmCardGeneration(cardDesignId, issueDate, frontTextColor, backTextColor);
         member.assignCardImages(frontKey, backKey, issueDate);
 
         return new PersistResult(oldFrontPath, oldBackPath, regenerated);
+    }
+
+    // CardRenderPreparation.resolveStudentTextColor와 동일한 로직 — 렌더링 준비 단계 스냅샷과 별개로
+    // 실제 커밋 직전 재검증한다(cardDesignId/issueDate 재검증과 같은 이유, 클래스 상단 주석 참고).
+    // 공유 유틸 클래스를 새로 만들 정도로 크지 않아 각자 유지한다(기존 cardDesignId/issueDate
+    // 재검증도 두 클래스에 각각 중복돼 있는 것과 동일한 패턴).
+    private StudentTextColor resolveStudentTextColor(StudentTextColor confirmed, StudentTextColor requested) {
+        if (confirmed != null) {
+            if (requested != null && requested != confirmed) {
+                throw new CustomException(ErrorCode.STUDENT_TEXT_COLOR_MISMATCH);
+            }
+            return confirmed;
+        }
+        return requested != null ? requested : StudentTextColor.DARK_GRAY;
     }
 }

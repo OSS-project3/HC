@@ -1,6 +1,7 @@
 package com.example.honorcitizen.domain.card.service;
 
 import com.example.honorcitizen.common.enums.CardTypeCode;
+import com.example.honorcitizen.common.enums.StudentTextColor;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import org.springframework.core.io.ClassPathResource;
@@ -234,25 +235,26 @@ class CardImageCompositor {
         try {
             double bw = layout.baseWidth();
             double bh = layout.baseHeight();
+            Color textColor = toAwtColor(data.studentFrontTextColor());
             drawTitleGeneric(g, CardTypeCode.STUDENT, layout.title(), bw, bh, scaleX, scaleY);
             drawStudentPhoto(g, data.photo(), layout, scaleX, scaleY);
-            drawTextGeneric(g, spacedName(data.fullName()), batangBold, 12.11f, Color.BLACK, layout.name(), bw, bh, scaleX, scaleY);
+            drawTextGeneric(g, spacedName(data.fullName()), batangBold, 12.11f, textColor, layout.name(), bw, bh, scaleX, scaleY);
             // 이름/영문명, 학번/학과처럼 짝을 이루는 줄은 각자 표 좌표로 따로 중앙정렬하면 문자열
             // 길이가 다를 때 왼쪽 끝이 어긋난다(탐색 렌더링에서 실측 확인 — 예: "Jo Grinnarae"가
             // "조그린나래"보다 오른쪽으로 밀림). 위 줄의 왼쪽 끝에 맞춰 아래 줄을 왼쪽 정렬한다.
             double nameLeftEdge = leftEdgeXGeneric(spacedName(data.fullName()), batangBold, 12.11f, layout.name(), bw, scaleX);
-            drawTextAtPixelXGeneric(g, data.englishName(), dotumBold, 6.7f, Color.DARK_GRAY, nameLeftEdge,
+            drawTextAtPixelXGeneric(g, data.englishName(), dotumBold, 6.7f, textColor, nameLeftEdge,
                     layout.englishName(), bh, scaleX, scaleY);
             if (data.isUniversity()) {
-                drawTextGeneric(g, data.studentId(), dotumMedium, 7.6f, Color.BLACK, layout.studentId(), bw, bh, scaleX, scaleY);
+                drawTextGeneric(g, data.studentId(), dotumMedium, 7.6f, textColor, layout.studentId(), bw, bh, scaleX, scaleY);
                 double studentIdLeftEdge = leftEdgeXGeneric(data.studentId(), dotumMedium, 7.6f, layout.studentId(), bw, scaleX);
-                drawTextAtPixelXGeneric(g, data.department(), dotumMedium, 7.6f, Color.BLACK, studentIdLeftEdge,
+                drawTextAtPixelXGeneric(g, data.department(), dotumMedium, 7.6f, textColor, studentIdLeftEdge,
                         layout.department(), bh, scaleX, scaleY);
             } else {
-                drawTextGeneric(g, "생년월일 " + formatIssueDate(data.birthDate()), dotumMedium, 7.6f, Color.BLACK,
+                drawTextGeneric(g, "생년월일 " + formatIssueDate(data.birthDate()), dotumMedium, 7.6f, textColor,
                         layout.birthDate(), bw, bh, scaleX, scaleY);
             }
-            drawTextGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, Color.BLACK,
+            drawTextGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, textColor,
                     layout.issueDate(), bw, bh, scaleX, scaleY);
             drawZodiacGeneric(g, data.zodiacBranch(), data.zodiacDesignSet(), layout.zodiac(), bw, bh, scaleX, scaleY,
                     STUDENT_ZODIAC_BASE_WIDTH);
@@ -286,23 +288,30 @@ class CardImageCompositor {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         try {
-            drawBackText(g, titleFallbackBackText(), batangBold, 8f, Color.BLACK,
+            Color textColor = toAwtColor(data.studentBackTextColor());
+            drawBackText(g, titleFallbackBackText(), batangBold, 8f, textColor,
                     layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
-            drawBackText(g, spacedName(data.fullName()), batangBold, 12.11f, Color.BLACK,
+            drawBackText(g, spacedName(data.fullName()), batangBold, 12.11f, textColor,
                     variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
-            drawBackText(g, data.englishName(), batangBold, 9f, Color.DARK_GRAY,
+            drawBackText(g, data.englishName(), batangBold, 9f, textColor,
                     variant.englishName(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             if (data.hasHanja()) {
-                drawBackText(g, "(" + data.chineseName() + ")", batangBold, 9f, Color.DARK_GRAY,
+                drawBackText(g, "(" + data.chineseName() + ")", batangBold, 9f, textColor,
                         variant.hanja(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             }
-            drawBackTextWrapped(g, data.nameInterpretation(), dotumMedium, 8f, Color.DARK_GRAY,
+            drawBackTextWrapped(g, data.nameInterpretation(), dotumMedium, 8f, textColor,
                     variant.interpretation(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY,
                     layout.baseWidth() * STUDENT_INTERPRETATION_WIDTH_RATIO);
         } finally {
             g.dispose();
         }
         return toPngBytes(bg);
+    }
+
+    // StudentTextColor(도메인 enum) → 실제 렌더링에 쓰는 AWT Color. 학생증 앞·뒷면 동적 텍스트에만
+    // 쓰인다(checklist.md §6) — 다른 카드종류·배경/사진/로고/직인/십이간지 이미지는 대상이 아니다.
+    private Color toAwtColor(StudentTextColor color) {
+        return color == StudentTextColor.WHITE ? Color.WHITE : Color.DARK_GRAY;
     }
 
     // 학생증 사진 슬롯 — 다른 3종처럼 디자인별 참고 파일(사진.png)로 크기를 재지 않는다(학생증

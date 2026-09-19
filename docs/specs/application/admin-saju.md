@@ -460,6 +460,8 @@ NAME_EDITING
 
 미리보기 요청은 `cardDesignId`, `issueDate`, `side`를 받습니다. 미리보기 전에 대상 Member의 실제 카드번호가 관리자에 의해 저장되어 있어야 합니다. 최종 생성 요청은 `cardDesignId`, `issueDate`, 재생성 여부와 동시성 확인용 Application `version`을 받습니다. 학생증은 지원 전까지 명시적인 미지원 오류를 반환합니다.
 
+> ⚠️ 2026-09-19 신규 — 위 문단은 여러 항목이 낡았다(`side`는 2026-08-27에 제거됨, 학생증은 4-C부터 지원됨). 전체 재정리는 이번 변경 범위 밖이라 손대지 않고, 이번에 추가한 항목만 정확히 남긴다: `CardPreviewRequest`(미리보기·생성 공용)에 **`studentFrontTextColor`, `studentBackTextColor`**(둘 다 선택, `DARK_GRAY`\|`WHITE`)를 추가했다(checklist.md §6). STUDENT 카드에만 유효하고, 비학생증 카드가 값을 보내면 `INVALID_INPUT`으로 거절한다. 생략하면 아직 확정 전이면 `DARK_GRAY`로 해석하고, 이미 확정된 값이 있으면 그 값을 그대로 쓴다. 이미 확정된 값과 다른 값을 보내면 `STUDENT_TEXT_COLOR_MISMATCH`(400)로 거절한다 — Application 단위 값이라 단체 신청의 다른 구성원 카드를 만들 때도 동일하게 적용된다(첫 카드 생성 성공 시점에 확정·저장, 이후 잠김). 확정된 값은 관리자 신청 상세 응답(`MyApplicationDetailResponse.studentFrontTextColor`/`studentBackTextColor`)에 노출된다.
+
 ### 관리자 카드번호 입력 정책
 
 카드번호는 서버가 자동 생성하지 않고 관리자가 정합니다. 개인 신청은 Member별 입력 API를 사용하고, 단체 신청은 관리자 화면의 일괄 붙여넣기를 지원합니다.

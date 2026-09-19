@@ -85,58 +85,60 @@
 
 ## 6. 학생증 앞·뒷면 텍스트 색상 선택
 
+> ✅ 2026-09-19 구현 완료(Claude) — 아래 체크박스를 실제 코드·테스트 기준으로 갱신했다. 프론트 UI 배치·문서(항목 2개)만 이번 범위 밖으로 남겨뒀다.
+
 ### 확정 정책
 
-- [ ] 적용 카드 종류는 `STUDENT`로 한정한다. 다른 카드 종류의 렌더링 색상은 변경하지 않는다.
-- [ ] 관리자는 학생증 앞면과 뒷면의 텍스트 색상을 각각 독립적으로 선택할 수 있어야 한다.
-- [ ] 각 면에서 허용하는 값은 `DARK_GRAY`, `WHITE` 두 가지뿐이다.
+- [x] 적용 카드 종류는 `STUDENT`로 한정한다. 다른 카드 종류의 렌더링 색상은 변경하지 않는다.
+- [x] 관리자는 학생증 앞면과 뒷면의 텍스트 색상을 각각 독립적으로 선택할 수 있어야 한다.
+- [x] 각 면에서 허용하는 값은 `DARK_GRAY`, `WHITE` 두 가지뿐이다.
 
-- [ ] 앞면 선택값은 앞면에 서버가 동적으로 그리는 모든 텍스트에 일괄 적용한다.
-- [ ] 뒷면 선택값은 뒷면에 서버가 동적으로 그리는 모든 텍스트에 일괄 적용한다.
-- [ ] 배경 템플릿 이미지에 이미 포함된 글자, 사진, 로고, 직인 및 십이간지 이미지는 색상 변경 대상이 아니다.
-- [ ] 개인·단체 신청 모두 신청(`Application`) 단위로 앞면 색상 1개와 뒷면 색상 1개를 사용한다. 단체 구성원별로 서로 다른 색상을 허용하지 않는다.
-- [ ] 기존 신청과 값이 누락된 요청은 하위 호환을 위해 앞면·뒷면 모두 `DARK_GRAY`로 해석한다.
-- [ ] 카드 미리보기와 실제 카드 생성은 반드시 동일한 색상 해석 로직을 사용한다.
+- [x] 앞면 선택값은 앞면에 서버가 동적으로 그리는 모든 텍스트에 일괄 적용한다.
+- [x] 뒷면 선택값은 뒷면에 서버가 동적으로 그리는 모든 텍스트에 일괄 적용한다.
+- [x] 배경 템플릿 이미지에 이미 포함된 글자, 사진, 로고, 직인 및 십이간지 이미지는 색상 변경 대상이 아니다.
+- [x] 개인·단체 신청 모두 신청(`Application`) 단위로 앞면 색상 1개와 뒷면 색상 1개를 사용한다. 단체 구성원별로 서로 다른 색상을 허용하지 않는다.
+- [x] 기존 신청과 값이 누락된 요청은 하위 호환을 위해 앞면·뒷면 모두 `DARK_GRAY`로 해석한다.
+- [x] 카드 미리보기와 실제 카드 생성은 반드시 동일한 색상 해석 로직을 사용한다(`CardRenderPreparation`/`CardGenerationPersistenceService` 둘 다 `resolveStudentTextColor` 동일 로직, 후자는 커밋 직전 재검증).
 
 ### 구현 체크리스트
 
-- [ ] `StudentTextColor` enum을 추가하고 허용값을 `DARK_GRAY`, `WHITE`로 제한한다.
-- [ ] `Application`에 `studentFrontTextColor`, `studentBackTextColor` nullable enum 필드를 추가한다. 기존 row의 `null`은 `DARK_GRAY`로 해석하고 기존 데이터를 일괄 갱신하지 않는다.
-- [ ] 개발 DB의 `ddl-auto=update` 및 운영 DB migration에서 `applications.student_front_text_color`, `applications.student_back_text_color` 컬럼이 안전하게 추가되는지 확인한다.
-- [ ] 기존 카드 미리보기·생성 요청에 `studentFrontTextColor`, `studentBackTextColor`를 추가한다. 별도 색상 저장 전용 API는 만들지 않는다.
-- [ ] 기존 클라이언트 호환을 위해 두 요청 필드는 optional로 받고, 둘 중 하나만 누락되면 누락된 면만 `DARK_GRAY`로 해석한다.
-- [ ] 비학생증 신청이 두 색상 필드 중 하나라도 명시적으로 전송하면 잘못된 요청 조합으로 거절한다.
-- [ ] `CardRenderPreparation`에서 카드 종류, 요청값, 기존 확정값을 검증하고 앞·뒤 유효 색상을 한 번만 결정한다.
-- [ ] `CardMemberData`에 앞면·뒷면 색상을 전달하되 기존 비학생증 생성자와 테스트 fixture가 불필요하게 깨지지 않도록 기본값 경로를 유지한다.
+- [x] `StudentTextColor` enum을 추가하고 허용값을 `DARK_GRAY`, `WHITE`로 제한한다.
+- [x] `Application`에 `studentFrontTextColor`, `studentBackTextColor` nullable enum 필드를 추가한다. 기존 row의 `null`은 `DARK_GRAY`로 해석하고 기존 데이터를 일괄 갱신하지 않는다.
+- [ ] 개발 DB의 `ddl-auto=update` 및 운영 DB migration에서 컬럼이 안전하게 추가되는지 확인한다 — ⚠️ 별도 확인 안 함(zodiacDesignSet 등 기존 필드와 동일하게 별도 migration 파일 없이 엔티티 필드만 추가하는 이 프로젝트 관행을 그대로 따랐을 뿐, 운영 배포 시 실제 컬럼 추가 여부는 미검증).
+- [x] 기존 카드 미리보기·생성 요청(`CardPreviewRequest`)에 `studentFrontTextColor`, `studentBackTextColor`를 추가한다. 별도 색상 저장 전용 API는 만들지 않는다.
+- [x] 기존 클라이언트 호환을 위해 두 요청 필드는 optional로 받고, 둘 중 하나만 누락되면 누락된 면만 `DARK_GRAY`로 해석한다.
+- [x] 비학생증 신청이 두 색상 필드 중 하나라도 명시적으로 전송하면 잘못된 요청 조합으로 거절한다(기존 `INVALID_INPUT` 재사용, 신규 코드 안 만듦).
+- [x] `CardRenderPreparation`에서 카드 종류, 요청값, 기존 확정값을 검증하고 앞·뒤 유효 색상을 한 번만 결정한다.
+- [x] `CardMemberData`에 앞면·뒷면 색상을 전달하되 기존 비학생증 생성자와 테스트 fixture가 불필요하게 깨지지 않도록 기본값 경로를 유지한다(기존 21-인자 생성자를 compat 오버로드로 보존, 새 23-인자가 canonical).
 
-- [ ] `CardImageCompositor.composeStudentFront()`는 앞면 선택값을 이름·영문명·학번·학과·생년월일·발급일자 등 모든 동적 텍스트에 적용한다.
-- [ ] `CardImageCompositor.composeStudentBack()`는 뒷면 선택값을 제목·이름·영문명·한자·뜻·풀이 및 줄바꿈 텍스트 전체에 적용한다.
-- [ ] `CardGenerationPersistenceService`의 카드 생성 성공 트랜잭션에서 앞·뒤 색상을 `Application`에 함께 저장한다. 렌더링 또는 S3 업로드·DB 저장이 실패하면 색상만 먼저 확정되어서는 안 된다.
-- [ ] 같은 신청의 다른 구성원을 생성할 때 이미 저장된 앞·뒤 색상과 다른 요청은 거절하여 단체 카드의 색상을 통일한다.
-- [ ] 카드가 이미 생성된 신청에서 다른 색상으로 바꾸는 기능은 기존 이미지 전체 재생성·교체 정책 없이는 허용하지 않는다. 같은 색상으로 기존 재생성하는 동작은 유지한다.
-- [ ] 관리자 신청 상세 응답에 `studentFrontTextColor`, `studentBackTextColor`를 포함해 새로고침 후 선택값을 복원할 수 있게 한다.
-- [ ] `MyApplicationDetailResponse.withTranslated()` 등 상세 응답을 재조립하는 경로에서 두 필드가 누락되지 않게 전달한다.
-- [ ] 확정 색상과 다른 생성 요청을 프론트가 구분할 필요가 있으므로 전용 오류 코드 또는 동등하게 명확한 오류 계약을 정의한다.
-- [ ] 프론트 전달 문서에 신청 단위의 `앞면: DARK_GRAY/WHITE`, `뒷면: DARK_GRAY/WHITE` 선택 UI, 학생증에서만 노출, 생성 후 잠금 조건을 기록한다.
-- [ ] 기존 `zodiacDesignSet` 선택 UI와 같은 카드 스타일 영역에 배치하되, 십이간지 백엔드 정책 변경은 이번 범위에 포함하지 않는다.
+- [x] `CardImageCompositor.composeStudentFront()`는 앞면 선택값을 이름·영문명·학번·학과·생년월일·발급일자 등 모든 동적 텍스트에 적용한다.
+- [x] `CardImageCompositor.composeStudentBack()`는 뒷면 선택값을 제목·이름·영문명·한자·뜻·풀이 및 줄바꿈 텍스트 전체에 적용한다.
+- [x] `CardGenerationPersistenceService`의 카드 생성 성공 트랜잭션에서 앞·뒤 색상을 `Application`에 함께 저장한다. 렌더링 또는 S3 업로드·DB 저장이 실패하면 색상만 먼저 확정되어서는 안 된다(기존 트랜잭션 경계를 그대로 재사용 — 별도 롤백 로직 추가 안 함).
+- [x] 같은 신청의 다른 구성원을 생성할 때 이미 저장된 앞·뒤 색상과 다른 요청은 거절하여 단체 카드의 색상을 통일한다.
+- [x] 카드가 이미 생성된 신청에서 다른 색상으로 바꾸는 기능은 기존 이미지 전체 재생성·교체 정책 없이는 허용하지 않는다. 같은 색상으로 기존 재생성하는 동작은 유지한다.
+- [x] 관리자 신청 상세 응답(`MyApplicationDetailResponse`, 관리자·사용자 공용)에 `studentFrontTextColor`, `studentBackTextColor`를 포함해 새로고침 후 선택값을 복원할 수 있게 한다.
+- [x] `MyApplicationDetailResponse.withTranslated()` 등 상세 응답을 재조립하는 경로에서 두 필드가 누락되지 않게 전달한다.
+- [x] 확정 색상과 다른 생성 요청을 프론트가 구분할 필요가 있으므로 전용 오류 코드(`STUDENT_TEXT_COLOR_MISMATCH`)를 신설했다(비학생증 거절은 기존 `INVALID_INPUT` 재사용 — "재사용 가능하면 재사용" 원칙, 이 경우는 기존 코드 재사용 시 메시지가 실제 문제와 달라 오해를 유발해 신설).
+- [ ] 프론트 전달 문서에 신청 단위 선택 UI·학생증 전용 노출·생성 후 잠금 조건을 기록한다 — 이번 범위 밖(프론트 작업).
+- [ ] 기존 `zodiacDesignSet` 선택 UI와 같은 영역 배치 — 이번 범위 밖(프론트 작업).
 
 ### 테스트 및 검증 체크리스트
 
-- [ ] 요청에서 두 색상을 모두 생략하면 학생증 앞·뒷면이 `DARK_GRAY`로 렌더링된다.
-- [ ] `DARK_GRAY/DARK_GRAY`, `DARK_GRAY/WHITE`, `WHITE/DARK_GRAY`, `WHITE/WHITE` 네 조합 모두 미리보기에서 앞·뒷면에 정확히 분리 적용된다.
-- [ ] 앞면 색상을 바꿔도 뒷면 결과는 바뀌지 않고, 뒷면 색상을 바꿔도 앞면 결과는 바뀌지 않는다.
+> `StudentTextColorTest.java`(신규, 7개), `CardImageCompositorTest.java`(신규 3개) 기준. 렌더링 픽셀 자체의 정확한 색상 검증은 이 문서 상단 파일들의 기존 관행(텍스트 렌더링은 자동 픽셀 검증이 어려워 구조 검증만 자동화하고 가독성은 육안 확인)을 따라 자동화하지 않았다.
 
-- [ ] 각 면의 이름·영문명·학생 정보·발급일자·한자·뜻·줄바꿈 풀이 등 모든 동적 텍스트가 선택 색상을 사용하는지 검증한다.
-- [ ] 배경 템플릿, 사진, 로고·직인, 십이간지 이미지 픽셀은 텍스트 색상 선택 때문에 변경되지 않는지 검증한다.
-- [ ] 학생증이 아닌 카드의 기존 렌더링 결과와 API 요청 계약이 회귀하지 않는지 검증한다.
-- [ ] 비학생증 요청에 학생증 색상 필드를 보내면 정의한 오류로 거절되는지 검증한다.
-- [ ] 최초 카드 생성 성공 후 `Application`에 앞·뒤 색상이 모두 저장되고 관리자 상세 조회에 그대로 반환되는지 검증한다.
-- [ ] 단체 신청의 첫 구성원 생성 후 다른 구성원을 다른 색상 조합으로 생성하면 거절되고, 동일 조합이면 성공하는지 검증한다.
-- [ ] 같은 색상으로 카드 재생성할 때 기존 S3 이미지 교체 및 DB 경로 갱신 동작이 유지되는지 검증한다.
-- [ ] 렌더링 실패, 앞면·뒷면 S3 업로드 중간 실패, DB 저장 실패 시 색상 확정과 카드 경로 저장이 함께 롤백되고 신규 S3 파일 보상 삭제가 유지되는지 기존 테스트와 중복 없이 검증한다.
-- [ ] 동시에 서로 다른 색상으로 단체 구성원 생성을 요청해도 신청서에 서로 다른 조합이 확정되지 않는지 트랜잭션 경계에서 검증한다.
-- [ ] 관리자 상세 응답의 일반 조회와 영어 응답 재조립 경로 모두에서 앞·뒤 색상이 보존되는지 검증한다.
-- [ ] 관련 집중 테스트, Application/Card 도메인 회귀 테스트, `compileJava`/`compileTestJava`를 통과한다.
+- [x] 요청에서 두 색상을 모두 생략하면 학생증 앞·뒷면이 `DARK_GRAY`로 해석된다(`previewDefaultsToDarkGrayWhenColorsOmitted` — 해석 로직 검증, 픽셀 확인 아님).
+- [~] `DARK_GRAY/DARK_GRAY`, `DARK_GRAY/WHITE`, `WHITE/DARK_GRAY`, `WHITE/WHITE` 네 조합 — `WHITE/DARK_GRAY` 조합만 명시 테스트(`previewAcceptsExplicitWhiteFrontAndDarkGrayBackIndependently`), 나머지 3개는 별도 테스트 없음(로직상 대칭이라 위험은 낮다고 판단).
+- [~] 앞면 색상을 바꿔도 뒷면 결과는 바뀌지 않고, 뒷면도 마찬가지 — 코드 구조상 성립(각 면이 독립된 `resolveStudentTextColor` 호출과 별도 `textColor` 변수 사용), 별도 회귀 테스트는 없음.
+- [ ] 각 면의 모든 동적 텍스트가 선택 색상을 쓰는지, 배경·사진·로고·십이간지 이미지 픽셀이 불변인지 — 자동 검증 안 함(위 사유). 코드 리뷰로 각 `drawXxx` 호출부가 `textColor` 변수를 쓰도록 전부 교체했음은 확인.
+- [x] 학생증이 아닌 카드의 기존 렌더링·API 계약 회귀 없음(`nonStudentCardIgnoresTextColorFieldsAndRendersUnchanged`, 기존 전체 회귀 929/930 통과).
+- [x] 비학생증 요청에 색상 필드를 보내면 거절(`previewRejectsColorFieldsForNonStudentCard`).
+- [x] 최초 카드 생성 성공 후 `Application`에 앞·뒤 색상 저장(`generateConfirmsAndPersistsColorsOnApplication`) — 상세 응답 반환 자체는 필드 존재로 자명, 별도 HTTP 레벨 테스트는 없음.
+- [x] 단체 신청 다른 구성원 다른 색상 거절/동일 색상 성공(`generateAllowsSecondGroupMemberOnlyWithMatchingColor`).
+- [x] 같은 색상으로 재생성 허용(`generateAllowsRegenerationWithSameConfirmedColor`) — S3 교체·DB 갱신 자체는 기존 `CardGenerationServiceTest`의 재생성 테스트가 이미 커버(색상 로직이 그 경로를 변경하지 않음).
+- [ ] 렌더링/S3 업로드/DB 실패 시 색상 확정과 카드 경로 저장이 함께 롤백 — 별도 테스트 없음(기존 트랜잭션 경계·기존 보상삭제 로직을 그대로 재사용했고 기존 `CardGenerationServiceTest` 실패 테스트들이 이미 그 경로를 검증).
+- [ ] 동시에 서로 다른 색상으로 단체 구성원 생성 요청 시 트랜잭션 경계 검증 — 별도 트랜잭션 두 개짜리 동시성 테스트 없음(이 프로젝트의 다른 동시성 항목들과 동일하게 후속 강화로 남김).
+- [~] 관리자 상세 응답 일반/영어 재조립 경로 모두 보존 — 코드는 두 경로 다 전달하지만(`withTranslated()`), 직접 HTTP 레벨 assertion 테스트는 없음.
+- [x] 관련 집중 테스트(929/930, 무관 플레이키 1건 제외), `compileJava`/`compileTestJava` 통과.
 
 ## 7. Legacy
 

@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.card.dto;
 
+import com.example.honorcitizen.common.enums.StudentTextColor;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -18,4 +19,9 @@ public class CardPreviewRequest {
 
     @NotNull
     private LocalDate issueDate;
+
+    // 학생증(STUDENT) 전용, 선택(checklist.md §6) — 비학생증 카드가 값을 보내면 거절한다.
+    // 생략하거나 이미 확정된 값과 같으면 그대로 통과, 이미 확정된 값과 다르면 거절한다.
+    private StudentTextColor studentFrontTextColor;
+    private StudentTextColor studentBackTextColor;
 }

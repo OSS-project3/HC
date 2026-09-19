@@ -2,6 +2,7 @@ package com.example.honorcitizen.domain.card.service;
 
 import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.SchoolType;
+import com.example.honorcitizen.common.enums.StudentTextColor;
 
 import java.time.LocalDate;
 
@@ -38,7 +39,23 @@ record CardMemberData(
         LocalDate birthDate,
         byte[] templateFront,
         byte[] templateBack,
-        int zodiacDesignSet) {
+        int zodiacDesignSet,
+        StudentTextColor studentFrontTextColor,
+        StudentTextColor studentBackTextColor) {
+
+    // 기존 호출부(학생증 텍스트 색상 도입 이전) 하위 호환용 — 둘 다 DARK_GRAY로 그린다(checklist.md
+    // §6 하위호환 정책과 동일한 기본값). 실제 렌더링 경로(CardRenderPreparation)는 항상 해석된
+    // 색상을 명시적으로 넘기므로 이 기본값은 비학생증·테스트 편의용일 뿐이다(2026-09-19 신규 필드).
+    CardMemberData(String surname, String name, String englishName, String chineseName, String nameMeaning,
+            String nameInterpretation, byte[] photo, String cardNumber, String address, LocalDate issueDate,
+            String zodiacBranch, byte[] logo, byte[] seal, SchoolType schoolType,
+            CardDesignOrientation studentOrientation, String studentId, String department, LocalDate birthDate,
+            byte[] templateFront, byte[] templateBack, int zodiacDesignSet) {
+        this(surname, name, englishName, chineseName, nameMeaning, nameInterpretation, photo, cardNumber,
+                address, issueDate, zodiacBranch, logo, seal, schoolType, studentOrientation, studentId,
+                department, birthDate, templateFront, templateBack, zodiacDesignSet,
+                StudentTextColor.DARK_GRAY, StudentTextColor.DARK_GRAY);
+    }
 
     // 기존 호출부(십이간지 디자인 세트 도입 이전, 학생증 포함) 하위 호환용 — 1번 세트로 그린다.
     // 실제 렌더링 경로(CardRenderPreparation)는 항상 Application.zodiacDesignSet을 명시적으로

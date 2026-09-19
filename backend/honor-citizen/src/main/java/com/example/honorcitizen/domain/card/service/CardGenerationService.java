@@ -55,6 +55,7 @@ public class CardGenerationService {
 
             CardGenerationPersistenceService.PersistResult persisted = persistenceService.persist(
                     applicationId, memberId, request.getCardDesignId(), request.getIssueDate(),
+                    request.getStudentFrontTextColor(), request.getStudentBackTextColor(),
                     frontKey, backKey, GENERATE_STATUS_GATE);
 
             // 재생성이면 기존 파일은 DB commit이 성공한 지금부터만 삭제한다(신규 파일 선저장→commit→

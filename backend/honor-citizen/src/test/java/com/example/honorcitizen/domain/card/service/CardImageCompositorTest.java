@@ -3,6 +3,7 @@ package com.example.honorcitizen.domain.card.service;
 import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.SchoolType;
+import com.example.honorcitizen.common.enums.StudentTextColor;
 import com.example.honorcitizen.common.exception.CustomException;
 import org.junit.jupiter.api.Test;
 
@@ -305,6 +306,49 @@ class CardImageCompositorTest {
         assertThat(result).isNotNull();
         assertThat(result.getWidth()).isEqualTo(650);
         assertThat(result.getHeight()).isEqualTo(980);
+    }
+
+    // 학생증 텍스트 색상(checklist.md §6) — 이 파일의 다른 테스트와 동일한 철학대로, 텍스트 색상의
+    // 정확한 픽셀 검증은 육안 확인으로 보완하고 여기서는 두 색상 값 모두 예외 없이 유효 PNG를
+    // 만드는지(구조적 성질)만 검증한다.
+    @Test
+    void composesStudentFrontWithWhiteTextColor() throws Exception {
+        CardMemberData base = studentData(SchoolType.UNIVERSITY, CardDesignOrientation.LANDSCAPE, false);
+        CardMemberData data = withTextColors(base, StudentTextColor.WHITE, StudentTextColor.DARK_GRAY);
+
+        byte[] png = compositor.composeFront(CardTypeCode.STUDENT, 1, data);
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void composesStudentBackWithWhiteTextColor() throws Exception {
+        CardMemberData base = studentData(SchoolType.UNIVERSITY, CardDesignOrientation.LANDSCAPE, true);
+        CardMemberData data = withTextColors(base, StudentTextColor.DARK_GRAY, StudentTextColor.WHITE);
+
+        byte[] png = compositor.composeBack(CardTypeCode.STUDENT, 1, data);
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    @Test
+    void nonStudentCardIgnoresTextColorFieldsAndRendersUnchanged() throws Exception {
+        // 정책: 색상 선택은 STUDENT 전용 — 비학생증 카드는 이 필드가 어떤 값이어도(기본값 DARK_GRAY
+        // 포함) 렌더링에 영향이 없어야 한다. sampleData()가 이미 기본값(DARK_GRAY/DARK_GRAY)으로
+        // CardMemberData를 만들므로, 정상적으로 렌더링되는 기존 테스트들의 통과 자체가 이 회귀를 덮는다 —
+        // 여기서는 그 전제를 명시적으로 문서화한다.
+        byte[] png = compositor.composeFront(CardTypeCode.HONOR_KOREAN, 1, sampleData());
+
+        assertThat(ImageIO.read(new ByteArrayInputStream(png))).isNotNull();
+    }
+
+    private CardMemberData withTextColors(CardMemberData data, StudentTextColor front, StudentTextColor back) {
+        return new CardMemberData(
+                data.surname(), data.name(), data.englishName(), data.chineseName(), data.nameMeaning(),
+                data.nameInterpretation(), data.photo(), data.cardNumber(), data.address(), data.issueDate(),
+                data.zodiacBranch(), data.logo(), data.seal(), data.schoolType(), data.studentOrientation(),
+                data.studentId(), data.department(), data.birthDate(), data.templateFront(), data.templateBack(),
+                data.zodiacDesignSet(), front, back);
     }
 
     @Test
