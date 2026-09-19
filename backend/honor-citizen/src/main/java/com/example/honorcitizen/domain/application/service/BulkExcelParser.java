@@ -14,6 +14,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -71,13 +72,45 @@ class BulkExcelParser {
 
     // 0-indexed 행 번호 상수 (Apache POI는 0-based 인덱스 사용)
     private static final int COMMON_ENTRY_DATE_ROW = 0; // 1행: 공통 입국날짜
-    private static final int HEADER_ROW = 2;             // 3행: 헤더 (실제로 읽지 않음)
+    private static final int HEADER_ROW = 2;             // 3행: 헤더
     private static final int FIRST_DATA_ROW = 3;         // 4행: 첫 번째 데이터 행
 
-    private final ApplicationPhotoValidator applicationPhotoValidator;
+    // BULK_EXCEL_TEMPLATE_POLICY.md §9 — 업로드 한도(2026-09-20 확정, QA 체크리스트 11번).
+    private static final long DEFAULT_MAX_EXCEL_BYTES = 5L * 1024 * 1024; // Excel 5 MiB
+    private static final long DEFAULT_MAX_DECOMPRESSED_TOTAL_BYTES = 250L * 1024 * 1024; // 해제 후 누적 250 MiB
+    private static final int MAX_ZIP_ENTRIES = 110; // ZIP 내부 유효 파일 최대 110개
+    private static final int MAX_MEMBERS = 100; // 단체 신청 구성원 최대 100명
+    private static final int READ_BUFFER_SIZE = 8192;
 
+    // BULK_EXCEL_TEMPLATE_POLICY.md §4.1/4.2 — 헤더명·열 개수·열 순서 계약(2026-09-20 확정,
+    // QA 체크리스트 12번). 일반카드·고등학교 학생증은 동일한 11열을 쓰고, 대학교 학생증만
+    // 학번·학과 2열이 추가된 13열을 쓴다.
+    private static final String[] COMMON_HEADERS_11 = {
+            "사진 번호", "영문명", "생년월일", "국적", "출생시간", "출생지역", "성별",
+            "개별입국날짜", "이메일", "전화번호", "주소"
+    };
+    private static final String[] UNIVERSITY_HEADERS_13 = {
+            "사진 번호", "영문명", "생년월일", "국적", "출생시간", "출생지역", "성별",
+            "개별입국날짜", "이메일", "전화번호", "주소", "학번", "학과"
+    };
+
+    private final ApplicationPhotoValidator applicationPhotoValidator;
+    private final long maxExcelBytes;
+    private final long maxDecompressedTotalBytes;
+
+    // 생성자가 2개라 Spring이 어느 쪽을 쓸지 스스로 못 정한다(둘 다 같은 접근제어자 — 명시하지
+    // 않으면 NoSuchMethodException으로 빈 생성 자체가 실패한다) — 운영 빈은 항상 이 생성자를 쓴다.
+    @Autowired
     BulkExcelParser(ApplicationPhotoValidator applicationPhotoValidator) {
+        this(applicationPhotoValidator, DEFAULT_MAX_EXCEL_BYTES, DEFAULT_MAX_DECOMPRESSED_TOTAL_BYTES);
+    }
+
+    // 테스트에서 실제 5MiB/250MiB를 채우지 않고도 누적 상한 로직을 검증할 수 있도록 연 생성자.
+    // Spring이 관리하는 운영 빈은 항상 위 1-인자 생성자(=정책값)만 쓴다.
+    BulkExcelParser(ApplicationPhotoValidator applicationPhotoValidator, long maxExcelBytes, long maxDecompressedTotalBytes) {
         this.applicationPhotoValidator = applicationPhotoValidator;
+        this.maxExcelBytes = maxExcelBytes;
+        this.maxDecompressedTotalBytes = maxDecompressedTotalBytes;
     }
 
     /**
@@ -102,22 +135,41 @@ class BulkExcelParser {
         // 사진을 사진 번호 → PhotoEntry 맵으로 관리해 엑셀 파싱 시 O(1) 매칭이 가능하게 한다.
         Map<String, PhotoEntry> photosById = new HashMap<>();
         List<byte[]> excelCandidates = new ArrayList<>();
+        long[] decompressedTotal = {0L};
+        int entryCount = 0;
 
         try (ZipInputStream zipInputStream = new ZipInputStream(zipFile.getInputStream())) {
             ZipEntry entry;
             while ((entry = zipInputStream.getNextEntry()) != null) {
                 String name = entry.getName();
 
-                // 디렉터리 엔트리, 하위 폴더 파일, macOS 아티팩트를 모두 건너뛴다.
-                // macOS에서 ZIP을 만들면 __MACOSX/ 디렉터리와 .DS_Store 파일이 자동 포함된다.
-                if (entry.isDirectory() || !isRootEntry(name) || isIgnoredEntry(name)) {
+                // 디렉터리와 macOS 아티팩트(__MACOSX/ 하위 전체, .DS_Store)는 유효 파일 수 자체에서
+                // 제외한다(BULK_EXCEL_TEMPLATE_POLICY.md §9). 나머지는 하위 폴더 파일이라도 일단
+                // 유효 엔트리 수에 포함시켜 압축 폭탄성 "대량 소파일" 시도를 조기에 차단한다.
+                if (entry.isDirectory() || isMacosxArtifact(name)) {
+                    continue;
+                }
+                entryCount++;
+                if (entryCount > MAX_ZIP_ENTRIES) {
+                    throw singleError(null, "submitFile", "ZIP_TOO_MANY_ENTRIES",
+                            "ZIP 내부 유효 파일 수가 최대 " + MAX_ZIP_ENTRIES + "개를 초과했습니다.");
+                }
+
+                // 하위 폴더 파일은 위에서 이미 카운트했지만 내용은 처리하지 않는다(루트 직속 파일만
+                // 신청 데이터로 인정).
+                if (!isRootEntry(name)) {
                     continue;
                 }
 
                 if (name.toLowerCase().endsWith(".xlsx")) {
                     // .xls (구 형식)은 지원하지 않는다 — WorkbookFactory로 읽을 수는 있으나
                     // 엑셀 템플릿을 .xlsx로 제공하므로 사용자가 .xlsx로 제출해야 한다.
-                    excelCandidates.add(readAll(zipInputStream));
+                    byte[] excelBytes = readAllBounded(zipInputStream, decompressedTotal);
+                    if (excelBytes.length > maxExcelBytes) {
+                        throw singleError(null, "submitFile", "EXCEL_TOO_LARGE",
+                                "Excel 파일 크기가 최대 " + (maxExcelBytes / (1024 * 1024)) + "MiB를 초과했습니다.");
+                    }
+                    excelCandidates.add(excelBytes);
                 } else {
                     // 파일명에서 확장자를 제거한 값을 사진 번호 키로 사용한다.
                     // "1.jpg" → ID="1", "photo_001.PNG" → ID="photo_001"
@@ -127,7 +179,7 @@ class BulkExcelParser {
                     if (photosById.containsKey(normalizedId)) {
                         throw singleError(null, "photo", "PHOTO_DUPLICATE", "동일 사진 번호에 대한 사진 파일이 2개 이상입니다.");
                     }
-                    photosById.put(normalizedId, new PhotoEntry(name, readAll(zipInputStream)));
+                    photosById.put(normalizedId, new PhotoEntry(name, readAllBounded(zipInputStream, decompressedTotal)));
                 }
             }
         } catch (IOException e) {
@@ -145,15 +197,35 @@ class BulkExcelParser {
         return parseExcel(excelCandidates.get(0), photosById, isStudent, schoolType);
     }
 
-    // ZIP 엔트리 이름에 '/'가 포함되면 하위 폴더 항목이다. 루트 직속 파일만 처리한다.
+    // ZIP 엔트리 이름에 '/'가 포함되면 하위 폴더 항목이다. 루트 직속 파일만 신청 데이터로 처리한다.
     private boolean isRootEntry(String name) {
         return !name.contains("/");
     }
 
-    // macOS가 자동 생성하는 .DS_Store 파일을 무시한다.
-    // __MACOSX/는 isRootEntry에서 '/'로 이미 걸러지므로 별도 처리가 불필요하다.
-    private boolean isIgnoredEntry(String name) {
-        return name.equals(".DS_Store");
+    // macOS가 자동 생성하는 .DS_Store 파일과 __MACOSX/ 하위 전체를 무시한다(유효 파일 수 집계에서도 제외).
+    private boolean isMacosxArtifact(String name) {
+        return name.equals(".DS_Store") || name.startsWith("__MACOSX/");
+    }
+
+    /**
+     * ZIP 엔트리를 byte[]로 읽으면서 압축 해제 후 누적 크기를 실시간으로 제한한다(압축 폭탄 방어,
+     * BULK_EXCEL_TEMPLATE_POLICY.md §9 — "압축 해제 후 전체 크기"는 다 읽은 뒤가 아니라 읽는 도중
+     * 제한해야 한다). 여러 엔트리에 걸친 누적 합계이므로 호출자가 공유하는 decompressedTotal을
+     * 통해 상태를 이어간다(이 클래스는 싱글턴 빈이라 인스턴스 필드로 요청별 상태를 못 둔다).
+     */
+    private byte[] readAllBounded(InputStream inputStream, long[] decompressedTotal) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] chunk = new byte[READ_BUFFER_SIZE];
+        int read;
+        while ((read = inputStream.read(chunk)) != -1) {
+            buffer.write(chunk, 0, read);
+            decompressedTotal[0] += read;
+            if (decompressedTotal[0] > maxDecompressedTotalBytes) {
+                throw singleError(null, "submitFile", "ZIP_DECOMPRESSED_TOO_LARGE",
+                        "ZIP 압축 해제 후 전체 크기가 최대 " + (maxDecompressedTotalBytes / (1024 * 1024)) + "MiB를 초과했습니다.");
+            }
+        }
+        return buffer.toByteArray();
     }
 
     /**
@@ -179,12 +251,19 @@ class BulkExcelParser {
             Sheet sheet = workbook.getSheetAt(0); // 첫 번째 시트만 읽는다
             DataFormatter formatter = new DataFormatter();
 
+            // 헤더명·열 개수·열 순서가 공식 양식과 정확히 일치하는지 먼저 확인한다(2026-09-20
+            // 확정 정책, QA 체크리스트 12번) — 열 위치 기반으로 이후 모든 셀을 읽으므로, 헤더가
+            // 어긋난 상태로 데이터를 계속 읽으면 엉뚱한 열을 다른 필드로 오인해 저장할 수 있다.
+            validateHeader(sheet, formatter, isStudent, schoolType);
+
             // 1행 B열에서 공통 입국날짜를 읽는다. 없으면 null이고 개별 행에서 대체된다.
             LocalDate commonEntryDate = readCommonEntryDateCell(sheet, formatter);
 
             List<BulkMemberRow> rows = new ArrayList<>();
             List<ValidationErrorDetail> errors = new ArrayList<>();
             Set<String> seenIds = new HashSet<>();
+            int applicantRowCount = 0;
+            boolean memberCountExceeded = false;
 
             int lastRowNum = sheet.getLastRowNum();
             for (int rowIndex = FIRST_DATA_ROW; rowIndex <= lastRowNum; rowIndex++) {
@@ -194,6 +273,18 @@ class BulkExcelParser {
                 // 따라서 A열 값만으로 신청자 행을 판단하지 않고, 사용자가 입력하는 B열 이후에
                 // 값이 하나라도 있는 행만 실제 신청 데이터로 검증·처리한다.
                 if (!hasApplicantInput(row, isStudent, schoolType, formatter)) {
+                    continue;
+                }
+
+                applicantRowCount++;
+                if (applicantRowCount > MAX_MEMBERS) {
+                    // 이미 전체 실패가 확정된 사안이라 초과분 각 행까지 개별 검증할 필요는 없다 —
+                    // 오류 하나만 남기고(중복 누적 방지) 나머지 행은 건너뛴다.
+                    if (!memberCountExceeded) {
+                        errors.add(new ValidationErrorDetail(null, "submitFile", "MEMBER_COUNT_EXCEEDED",
+                                "단체 신청 구성원은 최대 " + MAX_MEMBERS + "명까지 가능합니다."));
+                        memberCountExceeded = true;
+                    }
                     continue;
                 }
 
@@ -241,6 +332,39 @@ class BulkExcelParser {
             // POI 파싱 오류, 암호화된 파일 등 모든 예외를 사용자 친화적 메시지로 변환한다.
             throw singleError(null, "submitFile", "EXCEL_UNREADABLE", "엑셀 파일을 읽을 수 없습니다.");
         }
+    }
+
+    /**
+     * 헤더명·열 개수·열 순서가 공식 양식과 정확히 일치하는지 검증한다(BULK_EXCEL_TEMPLATE_POLICY.md
+     * §3.2 "헤더명, 열 개수, 열 순서는 공식 양식과 정확히 일치해야 한다", 2026-09-20 확정).
+     * 공백만 다른 경우까지 거절하면 사용자 실수에 지나치게 엄격하므로 앞뒤 공백만 제거한 뒤 비교한다
+     * (stringValue가 이미 trim 처리). 정의되지 않은 추가 열도 허용하지 않는다.
+     */
+    private void validateHeader(Sheet sheet, DataFormatter formatter, boolean isStudent, SchoolType schoolType) {
+        String[] expected = expectedHeaders(isStudent, schoolType);
+        Row headerRow = sheet.getRow(HEADER_ROW);
+        if (headerRow == null) {
+            throw singleError(null, "submitFile", "HEADER_MISMATCH", "엑셀 헤더가 공식 양식과 일치하지 않습니다.");
+        }
+        for (int i = 0; i < expected.length; i++) {
+            String actual = stringValue(headerRow, i, formatter);
+            if (!expected[i].equals(actual)) {
+                throw singleError(null, "submitFile", "HEADER_MISMATCH",
+                        (i + 1) + "번째 열 헤더가 공식 양식과 일치하지 않습니다.");
+            }
+        }
+        if (stringValue(headerRow, expected.length, formatter) != null) {
+            throw singleError(null, "submitFile", "HEADER_MISMATCH", "정의되지 않은 추가 열이 있습니다.");
+        }
+    }
+
+    // 일반카드·고등학교 학생증은 동일한 11열, 대학교 학생증만 학번·학과가 추가된 13열이다
+    // (BULK_EXCEL_TEMPLATE_POLICY.md §4.2 — 고등학교 양식에는 학번·학과 열 자체가 없다).
+    private String[] expectedHeaders(boolean isStudent, SchoolType schoolType) {
+        if (isStudent && schoolType == SchoolType.UNIVERSITY) {
+            return UNIVERSITY_HEADERS_13;
+        }
+        return COMMON_HEADERS_11;
     }
 
     /**
@@ -590,14 +714,6 @@ class BulkExcelParser {
         return dotIndex == -1 ? fileName : fileName.substring(0, dotIndex);
     }
 
-    // ZipInputStream에서 현재 엔트리의 전체 내용을 byte[]로 읽는다.
-    // ZipInputStream은 각 엔트리에서 읽기 전에 getNextEntry()를 호출해야 하며,
-    // 읽은 후 closeEntry()를 호출하지 않아도 다음 getNextEntry()에서 자동 처리된다.
-    private byte[] readAll(InputStream inputStream) throws IOException {
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        inputStream.transferTo(buffer);
-        return buffer.toByteArray();
-    }
 
     /**
      * 단일 오류를 BulkValidationException으로 래핑하는 헬퍼 메서드.

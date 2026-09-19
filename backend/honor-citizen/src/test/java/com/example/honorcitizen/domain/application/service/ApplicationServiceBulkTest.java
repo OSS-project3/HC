@@ -168,7 +168,29 @@ class ApplicationServiceBulkTest {
         }
     }
 
+    // BULK_EXCEL_TEMPLATE_POLICY.md §4.1/4.2 공식 헤더 — QA 체크리스트 12번(헤더 계약 검증) 도입
+    // 이후 이 값과 정확히 일치하지 않으면 parse()가 즉시 거절하므로, 아래 헬퍼가 실제 신청 데이터를
+    // 만드는 다른 모든 테스트를 위해 항상 공식 헤더를 채워 넣는다. 어느 헤더 세트를 쓸지는 이 파일의
+    // 각 테스트가 실제로 넘기는 행의 열 개수(11 vs 13)로 판단한다 — isStudent 파라미터는 헤더 구성에
+    // 관여한 적이 없는 기존 미사용 값이라 그대로 둔다.
+    private static final String[] COMMON_HEADERS_11 = {
+            "사진 번호", "영문명", "생년월일", "국적", "출생시간", "출생지역", "성별",
+            "개별입국날짜", "이메일", "전화번호", "주소"
+    };
+    private static final String[] UNIVERSITY_HEADERS_13 = {
+            "사진 번호", "영문명", "생년월일", "국적", "출생시간", "출생지역", "성별",
+            "개별입국날짜", "이메일", "전화번호", "주소", "학번", "학과"
+    };
+
     private byte[] buildExcel(boolean isStudent, String... rows) throws Exception {
+        int maxCols = COMMON_HEADERS_11.length;
+        for (String rowCsv : rows) {
+            if (rowCsv != null) {
+                maxCols = Math.max(maxCols, rowCsv.split("\\|", -1).length);
+            }
+        }
+        String[] headers = maxCols > COMMON_HEADERS_11.length ? UNIVERSITY_HEADERS_13 : COMMON_HEADERS_11;
+
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("members");
             Row commonRow = sheet.createRow(0);
@@ -176,7 +198,9 @@ class ApplicationServiceBulkTest {
             commonRow.createCell(1).setCellValue("2026-08-15");
 
             Row headerRow = sheet.createRow(2);
-            headerRow.createCell(0).setCellValue("ID");
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
 
             int rowIndex = 3;
             for (String rowCsv : rows) {

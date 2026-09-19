@@ -161,13 +161,24 @@ class ApplicationServiceDailyLimitTest {
         return new MockMultipartFile("photo", "face.jpg", "image/jpeg", imageBytes());
     }
 
+    // BULK_EXCEL_TEMPLATE_POLICY.md §4.1 공식 11열 헤더 — QA 체크리스트 12번(헤더 계약 검증) 도입
+    // 이후 이 값과 정확히 일치하지 않으면 parse()가 즉시 거절한다(2026-09-20). 이 파일은 항상
+    // 비학생증(HONOR_KOREAN) 카드종류만 다루므로 공통 11열 헤더로 고정한다.
+    private static final String[] COMMON_HEADERS_11 = {
+            "사진 번호", "영문명", "생년월일", "국적", "출생시간", "출생지역", "성별",
+            "개별입국날짜", "이메일", "전화번호", "주소"
+    };
+
     private byte[] buildExcel(String... rows) throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("members");
             Row commonRow = sheet.createRow(0);
             commonRow.createCell(0).setCellValue("공통 입국날짜");
             commonRow.createCell(1).setCellValue("2026-08-15");
-            sheet.createRow(2).createCell(0).setCellValue("ID");
+            Row headerRow = sheet.createRow(2);
+            for (int i = 0; i < COMMON_HEADERS_11.length; i++) {
+                headerRow.createCell(i).setCellValue(COMMON_HEADERS_11[i]);
+            }
             int rowIndex = 3;
             for (String rowCsv : rows) {
                 String[] cols = rowCsv.split("\\|", -1);

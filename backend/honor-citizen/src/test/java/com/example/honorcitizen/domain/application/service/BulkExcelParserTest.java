@@ -28,13 +28,36 @@ class BulkExcelParserTest {
     private static final String ROW_1 = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul";
     private static final String ROW_2 = "2|Mike Kim|1992-03-03|US||Chicago|MALE||mike@example.com|010-3333-4444|Busan";
 
+    // BULK_EXCEL_TEMPLATE_POLICY.md §4.1/4.2 공식 헤더 — QA 체크리스트 12번(헤더 계약 검증)
+    // 도입 이후 이 값과 정확히 일치하지 않으면 parse()가 즉시 거절하므로, 아래 헬퍼가 실제 신청
+    // 데이터를 만드는 다른 모든 테스트를 위해 항상 공식 헤더를 채워 넣는다.
+    private static final String[] COMMON_HEADERS_11 = {
+            "사진 번호", "영문명", "생년월일", "국적", "출생시간", "출생지역", "성별",
+            "개별입국날짜", "이메일", "전화번호", "주소"
+    };
+    private static final String[] UNIVERSITY_HEADERS_13 = {
+            "사진 번호", "영문명", "생년월일", "국적", "출생시간", "출생지역", "성별",
+            "개별입국날짜", "이메일", "전화번호", "주소", "학번", "학과"
+    };
+
     private byte[] buildExcel(String... rows) throws Exception {
+        return buildExcelWithHeaders(COMMON_HEADERS_11, rows);
+    }
+
+    private byte[] buildUniversityExcel(String... rows) throws Exception {
+        return buildExcelWithHeaders(UNIVERSITY_HEADERS_13, rows);
+    }
+
+    private byte[] buildExcelWithHeaders(String[] headers, String... rows) throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("members");
             Row commonRow = sheet.createRow(0);
             commonRow.createCell(0).setCellValue("공통 입국날짜");
             commonRow.createCell(1).setCellValue("2026-08-15");
-            sheet.createRow(2).createCell(0).setCellValue("사진 번호");
+            Row headerRow = sheet.createRow(2);
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
 
             int rowIndex = 3;
             for (String rowCsv : rows) {
@@ -62,7 +85,10 @@ class BulkExcelParserTest {
             Row commonRow = sheet.createRow(0);
             commonRow.createCell(0).setCellValue("공통 입국날짜");
             commonRow.createCell(1).setCellValue("2026-08-15");
-            sheet.createRow(2).createCell(0).setCellValue("사진 번호");
+            Row headerRow = sheet.createRow(2);
+            for (int i = 0; i < COMMON_HEADERS_11.length; i++) {
+                headerRow.createCell(i).setCellValue(COMMON_HEADERS_11[i]);
+            }
 
             Row row = sheet.createRow(3);
             row.createCell(0).setCellValue(numericId);
@@ -364,7 +390,7 @@ class BulkExcelParserTest {
     @Test
     void parseRejectsStudentIdLongerThanTenDigits() throws Exception {
         String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|202612345678|컴퓨터공학과";
-        byte[] excel = buildExcel(studentRow);
+        byte[] excel = buildUniversityExcel(studentRow);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
 
         assertThatThrownBy(() -> parser.parse(zip, true, SchoolType.UNIVERSITY))
@@ -515,5 +541,160 @@ class BulkExcelParserTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
                         .extracting("field").contains("birthDate"));
+    }
+
+    // ==== QA 체크리스트 11·12번: 업로드 한도·헤더 계약(2026-09-20, 확정 정책) ====
+
+    @Test
+    void parseRejectsHeaderWithWrongColumnName() throws Exception {
+        String[] wrongHeaders = COMMON_HEADERS_11.clone();
+        wrongHeaders[1] = "이름"; // 공식 헤더는 "영문명"
+        byte[] excel = buildExcelWithHeaders(wrongHeaders, ROW_1);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("HEADER_MISMATCH"));
+    }
+
+    @Test
+    void parseRejectsHeaderWithSwappedColumnOrder() throws Exception {
+        String[] swappedHeaders = COMMON_HEADERS_11.clone();
+        String tmp = swappedHeaders[1];
+        swappedHeaders[1] = swappedHeaders[2];
+        swappedHeaders[2] = tmp; // 영문명/생년월일 순서를 바꿔치기
+        byte[] excel = buildExcelWithHeaders(swappedHeaders, ROW_1);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("HEADER_MISMATCH"));
+    }
+
+    @Test
+    void parseRejectsHeaderWithUndefinedExtraColumn() throws Exception {
+        String[] extraHeaders = new String[COMMON_HEADERS_11.length + 1];
+        System.arraycopy(COMMON_HEADERS_11, 0, extraHeaders, 0, COMMON_HEADERS_11.length);
+        extraHeaders[COMMON_HEADERS_11.length] = "비고"; // 정의되지 않은 추가 열
+        byte[] excel = buildExcelWithHeaders(extraHeaders, ROW_1 + "|여분메모");
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("HEADER_MISMATCH"));
+    }
+
+    @Test
+    void parseRejectsUniversityHeaderMissingStudentIdDepartmentColumns() throws Exception {
+        // 대학교 학생증인데 일반(11열) 헤더만 있고 학번·학과 헤더가 없는 경우.
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul|20261234|컴퓨터공학과";
+        byte[] excel = buildExcel(studentRow); // 11열 헤더만 채움
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, true, SchoolType.UNIVERSITY))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("HEADER_MISMATCH"));
+    }
+
+    @Test
+    void parseAcceptsExactOfficialUniversityHeader() throws Exception {
+        // 학생증은 주소를 받지 않으므로(2026-09-13 정책 통일) 주소 칸은 비워둔다.
+        String studentRow = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222||20261234|컴퓨터공학과";
+        byte[] excel = buildUniversityExcel(studentRow);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        List<BulkMemberRow> rows = parser.parse(zip, true, SchoolType.UNIVERSITY);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).studentId()).isEqualTo("20261234");
+    }
+
+    @Test
+    void parseRejectsWhenMemberCountExceedsOneHundred() throws Exception {
+        String[] rows = new String[101];
+        String[] photoEntries = new String[101];
+        for (int i = 0; i < 101; i++) {
+            int photoNumber = i + 1;
+            rows[i] = photoNumber + "|Member " + photoNumber
+                    + "|1988-01-01|US||Chicago|MALE||m" + photoNumber + "@example.com|010-0000-" + String.format("%04d", photoNumber) + "|Seoul";
+            photoEntries[i] = photoNumber + ".jpg";
+        }
+        byte[] excel = buildExcel(rows);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", photoEntries);
+
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("MEMBER_COUNT_EXCEEDED"));
+    }
+
+    @Test
+    void parseAcceptsExactlyOneHundredMembers() throws Exception {
+        String[] rows = new String[100];
+        String[] photoEntries = new String[100];
+        for (int i = 0; i < 100; i++) {
+            int photoNumber = i + 1;
+            rows[i] = photoNumber + "|Member " + photoNumber
+                    + "|1988-01-01|US||Chicago|MALE||m" + photoNumber + "@example.com|010-0000-" + String.format("%04d", photoNumber) + "|Seoul";
+            photoEntries[i] = photoNumber + ".jpg";
+        }
+        byte[] excel = buildExcel(rows);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", photoEntries);
+
+        List<BulkMemberRow> rows100 = parser.parse(zip, false, null);
+
+        assertThat(rows100).hasSize(100);
+    }
+
+    @Test
+    void parseRejectsZipWithMoreThanOneHundredTenValidEntries() throws Exception {
+        byte[] excel = buildExcel(ROW_1);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(out)) {
+            zip.putNextEntry(new ZipEntry("members.xlsx"));
+            zip.write(excel);
+            zip.closeEntry();
+            // 사진 1개 + 더미 파일 110개 = 유효 엔트리 112개(엑셀 포함) > 110.
+            for (int i = 0; i < 110; i++) {
+                zip.putNextEntry(new ZipEntry("junk-" + i + ".bin"));
+                zip.write(new byte[]{1});
+                zip.closeEntry();
+            }
+        }
+        MockMultipartFile zipFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", out.toByteArray());
+
+        assertThatThrownBy(() -> parser.parse(zipFile, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("ZIP_TOO_MANY_ENTRIES"));
+    }
+
+    @Test
+    void parseRejectsExcelLargerThanFiveMebibytes() throws Exception {
+        byte[] oversizedExcel = new byte[5 * 1024 * 1024 + 1];
+        MockMultipartFile zip = zipOf(oversizedExcel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("EXCEL_TOO_LARGE"));
+    }
+
+    @Test
+    void parseRejectsWhenDecompressedTotalExceedsConfiguredBudget() throws Exception {
+        // 실제 250MiB를 할당하지 않고도 누적 상한 로직을 검증하기 위해, 테스트 전용 생성자로
+        // 상한을 아주 작게 낮춘 파서를 쓴다(production 빈은 항상 기본 생성자=정책값을 쓴다).
+        BulkExcelParser tightBudgetParser = new BulkExcelParser(new ApplicationPhotoValidator(), 5L * 1024 * 1024, 1024L);
+        byte[] excel = buildExcel(ROW_1);
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg");
+
+        assertThatThrownBy(() -> tightBudgetParser.parse(zip, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("ZIP_DECOMPRESSED_TOO_LARGE"));
     }
 }

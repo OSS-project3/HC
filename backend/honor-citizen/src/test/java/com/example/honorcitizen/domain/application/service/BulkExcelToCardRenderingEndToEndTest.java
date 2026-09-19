@@ -236,6 +236,13 @@ class BulkExcelToCardRenderingEndToEndTest {
 
     // 컬럼 순서: 사진번호|영문명|생년월일|국적|출생시간|출생지역|성별|개별입국날짜|이메일|전화번호|주소|학번|학과
     // (ApplicationServiceBulkTest.buildExcel와 동일한 형식 — 파이프로 구분한 문자열 1개 = 엑셀 1행)
+    // \uc774 \ud30c\uc77c\uc740 \ud56d\uc0c1 \ub300\ud559\uad50 \ud559\uc0dd\uc99d(UNIVERSITY, 13\uc5f4) \uc2dc\ub098\ub9ac\uc624\ub9cc \ub2e4\ub8e8\ubbc0\ub85c \ud5e4\ub354\ub3c4 13\uc5f4 \uc804\ubd80\ub97c \uacf5\uc2dd
+    // \uac12\uc73c\ub85c \ucc44\uc6b4\ub2e4(BULK_EXCEL_TEMPLATE_POLICY.md \u00a74.2, QA \uccb4\ud06c\ub9ac\uc2a4\ud2b8 12\ubc88 \ud5e4\ub354 \uacc4\uc57d \uac80\uc99d, 2026-09-20).
+    private static final String[] UNIVERSITY_HEADERS_13 = {
+            "\uc0ac\uc9c4 \ubc88\ud638", "\uc601\ubb38\uba85", "\uc0dd\ub144\uc6d4\uc77c", "\uad6d\uc801", "\ucd9c\uc0dd\uc2dc\uac04", "\ucd9c\uc0dd\uc9c0\uc5ed", "\uc131\ubcc4",
+            "\uac1c\ubcc4\uc785\uad6d\ub0a0\uc9dc", "\uc774\uba54\uc77c", "\uc804\ud654\ubc88\ud638", "\uc8fc\uc18c", "\ud559\ubc88", "\ud559\uacfc"
+    };
+
     private byte[] buildExcel(String rowCsv) throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("members");
@@ -243,7 +250,9 @@ class BulkExcelToCardRenderingEndToEndTest {
             commonRow.createCell(0).setCellValue("\uacf5\ud1b5 \uc785\uad6d\ub0a0\uc9dc");
 
             Row headerRow = sheet.createRow(2);
-            headerRow.createCell(0).setCellValue("ID");
+            for (int i = 0; i < UNIVERSITY_HEADERS_13.length; i++) {
+                headerRow.createCell(i).setCellValue(UNIVERSITY_HEADERS_13[i]);
+            }
 
             String[] cols = rowCsv.split("\\|", -1);
             Row row = sheet.createRow(3);
