@@ -272,25 +272,31 @@ public class ReviewService {
         Set<Long> keptIds = keptImages.stream().map(ReviewImage::getId).collect(Collectors.toSet());
         List<ReviewImage> toDelete = allExisting.stream().filter(image -> !keptIds.contains(image.getId())).toList();
 
-        // UNIQUE(review_id, display_order) 순간 충돌을 피하려고 임시 오프셋으로 한 번 민 뒤 최종 배정한다
-        // (예: 0번과 1번을 맞바꾸면 중간 상태에서 값이 겹칠 수 있음).
+        // UNIQUE(review_id, display_order) 순간 충돌을 피하려고 kept 이미지를 임시 오프셋으로 먼저
+        // 밀고, 삭제 대상을 지운 뒤에야 kept를 최종 순번(0..N-1)으로 내린다. 최종 재배정과 삭제를
+        // 같은 flush에 같이 두면(예전 코드) Hibernate가 그 flush 안에서 UPDATE를 DELETE보다 먼저
+        // 실행해, 삭제 예정 행이 아직 남아있는 상태에서 kept 행이 같은 order로 내려가 순간적으로
+        // 제약을 위반한다 — 3장 중 가운데(2번째)만 빼고 1·3번을 유지하는 실제 시나리오로 재현
+        // 확인함(2026-09-20, QA 체크리스트).
         for (int i = 0; i < keptImages.size(); i++) {
             keptImages.get(i).updateDisplayOrder(REORDER_TEMP_OFFSET + i);
         }
         reviewImageRepository.flush();
-        for (int i = 0; i < keptImages.size(); i++) {
-            keptImages.get(i).updateDisplayOrder(i);
-        }
 
         List<String> deletedKeys = toDelete.stream().map(ReviewImage::getImagePath).toList();
         List<Long> toDeleteIds = toDelete.stream().map(ReviewImage::getId).toList();
         if (!toDeleteIds.isEmpty()) {
             reviewImageRepository.deleteAllById(toDeleteIds);
-            // 삭제를 먼저 DB에 반영해야 새로 추가되는 이미지가 방금 비운 display_order를 재사용할 때
-            // UNIQUE(review_id, display_order) 제약과 충돌하지 않는다(Hibernate는 기본적으로 INSERT를
-            // DELETE보다 먼저 flush하므로 명시적으로 순서를 강제한다).
             reviewImageRepository.flush();
         }
+
+        for (int i = 0; i < keptImages.size(); i++) {
+            keptImages.get(i).updateDisplayOrder(i);
+        }
+        // 삭제를 먼저 DB에 반영해야 새로 추가되는 이미지가 방금 비운 display_order를 재사용할 때
+        // UNIQUE(review_id, display_order) 제약과 충돌하지 않는다(Hibernate는 기본적으로 INSERT를
+        // DELETE보다 먼저 flush하므로 명시적으로 순서를 강제한다).
+        reviewImageRepository.flush();
 
         int nextOrder = keptImages.size();
         for (MultipartFile file : newFiles) {

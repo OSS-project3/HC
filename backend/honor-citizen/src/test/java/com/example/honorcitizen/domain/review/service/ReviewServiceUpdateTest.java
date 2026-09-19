@@ -15,6 +15,8 @@ import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
 import com.example.honorcitizen.domain.review.dto.ReviewUpdateRequest;
 import com.example.honorcitizen.domain.review.entity.Review;
+import com.example.honorcitizen.domain.review.entity.ReviewImage;
+import com.example.honorcitizen.domain.review.repository.ReviewImageRepository;
 import com.example.honorcitizen.domain.review.repository.ReviewRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
@@ -47,6 +49,8 @@ class ReviewServiceUpdateTest {
     @Autowired
     private ReviewRepository reviewRepository;
     @Autowired
+    private ReviewImageRepository reviewImageRepository;
+    @Autowired
     private CardTypeRepository cardTypeRepository;
     @Autowired
     private UserRepository userRepository;
@@ -68,6 +72,7 @@ class ReviewServiceUpdateTest {
 
     @BeforeEach
     void setUp() {
+        reviewImageRepository.deleteAll();
         reviewRepository.deleteAll();
         applicationMemberRepository.deleteAll();
         applicantRepository.deleteAll();
@@ -275,6 +280,37 @@ class ReviewServiceUpdateTest {
         Review updated = reviewRepository.findById(review.getId()).orElseThrow();
         assertThat(updated.getImagePath()).isEqualTo("reviews/keep.jpg");
         verify(storageService, never()).delete(anyString());
+    }
+
+    // QA 체크리스트(2026-09-20) — 게시판/행사는 "여러 장 중 일부만 유지" 시나리오가 이미 테스트돼
+    // 있는데 후기만 빠져 있었다. 기존 이미지 3장 중 가운데(2번째)만 빼고 나머지 2장은 유지하면서
+    // 새 이미지 1장을 추가했을 때, 최종 순서가 [1번, 3번, 새이미지]로 맞고 2번 파일만 실제로
+    // 스토리지에서 삭제되는지 확인한다.
+    @Test
+    void keepsSelectedSubsetOfMultipleExistingImagesWhileAddingNew() {
+        grantEligibility(owner, ApplicationType.INDIVIDUAL, cardTypeA);
+        Review review = reviewRepository.save(Review.create(owner.getId(), "홍길동", "제목",
+                ApplicationType.INDIVIDUAL, cardTypeA.getId(), "내용", null));
+        ReviewImage image1 = reviewImageRepository.save(ReviewImage.create(review.getId(), "reviews/1.jpg", "1.jpg", 0));
+        ReviewImage image2 = reviewImageRepository.save(ReviewImage.create(review.getId(), "reviews/2.jpg", "2.jpg", 1));
+        ReviewImage image3 = reviewImageRepository.save(ReviewImage.create(review.getId(), "reviews/3.jpg", "3.jpg", 2));
+        MockMultipartFile newImage = new MockMultipartFile("image", "new.jpg", "image/jpeg", jpegBytes());
+
+        reviewService.update(review.getId(), owner.getId(),
+                request("제목", ApplicationType.INDIVIDUAL, cardTypeA.getId(), false,
+                        List.of(image1.getId(), image3.getId())),
+                List.of(newImage));
+
+        List<ReviewImage> finalImages = reviewImageRepository.findByReviewIdOrderByDisplayOrderAsc(review.getId());
+        assertThat(finalImages).hasSize(3);
+        assertThat(finalImages.get(0).getImagePath()).isEqualTo("reviews/1.jpg");
+        assertThat(finalImages.get(1).getImagePath()).isEqualTo("reviews/3.jpg");
+        assertThat(finalImages.get(2).getImagePath()).startsWith("reviews/").endsWith("-new.jpg");
+        verify(storageService).delete("reviews/2.jpg");
+        verify(storageService, never()).delete("reviews/1.jpg");
+        verify(storageService, never()).delete("reviews/3.jpg");
+        Review updated = reviewRepository.findById(review.getId()).orElseThrow();
+        assertThat(updated.getImagePath()).isEqualTo("reviews/1.jpg");
     }
 
     @Test
