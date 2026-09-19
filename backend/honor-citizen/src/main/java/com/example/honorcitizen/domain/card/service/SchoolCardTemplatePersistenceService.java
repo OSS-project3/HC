@@ -9,6 +9,8 @@ import com.example.honorcitizen.domain.card.entity.CardDesign;
 import com.example.honorcitizen.domain.card.entity.CardType;
 import com.example.honorcitizen.domain.card.repository.CardDesignRepository;
 import com.example.honorcitizen.domain.card.repository.CardTypeRepository;
+import com.example.honorcitizen.domain.log.entity.AdminActivityLog;
+import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository;
 import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
 import jakarta.persistence.EntityManager;
@@ -33,6 +35,7 @@ class SchoolCardTemplatePersistenceService {
     private final CardDesignRepository cardDesignRepository;
     private final CardTypeRepository cardTypeRepository;
     private final UploadFileRepository uploadFileRepository;
+    private final AdminActivityLogRepository adminActivityLogRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -43,8 +46,11 @@ class SchoolCardTemplatePersistenceService {
     record PersistResult(Long cardDesignId, String oldFrontPath, String oldBackPath) {
     }
 
+    // 감사로그 저장을 DB 반영과 같은 트랜잭션에 둔다(QA 체크리스트 7번, 2026-09-20 확정 정책) —
+    // 로그 저장이 실패하면 CardDesign/UploadFile 변경도 함께 롤백되어야, 호출부가 "커밋 안 됨"으로
+    // 판단해 이번에 새로 올린 S3 파일을 안전하게 보상 삭제할 수 있다.
     @Transactional
-    PersistResult upsert(Long schoolId, String schoolName, CardDesignOrientation orientation,
+    PersistResult upsert(Long adminId, Long schoolId, String schoolName, CardDesignOrientation orientation,
             UploadedTemplate front, UploadedTemplate back) {
         UploadFile newFront = uploadFileRepository.save(toUploadFile(front));
         UploadFile newBack = uploadFileRepository.save(toUploadFile(back));
@@ -52,6 +58,7 @@ class SchoolCardTemplatePersistenceService {
         List<CardDesign> existing = cardDesignRepository.findBySchoolIdAndOrientationAndActiveOrderByDesignNumber(
                 schoolId, orientation, true);
 
+        PersistResult result;
         if (!existing.isEmpty()) {
             CardDesign design = existing.get(0);
             Long oldFrontId = design.getTemplateFrontId();
@@ -63,19 +70,23 @@ class SchoolCardTemplatePersistenceService {
             deleteIfPresent(oldFrontId);
             deleteIfPresent(oldBackId);
 
-            return new PersistResult(design.getId(), oldFrontPath, oldBackPath);
+            result = new PersistResult(design.getId(), oldFrontPath, oldBackPath);
+        } else {
+            Long cardTypeId = cardTypeRepository.findByCode(CardTypeCode.STUDENT)
+                    .map(CardType::getId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.CARD_TYPE_NOT_FOUND));
+            String name = schoolName + " 학생증(" + orientationLabel(orientation) + ")";
+            int designNumber = nextDesignNumber();
+            CardDesign design = CardDesign.create(cardTypeId, name, designNumber, orientation,
+                    newFront.getId(), newBack.getId(), false, schoolId);
+            cardDesignRepository.save(design);
+
+            result = new PersistResult(design.getId(), null, null);
         }
 
-        Long cardTypeId = cardTypeRepository.findByCode(CardTypeCode.STUDENT)
-                .map(CardType::getId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CARD_TYPE_NOT_FOUND));
-        String name = schoolName + " 학생증(" + orientationLabel(orientation) + ")";
-        int designNumber = nextDesignNumber();
-        CardDesign design = CardDesign.create(cardTypeId, name, designNumber, orientation,
-                newFront.getId(), newBack.getId(), false, schoolId);
-        cardDesignRepository.save(design);
-
-        return new PersistResult(design.getId(), null, null);
+        adminActivityLogRepository.save(AdminActivityLog.create(adminId, AdminActivityLog.CARD_TEMPLATE_UPLOADED,
+                result.cardDesignId(), "학생증 카드 템플릿 등록: schoolId=" + schoolId + ", orientation=" + orientation));
+        return result;
     }
 
     private UploadFile toUploadFile(UploadedTemplate metadata) {

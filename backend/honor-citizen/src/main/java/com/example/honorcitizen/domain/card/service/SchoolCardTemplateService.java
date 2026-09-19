@@ -6,8 +6,6 @@ import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.domain.card.dto.SchoolCardTemplateResponse;
 import com.example.honorcitizen.domain.card.entity.CardDesign;
 import com.example.honorcitizen.domain.card.repository.CardDesignRepository;
-import com.example.honorcitizen.domain.log.entity.AdminActivityLog;
-import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository;
 import com.example.honorcitizen.domain.school.service.SchoolService;
 import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
@@ -37,7 +35,6 @@ public class SchoolCardTemplateService {
     private final AdminAuthorizationService adminAuthorizationService;
     private final StorageService storageService;
     private final SchoolCardTemplatePersistenceService persistenceService;
-    private final AdminActivityLogRepository adminActivityLogRepository;
     private final SchoolCardTemplateValidator validator;
     private final UploadFileRepository uploadFileRepository;
 
@@ -66,32 +63,33 @@ public class SchoolCardTemplateService {
         validator.validate(back, orientation);
 
         List<String> uploadedKeys = new ArrayList<>();
+        SchoolCardTemplatePersistenceService.PersistResult persisted;
         try {
             SchoolCardTemplatePersistenceService.UploadedTemplate frontMeta = uploadToStorage(
                     schoolId, orientation, "front", front, uploadedKeys);
             SchoolCardTemplatePersistenceService.UploadedTemplate backMeta = uploadToStorage(
                     schoolId, orientation, "back", back, uploadedKeys);
 
-            SchoolCardTemplatePersistenceService.PersistResult persisted =
-                    persistenceService.upsert(schoolId, schoolName, orientation, frontMeta, backMeta);
-
-            // DB 반영이 실제로 커밋된 뒤에만(persist()가 예외 없이 반환한 시점) 기존 파일을 지운다 —
-            // 신규 선업로드 -> commit -> 기존 후삭제(SchoolCardTemplatePersistenceService 클래스 주석 참고).
-            deleteQuietly(persisted.oldFrontPath());
-            deleteQuietly(persisted.oldBackPath());
-
-            adminActivityLogRepository.save(AdminActivityLog.create(adminId, AdminActivityLog.CARD_TEMPLATE_UPLOADED,
-                    persisted.cardDesignId(), "학생증 카드 템플릿 등록: schoolId=" + schoolId + ", orientation=" + orientation));
-
-            CardDesign design = cardDesignRepository.findById(persisted.cardDesignId())
-                    .orElseThrow(() -> new CustomException(ErrorCode.CARD_DESIGN_NOT_FOUND));
-            return toResponse(design);
+            // upsert()는 DB 반영과 감사로그 저장을 하나의 트랜잭션으로 묶는다(QA 체크리스트 7번) —
+            // 이 호출이 예외 없이 반환했다는 것 자체가 "둘 다 커밋됐다"는 뜻이다.
+            persisted = persistenceService.upsert(adminId, schoolId, schoolName, orientation, frontMeta, backMeta);
         } catch (RuntimeException e) {
-            // 이번 요청에서 새로 올라간 key만 역순으로 보상 삭제 — 실패 이전 상태(기존 템플릿 유무 포함)가
-            // 그대로 보존된다(CardGenerationService와 동일 패턴).
+            // DB(+감사로그)가 커밋되지 않았으므로 이번 요청에서 새로 올라간 key만 역순으로 보상
+            // 삭제한다 — 실패 이전 상태(기존 템플릿 유무 포함)가 그대로 보존된다(CardGenerationService와
+            // 동일 패턴).
             deleteUploadedKeysReversed(uploadedKeys);
             throw e;
         }
+
+        // 이 시점부터는 DB(신규 CardDesign/UploadFile)와 감사로그가 이미 함께 커밋된 뒤이므로,
+        // 이후 실패(기존 파일 정리, 응답용 presigned URL 생성)는 신규 S3 파일을 절대 삭제하지
+        // 않는다 — 삭제하면 DB가 가리키는 파일을 잃는다(QA 체크리스트 7번, 2026-09-20 확정 정책).
+        deleteQuietly(persisted.oldFrontPath());
+        deleteQuietly(persisted.oldBackPath());
+
+        CardDesign design = cardDesignRepository.findById(persisted.cardDesignId())
+                .orElseThrow(() -> new CustomException(ErrorCode.CARD_DESIGN_NOT_FOUND));
+        return toResponse(design);
     }
 
     // key는 서버가 직접 생성한다(원본 파일명을 저장 경로로 쓰지 않는다 — arch.md 15). originalName만

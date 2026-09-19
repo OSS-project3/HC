@@ -223,6 +223,23 @@ class SchoolCardTemplateServiceTest {
                         .isEqualTo(ErrorCode.CARD_TEMPLATE_INVALID_RESOLUTION));
     }
 
+    // QA 체크리스트 7·8번: DB 커밋(CardDesign/UploadFile/감사로그) 이후 단계(응답용 presigned URL
+    // 생성)가 실패해도, DB가 이미 가리키는 신규 S3 파일을 절대 삭제하면 안 된다(확정 정책).
+    @Test
+    void doesNotDeleteNewlyUploadedFilesWhenPresignedUrlGenerationFailsAfterCommit() {
+        when(storageService.generatePresignedUrl(anyString(), anyLong()))
+                .thenThrow(new RuntimeException("S3 장애(커밋 이후)"));
+
+        assertThatThrownBy(() -> schoolCardTemplateService.upload(
+                adminId, schoolId, CardDesignOrientation.LANDSCAPE, landscapePng("front"), landscapePng("back")))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(cardDesignRepository.count()).isEqualTo(1);
+        assertThat(uploadFileRepository.count()).isEqualTo(2);
+        assertThat(adminActivityLogRepository.count()).isEqualTo(1);
+        verify(storageService, org.mockito.Mockito.never()).delete(anyString());
+    }
+
     @Test
     void uploadRejectsTooSmallResolution() {
         MockMultipartFile tiny = pngFile("front", 300, 200);
