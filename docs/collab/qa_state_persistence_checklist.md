@@ -40,11 +40,18 @@
   - **확정 방향(승인 완료)**: 앞뒤 공백만 제거한 뒤 공식 헤더와 정확히 비교, 헤더명·개수·순서 중 하나라도 다르면 전체 실패. 일반/대학교/고등학교 양식별 헤더 배열을 각각 고정. 정의되지 않은 추가 열도 허용하지 않는다.
 - [ ] **13. 회원정보 `PATCH /api/users/me` — HTTP 응답만 검증, 실제 DB 반영·부분수정 계약 미검증.** [`UserControllerTest.updateMeUpdatesNameAndPhone()`](backend/honor-citizen/src/test/java/com/example/honorcitizen/api/UserControllerTest.java#L82)이 응답 JSON만 확인하고 Repository 재조회/재조회 GET으로 커밋 값을 확인하지 않음 — "이름만 수정 시 전화번호 유지" 같은 부분수정 계약, dirty checking·트랜잭션 설정 문제로 인한 DB 미반영 회귀를 현재 테스트가 못 잡음.
   - **확정 방향(승인 완료)**: `name`/`phone` 생략 또는 `null`은 기존 값 유지, 빈 문자열은 오류. 두 필드 모두 생략/`null`이면 `INVALID_INPUT`. 전화번호 삭제(명시적으로 비우기)는 현재 필수 연락처 정책상 지원하지 않는다.
+- [x] **14. `CardGenerationService` — DB 커밋 이후 보상 삭제 오류(P0) — ✅ 완료(2026-09-20, Claude), 실제 데이터 정합성 버그였음.** `CardGenerationService.generate()`가 `persistenceService.persist()` 커밋 이후에도 기존 파일 정리·`CARD_IMAGE_GENERATED` 감사로그 저장을 같은 try 블록 안에서 수행해, 감사로그 저장이 실패하면 방금 커밋된 신규 카드 이미지 S3 파일을 잘못 삭제할 수 있었다(재생성 시 기존·신규 이미지가 모두 사라질 수 있는 버그, 7번 학교 템플릿과 동일 패턴).
+  - **적용한 수정(학교 템플릿과 동일 정책)**: `CARD_IMAGE_GENERATED`(성공) 감사로그 저장을 `CardGenerationPersistenceService.persist()`의 같은 `@Transactional` 안으로 옮겨 카드 경로 DB 반영과 원자적으로 묶었다. `CardGenerationService.generate()`의 try/catch는 "S3 업로드+persist" 단계만 감싸 이 단계 실패 시에만 신규 S3 key를 보상 삭제하고, persist()가 예외 없이 반환한 뒤(=DB+로그 커밋 확정 후) 기존 파일 정리 단계는 try/catch 밖으로 빼 신규 이미지를 절대 건드리지 않는다. 실패 시 감사로그를 남기는 기존 catch 분기(생성 실패 로그)는 그대로 유지 — 이번 수정은 성공 경로의 커밋 경계만 바꿨다.
+  - 하위 작업 결과: 카드 경로 저장과 감사로그 동일 트랜잭션 처리 완료 / 최초 생성 시 감사로그 실패 → DB rollback + 신규 S3 2개 삭제 확인 / 재생성 시 감사로그 실패 → 기존 DB 경로·기존 S3 유지 + 신규 S3만 삭제 확인 / 성공 시 DB·감사로그 commit 이후에만 기존 S3 삭제(기존 동작 유지, 회귀 없음 확인) / 보상 삭제 실패가 원 예외를 덮지 않는 기존 `deleteQuietly` 동작 그대로 유지.
+  - 신규 테스트 2건(`CardGenerationServiceAuditLogFailureTest.firstGenerationRollsBackAndDeletesNewFilesWhenAuditLogSaveFails`, `regenerationKeepsOldFilesAndDbPathsAndDeletesOnlyNewFilesWhenAuditLogSaveFails`) — 별도 Spring context에서 `AdminActivityLogRepository`를 "성공" 로그만 실패하는 Mock으로 교체해 재현(실패 로그까지 막으면 원 예외가 가려지므로 detail 내용으로 구분). 수정 전 코드로 잠시 되돌려 RED 확인 후 GREEN, 기존 `CardGenerationServiceTest`/`StudentTextColorTest` 전부 회귀 없음. 전체 회귀 946개 중 동일한 무관 플레이키(`HighSchoolSeederIntegrationTest`) 1개 제외 통과.
+  - SchoolCardTemplateService(7·8번, 커밋 `11eb06e`)와 별도 커밋으로 처리.
+  - SchoolCardTemplateService(7·8번)와 같은 커밋에 섞지 않고 별도 커밋으로 처리한다. 두 구현이 각각 안정된 뒤에만 공통 패턴 추출 필요성을 검토한다(이번 스코프 아님).
 
-### 처리 순서(사용자 확정, 2026-09-20)
+### 처리 순서(사용자 확정, 2026-09-20, 14번 추가로 갱신)
 
 1. ~~QA 체크리스트에 미검증 항목 기록~~ (이 항목들)
-2. 학교 템플릿 트랜잭션/S3 실패 경계(7·8번)
+2. ~~학교 템플릿 트랜잭션/S3 실패 경계(7·8번)~~ — 완료, 커밋 `11eb06e`
+2-1. **CardGenerationService DB 커밋 이후 보상 삭제 오류(14번, P0)** — 실제 발급 결과물에 영향을 주므로 학교 템플릿 다음으로 우선 처리
 3. 단체 ZIP·Excel 계약(11·12번)
 4. CardType/CardDesign 시더 원자성(9번)
 5. SchoolSeeder 통합 테스트(10번)

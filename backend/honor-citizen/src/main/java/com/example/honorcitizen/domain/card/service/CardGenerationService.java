@@ -47,30 +47,22 @@ public class CardGenerationService {
         String frontKey = buildKey(applicationNumber, memberId, "front");
         String backKey = buildKey(applicationNumber, memberId, "back");
         List<String> uploadedKeys = new ArrayList<>();
+        CardGenerationPersistenceService.PersistResult persisted;
         try {
             storageService.uploadBytes(frontKey, result.front(), "image/png");
             uploadedKeys.add(frontKey);
             storageService.uploadBytes(backKey, result.back(), "image/png");
             uploadedKeys.add(backKey);
 
-            CardGenerationPersistenceService.PersistResult persisted = persistenceService.persist(
-                    applicationId, memberId, request.getCardDesignId(), request.getIssueDate(),
+            // persist()는 카드 경로 DB 반영과 성공 감사로그 저장을 하나의 트랜잭션으로 묶는다(QA
+            // 체크리스트 14번) — 이 호출이 예외 없이 반환했다는 것 자체가 "둘 다 커밋됐다"는 뜻이다.
+            persisted = persistenceService.persist(
+                    adminId, applicationId, memberId, request.getCardDesignId(), request.getIssueDate(),
                     request.getStudentFrontTextColor(), request.getStudentBackTextColor(),
                     frontKey, backKey, GENERATE_STATUS_GATE);
-
-            // 재생성이면 기존 파일은 DB commit이 성공한 지금부터만 삭제한다(신규 파일 선저장→commit→
-            // 기존 파일 후삭제). 삭제 실패는 조용히 무시 — 고아 파일 1건은 예외적으로 허용하고
-            // 수동 정리 대상으로 남긴다(TODO.md 3 완료조건).
-            if (persisted.regenerated()) {
-                deleteQuietly(persisted.oldFrontPath());
-                deleteQuietly(persisted.oldBackPath());
-            }
-            adminActivityLogRepository.save(AdminActivityLog.create(adminId, AdminActivityLog.CARD_IMAGE_GENERATED,
-                    memberId, (persisted.regenerated() ? "카드 이미지 재생성 성공: " : "카드 이미지 생성 성공: ") + applicationNumber));
-            return new CardGenerateResponse(frontKey, backKey, request.getIssueDate());
         } catch (RuntimeException e) {
-            // 이번 요청에서 새로 올라간 key만 역순으로 보상 삭제 — 렌더링/업로드/DB반영 중 어느 단계가
-            // 실패해도 실패 이전 상태(기존 카드 유무 포함)가 그대로 보존된다.
+            // DB(+감사로그)가 커밋되지 않았으므로 이번 요청에서 새로 올라간 key만 역순으로 보상
+            // 삭제한다 — 재생성이었다면 기존 카드 이미지·기존 DB 경로는 그대로 유지된다.
             deleteUploadedKeysReversed(uploadedKeys);
             // 검증 실패(CustomException)든 S3/DB 등 예상 못한 RuntimeException이든 실패는 전부
             // 감사로그에 남긴다 — 실제 S3 장애 같은 흔한 실패 경로가 기록에서 빠지지 않도록.
@@ -79,6 +71,16 @@ public class CardGenerationService {
                     memberId, "카드 이미지 생성 실패(" + failureLabel + "): " + applicationNumber));
             throw e;
         }
+
+        // 이 시점부터는 DB(카드 경로)와 감사로그가 이미 함께 커밋된 뒤이므로, 기존 파일 정리는
+        // 신규 이미지를 절대 건드리지 않는다(QA 체크리스트 14번, 2026-09-20 확정 정책).
+        // 삭제 실패는 조용히 무시 — 고아 파일 1건은 예외적으로 허용하고 수동 정리 대상으로
+        // 남긴다(TODO.md 3 완료조건).
+        if (persisted.regenerated()) {
+            deleteQuietly(persisted.oldFrontPath());
+            deleteQuietly(persisted.oldBackPath());
+        }
+        return new CardGenerateResponse(frontKey, backKey, request.getIssueDate());
     }
 
     private String buildKey(String applicationNumber, Long memberId, String side) {

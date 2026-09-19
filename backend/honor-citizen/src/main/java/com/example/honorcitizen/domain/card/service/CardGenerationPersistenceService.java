@@ -7,6 +7,8 @@ import com.example.honorcitizen.domain.application.entity.Application;
 import com.example.honorcitizen.domain.application.entity.ApplicationMember;
 import com.example.honorcitizen.domain.application.repository.ApplicationMemberRepository;
 import com.example.honorcitizen.domain.application.repository.ApplicationRepository;
+import com.example.honorcitizen.domain.log.entity.AdminActivityLog;
+import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,12 +28,17 @@ class CardGenerationPersistenceService {
 
     private final ApplicationRepository applicationRepository;
     private final ApplicationMemberRepository applicationMemberRepository;
+    private final AdminActivityLogRepository adminActivityLogRepository;
 
     record PersistResult(String oldFrontPath, String oldBackPath, boolean regenerated) {
     }
 
+    // 카드 경로 DB 반영과 CARD_IMAGE_GENERATED(성공) 감사로그 저장을 같은 트랜잭션에 둔다(QA
+    // 체크리스트 14번, 2026-09-20 확정 정책 — SchoolCardTemplatePersistenceService.upsert()와 동일
+    // 이유). 감사로그 저장이 실패하면 카드 경로 반영도 함께 롤백돼야, 호출부가 "커밋 안 됨"으로
+    // 판단해 신규 S3 이미지만 안전하게 보상 삭제하고 기존 카드 이미지는 그대로 둘 수 있다.
     @Transactional
-    PersistResult persist(Long applicationId, Long memberId, Long cardDesignId, LocalDate issueDate,
+    PersistResult persist(Long adminId, Long applicationId, Long memberId, Long cardDesignId, LocalDate issueDate,
             StudentTextColor requestedFrontTextColor, StudentTextColor requestedBackTextColor,
             String frontKey, String backKey, Predicate<Application> statusGate) {
         Application application = applicationRepository.findById(applicationId)
@@ -69,6 +76,10 @@ class CardGenerationPersistenceService {
 
         application.confirmCardGeneration(cardDesignId, issueDate, frontTextColor, backTextColor);
         member.assignCardImages(frontKey, backKey, issueDate);
+
+        String applicationNumber = application.getApplicationNumber();
+        adminActivityLogRepository.save(AdminActivityLog.create(adminId, AdminActivityLog.CARD_IMAGE_GENERATED,
+                memberId, (regenerated ? "카드 이미지 재생성 성공: " : "카드 이미지 생성 성공: ") + applicationNumber));
 
         return new PersistResult(oldFrontPath, oldBackPath, regenerated);
     }
