@@ -10,6 +10,8 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.zip.ZipEntry;
@@ -20,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BulkExcelParserTest {
 
-    private final BulkExcelParser parser = new BulkExcelParser();
+    private final BulkExcelParser parser = new BulkExcelParser(new ApplicationPhotoValidator());
 
     // 컬럼 순서: 사진 번호|영문명|생년월일|국적|출생시간|출생지역|성별|개별입국날짜|이메일|전화번호|주소
     private static final String ROW_1 = "1|John Doe|1988-01-01|US||Chicago|MALE||john@example.com|010-1111-2222|Seoul";
@@ -89,11 +91,25 @@ class BulkExcelParserTest {
             }
             for (String photoEntry : photoEntries) {
                 zip.putNextEntry(new ZipEntry(photoEntry));
-                zip.write(("photo-" + photoEntry).getBytes());
+                zip.write(validPhotoBytes());
                 zip.closeEntry();
             }
         }
         return new MockMultipartFile("submitFile", "bulk.zip", "application/zip", out.toByteArray());
+    }
+
+    // 300x400 이상 실제 JPEG 바이트 — 사진 검증(2026-09-19)이 붙은 뒤로 매칭·파싱 로직만
+    // 테스트하는 케이스들이 임의 텍스트 바이트("photo-1" 등) 때문에 깨지지 않도록 실제
+    // 유효한 이미지를 씀. 이 파일의 zipOf 호출은 전부 ".jpg" 확장자를 쓰므로 이 형식으로 고정.
+    private byte[] validPhotoBytes() {
+        try {
+            BufferedImage image = new BufferedImage(300, 400, BufferedImage.TYPE_INT_RGB);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", output);
+            return output.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
@@ -165,6 +181,111 @@ class BulkExcelParserTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
                 .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
                         .extracting("code").contains("PHOTO_UNMATCHED"));
+    }
+
+    // 사진 내용 검증(2026-09-19) — 매칭까지는 되지만 실제 이미지가 아니거나 정책 위반인 파일.
+    // 개인 신청과 동일한 ApplicationPhotoValidator 검증을 그대로 적용한다(requirements.md 5-1).
+    @Test
+    void parseRejectsUndecodableImageBytesForMatchedPhoto() throws Exception {
+        byte[] excel = buildExcel(ROW_1);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(out)) {
+            zos.putNextEntry(new ZipEntry("members.xlsx"));
+            zos.write(excel);
+            zos.closeEntry();
+            zos.putNextEntry(new ZipEntry("1.jpg"));
+            zos.write("not-an-image".getBytes());
+            zos.closeEntry();
+        }
+        MockMultipartFile zipFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", out.toByteArray());
+
+        assertThatThrownBy(() -> parser.parse(zipFile, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains(ErrorCode.INVALID_IMAGE.name()));
+    }
+
+    @Test
+    void parseRejectsPhotoWithSignatureNotMatchingItsExtension() throws Exception {
+        byte[] excel = buildExcel(ROW_1);
+        byte[] pngBytesNamedAsJpg = pngPhotoBytes(); // 실제 PNG를 .jpg로 위장
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(out)) {
+            zos.putNextEntry(new ZipEntry("members.xlsx"));
+            zos.write(excel);
+            zos.closeEntry();
+            zos.putNextEntry(new ZipEntry("1.jpg"));
+            zos.write(pngBytesNamedAsJpg);
+            zos.closeEntry();
+        }
+        MockMultipartFile zipFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", out.toByteArray());
+
+        assertThatThrownBy(() -> parser.parse(zipFile, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains(ErrorCode.INVALID_IMAGE.name()));
+    }
+
+    @Test
+    void parseRejectsPhotoBelowMinimumResolution() throws Exception {
+        byte[] excel = buildExcel(ROW_1);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(out)) {
+            zos.putNextEntry(new ZipEntry("members.xlsx"));
+            zos.write(excel);
+            zos.closeEntry();
+            zos.putNextEntry(new ZipEntry("1.jpg"));
+            zos.write(smallPhotoBytes());
+            zos.closeEntry();
+        }
+        MockMultipartFile zipFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", out.toByteArray());
+
+        assertThatThrownBy(() -> parser.parse(zipFile, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains(ErrorCode.INVALID_IMAGE.name()));
+    }
+
+    @Test
+    void parseRejectsOversizedPhoto() throws Exception {
+        byte[] excel = buildExcel(ROW_1);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(out)) {
+            zos.putNextEntry(new ZipEntry("members.xlsx"));
+            zos.write(excel);
+            zos.closeEntry();
+            zos.putNextEntry(new ZipEntry("1.jpg"));
+            zos.write(new byte[5 * 1024 * 1024 + 1]);
+            zos.closeEntry();
+        }
+        MockMultipartFile zipFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", out.toByteArray());
+
+        assertThatThrownBy(() -> parser.parse(zipFile, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains(ErrorCode.FILE_TOO_LARGE.name()));
+    }
+
+    private byte[] pngPhotoBytes() {
+        try {
+            BufferedImage image = new BufferedImage(300, 400, BufferedImage.TYPE_INT_RGB);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", output);
+            return output.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private byte[] smallPhotoBytes() {
+        try {
+            BufferedImage image = new BufferedImage(299, 400, BufferedImage.TYPE_INT_RGB);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", output);
+            return output.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
@@ -291,7 +412,7 @@ class BulkExcelParserTest {
             zip.write(excel);
             zip.closeEntry();
             zip.putNextEntry(new ZipEntry("1.jpg"));
-            zip.write("photo-1".getBytes());
+            zip.write(validPhotoBytes());
             zip.closeEntry();
             zip.putNextEntry(new ZipEntry(".DS_Store"));
             zip.write("ds-store-junk".getBytes());
@@ -305,7 +426,7 @@ class BulkExcelParserTest {
         List<BulkMemberRow> rows = parser.parse(zipFile, false, null);
 
         assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).photoBytes()).isEqualTo("photo-1".getBytes());
+        assertThat(rows.get(0).photoBytes()).isEqualTo(validPhotoBytes());
     }
 
     @Test

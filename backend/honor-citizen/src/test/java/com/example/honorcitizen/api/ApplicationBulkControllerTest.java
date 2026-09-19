@@ -23,6 +23,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.zip.ZipEntry;
@@ -115,10 +117,21 @@ class ApplicationBulkControllerTest {
                 zip.closeEntry();
 
                 zip.putNextEntry(new ZipEntry("1.jpg"));
-                zip.write("photo-1".getBytes());
+                zip.write(validPhotoBytes());
                 zip.closeEntry();
             }
             return zipOut.toByteArray();
+        }
+    }
+
+    private byte[] validPhotoBytes() {
+        try {
+            BufferedImage image = new BufferedImage(300, 400, BufferedImage.TYPE_INT_RGB);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", output);
+            return output.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 

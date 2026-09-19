@@ -34,6 +34,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.List;
@@ -202,11 +204,22 @@ class ApplicationServiceBulkTest {
 
             for (String photoId : photoIds) {
                 zip.putNextEntry(new ZipEntry(photoId + ".jpg"));
-                zip.write(("photo-" + photoId).getBytes());
+                zip.write(validPhotoBytes());
                 zip.closeEntry();
             }
         }
         return out.toByteArray();
+    }
+
+    private byte[] validPhotoBytes() {
+        try {
+            BufferedImage image = new BufferedImage(300, 400, BufferedImage.TYPE_INT_RGB);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", output);
+            return output.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // 컬럼 순서: ID|영문명|생년월일|국적|출생시간|출생지역|성별|개별입국날짜|이메일|전화번호|주소|학번|학과

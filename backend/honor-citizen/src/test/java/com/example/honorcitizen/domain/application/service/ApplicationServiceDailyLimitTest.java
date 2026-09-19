@@ -192,7 +192,7 @@ class ApplicationServiceDailyLimitTest {
             zip.closeEntry();
             for (String photoId : photoIds) {
                 zip.putNextEntry(new ZipEntry(photoId + ".jpg"));
-                zip.write(("photo-" + photoId).getBytes());
+                zip.write(imageBytes());
                 zip.closeEntry();
             }
         }

@@ -72,6 +72,25 @@ class ApplicationPhotoValidator {
         validate(file, false);
     }
 
+    /**
+     * 단체(ZIP) 신청의 멤버 사진을 검증한다(2026-09-19, requirements.md 5-1).
+     * ZIP 엔트리는 MultipartFile이 아니라 byte[]+파일명이라 HTTP Content-Type 헤더가 없다 —
+     * MIME은 확장자에서 유도해 나머지(크기·시그니처·디코딩·해상도) 검증은 validateFacePhoto와
+     * 동일하게 수행한다. 확장자 위변조(예: png를 .jpg로 저장)는 유도 MIME과 실제 시그니처가
+     * 어긋나 그대로 걸러진다.
+     */
+    void validateFacePhotoBytes(byte[] bytes, String filename) {
+        if (bytes == null || bytes.length == 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (bytes.length > MAX_FILE_SIZE) {
+            throw new CustomException(ErrorCode.FILE_TOO_LARGE);
+        }
+        String extension = extensionOf(filename);
+        String mimeType = mimeFromExtension(extension);
+        validateBytes(bytes, extension, mimeType, true);
+    }
+
     private void validate(MultipartFile file, boolean validateMinimumResolution) {
         // 1단계: 파일 존재 여부
         if (file == null || file.isEmpty()) {
@@ -85,16 +104,26 @@ class ApplicationPhotoValidator {
 
         String extension = extensionOf(file.getOriginalFilename());
         String mimeType = file.getContentType();
+        validateBytes(bytesOf(file), extension, mimeType, validateMinimumResolution);
+    }
 
+    // 확장자만으로 유도한 MIME — ZIP 경로엔 선언된 Content-Type이 없어서 만들어낸 값이다.
+    // 허용 목록 밖 확장자는 빈 문자열을 반환해 아래 ALLOWED_MIME_TYPES 검사에서 자연히 거절된다.
+    private String mimeFromExtension(String extension) {
+        return switch (extension) {
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "png" -> "image/png";
+            default -> "";
+        };
+    }
+
+    private void validateBytes(byte[] bytes, String extension, String mimeType, boolean validateMinimumResolution) {
         // 3·4단계: 확장자와 Content-Type 허용 목록 검증
         // 두 조건을 AND로 체크하는 이유: 확장자는 jpg인데 MIME가 image/png인 경우처럼
         // 불일치 케이스를 차단한다. 일치하는지 여부는 5단계(시그니처)에서 다시 검증한다.
         if (!ALLOWED_EXTENSIONS.contains(extension) || !ALLOWED_MIME_TYPES.contains(mimeType)) {
             throw new CustomException(ErrorCode.UNSUPPORTED_FILE_TYPE);
         }
-
-        // 파일 내용을 메모리에 읽는다. 이후 단계에서 여러 번 사용한다.
-        byte[] bytes = bytesOf(file);
 
         // 5단계: 바이너리 시그니처 검증 — magic number로 실제 파일 포맷을 판별한다.
         // 예: PNG 파일의 확장자를 .jpg로 바꿔 올리면 이 단계에서 탐지된다.

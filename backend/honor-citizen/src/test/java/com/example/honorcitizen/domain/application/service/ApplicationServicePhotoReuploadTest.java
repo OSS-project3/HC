@@ -30,6 +30,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -136,10 +138,21 @@ class ApplicationServicePhotoReuploadTest {
                 zip.write(excelOut.toByteArray());
                 zip.closeEntry();
                 zip.putNextEntry(new ZipEntry("9.jpg"));
-                zip.write("photo-9".getBytes());
+                zip.write(validPhotoBytes());
                 zip.closeEntry();
             }
             return zipOut.toByteArray();
+        }
+    }
+
+    private byte[] validPhotoBytes() {
+        try {
+            BufferedImage image = new BufferedImage(300, 400, BufferedImage.TYPE_INT_RGB);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", output);
+            return output.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 

@@ -74,6 +74,12 @@ class BulkExcelParser {
     private static final int HEADER_ROW = 2;             // 3행: 헤더 (실제로 읽지 않음)
     private static final int FIRST_DATA_ROW = 3;         // 4행: 첫 번째 데이터 행
 
+    private final ApplicationPhotoValidator applicationPhotoValidator;
+
+    BulkExcelParser(ApplicationPhotoValidator applicationPhotoValidator) {
+        this.applicationPhotoValidator = applicationPhotoValidator;
+    }
+
     /**
      * ZIP 파일을 파싱해 멤버 목록(BulkMemberRow)을 반환한다.
      *
@@ -340,6 +346,18 @@ class BulkExcelParser {
         PhotoEntry photo = photosById.remove(photoNumber.toLowerCase());
         if (photo == null) {
             errors.add(new ValidationErrorDetail(rowNumber, "photo", "PHOTO_NOT_FOUND", "사진 번호에 매칭되는 사진을 찾을 수 없습니다."));
+        } else {
+            // 사진 내용 검증(2026-09-19, requirements.md 5-1) — 이전까지는 ZIP 안의 사진이 실제
+            // 이미지인지 전혀 확인하지 않아, 손상되거나 이미지가 아닌 파일도 그대로 통과해 카드
+            // 생성 단계에서야 원인 불명의 오류로 터졌다. 개인 신청과 동일한 검증(용량·확장자·
+            // 매직넘버·디코딩·최소해상도)을 여기서 선행 적용한다. 다른 행 오류와 동일하게
+            // 즉시 던지지 않고 errors에 모아 all-or-nothing 정책을 유지한다.
+            try {
+                applicationPhotoValidator.validateFacePhotoBytes(photo.bytes(), photo.fileName());
+            } catch (CustomException e) {
+                errors.add(new ValidationErrorDetail(rowNumber, "photo", e.getErrorCode().name(), e.getErrorCode().getMessage()));
+                photo = null;
+            }
         }
 
         // 필수 필드 중 하나라도 null이면 이 행은 실패로 간주한다.

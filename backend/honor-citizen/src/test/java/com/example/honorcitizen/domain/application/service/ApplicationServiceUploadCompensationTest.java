@@ -218,7 +218,7 @@ class ApplicationServiceUploadCompensationTest {
             zip.closeEntry();
             for (String photoId : photoIds) {
                 zip.putNextEntry(new ZipEntry(photoId + ".jpg"));
-                zip.write(("photo-" + photoId).getBytes());
+                zip.write(imageBytes(300, 400, "jpg"));
                 zip.closeEntry();
             }
         }

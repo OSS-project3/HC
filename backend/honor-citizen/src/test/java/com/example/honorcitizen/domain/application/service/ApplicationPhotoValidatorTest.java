@@ -69,6 +69,46 @@ class ApplicationPhotoValidatorTest {
                 .doesNotThrowAnyException();
     }
 
+    // 단체(ZIP) 경로 — MultipartFile이 아니라 byte[]+파일명으로 들어오는 사진 검증(2026-09-19).
+    // MultipartFile 경로와 동일한 magic number/디코딩/해상도 검증을 거친다. MIME은 HTTP 헤더가
+    // 없으므로 확장자에서 유도한다 — 그래도 시그니처 대조는 그대로 동작한다(예: png를 .jpg로
+    // 위장하면 유도 MIME=image/jpeg와 실제 시그니처 PNG가 불일치해 그대로 걸러진다).
+    @Test
+    void acceptsFacePhotoBytesAtMinimumResolution() {
+        assertThatCode(() -> validator.validateFacePhotoBytes(imageBytes(300, 400, "jpg"), "1.jpg"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsFacePhotoBytesLargerThanFiveMebibytes() {
+        byte[] bytes = new byte[5 * 1024 * 1024 + 1];
+        assertError(() -> validator.validateFacePhotoBytes(bytes, "1.jpg"), ErrorCode.FILE_TOO_LARGE);
+    }
+
+    @Test
+    void rejectsFacePhotoBytesWithUnsupportedExtension() {
+        assertError(() -> validator.validateFacePhotoBytes(imageBytes(300, 400, "png"), "1.webp"),
+                ErrorCode.UNSUPPORTED_FILE_TYPE);
+    }
+
+    @Test
+    void rejectsFacePhotoBytesWithSignatureNotMatchingExtension() {
+        assertError(() -> validator.validateFacePhotoBytes(imageBytes(300, 400, "png"), "1.jpg"),
+                ErrorCode.INVALID_IMAGE);
+    }
+
+    @Test
+    void rejectsUndecodableFacePhotoBytes() {
+        assertError(() -> validator.validateFacePhotoBytes("not-image".getBytes(), "1.jpg"),
+                ErrorCode.INVALID_IMAGE);
+    }
+
+    @Test
+    void rejectsFacePhotoBytesBelowMinimumResolution() {
+        assertError(() -> validator.validateFacePhotoBytes(imageBytes(299, 400, "png"), "1.png"),
+                ErrorCode.INVALID_IMAGE);
+    }
+
     private void assertError(ThrowingCall call, ErrorCode errorCode) {
         assertThatThrownBy(call::run)
                 .isInstanceOf(CustomException.class)
