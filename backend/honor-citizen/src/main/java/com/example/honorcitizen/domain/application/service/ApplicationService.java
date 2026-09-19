@@ -662,9 +662,14 @@ public class ApplicationService {
         validateAdmin(adminId);
         Application application = findApplication(applicationId);
         requireCardGenerationComplete(application);
-        application.markCardReady(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS));
-        adminActivityLogRepository.save(AdminActivityLog.create(
-                adminId, AdminActivityLog.CARD_ISSUE, applicationId, "카드 발급 완료"));
+        // markCardReady()가 이미 멱등(두 번째 호출은 false, 상태 변경 없음)이므로 반환값을 확인해
+        // 최초 반영 때만 감사로그를 남긴다 — 그렇지 않으면 아무 변화도 없었는데 "카드 발급 완료"가
+        // 중복 기록된다(2026-09-20, QA 체크리스트).
+        boolean firstMarking = application.markCardReady(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS));
+        if (firstMarking) {
+            adminActivityLogRepository.save(AdminActivityLog.create(
+                    adminId, AdminActivityLog.CARD_ISSUE, applicationId, "카드 발급 완료"));
+        }
         return ApplicationStatusResponse.of(applicationId, application.getStatus());
     }
 
@@ -700,9 +705,15 @@ public class ApplicationService {
     public ApplicationStatusResponse dispatchPhysical(Long adminId, Long applicationId, String trackingNumber) {
         validateAdmin(adminId);
         Application application = findApplication(applicationId);
-        application.markPhysicalDispatched(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS), trackingNumber);
-        adminActivityLogRepository.save(AdminActivityLog.create(
-                adminId, AdminActivityLog.TRACKING_REGISTER, applicationId, trackingNumber));
+        // markPhysicalDispatched()가 이미 멱등(두 번째 호출은 false, 운송장 번호 갱신 안 함)이므로
+        // 반환값을 확인해 최초 반영 때만 로그를 남긴다 — 그렇지 않으면 실제로는 무시된 두 번째 운송장
+        // 번호가 감사로그에 마치 등록된 것처럼 남는다(2026-09-20, QA 체크리스트).
+        boolean firstDispatch = application.markPhysicalDispatched(
+                LocalDateTime.now().truncatedTo(ChronoUnit.MICROS), trackingNumber);
+        if (firstDispatch) {
+            adminActivityLogRepository.save(AdminActivityLog.create(
+                    adminId, AdminActivityLog.TRACKING_REGISTER, applicationId, trackingNumber));
+        }
         return ApplicationStatusResponse.of(applicationId, application.getStatus());
     }
 

@@ -27,6 +27,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -200,6 +201,34 @@ class ApplicationServiceAdminTransitionTest {
         assertThat(reloaded.getCardReadyAt()).isNull();
     }
 
+    // QA 체크리스트(2026-09-20) — 카드 발급 완료를 두 번 눌러도 에러 없이 무시돼야 하는데(엔티티
+    // markCardReady()는 이미 멱등), Service가 반환값을 안 보고 무조건 로그를 남기고 있어서 두 번째
+    // 호출에서도 중복 CARD_ISSUE 로그가 남는지 확인한다.
+    @Test
+    void markCardReadyIsIdempotentAndDoesNotDuplicateLog() {
+        Application application = newApplication("APP-2026-940013", IssueType.MOBILE);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application.completeNaming();
+        application.startProducing();
+        LocalDate issueDate = LocalDate.of(2026, 9, 14);
+        application.confirmCardGeneration(1L, issueDate);
+        applicationRepository.saveAndFlush(application);
+        cardGeneratedMember(application.getId(), issueDate);
+
+        applicationService.markCardReady(adminId, application.getId());
+        LocalDateTime firstCardReadyAt = applicationRepository.findById(application.getId()).orElseThrow().getCardReadyAt();
+        ApplicationStatusResponse secondResponse = applicationService.markCardReady(adminId, application.getId());
+
+        assertThat(secondResponse.getStatus()).isEqualTo(ApplicationStatus.COMPLETED);
+        Application reloaded = applicationRepository.findById(application.getId()).orElseThrow();
+        assertThat(reloaded.getCardReadyAt()).isEqualTo(firstCardReadyAt);
+        assertThat(adminActivityLogRepository.findAll().stream()
+                .filter(log -> log.getActionType().equals(AdminActivityLog.CARD_ISSUE)))
+                .hasSize(1);
+    }
+
     @Test
     void dispatchPhysicalStoresTrackingNumberAndCompletesAndLogs() {
         Application application = newApplication("APP-2026-940005", IssueType.MOBILE_AND_PHYSICAL);
@@ -226,6 +255,36 @@ class ApplicationServiceAdminTransitionTest {
                     assertThat(log.getActionType()).isEqualTo(AdminActivityLog.TRACKING_REGISTER);
                     assertThat(log.getDetail()).isEqualTo("1234567890");
                 });
+    }
+
+    // QA 체크리스트(2026-09-20) — 배송 처리를 서로 다른 운송장 번호로 두 번 호출해도 엔티티는
+    // 이미 멱등(physicalDispatchedAt이 있으면 무시)한데, Service가 반환값을 안 보고 무조건 로그를
+    // 남기고 있어서 실제로는 반영 안 된 두 번째 운송장 번호가 감사로그엔 남는지 확인한다.
+    @Test
+    void dispatchPhysicalIsIdempotentAndDoesNotOverwriteTrackingNumberOrDuplicateLog() {
+        Application application = newApplication("APP-2026-940014", IssueType.MOBILE_AND_PHYSICAL);
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application.completeNaming();
+        application.startProducing();
+        LocalDate issueDate = LocalDate.of(2026, 9, 14);
+        application.confirmCardGeneration(1L, issueDate);
+        applicationRepository.saveAndFlush(application);
+        cardGeneratedMember(application.getId(), issueDate);
+        applicationService.markCardReady(adminId, application.getId());
+        applicationService.dispatchPhysical(adminId, application.getId(), "1111111111");
+
+        ApplicationStatusResponse secondResponse =
+                applicationService.dispatchPhysical(adminId, application.getId(), "2222222222");
+
+        assertThat(secondResponse.getStatus()).isEqualTo(ApplicationStatus.COMPLETED);
+        Application reloaded = applicationRepository.findById(application.getId()).orElseThrow();
+        assertThat(reloaded.getTrackingNumber()).isEqualTo("1111111111");
+        assertThat(adminActivityLogRepository.findAll().stream()
+                .filter(log -> log.getActionType().equals(AdminActivityLog.TRACKING_REGISTER)))
+                .hasSize(1)
+                .allSatisfy(log -> assertThat(log.getDetail()).isEqualTo("1111111111"));
     }
 
     @Test
