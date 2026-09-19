@@ -9,6 +9,7 @@ import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.PaymentStatus;
 import com.example.honorcitizen.common.enums.SchoolType;
+import com.example.honorcitizen.common.enums.StudentTextColor;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import jakarta.persistence.Column;
@@ -128,6 +129,16 @@ public class Application extends BaseTimeEntity {
     // cardDesignId와 함께 confirmCardGeneration()에서만 채워진다. 그 전까지는 null.
     // 개인별 기록용 ApplicationMember.issueDate는 이 값과 항상 같아야 한다(Service가 강제).
     private LocalDate cardIssueDate;
+
+    // 학생증(STUDENT) 카드 앞·뒷면 텍스트 색상(docs/specs/application/checklist.md §6, 최소
+    // 구현 — enum·필드·confirmCardGeneration 오버로드만. 잠금 정책·단체 일관성 강제·전용
+    // 응답 노출·에러코드 등 나머지 체크리스트는 별도 작업). 기존 row와 값 누락은 하위호환을
+    // 위해 DARK_GRAY로 해석하되(호출부 책임), null 자체는 허용한다.
+    @Enumerated(EnumType.STRING)
+    private StudentTextColor studentFrontTextColor;
+
+    @Enumerated(EnumType.STRING)
+    private StudentTextColor studentBackTextColor;
 
     // 로고 UploadFile FK — 의미가 카드종류/신청유형에 따라 다르다.
     //   개인+학생증: 학교 로고(선택 안 하면 null). 개인+비학생증: 로고 자체가 없어 항상 null.
@@ -430,6 +441,14 @@ public class Application extends BaseTimeEntity {
     public void confirmCardGeneration(Long cardDesignId, LocalDate cardIssueDate) {
         this.cardDesignId = cardDesignId;
         this.cardIssueDate = cardIssueDate;
+    }
+
+    // 학생증 앞·뒷면 텍스트 색상까지 함께 확정하는 오버로드(최소 구현, checklist.md §6).
+    public void confirmCardGeneration(Long cardDesignId, LocalDate cardIssueDate,
+            StudentTextColor studentFrontTextColor, StudentTextColor studentBackTextColor) {
+        confirmCardGeneration(cardDesignId, cardIssueDate);
+        this.studentFrontTextColor = studentFrontTextColor;
+        this.studentBackTextColor = studentBackTextColor;
     }
 
     // 십이간지 디자인 세트 지정/변경 — cardDesignId와 달리 잠금이 없어 카드 생성 전후 아무 때나

@@ -3,6 +3,7 @@ package com.example.honorcitizen.domain.application.entity;
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.PaymentStatus;
+import com.example.honorcitizen.common.enums.StudentTextColor;
 import com.example.honorcitizen.common.exception.CustomException;
 import org.junit.jupiter.api.Test;
 
@@ -124,15 +125,18 @@ class ApplicationStateTransitionTest {
 
     // 3-B(2026-08-30): 카드 생성 최초 확정 — cardDesignId·cardIssueDate를 한 번에 확정한다.
     @Test
-    void confirmCardGenerationSetsDesignAndIssueDateTogether() {
+    void confirmCardGenerationSetsDesignIssueDateAndStudentTextColorsTogether() {
         Application application = individual(IssueType.MOBILE);
         assertThat(application.getCardDesignId()).isNull();
         assertThat(application.getCardIssueDate()).isNull();
 
-        application.confirmCardGeneration(7L, LocalDateTime.of(2026, 9, 1, 0, 0).toLocalDate());
+        application.confirmCardGeneration(7L, LocalDateTime.of(2026, 9, 1, 0, 0).toLocalDate(),
+                StudentTextColor.WHITE, StudentTextColor.DARK_GRAY);
 
         assertThat(application.getCardDesignId()).isEqualTo(7L);
         assertThat(application.getCardIssueDate()).isEqualTo(LocalDateTime.of(2026, 9, 1, 0, 0).toLocalDate());
+        assertThat(application.getStudentFrontTextColor()).isEqualTo(StudentTextColor.WHITE);
+        assertThat(application.getStudentBackTextColor()).isEqualTo(StudentTextColor.DARK_GRAY);
     }
 
     // 2026-09-06: 십이간지 캐릭터 디자인 세트 — cardDesignId와 달리 잠금이 없어 카드 생성 확정
