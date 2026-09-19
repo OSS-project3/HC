@@ -1109,6 +1109,8 @@ public class ApplicationService {
                 if (!isPresent(photo) || isPresent(submitFile)) {
                     throw new CustomException(ErrorCode.INVALID_INPUT);
                 }
+                // 최초 신청(createIndividual)과 동일한 검증 — 반려 후 재시도 경로라 없으면 안 됨(2026-09-19).
+                applicationPhotoValidator.validateFacePhoto(photo);
                 ApplicationMember member = applicationMemberRepository.findByApplicationId(applicationId).get(0);
                 String oldPhotoPath = member.getPhotoPath();
 

@@ -25,6 +25,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -92,7 +95,7 @@ class ApplicationPhotoControllerTest {
 
     @Test
     void reuploadPhotoReturnsReviewingStatus() throws Exception {
-        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", "new-bytes".getBytes());
+        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", validPhotoBytes());
         var builder = multipart("/api/applications/" + application.getId() + "/photo").file(photo);
         builder.with(request -> {
             request.setMethod("PATCH");
@@ -116,5 +119,16 @@ class ApplicationPhotoControllerTest {
 
         mockMvc.perform(builder)
                 .andExpect(status().isUnauthorized());
+    }
+
+    private byte[] validPhotoBytes() {
+        try {
+            BufferedImage image = new BufferedImage(300, 400, BufferedImage.TYPE_INT_RGB);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", output);
+            return output.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

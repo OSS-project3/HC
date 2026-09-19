@@ -159,7 +159,7 @@ class ApplicationServicePhotoReuploadTest {
     @Test
     void reuploadPhotoForIndividualUpdatesMemberPhotoAndReturnsToReviewing() {
         Application application = photoRejectedIndividualApplication(1L);
-        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", "new-bytes".getBytes());
+        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", validPhotoBytes());
 
         ApplicationPhotoReuploadResponse response = applicationService.reuploadPhoto(
                 1L, application.getId(), photo, null);
@@ -176,7 +176,7 @@ class ApplicationServicePhotoReuploadTest {
     @Test
     void reuploadPhotoForIndividualDeletesOldPhotoFile() {
         Application application = photoRejectedIndividualApplication(1L);
-        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", "new-bytes".getBytes());
+        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", validPhotoBytes());
 
         applicationService.reuploadPhoto(1L, application.getId(), photo, null);
 
@@ -186,7 +186,7 @@ class ApplicationServicePhotoReuploadTest {
     @Test
     void reuploadPhotoForIndividualDeletesNewPhotoWhenTransactionRollsBackAndKeepsOldPhoto() {
         Application application = photoRejectedIndividualApplication(1L);
-        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", "new-bytes".getBytes());
+        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", validPhotoBytes());
         TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
         transactionTemplate.executeWithoutResult(status -> {
@@ -201,7 +201,7 @@ class ApplicationServicePhotoReuploadTest {
     @Test
     void reuploadPhotoForIndividualKeepsSuccessWhenOldPhotoDeleteAfterCommitFails() {
         Application application = photoRejectedIndividualApplication(1L);
-        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", "new-bytes".getBytes());
+        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", validPhotoBytes());
         doThrow(new RuntimeException("S3 delete failure")).when(storageService).delete("photos/old.jpg");
 
         ApplicationPhotoReuploadResponse response = applicationService.reuploadPhoto(
@@ -209,6 +209,24 @@ class ApplicationServicePhotoReuploadTest {
 
         assertThat(response.getStatus().name()).isEqualTo("REVIEWING");
         verify(storageService).delete("photos/old.jpg");
+    }
+
+    // 개인 재업로드는 최초 신청(createIndividual)과 달리 ApplicationPhotoValidator를 거치지
+    // 않고 있었다(2026-09-19 감사에서 발견) — 반려 후 재시도라는, 오히려 방어가 더 필요한
+    // 경로에 검증이 없던 버그. 최초 신청과 동일한 검증을 적용한다.
+    @Test
+    void reuploadPhotoForIndividualRejectsUndecodableImage() {
+        Application application = photoRejectedIndividualApplication(1L);
+        MockMultipartFile photo = new MockMultipartFile("photo", "new.jpg", "image/jpeg", "not-an-image".getBytes());
+
+        assertThatThrownBy(() -> applicationService.reuploadPhoto(1L, application.getId(), photo, null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_IMAGE);
+
+        Application saved = applicationRepository.findById(application.getId()).orElseThrow();
+        assertThat(saved.getStatus().name()).isEqualTo("PHOTO_REJECTED");
+        ApplicationMember member = applicationMemberRepository.findByApplicationId(application.getId()).get(0);
+        assertThat(member.getPhotoPath()).isEqualTo("photos/old.jpg");
     }
 
     @Test
