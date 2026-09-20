@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-20 — Claude — `main` (십이간지 디자인 세트 프론트엔드 UI 구현 + 갭 문서 완료 반영 정리)
+
+- 변경: `zodiacDesignSet`(십이간지 캐릭터 디자인 세트 1~5) 선택 UI가 2026-09-14부터 P0 하드 블로커로 등록만 돼 있고 실제 구현이 안 된 상태였다(값이 없으면 모든 카드종류의 카드 미리보기·생성이 거절됨) — 사용자가 "이미 구현됐다고 들었다"며 재확인을 요청해 저장소 전체(모든 브랜치·전체 히스토리·stash)를 다시 뒤졌으나 실제로 어디에도 없음을 재확인했다. 범위를 먼저 `docs/collab/TODO.md`에 체크리스트로 작성하고(미리보기 이미지 표시 여부만 정책 확인 — 새 백엔드 엔드포인트 없이 텍스트 선택만 하기로 사용자 승인), 신청 전체에 1개(멤버별 아님)라는 실제 성격에 맞춰 `CardProductionPanel`이 아닌 `ApplicationDetail`(신청 상세) 레벨에 select+저장 버튼을 구현했다. 이 과정에서 학생증 텍스트 색상(이전 항목, 커밋 `4ae03ec`로 이미 구현 완료)이 `FRONTEND_API_GAPS.md`에 반영되지 않은 채 남아있던 것도 함께 발견해 정리했다.
+- 파일: (체크리스트, 커밋 `b63ec4d`) `docs/collab/TODO.md` / (구현, 커밋 `7edc3d2`) `frontend/src/services/api.ts`, `frontend/src/features/i18n/serverErrors.ts`, `frontend/src/components/admin/applications/ApplicationDetail.tsx` / (갭 문서 정리, 커밋 `a68f713`) `docs/collab/TODO.md`, `docs/FRONTEND_API_GAPS.md`
+- 사유: 사용자 질문("십이간지 디자인 선택... 이거 아직 프론트엔드 구현 안됐어??")과 재확인 요청("내가 남겨둔거는 frontend가 다 구현했다고 들었는데... 코드 봐주라")으로 시작, 범위 확인 후 정책 승인받아 진행.
+- 테스트: `tsc --noEmit` strict 통과, `npm run build` 통과. 실제 브라우저 클릭 테스트는 공유 dev 컨테이너 재빌드를 보류해 하지 못함.
+- 관련: `docs/collab/TODO.md` "십이간지 캐릭터 디자인 세트 — 프론트엔드 선택 UI" 절
+
+---
 ## 2026-09-20 — Claude — `main` (학생증 텍스트 색상 — 프론트엔드 갭 문서화 + 구현)
 
 - 변경: 백엔드는 2026-09-19에 이미 완료했지만 프론트 전달 문서에 반영되지 않고 있던 학생증 앞·뒤 텍스트 색상 기능을 프론트에 연결했다. 먼저 `FRONTEND_API_GAPS.md`에 P2 신규 갭으로 등록하고 `FRONTEND_API_INTEGRATION_SPEC.md` "카드 제작" 절에 노출조건·기본값·새로고침 복원·잠금조건 계약을 기록, `docs/specs/application/checklist.md` §6의 "프론트 전달 문서" 항목을 완료 처리했다(커밋 `df4e8dc`). 이어서 사용자 승인을 받아 실제 UI까지 구현했다 — STUDENT 카드일 때만 앞/뒤 글씨색 select 노출, 비학생증은 필드 자체를 요청에 안 보냄, 카드가 이미 생성돼 색상이 확정된 신청은 선택창을 잠그고 안내 문구 표시, 카드 생성 후 신청 상세를 재조회해 다른 구성원 패널에도 잠금이 즉시 반영되게 함.
