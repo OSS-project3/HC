@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-20 — Claude — `main` (공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계)
+
+- 변경: 비로그인 공개 조회 화면(`LookupPage.tsx`)이 조회 성공 직후 호출하는 카드 다운로드 API(`GET /api/applications/{id}/cards/download`)가 `SecurityConfig`의 `/api/**` 캐치올에 걸려 로그인이 필수였다 — 이 화면 방문자는 정의상 항상 비로그인이라 다운로드는 예외 없이 항상 401이었고, 프론트가 이 실패를 `.catch(() => null)`로 삼켜 고정 데모 이미지로 조용히 대체해왔다. 즉 이 기능은 실제로 작동한 적이 없는데 겉으로는 작동하는 것처럼 보였다. 단순히 다운로드 API를 `permitAll()`로 여는 건 `applicationId`(순차 정수)만 바꿔 타인의 카드(얼굴사진 포함)를 내려받을 수 있어(IDOR) 위험하다는 지적을 받아, "조회를 실제로 거쳤다"는 사실을 인가 근거로 쓰는 1회용 단기 토큰 방식으로 재설계했다(사용자 확인 완료). 신규 `CardLookupTokenService`가 `lookup()` 성공 시 토큰을 발급(Redis, TTL 5분, 원문 미저장·SHA-256 해시만 키로 사용, redeem 성공 시 즉시 삭제 — `VerificationChallengeStore`의 signupToken과 동일한 패턴을 새 컴포넌트로 재구현, 새 시크릿 추가 없음)하고, 신규 공개 엔드포인트 `GET /cards/download/public`이 이 토큰만으로 인가한다. 기존 로그인 기반 엔드포인트는 건드리지 않았고, 공유 로직(COMPLETED 검증 + presigned URL 생성)만 `buildCardDownloadResponse`로 추출해 재사용한다. 프론트는 `getPublicCardDownload`로 교체하고, 다운로드 실패(또는 성공했지만 카드 이미지가 없는 경우 — 단체 신청 등)를 데모 카드로 가리던 로직을 제거해 실제 오류 메시지("카드 다운로드에 실패했습니다")로 바꿨다(사용자 확인: "그냥 다운로드 실패했다는 메시지 띄우면됨"). `TEST_CARD_NUMBER`(admin-test)와 조회 API 자체 실패 시의 데모 자격 폴백은 이번 범위 밖이라 그대로 둠.
+- 파일: (백엔드, 커밋 `4ea6801`) `CardLookupTokenService.java`(신규), `ApplicationLookupResponse.java`, `ApplicationService.java`, `ApplicationController.java`, `ErrorCode.java`(`INVALID_LOOKUP_TOKEN` 추가), `SecurityConfig.java` + 테스트 3개(`ApplicationServiceCardDownloadTest`/`ApplicationServiceLookupTest`/`ApplicationControllerTest`) / (프론트, 커밋 `9b8da0e`) `services/api.ts`, `pages/LookupPage/LookupPage.tsx` / (체크리스트 완료 반영, 커밋 `688c3fa`) `docs/collab/TODO.md`
+- 사유: 사용자가 외부 감사표를 공유하며 "공개 카드 조회 후 실제 카드 다운로드"를 P0로 지적 → 원인·영향 범위 확인(로그인 필수 API를 비로그인 화면이 호출 → 데모 카드로 가려짐) → naive fix(permitAll)의 IDOR 위험 설명·재확인("데모카드를 보여주는 현상만 문제라는거?") → 단기 토큰 방식 확정("이게 좋은 것같은데") → 백엔드 스코프 요청 → 구현.
+- 테스트: 신규 테스트 전부 통과(서비스 레벨 1회성/위조/만료 케이스, 컨트롤러 레벨 SecurityConfig 배선 자체 검증). 전체 회귀 976건 중 975건 통과, 무관 플레이키 `HighSchoolSeederIntegrationTest` 1건만 실패(기존에 알려진 schools 테이블 공유 상태 문제, 이번 변경과 무관). 프론트 `tsc --noEmit`/`npm run build` 통과, 실제 브라우저 클릭 테스트는 미실시(공유 dev 컨테이너 재빌드 보류, 기존 관례).
+- 관련: `docs/collab/TODO.md` "공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계" 절
+
+---
 ## 2026-09-20 — Claude — `main` (신청 건별 동의 이력 — 백엔드 저장 계약 추가, 프론트 연동은 별도)
 
 - 변경: 신청 전 사전 상담 확인·유의사항(면책) 체크박스(`StepType.tsx`)는 UI 진행 조건일 뿐 서버에 값이 전달되지 않아 법적·운영상 필요한 동의 이력이 전혀 남지 않고 있었다(`FRONTEND_API_GAPS.md` P1). 사용자가 "백엔드만 먼저" 진행을 요청해, 프론트 연동 전에 저장 계약부터 추가했다. `Application`에 `consultationConfirmed`/`disclaimerConfirmed`(boolean)와 `consentPolicyVersion`(현재 값 `2026-09-20`, 동의 문구 버전 상수) 필드를 추가하고 기존 팩토리 오버로드 관례대로 하위호환 오버로드를 유지했다. 개인·단체 생성 요청 DTO(`ApplicationCreateRequest`/`BulkApplicationCreateRequest`)에 같은 이름의 boolean 필드를 추가해 값을 그대로 저장한다. **의도적으로 필수 검증을 걸지 않았다** — 프론트가 아직 이 필드를 전송하지 않는 상태에서 `@AssertTrue` 등으로 거절 조건을 걸면 배포 즉시 모든 신청 생성이 막히기 때문(현재는 항상 `false`로 기록됨, 프론트 연동 후 별도로 검증 추가 예정). 부수적으로 `ApplicationCreateRequest`의 미사용 `@AllArgsConstructor`를 제거했다 — Jackson이 이를 암묵적 생성자 기반 creator로 채택해, 새로 추가한 boolean 필드가 JSON에 없을 때 `MismatchedInputException`(null → boolean)으로 기존 통과 테스트 4건이 깨지는 걸 발견해 원인 제거.

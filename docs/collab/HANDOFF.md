@@ -3,7 +3,7 @@
 - 마지막 갱신: 2026-09-20
 - 작성자: Claude
 - 브랜치: main
-- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 36 commits ahead).
+- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 40 commits ahead).
 
 ## 현재 워킹 트리
 
@@ -21,10 +21,11 @@
 8. 결제 안내·72시간 미입금 자동취소 정책 폐기를 문서에 반영(코드는 그대로) — `guidePayment()` Service는 있는데 이걸 호출하는 Controller가 없다는 지적에서 시작, 확인해보니 이미 폐기하기로 한 정책인데 requirements.md/data-model.md/api.md(2곳)/admin.md/TODO.md §5-A 전부 여전히 "구현 예정"으로 남아있었음. 확정 정책: 결제 안내는 시스템 밖에서 처리, 관리자는 confirm-payment만 호출, 자동 취소 없음. `guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`는 2026-09-13 `refundedAt` 처리와 동일하게 코드는 그대로 두고 문서만 정정(사용자 확인 완료) (2026-09-20)
 9. 카드 제작 설정 복원 — 백엔드가 이미 내려주던 확정 `cardDesignId`/`cardIssueDate`를 프론트 타입이 무시해 화면 재진입 시 항상 기본 디자인·오늘 날짜로 리셋되던 문제 수정. 학생증 텍스트 색상과 동일한 confirmed-value 잠금·복원 패턴 적용(정책 질문 없이 바로 구현, 사전 갭 문서 등록도 없었음). 커밋 `b611676` (2026-09-20)
 10. 신청 건별 동의 이력 — 백엔드 저장 계약만 우선 추가(사용자 요청: "백엔드 먼저"). `Application`에 `consultationConfirmed`/`disclaimerConfirmed`/`consentPolicyVersion` 추가, 개인·단체 생성 DTO에 같은 필드 추가해 값을 저장. **의도적으로 필수 검증은 아직 안 걸었다** — 프론트(`StepType.tsx`)가 이 값을 아직 안 보내므로 지금 검증을 걸면 모든 신청 생성이 막힌다(현재는 항상 `false`로 기록됨). 부수적으로 Jackson이 `ApplicationCreateRequest`의 미사용 `@AllArgsConstructor`를 암묵적 creator로 채택해 새 boolean 필드 때문에 기존 테스트 4건이 깨지는 걸 발견해 그 어노테이션을 제거. 커밋 `6cbeafb`, `FRONTEND_API_GAPS.md` P1 갱신 (2026-09-20)
+11. 공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계 완료(백엔드+프론트). 비로그인 조회 화면이 로그인 전용 다운로드 API를 호출해 항상 401이었고, 프론트가 그 실패를 데모 카드로 조용히 대체해 실제로 작동한 적이 없던 기능이었음(외부 감사표에서 P0로 지적). 단순 `permitAll()`은 `applicationId`만 바꿔 타인의 카드를 내려받는 IDOR을 만들어 대신 `CardLookupTokenService`(신규, Redis 기반 1회용 단기 토큰, `VerificationChallengeStore`의 signupToken 패턴 재사용·새 시크릿 없음)로 조회 성공 사실 자체를 인가 근거로 삼는 신규 공개 엔드포인트(`GET .../cards/download/public`)를 추가했다. 기존 로그인 기반 엔드포인트는 그대로 두고 공유 로직만 추출. 프론트는 데모 카드 fallback을 제거하고 실제 실패 메시지로 교체(사용자 확인 완료). 커밋 `4ea6801`(백엔드) / `9b8da0e`(프론트) / `688c3fa`(체크리스트) (2026-09-20)
 
 ## 검증
 
-- 백엔드: 항목별 개별 회귀 + 세션 마지막 전체 회귀 실행, 실패 0건(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건만 간헐 — 스위트 전체가 공유하는 `schools` 테이블을 여러 테스트가 각자 `deleteAll()`해서 생기는 기존 문제, 이 세션이 유발한 게 아님. 재현·원인 확인은 `qa_state_persistence_checklist.md` 10번 항목 참고).
+- 백엔드: 항목별 개별 회귀 + 세션 마지막 전체 회귀 실행(976개 중 975개 통과), 무관 플레이키 `HighSchoolSeederIntegrationTest` 1건만 간헐 실패 — 스위트 전체가 공유하는 `schools` 테이블을 여러 테스트가 각자 `deleteAll()`해서 생기는 기존 문제, 이 세션이 유발한 게 아님(재현·원인 확인은 `qa_state_persistence_checklist.md` 10번 항목 참고).
 - 테스트 실행 시 `hc-test-redis` 컨테이너(포트 6379) 필요 — 개발 `docker-compose.yml`은 Redis를 호스트에 노출하지 않는다. `docker run -d --name hc-test-redis -p 6379:6379 redis:7-alpine`(최초) 또는 `docker start hc-test-redis`(이후).
 - 프론트: `tsc --noEmit` strict, `npm run build` 둘 다 통과(학생증 색상·십이간지 선택 UI 포함). 실제 브라우저 클릭 테스트는 공유 dev 컨테이너 재빌드를 보류해 하지 못함(학생증 색상은 STUDENT 타입 데모 신청도 없음).
 
