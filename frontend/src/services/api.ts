@@ -156,6 +156,8 @@ export interface AdminApplicationDetail {
   memberCount: number; createdAt: string; depositorName?: string; version?: number;
   // 학생증(STUDENT) 전용 — 카드 생성 성공 시 확정되어 이후 값이 다르면 재생성이 거절된다.
   studentFrontTextColor?: StudentTextColor; studentBackTextColor?: StudentTextColor;
+  // 십이간지 캐릭터 디자인 세트(1~5, 카드종류 무관) — 미지정 시 카드 미리보기·생성이 거절된다.
+  zodiacDesignSet?: number;
 }
 export interface AdminApplicationMember {
   memberId: number; englishName?: string; nationality?: string; gender?: "MALE" | "FEMALE";
@@ -289,6 +291,9 @@ export const api = {
     requestFile(`/api/admin/applications/${applicationId}/cards/download`),
   getAdminMemberCardDownload: (applicationId: number, memberId: number) =>
     request<AdminMemberCardDownload>(`/api/admin/applications/${applicationId}/members/${memberId}/cards/download`),
+  // 십이간지 캐릭터 디자인 세트 지정(1~5, 신청 전체 1개, 카드종류 무관) — 잠금 없이 언제든 재호출 가능.
+  assignZodiacDesignSet: (applicationId: number, zodiacDesignSet: number) =>
+    request<void>(`/api/admin/applications/${applicationId}/zodiac-design`, { method: "PUT", body: JSON.stringify({ zodiacDesignSet }) }),
   // 카드번호 확정 — 개인/단일 멤버(관리자 직접 입력, 서버 채번 없음).
   assignCardNumber: (applicationId: number, memberId: number, cardNumber: string) =>
     request<void>(`/api/admin/applications/${applicationId}/members/${memberId}/card-number`, { method: "PUT", body: JSON.stringify({ cardNumber }) }),

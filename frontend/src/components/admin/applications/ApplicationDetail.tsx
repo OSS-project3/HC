@@ -22,6 +22,8 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
   const [groupBusy, setGroupBusy] = useState(false);
   const [cardBatchOpen, setCardBatchOpen] = useState(false);
   const [cardBatchText, setCardBatchText] = useState("");
+  const [zodiacDesignSet, setZodiacDesignSet] = useState("");
+  const [zodiacBusy, setZodiacBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { manseryeok, loadManseryeok } = useManseryeokResults(app.applicationId);
 
@@ -51,6 +53,11 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
     void reloadStats();
     return () => { alive = false; };
   }, [app.applicationId, reloadStats]);
+
+  // 십이간지 디자인 세트는 잠금이 없어 언제든 바뀔 수 있다 — 상세가 다시 로드될 때마다 선택값을 맞춘다.
+  useEffect(() => {
+    if (detail?.zodiacDesignSet) setZodiacDesignSet(String(detail.zodiacDesignSet));
+  }, [detail?.zodiacDesignSet]);
 
   if (error) return <p className="admin-panel__note admin-panel__note--error">{error}</p>;
   if (!detail || !members) return <p className="admin-panel__note">상세 불러오는 중…</p>;
@@ -121,6 +128,23 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
     }
   };
 
+  // 십이간지 캐릭터 디자인 세트(1~5, 신청 전체 1개, 카드종류 무관) — 잠금 없이 언제든 재저장 가능.
+  // 값이 없으면 카드 미리보기·생성이 ZODIAC_DESIGN_NOT_SELECTED로 거절된다.
+  const saveZodiacDesignSet = async () => {
+    const value = Number(zodiacDesignSet);
+    if (!value) { showToast("디자인 세트를 선택해 주세요."); return; }
+    setZodiacBusy(true);
+    try {
+      await api.assignZodiacDesignSet(app.applicationId, value);
+      showToast("십이간지 디자인 세트를 저장했습니다.");
+      await reloadDetail();
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "십이간지 디자인 세트 저장에 실패했습니다.");
+    } finally {
+      setZodiacBusy(false);
+    }
+  };
+
   // 백엔드에 존재하는 상태 전이 API를 현재 상태에 맞춰 노출한다. call()이 null이면(입력 취소) 건너뛴다.
   const runStatus = async (label: string, call: () => Promise<{ status: ApplicationStatus }> | null) => {
     const p = call();
@@ -182,6 +206,24 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
           <option value="" disabled>{statusActions.length ? "상태 변경 선택…" : "가능한 전이 없음"}</option>
           {statusActions.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}
         </select>
+      </div>
+
+      <div className="admin-naming__zodiac">
+        <span className="admin-naming__subtitle">십이간지 디자인</span>
+        <select
+          className="field__select"
+          aria-label="십이간지 디자인 세트"
+          value={zodiacDesignSet}
+          onChange={(e) => setZodiacDesignSet(e.target.value)}
+          disabled={zodiacBusy}
+        >
+          <option value="">디자인 세트 선택</option>
+          {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>디자인 세트 {n}</option>)}
+        </select>
+        <button type="button" className="admin__btn" disabled={zodiacBusy || !zodiacDesignSet} onClick={saveZodiacDesignSet}>저장</button>
+        <span className="admin__muted">
+          {detail.zodiacDesignSet != null ? `현재 확정: 세트 ${detail.zodiacDesignSet}` : "미선택 — 카드 미리보기·생성이 거절됩니다"} · 카드 생성 전후 언제든 변경 가능, 저장 후 "미리보기"로 실제 카드에서 확인
+        </span>
       </div>
 
       {isGroup && (

@@ -53,6 +53,7 @@ export const serverErrorMessages: Record<string, string> = {
   STUDENT_TEXT_COLOR_MISMATCH: "This does not match the student ID text color already confirmed for this application.",
   CARD_ISSUE_DATE_OUT_OF_RANGE: "The issue date must be after the application date and within 3 months of it.",
   MANSERYEOK_NOT_CONFIRMED: "The Saju chart has not been confirmed, so the zodiac image cannot be determined.",
+  ZODIAC_DESIGN_NOT_SELECTED: "Please select a zodiac character design set before previewing or generating the card.",
   CARD_ISSUER_ASSETS_MISSING: "Group applications require both a logo and a seal image.",
   // Review
   REVIEW_NOT_FOUND: "No such review exists.",
