@@ -4,6 +4,7 @@ import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.SchoolType;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -40,10 +41,12 @@ public class BulkApplicationCreateRequest {
     @Valid
     private ReceiverRequest receiver;
 
-    // 신청 전 사전 상담 확인·유의사항(면책) 동의 — ApplicationCreateRequest와 동일 의미(2026-09-20,
-    // 백엔드 저장만 우선 구현). 프론트 미연동 상태라 검증 없이 기록만 한다.
+    // 신청 전 사전 상담 확인·유의사항(면책) 동의 — ApplicationCreateRequest와 동일 의미·동일
+    // @AssertTrue 검증(2026-09-20, 프론트 연결 후 활성화).
+    @AssertTrue
     private boolean consultationConfirmed;
 
+    @AssertTrue
     private boolean disclaimerConfirmed;
 
     // schoolName은 저장·검증 전에 항상 트림된 값으로 취급한다(정책: 앞뒤 공백 트림 후 5~20자 검사).

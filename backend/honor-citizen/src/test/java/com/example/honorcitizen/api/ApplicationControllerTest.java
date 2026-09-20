@@ -75,7 +75,9 @@ class ApplicationControllerTest {
                 "birthRegion": "Chicago",
                 "gender": "MALE",
                 "address": "서울특별시 종로구 세종대로 1"
-              }
+              },
+              "consultationConfirmed": true,
+              "disclaimerConfirmed": true
             }
             """;
 

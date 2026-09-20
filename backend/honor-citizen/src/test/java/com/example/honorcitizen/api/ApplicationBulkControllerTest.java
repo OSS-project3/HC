@@ -68,7 +68,9 @@ class ApplicationBulkControllerTest {
             {
               "cardTypeId": %d,
               "issueType": "MOBILE",
-              "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" }
+              "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
+              "consultationConfirmed": true,
+              "disclaimerConfirmed": true
             }
             """;
 

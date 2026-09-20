@@ -6,6 +6,7 @@ import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.domain.application.dto.validation.ValidNationality;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -59,12 +60,14 @@ public class ApplicationCreateRequest {
     @Valid
     private MemberRequest member;
 
-    // 신청 전 사전 상담 확인·유의사항(면책) 동의 — 프론트 StepType.tsx의 체크박스 값(2026-09-20,
-    // 백엔드 저장만 우선 구현). 현재 프론트는 이 필드를 전송하지 않아 항상 기본값(false)으로
-    // 파싱된다 — 프론트 연동 전까지는 검증 없이 기록만 하고(@AssertTrue 등으로 거절하지 않음),
-    // 지금 거절 조건을 걸면 프론트 미연동 상태에서 모든 신청 생성이 막힌다.
+    // 신청 전 사전 상담 확인·유의사항(면책) 동의 — 프론트 StepType.tsx의 체크박스 값(2026-09-20).
+    // Inquiry.privacyConsent와 동일한 패턴(@AssertTrue) — 둘 다 true가 아니면 Bean Validation이
+    // Controller 진입 전에 INVALID_INPUT으로 거절한다. 프론트가 값을 전송하도록 연결된 이후에만
+    // 활성화했다(그 전엔 항상 false로 파싱되어 모든 신청 생성이 막혔을 것이다).
+    @AssertTrue
     private boolean consultationConfirmed;
 
+    @AssertTrue
     private boolean disclaimerConfirmed;
 
     public boolean isReceiverSameAsApplicant() {
