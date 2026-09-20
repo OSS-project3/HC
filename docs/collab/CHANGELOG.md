@@ -14,6 +14,24 @@
 ```
 
 ---
+## 2026-09-20 — Claude — `main` (학생증 텍스트 색상 — 프론트엔드 갭 문서화 + 구현)
+
+- 변경: 백엔드는 2026-09-19에 이미 완료했지만 프론트 전달 문서에 반영되지 않고 있던 학생증 앞·뒤 텍스트 색상 기능을 프론트에 연결했다. 먼저 `FRONTEND_API_GAPS.md`에 P2 신규 갭으로 등록하고 `FRONTEND_API_INTEGRATION_SPEC.md` "카드 제작" 절에 노출조건·기본값·새로고침 복원·잠금조건 계약을 기록, `docs/specs/application/checklist.md` §6의 "프론트 전달 문서" 항목을 완료 처리했다(커밋 `df4e8dc`). 이어서 사용자 승인을 받아 실제 UI까지 구현했다 — STUDENT 카드일 때만 앞/뒤 글씨색 select 노출, 비학생증은 필드 자체를 요청에 안 보냄, 카드가 이미 생성돼 색상이 확정된 신청은 선택창을 잠그고 안내 문구 표시, 카드 생성 후 신청 상세를 재조회해 다른 구성원 패널에도 잠금이 즉시 반영되게 함.
+- 파일: (문서, 커밋 `df4e8dc`) `docs/FRONTEND_API_GAPS.md`, `docs/FRONTEND_API_INTEGRATION_SPEC.md`, `docs/specs/application/checklist.md` / (구현, 미커밋) `frontend/src/services/api.ts`, `frontend/src/features/i18n/serverErrors.ts`, `frontend/src/components/admin/applications/CardProductionPanel.tsx`, `NamingCard.tsx`, `ApplicationDetail.tsx`
+- 사유: 사용자 질문("색상 변경은 프론트엔드도 만들어짐?")으로 미착수 상태를 확인 → 스코프 정리 후 문서화 승인("문서까지만") → 이어서 구현 승인("구현 같이 해줘").
+- 테스트: `tsc --noEmit` strict 통과, `npm run build` 통과. 개발 DB에 STUDENT 타입 데모 신청이 없어 이 분기를 열어볼 데이터가 없고 공유 dev 컨테이너 재빌드는 보류해, 실제 브라우저 클릭 테스트는 하지 못했다.
+- 관련: `docs/FRONTEND_API_GAPS.md` P2 항목
+
+---
+## 2026-09-20 — Claude — `main` (운영용 임시 관리자 자동 시드 제거)
+
+- 변경: `DemoDataSeeder.ensureAdminUser()`가 `app.seed-demo-data=true`일 때 `admin@test.com`/`admin1234!`로 실제 ADMIN 계정을 자동 생성하고 있었다 — 자격증명이 문서에 그대로 노출돼 있어 운영에 남으면 누구나 관리자 로그인이 가능한 보안 위험이었다. 확정 정책: 운영에서는 이 자동 시드를 쓰지 않는다. 관리자는 일반 회원가입 후 운영자가 DB에서 `role`을 `ADMIN`으로 1회 수동 변경한다. 별도의 관리자 승격 API/UI는 현재 범위에서 구현하지 않는다.
+- 파일: `infra/seed/DemoDataSeeder.java`(`ensureAdminUser()`·`ADMIN_EMAIL`·`ADMIN_PASSWORD`·미사용 `PasswordEncoder` 의존성 삭제), `domain/user/entity/User.java`(`promoteToAdmin()` 주석을 테스트 픽스처 전용으로 정리, 메서드 자체는 유지), `docs/TEMP_ADMIN_LOGIN.md`(해결 기록으로 재작성), `docs/BACKEND_TODO.md` §7, `docs/README.md`
+- 사유: 사용자 질문("관리자는 보통 어떻게 로그인해서 웹사이트를 관리하게 함?")으로 발견 → 새 정책 논의·확정 후 반영.
+- 테스트: 전체 회귀 통과(새 실패 없음).
+- 관련: `docs/TEMP_ADMIN_LOGIN.md`
+
+---
 ## 2026-09-20 — Claude — `main` (QA 체크리스트 — 상태 전이·중간 저장 검증, 14건)
 
 - 변경: `docs/collab/qa_state_persistence_checklist.md`를 새로 만들어 백엔드 전체 도메인의 상태 전이·부분 업데이트 중 "실제 테스트로 검증 안 된" 빈 곳을 훑고, 발견된 14건을 하나씩 정책 확인 → (버그면) 실패 테스트 먼저 → 최소 구현 → 회귀 순서로 처리했다.
@@ -24,6 +42,24 @@
 - 사유: 사용자 요청("버그기준으로 취약점 말고 사용자 측면 상태변화·중간저장 검증")에 따른 전수 조사 + 이어서 Codex에게 같은 기준으로 카드 템플릿·시더·단체신청 업로드·회원정보 영역을 추가 조사받아 나온 7건(카드 템플릿 P0 2건 포함) 반영.
 - 테스트: 항목마다 개별 회귀 실행, 최종 전체 회귀 964개 중 무관 플레이키(`HighSchoolSeederIntegrationTest`, 스위트 전체가 공유하는 `schools` 테이블을 여러 테스트가 각자 정리하며 생기는 기존 문제) 1건 제외 통과. 커밋: `b3a6e50`, `3a4a26c`, `6becdf9`, `ff0608f`, `0de160d`, `11eb06e`, `9f9a6e8`, `332e9b3`, `83d3c14`, `0f63ad4`, 그리고 13번 반영 커밋.
 - 관련: `docs/collab/qa_state_persistence_checklist.md`
+
+---
+## 2026-09-19 — Claude — `main` (단체·개인 신청 사진 검증 공백 수정 + 학생증 텍스트 색상 기능 완성)
+
+- 변경: 사진 업로드 파이프라인 감사 중 발견한 실제 버그 2건을 수정했다 — 단체 신청 멤버 사진의 **내용** 검증(용량·확장자·매직넘버·디코딩·최소해상도)이 아예 빠져 있던 것, 개인 신청 사진 **재업로드** 경로에도 같은 검증이 없던 것. 이어서 Codex가 절반 진행하다 사용한도로 중단한 학생증 앞·뒤 텍스트 색상 선택 기능을 이어받아 완성했다 — `StudentTextColor`(`DARK_GRAY`/`WHITE`) enum 추가, 카드 미리보기/생성 요청에 선택 필드 추가(학생증 전용, 비학생증이 보내면 거절), 카드 렌더링이 선택 색상을 앞·뒷면 모든 동적 텍스트에 적용, 최초 생성 시 `Application`에 확정 저장하고 이후 다른 색 요청은 전용 오류코드(`STUDENT_TEXT_COLOR_MISMATCH`)로 거절, 같은 색이면 재생성 허용.
+- 파일: `ApplicationPhotoValidator.java`, `BulkExcelParser.java`, `ApplicationService.java`(reuploadPhoto) / `StudentTextColor.java`(신규), `Application.java`, `CardPreviewRequest.java`, `CardRenderPreparation.java`, `CardMemberData.java`, `CardImageCompositor.java`, `CardGenerationPersistenceService.java`, `MyApplicationDetailResponse.java`, `ErrorCode.java`
+- 사유: 사진 업로드 파이프라인 전수 감사 요청("사용자가 신청하고 png/jpg로 저장되는 부분에서 발견되는 버그나...") + Codex 작업 인계("codex지금 사용한도 다써서 너가 진행 해도 될 것 같은데").
+- 테스트: 각 수정마다 실패 테스트로 재현 확인 후 최소 구현, 전체 회귀 통과.
+- 관련: `docs/specs/application/checklist.md` §6
+
+---
+## 2026-09-17 — Claude — `main` (작명 결과 Excel "뜻" 컬럼 반영 + NAME_EDITING 편집 잠금)
+
+- 변경: 단체 작명 결과 엑셀 업로드에서 "뜻"(`nameMeaning`) 컬럼이 파싱되지 않던 설계-구현 갭을 메웠다. 같은 이유로 관리자 명단 엑셀 **내보내기**에도 뜻 컬럼이 빠져 있던 것을 추가로 발견해 함께 고쳤다(`ApplicationExportExcelBuilder`가 자체 DESIGN.md 스펙과 어긋나 있던 것). 이어서 작명 완료 후에도 이름을 계속 수정할 수 있던 공백을 막기 위해 `NAME_EDITING` 상태에서만 편집을 허용하도록 잠갔다 — `completeNaming()`과의 TOCTOU 경합을 막기 위해 비관적 락(`findApplicationForUpdate`)을 썼다.
+- 파일: `NamingResultExcelParser.java`, `ApplicationMember.java`, `ApplicationExportExcelBuilder.java`, `Application.java`(`requireNamingEditable()`), `ApplicationService.java`(`findApplicationForUpdate`)
+- 사유: "엑셀에 뜻이랑 이름 의미가 다 있는데??" 확인 과정에서 설계-구현 갭 발견 + 작명 후 편집 잠금 정책 논의·승인.
+- 테스트: 각 변경마다 회귀 통과 확인.
+- 관련: 없음
 
 ---
 ## 2026-09-17 — Claude — `main` (`/api/users/me` role 복원)
