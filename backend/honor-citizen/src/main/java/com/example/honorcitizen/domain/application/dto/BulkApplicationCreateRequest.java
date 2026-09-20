@@ -40,6 +40,12 @@ public class BulkApplicationCreateRequest {
     @Valid
     private ReceiverRequest receiver;
 
+    // 신청 전 사전 상담 확인·유의사항(면책) 동의 — ApplicationCreateRequest와 동일 의미(2026-09-20,
+    // 백엔드 저장만 우선 구현). 프론트 미연동 상태라 검증 없이 기록만 한다.
+    private boolean consultationConfirmed;
+
+    private boolean disclaimerConfirmed;
+
     // schoolName은 저장·검증 전에 항상 트림된 값으로 취급한다(정책: 앞뒤 공백 트림 후 5~20자 검사).
     public String getSchoolName() {
         return schoolName == null ? null : schoolName.trim();

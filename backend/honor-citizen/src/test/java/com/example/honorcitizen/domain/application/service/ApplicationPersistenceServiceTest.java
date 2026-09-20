@@ -131,6 +131,73 @@ class ApplicationPersistenceServiceTest {
     }
 
     @Test
+    void saveIndividualPersistsConsentFlagsAndPolicyVersionFromRequest() throws Exception {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE",
+                  "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
+                  "member": {
+                    "englishName": "Hong Gildong",
+                    "birthDate": "1990-05-15",
+                    "nationality": "US",
+                    "gender": "MALE",
+                    "address": "서울특별시 종로구 세종대로 1"
+                  },
+                  "consultationConfirmed": true,
+                  "disclaimerConfirmed": true
+                }
+                """.formatted(cardType.getId());
+        ApplicationCreateRequest request = objectMapper.readValue(json, ApplicationCreateRequest.class);
+
+        Application application = persistenceService.saveIndividual(
+                1L, "APP-2026-900007", cardType.getId(), IssueType.MOBILE, true,
+                null, null, request, "member@example.com", "photos/member.jpg", noSchool());
+
+        assertThat(application.isConsultationConfirmed()).isTrue();
+        assertThat(application.isDisclaimerConfirmed()).isTrue();
+        assertThat(application.getConsentPolicyVersion()).isEqualTo(Application.CONSENT_POLICY_VERSION);
+    }
+
+    @Test
+    void saveIndividualDefaultsConsentFlagsToFalseWhenRequestOmitsThem() throws Exception {
+        // 2026-09-20 현재 프론트가 아직 이 필드를 전송하지 않는 상태를 그대로 반영 — 검증 없이 false로 기록된다.
+        ApplicationCreateRequest request = individualRequest(null);
+
+        Application application = persistenceService.saveIndividual(
+                1L, "APP-2026-900008", cardType.getId(), IssueType.MOBILE, true,
+                null, null, request, "member@example.com", "photos/member.jpg", noSchool());
+
+        assertThat(application.isConsultationConfirmed()).isFalse();
+        assertThat(application.isDisclaimerConfirmed()).isFalse();
+        assertThat(application.getConsentPolicyVersion()).isEqualTo(Application.CONSENT_POLICY_VERSION);
+    }
+
+    @Test
+    void saveGroupPersistsConsentFlagsFromRequest() throws Exception {
+        String json = """
+                {
+                  "cardTypeId": %d,
+                  "issueType": "MOBILE",
+                  "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
+                  "consultationConfirmed": true,
+                  "disclaimerConfirmed": true
+                }
+                """.formatted(cardType.getId());
+        BulkApplicationCreateRequest request = objectMapper.readValue(json, BulkApplicationCreateRequest.class);
+        List<GroupMemberUpload> uploads = List.of(new GroupMemberUpload(memberRow("1"), "photos/1.jpg"));
+
+        Application application = persistenceService.saveGroup(
+                1L, "APP-2026-900009", cardType.getId(), IssueType.MOBILE, true, uploads.size(),
+                null, null, uploadMetadata("submit.zip", UploadFileType.ZIP), request, "rep@example.com", uploads,
+                noSchool());
+
+        assertThat(application.isConsultationConfirmed()).isTrue();
+        assertThat(application.isDisclaimerConfirmed()).isTrue();
+        assertThat(application.getConsentPolicyVersion()).isEqualTo(Application.CONSENT_POLICY_VERSION);
+    }
+
+    @Test
     void saveIndividualRollsBackUploadFileRowsWhenApplicationSaveFails() throws Exception {
         applicationRepository.saveAndFlush(Application.createIndividual(
                 1L, "APP-2026-900004", cardType.getId(), IssueType.MOBILE, true, null, null));

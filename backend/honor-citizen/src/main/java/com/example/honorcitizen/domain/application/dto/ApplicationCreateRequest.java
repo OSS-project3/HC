@@ -11,16 +11,17 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+// @AllArgsConstructor를 붙이지 않는다 — Jackson이 이를 암묵적 생성자 기반 creator로 채택해
+// JSON에 없는 필드까지 생성자 인자로 요구하게 되고, boolean 필드가 누락되면
+// MismatchedInputException(null → boolean)으로 역직렬화가 실패한다(2026-09-20에 발견).
 @Getter
 @NoArgsConstructor
-@AllArgsConstructor
 public class ApplicationCreateRequest {
 
     @NotNull
@@ -57,6 +58,14 @@ public class ApplicationCreateRequest {
     @NotNull
     @Valid
     private MemberRequest member;
+
+    // 신청 전 사전 상담 확인·유의사항(면책) 동의 — 프론트 StepType.tsx의 체크박스 값(2026-09-20,
+    // 백엔드 저장만 우선 구현). 현재 프론트는 이 필드를 전송하지 않아 항상 기본값(false)으로
+    // 파싱된다 — 프론트 연동 전까지는 검증 없이 기록만 하고(@AssertTrue 등으로 거절하지 않음),
+    // 지금 거절 조건을 걸면 프론트 미연동 상태에서 모든 신청 생성이 막힌다.
+    private boolean consultationConfirmed;
+
+    private boolean disclaimerConfirmed;
 
     public boolean isReceiverSameAsApplicant() {
         return receiver == null || receiver.isSameAsApplicant();

@@ -175,6 +175,24 @@ public class Application extends BaseTimeEntity {
     // 이 엔티티는 위변조 방지 로직을 갖지 않는다 — TODO.md "학생증 카드" 4-A).
     private Long schoolId;
 
+    // 신청 전 사전 상담 확인·유의사항(면책) 동의 — 프론트 StepType.tsx의 두 체크박스에 대응하는
+    // 신청 건별 동의 이력(2026-09-20, 백엔드 저장만 우선 구현 — 프론트는 아직 이 값을 전송하지
+    // 않아 항상 false로 저장된다). 신청 생성 시점에 클라이언트가 실제로 보낸 값을 그대로 저장하며
+    // 서버가 임의로 true로 간주하지 않는다. 프론트 연동 후 두 값 모두 true가 아니면 신청 생성
+    // 자체를 거절하도록 강화할 예정(docs/collab/TODO.md 참고) — 그 전까지는 기록만 한다.
+    @Column(nullable = false)
+    private boolean consultationConfirmed;
+
+    @Column(nullable = false)
+    private boolean disclaimerConfirmed;
+
+    // 위 두 동의 문구가 어느 버전이었는지 기록. 문구가 바뀌면 CONSENT_POLICY_VERSION을 올린다.
+    // 동의 여부(boolean)와 무관하게 신청이 생성될 때마다 항상 현재 버전으로 채워진다.
+    @Column(length = 20)
+    private String consentPolicyVersion;
+
+    public static final String CONSENT_POLICY_VERSION = "2026-09-20";
+
     // 기존 호출부(비학생증 픽스처 다수)와의 하위 호환용 — orientation/schoolType/schoolName 없이 호출하면 전부 null로 생성한다.
     public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId) {
@@ -198,10 +216,20 @@ public class Application extends BaseTimeEntity {
                 logoFileId, sealFileId, orientation, schoolType, schoolName, null);
     }
 
-    // 개인 신청: 대상자(ApplicationMember)는 항상 1명, submitFileId(제출 ZIP)는 없음
+    // 기존 호출부(동의 이력 반영 전 픽스처 다수)와의 하위 호환용 — 동의값 없이 호출하면 둘 다 false로 생성한다.
     public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId,
             Orientation orientation, SchoolType schoolType, String schoolName, Long schoolId) {
+        return createIndividual(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
+                logoFileId, sealFileId, orientation, schoolType, schoolName, schoolId, false, false);
+    }
+
+    // 개인 신청: 대상자(ApplicationMember)는 항상 1명, submitFileId(제출 ZIP)는 없음.
+    // consultationConfirmed/disclaimerConfirmed까지 반영하는 완전판(2026-09-20).
+    public static Application createIndividual(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, Long logoFileId, Long sealFileId,
+            Orientation orientation, SchoolType schoolType, String schoolName, Long schoolId,
+            boolean consultationConfirmed, boolean disclaimerConfirmed) {
         Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
         application.applicationType = ApplicationType.INDIVIDUAL;
         application.totalQuantity = 1;
@@ -211,6 +239,9 @@ public class Application extends BaseTimeEntity {
         application.schoolType = schoolType;
         application.schoolName = schoolName;
         application.schoolId = schoolId;
+        application.consultationConfirmed = consultationConfirmed;
+        application.disclaimerConfirmed = disclaimerConfirmed;
+        application.consentPolicyVersion = CONSENT_POLICY_VERSION;
         return application;
     }
 
@@ -239,11 +270,22 @@ public class Application extends BaseTimeEntity {
                 totalQuantity, logoFileId, sealFileId, submitFileId, orientation, schoolType, schoolName, null);
     }
 
-    // 단체 신청: 대상자는 제출 ZIP(엑셀) 행 수만큼(totalQuantity), submitFileId로 원본 ZIP을 추적
+    // 기존 호출부(동의 이력 반영 전 픽스처 다수)와의 하위 호환용 — 동의값 없이 호출하면 둘 다 false로 생성한다.
     public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
             IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
             Long logoFileId, Long sealFileId, Long submitFileId, Orientation orientation, SchoolType schoolType,
             String schoolName, Long schoolId) {
+        return createGroup(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant,
+                totalQuantity, logoFileId, sealFileId, submitFileId, orientation, schoolType, schoolName, schoolId,
+                false, false);
+    }
+
+    // 단체 신청: 대상자는 제출 ZIP(엑셀) 행 수만큼(totalQuantity), submitFileId로 원본 ZIP을 추적.
+    // consultationConfirmed/disclaimerConfirmed까지 반영하는 완전판(2026-09-20).
+    public static Application createGroup(Long userId, String applicationNumber, Long cardTypeId,
+            IssueType issueType, boolean receiverSameAsApplicant, int totalQuantity,
+            Long logoFileId, Long sealFileId, Long submitFileId, Orientation orientation, SchoolType schoolType,
+            String schoolName, Long schoolId, boolean consultationConfirmed, boolean disclaimerConfirmed) {
         Application application = base(userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant);
         application.applicationType = ApplicationType.GROUP;
         application.totalQuantity = totalQuantity;
@@ -254,6 +296,9 @@ public class Application extends BaseTimeEntity {
         application.schoolType = schoolType;
         application.schoolName = schoolName;
         application.schoolId = schoolId;
+        application.consultationConfirmed = consultationConfirmed;
+        application.disclaimerConfirmed = disclaimerConfirmed;
+        application.consentPolicyVersion = CONSENT_POLICY_VERSION;
         return application;
     }
 

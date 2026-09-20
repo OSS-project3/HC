@@ -81,7 +81,8 @@ class ApplicationPersistenceService {
         // schoolName/schoolType은 request가 아니라 resolvedSchool(School 검색select 또는 직접입력 확정 결과)에서 가져온다.
         Application application = applicationFactory.createIndividualApplication(
                 userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant, logoFileId, sealFileId,
-                request.getOrientation(), resolvedSchool.schoolType(), resolvedSchool.schoolName(), resolvedSchool.schoolId());
+                request.getOrientation(), resolvedSchool.schoolType(), resolvedSchool.schoolName(), resolvedSchool.schoolId(),
+                request.isConsultationConfirmed(), request.isDisclaimerConfirmed());
         applicationRepository.save(application);
 
         // 2. Applicant 저장 — application.getId()를 외래키로 사용하므로 1번 이후에 저장한다.
@@ -142,7 +143,8 @@ class ApplicationPersistenceService {
         Application application = Application.createGroup(
                 userId, applicationNumber, cardTypeId, issueType, receiverSameAsApplicant, totalQuantity,
                 logoFileId, sealFileId, submitFileId, request.getOrientation(), resolvedSchool.schoolType(),
-                resolvedSchool.schoolName(), resolvedSchool.schoolId());
+                resolvedSchool.schoolName(), resolvedSchool.schoolId(),
+                request.isConsultationConfirmed(), request.isDisclaimerConfirmed());
         applicationRepository.save(application);
 
         // 2. Applicant 저장 — 단체 신청자는 개인과 달리 조직명·부서를 추가로 저장한다.
