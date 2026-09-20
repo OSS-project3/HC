@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-20 — Claude — `main` (카드 제작 설정 복원 — cardDesignId/cardIssueDate 화면 재진입 시 초기화 문제 수정)
+
+- 변경: 백엔드 `MyApplicationDetailResponse`는 카드 생성 성공 시 확정되는 `cardDesignId`/`cardIssueDate`를 이미 상세 응답에 내려주고 있었지만, 프론트 `AdminApplicationDetail` 타입에 해당 필드가 없어 `CardProductionPanel`이 화면 재진입 때마다 항상 기본 디자인·오늘 날짜로 리셋됐다. 확정 후 다른 값으로 재생성을 시도하면 백엔드가 `CARD_DESIGN_MISMATCH`/`CARD_ISSUE_DATE_MISMATCH`로 거절하므로, 관리자가 확정값을 모른 채 잘못된 값을 골라 거절당하는 문제가 있었다. 학생증 텍스트 색상에 이미 적용한 confirmed-value 잠금·복원 패턴을 그대로 적용 — 확정값이 있으면 디자인 select·발급일자 input을 그 값으로 초기화하고 비활성화, 확정 디자인이 있으면 목록을 자동으로 불러와 드롭다운에 표시되게 함.
+- 파일: `frontend/src/services/api.ts`, `frontend/src/components/admin/applications/CardProductionPanel.tsx`, `NamingCard.tsx`, `ApplicationDetail.tsx` (커밋 `b611676`)
+- 사유: 사용자 지적("카드 제작 설정 복원... 백엔드는 내려주지만 프론트가 무시합니다")으로 시작. 학생증 색상과 동일한 패턴이라 정책 확인 없이 바로 구현("규모가 바로 구현할 수준이면 구현").
+- 테스트: `tsc --noEmit` strict 통과, `npm run build` 통과. 실제 브라우저 클릭 테스트는 공유 dev 컨테이너 재빌드를 보류해 하지 못함.
+- 관련: 없음(사전 갭 문서 등록 없이 사용자 지적 당일 바로 처리)
+
+---
 ## 2026-09-20 — Claude — `main` (결제 안내·72시간 미입금 자동취소 정책 폐기 반영, 문서만)
 
 - 변경: 관리자가 "`guidePayment()` Service는 있는데 이걸 호출하는 Controller가 없다"고 지적해 확인하다가, 이 기능이 실제로는 이미 폐기하기로 한 정책이라는 걸 알게 됐다(사용자 확인). 그런데 `docs/specs/application/requirements.md`(7-6절)·`data-model.md`(payment_guided_at/payment_due_at 컬럼 설명)·`api.md`(2곳의 재사용 판단 표)·`docs/api/admin.md`(API 3-A 절)·`docs/collab/TODO.md`(§5-A 상세 구현 계획, 진행 보드 122행)까지 전부 여전히 "구현 예정"으로 서술 중이었다 — 정책 폐기가 문서에 전혀 전파되지 않고 있었다. 확정 정책: 결제 안내는 시스템 밖(전화·카카오 등)에서 관리자가 직접 처리하고 시스템에 기록하지 않는다. 관리자는 입금 확인 시 기존 `confirm-payment`만 호출한다. 미입금 자동 취소는 하지 않으며 취소 여부·시점은 관리자가 운영 절차로 판단한다. `Application.guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`/`cancelForPaymentTimeout()`는 2026-09-13 `refundedAt`/`markRefunded()` 처리와 동일하게 이전 정책의 구현 흔적으로 코드에 남기고 신규로 연결하지 않는다(**코드 변경 없음, 문서만 정정** — 사용자 확인 완료, 이미 호출 경로가 없어 운영에서 항상 비활성 상태였다).
