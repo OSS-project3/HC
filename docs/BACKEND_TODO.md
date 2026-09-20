@@ -65,11 +65,12 @@
   - `CardDesign` 관리·배정: `/api/admin/card-designs` + 신청에 디자인 배정 엔드포인트(관리자 심사 흐름에 카드 디자인 선택을 넣을 때).
 - **참고**: `docs/api/card-type.md`·`card-design.md`(설계만 있고 미구현으로 정정됨).
 
-## 7. 🔒 배포 전 필수 — 임시 관리자 제거
-- **현황**: 데모/시연용 관리자 계정이 시드돼 있다 — `DemoDataSeeder.ensureAdminUser()`(`admin@test.com`/`admin1234!`, `app.seed-demo-data=true`일 때). 로그인 실패 시 클라이언트 mock 세션을 만드는 폴백도 있다.
-- **작업**: 운영 배포 전 `DemoDataSeeder.ensureAdminUser()` + `ADMIN_EMAIL`/`ADMIN_PASSWORD` 상수 삭제, 이미 생성된 DB 계정 수동 삭제/권한 회수, 프론트 로그인 mock 폴백 제거, `User.promoteToAdmin()`을 대체할 정식 관리자 승격 경로(가입·승격 API·정책) 확정.
-- **참고**: `docs/TEMP_ADMIN_LOGIN.md`(계정/구성/제거 절차).
-- **참고(데모 USER)**: 신청 조회 테스트용 `demo@test.com`(SQL 직접 시드)도 운영 전 삭제 대상.
+## 7. ✅ 임시 관리자 제거 — 백엔드 완료(2026-09-20), 프론트 폴백만 남음
+- **확정 정책(2026-09-20)**: 운영에서는 `DemoDataSeeder` 기반 임시 관리자 생성을 쓰지 않는다. 관리자는 일반 회원가입 후 운영자가 DB에서 해당 사용자의 `role`을 `ADMIN`으로 1회 변경한다(`UPDATE users SET role='ADMIN' WHERE email='...';`). 별도의 관리자 승격 API/UI는 현재 범위에서 구현하지 않는다 — 향후 관리자 권한 관리 수요가 늘어나면 별도 기능으로 도입한다.
+- **완료(백엔드)**: `DemoDataSeeder.ensureAdminUser()` + `ADMIN_EMAIL`/`ADMIN_PASSWORD` 상수 삭제(`infra/seed/DemoDataSeeder.java`). `User.promoteToAdmin()`은 테스트 픽스처 전용으로 주석 정리하고 그대로 유지(운영 승격 API는 만들지 않음).
+- **남은 작업(프론트, 백엔드 담당자 범위 밖)**: 로그인 실패 시 클라이언트 mock 세션을 만드는 폴백 블록 제거(`frontend/src/pages/LoginPage/LoginPage.tsx`) — 프론트 수정은 RULES.md 정책상 별도 확인 필요.
+- **참고**: `docs/TEMP_ADMIN_LOGIN.md`(경위·이전 구성·해결 기록).
+- **참고(데모 USER)**: 신청 조회 테스트용 `demo@test.com`(SQL 직접 시드)도 운영 전 삭제 대상 — 이번 정리 범위 밖, 별도 확인 필요.
 
 ## 8. 인프라·설정 (코드 아님, 운영 준비)
 - **SMTP 메일 발송**: 로컬에 SMTP 미설정이라 회원가입 이메일 인증 코드 발송(`POST /api/auth/signup/email-verification/request`)이 503. 백엔드 발송 로직·단위 테스트는 정상 — 운영 SMTP(`MAIL_HOST`/`MAIL_PORT`/`MAIL_USERNAME`/`MAIL_PASSWORD`) 설정 필요. 설정 전까지 회원가입 이메일 인증 E2E 불가.

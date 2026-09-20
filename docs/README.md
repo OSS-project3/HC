@@ -16,7 +16,7 @@
 | [`FRONTEND_API_INTEGRATION_SPEC.md`](./FRONTEND_API_INTEGRATION_SPEC.md) | 현재 공통 HTTP 규칙과 화면별 API 사용 방식. **프론트 연동 방식의 단일 소스** | 2026-09-15 코드 검증 |
 | [`LOCALSTORAGE_TO_BACKEND.md`](./LOCALSTORAGE_TO_BACKEND.md) | 브라우저 저장소(localStorage/sessionStorage) 인벤토리·유출점검·백엔드 이전. **저장소 단일 소스** | P0 완료, P1 일부 잔여 |
 | [`TEST_REPORT.md`](./TEST_REPORT.md) | 백엔드 테스트 스위트 실행 결과 + 프론트 타입체크/빌드 + 엔드포인트 스모크 | 2026-08-25 실행 |
-| [`TEMP_ADMIN_LOGIN.md`](./TEMP_ADMIN_LOGIN.md) | ⚠️ 임시 관리자 계정(운영 배포 전 제거 필수) | 활성 경고 |
+| [`TEMP_ADMIN_LOGIN.md`](./TEMP_ADMIN_LOGIN.md) | 임시 관리자 계정 경위·해결 기록(백엔드 제거 완료, 프론트 mock 폴백만 잔여) | 2026-09-20 해결 |
 
 ## 2. API 레퍼런스 ([`api/`](./api/))
 

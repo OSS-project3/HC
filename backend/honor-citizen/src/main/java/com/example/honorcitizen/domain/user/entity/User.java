@@ -146,8 +146,8 @@ public class User extends BaseTimeEntity {
         this.passwordHash = newPasswordHash;
     }
 
-    // ⚠️ 데모 관리자 시드 전용(DemoDataSeeder). 실제 관리자 승격 정책/엔드포인트는 미구현 —
-    //    운영에서는 별도 승격 경로가 필요하다. docs/TEMP_ADMIN_LOGIN.md 참고.
+    // 관리자 승격 API/UI는 없다(2026-09-20 확정 정책) — 운영자가 일반 가입 계정의 role을 DB에서
+    // 직접 1회 변경한다. 이 메서드는 테스트 픽스처에서 ADMIN 상태를 만들 때만 쓴다.
     public void promoteToAdmin() {
         this.role = UserRole.ADMIN;
     }
