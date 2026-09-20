@@ -7,6 +7,7 @@
 > - 신규: `POST .../{id}/naming-result`(작명결과 엑셀 업로드), `POST /api/admin/applications/export`(xlsx 다운로드), `GET .../{id}/members`
 > - 목록 응답은 `applicantName/applicantPhone` 없이 `cardTypeId`+`cardTypeName`+`paymentStatus` 포함.
 > - 미구현: `GET /api/admin/stats`(통계 집계)만. 상세는 `docs/FRONTEND_API_GAPS.md` §1.4. 아래는 낡은 설계 기록.
+> - **정정(2026-09-20) — "결제 안내"(`paymentGuidedAt`/`paymentDueAt`)와 "72시간 미입금 자동취소" 정책은 폐기됐다.** 아래 신청 상태 흐름도와 API 3-A는 이제 실현되지 않는 낡은 설계다. 상세는 `docs/specs/application/requirements.md` "미입금 자동 취소" 절, 아래 API 3-A 참고.
 
 > 참고 화면(대학교 학생증 관리자 UI 스크린샷)은 **확정 UI 아님 — 구조 참고용 목업.** 실제 화면은 아래 흐름을 기준으로 새로 설계.
 
@@ -244,22 +245,15 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
 
 ---
 
-### API 3-A — 결제 안내 ⚠️ Service 구현 완료, HTTP API 구현 전
+### API 3-A — 결제 안내 ❌ 정책 폐기(2026-09-20) — 이 API는 만들지 않는다
 
-```http
-POST /api/admin/applications/{applicationId}/payment-guide
-Cookie: accessToken={JWT}  (role=ADMIN 필요)
-```
+"결제 안내를 시스템에 기록하고 72시간 뒤 미입금이면 자동 취소한다"는 정책 자체가 폐기됐다. 결제 안내는 시스템 밖(전화·카카오 등)에서 관리자가 직접 진행하며, 시스템은 이 시각을 기록하지 않는다. 미입금 신청의 취소 여부·시점은 관리자가 운영 절차로 판단한다. 상세는 `docs/specs/application/requirements.md` "미입금 자동 취소" 절 참고.
 
-최초 호출 시 서버 시각을 `paymentGuidedAt`에 기록하고 `paymentDueAt=paymentGuidedAt+72시간`으로 설정한다. 재호출은 기존 시각과 기한을 변경하지 않는 멱등 성공이다.
-
-자동 취소 스케줄러는 기본 10분 주기로 `SUBMITTED + WAITING + paymentDueAt<=now`를 조회하며 실행 주기는 설정값으로 변경할 수 있다.
-
-백엔드 Service는 구현 완료됐다. 최초 안내만 시각과 기한을 기록하며 재호출은 값을 변경하지 않는다. 결제 안내는 `AdminActivityLog`에 별도 기록하지 않는다.
+`Application.guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`는 이 폐기된 정책의 구현 흔적으로 코드에 남아있지만(호출하는 Controller가 없어 실제로는 항상 비활성), 신규로 연결하지 않는다. 이 API(`POST .../payment-guide`)는 계획으로만 존재했고 실제로 만들어진 적이 없다.
 
 ---
 
-### API 3-B — 입금 확인 ⚠️ Service 구현 완료, HTTP API 구현 전
+### API 3-B — 입금 확인 ✅ 구현 완료 (`POST /api/admin/applications/{id}/confirm-payment`, `AdminApplicationController`)
 
 #### ④ Request/Response 설계
 
@@ -302,7 +296,7 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
 
 #### ⑦ 누락된 필드 확인
 
-이미 `CONFIRMED`이면 값을 변경하지 않고 `200 OK` 멱등 성공으로 응답한다. 자동 취소 후 늦은 입금이면 `CANCELLED + CONFIRMED + refundedAt=null` 환불 대상으로 남긴다.
+이미 `CONFIRMED`이면 값을 변경하지 않고 `200 OK` 멱등 성공으로 응답한다. (자동 취소 정책은 폐기됐지만 신청이 다른 사유로 이미 `CANCELLED`인 상태에서 뒤늦게 입금이 확인되는 경우는 여전히 가능 — 이 경우 상태는 `CANCELLED`로 유지하고 `paymentStatus`만 `CONFIRMED`로 남긴다.)
 
 **API 3 완료.**
 

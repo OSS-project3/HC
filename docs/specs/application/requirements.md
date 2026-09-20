@@ -287,9 +287,8 @@ ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 
 
 - 상담은 신청 전에 완료한다.
 - 신청서 제출 시 `SUBMITTED + WAITING`으로 생성한다.
-- 관리자가 결제를 안내한 최초 시각을 `paymentGuidedAt`에 기록하고 `paymentDueAt=paymentGuidedAt+72시간`으로 설정한다.
-- 결제 안내를 다시 보내도 기존 기한은 초기화하거나 연장하지 않는다.
-- 입금 확인은 ApplicationStatus를 변경하지 않고 PaymentStatus만 `CONFIRMED`로 변경한다.
+- 결제 안내는 시스템 밖(전화·카카오 등)에서 관리자가 직접 진행하며, 시스템은 이 시각을 별도로 기록하지 않는다.
+- 관리자는 입금을 확인하는 즉시 `POST /api/admin/applications/{id}/confirm-payment`를 호출한다 — 입금 확인은 ApplicationStatus를 변경하지 않고 PaymentStatus만 `CONFIRMED`로 변경한다.
 - 이미 `CONFIRMED`인 신청의 입금 확인 재호출은 값을 변경하지 않는 멱등 성공으로 처리한다.
 - 사진·내용 검토는 `SUBMITTED + CONFIRMED`에서만 시작할 수 있다.
 
@@ -309,12 +308,12 @@ ApplicationType, IssueType, CardType별 Service 책임과 개인·단체 생성 
 - PaymentStatus는 실제 입금 확인 이력이므로 취소·환불 후에도 변경하지 않는다.
 - 관리자 직접 취소는 이번 구현 범위에서 제외한다.
 
-#### 미입금 자동 취소
+#### 미입금 자동 취소 — ❌ 정책 폐기(2026-09-20 확정)
 
-- 자동 취소 대상은 `SUBMITTED + WAITING + paymentDueAt<=now`인 신청이다.
-- 스케줄러는 기본 10분 주기로 실행하며 설정값으로 변경 가능하게 한다.
-- 자동 취소 후 늦은 입금이 확인돼도 신청을 재활성화하지 않고 `CANCELLED + CONFIRMED` 환불 대상으로 관리한다.
-- 사용자 취소와 미입금 자동 취소가 최초 commit되면 신청 전용 S3 파일은 commit 직후 바로 삭제한다. rollback 시에는 삭제하지 않는다.
+"결제 안내 후 72시간 미입금 시 자동 취소" 정책은 **폐기됐다.** 미입금 신청을 시스템이 자동으로 취소하지 않으며, 결제 안내를 시스템에서 별도로 기록하지도 않는다(위 "신청·결제 진행" 참고). 미입금 신청의 처리(취소 여부·시점)는 관리자가 시스템 밖 운영 절차로 판단한다.
+
+- 이전에 이 정책을 구현하며 만들어진 `Application.guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`/`Application.cancelForPaymentTimeout()`는 실제로 호출하는 Controller가 없어 애초에 운영에서 한 번도 동작한 적이 없었다(스케줄러는 주기적으로 실행되지만 `paymentDueAt`이 항상 `null`이라 매번 대상 0건). 이 코드는 "이전 정책의 구현 흔적"으로만 남겨두고 신규로 연결하지 않는다(2026-09-13 `refundedAt`/`markRefunded()` 처리와 동일한 방식) — 삭제 여부는 별도 논의.
+- 사용자 취소가 commit되면 신청 전용 S3 파일은 commit 직후 바로 삭제한다(정책 유지). rollback 시에는 삭제하지 않는다.
 
 ---
 

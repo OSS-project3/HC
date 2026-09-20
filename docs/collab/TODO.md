@@ -119,7 +119,7 @@
 | ✅ | 단체 전체 재업로드 후 `photoNumber` 유실 수정 (2026-09-14) | Claude | `main` | 본 문서 단체 전체 재업로드 photoNumber 보존 절 | `ApplicationService.reuploadPhoto()`의 `createGroupRow()` 호출에 `row.photoNumber()` 마지막 인자로 전달 — 신규 API/DB/Entity 변경 없음. 상세는 아래 전용 절 참고 |
 | ⚪ | `StepInfo.tsx`에 4개 카드종류 전부 사주정보 입력폼 추가 | 프론트 담당자 | `main` | `docs/specs/application/requirements.md` §7-3 | 현재 방문증에만 있음. 나머지 3종은 목데이터라 안 드러날 뿐 실제 API 연동 시 400 발생 |
 | ✅ | 고등학교 마스터 데이터 시딩(`학교기본정보_20260831` CSV 기반) | Claude | `main` | 본 문서 "고등학교 마스터 데이터 시딩" 절 | `HighSchoolSeeder` 신규, 최종 2,403개 등록 대상(동명이교 214건 지역명 prefix). 전체 테스트 810개 통과 |
-| ⚪ | 결제 안내 API/UI 연결 및 자동취소 운영 검증 | 미정 | `main` | `docs/specs/application/requirements.md`, 본 문서 §5-A | 환불은 시스템 밖에서 관리자가 확인·처리하므로 별도 환불 도메인/API/상태는 만들지 않음 |
+| ❌ | 결제 안내 API/UI 연결 및 자동취소 운영 검증 — 정책 폐기(2026-09-20) | - | `main` | `docs/specs/application/requirements.md`, 본 문서 §5-A | 결제 안내·72시간 미입금 자동취소 정책 자체를 폐기. 결제 안내는 시스템 밖에서 관리자가 직접 처리하고 시스템에 기록하지 않음. §5-A는 폐기 전 계획 기록으로만 유지 |
 | 🟡 | Admin 도메인(사진검토/작명/카드발급/CardDesign 배정) 설계·구현 | 대부분 완료(2026-08-25) | `main` | `docs/FRONTEND_API_GAPS.md` §1.4 | ✅ 사진반려·작명(assign/naming-result)·카드발급(card-ready)·배송(dispatch)·상태전이 8종·엑셀 export 전부 구현·연동. ❌ 남은 것: CardDesign 배정, 통계(`GET /api/admin/stats`)만 |
 | ⚪ | CardDesign 관리자 배정 API/화면 흐름 확정 | 미정 | - | `docs/specs/application/requirements.md` | "CardDesign 배정 시점" TBD 선결 필요 |
 | ✅ | 학생증 학번 형식 정책 문서 반영(학과는 계속 보류) | Codex | codexdocs/application-policy-sync | `docs/specs/application/requirements.md` | 학번 최대 10자·숫자만 반영. 학과는 `APPLICATION.md`가 "제외"로 적었으나 근거 없어 미결정 유지, 기존 필수 정책 그대로 둠(`PENDING_DECISIONS.md` 참고) |
@@ -608,6 +608,15 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] 기존 `refundedAt`/`markRefunded()`는 이전 정책에서 구현된 호환 필드·메서드로 남아 있으나 신규 흐름에서 호출·노출하지 않음. DB 컬럼 제거는 이번 최소 변경 범위에 포함하지 않음
 - [x] 시스템은 외부 환불의 완료·누락·중복을 판정하지 않으며 초기 운영에서는 관리자가 별도 운영 절차로 확인
 
+### 최신 결제 안내·자동취소 정책 (2026-09-20 확정, 아래 §5-A와 최상단 "2026-08-17 확정 정책" 기준보다 우선)
+
+- [x] "결제 안내를 시스템에 기록하고 72시간 뒤 미입금이면 자동 취소한다"는 정책 자체를 폐기
+- [x] 결제 안내는 시스템 밖(전화·카카오 등)에서 관리자가 직접 진행하며 시스템은 이 시각을 기록하지 않음
+- [x] 관리자는 입금을 확인하는 즉시 기존 `POST /api/admin/applications/{id}/confirm-payment`만 호출(별도 "결제 안내" 선행 단계 없음)
+- [x] 미입금 신청의 취소 여부·시점은 관리자가 시스템 밖 운영 절차로 판단 — 시스템 자동 취소는 없음
+- [x] `Application.guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`/`cancelForPaymentTimeout()`는 이전 정책의 구현 흔적으로 코드에 남기고 신규로 연결하지 않음(호출하는 Controller가 없어 실제로는 이미 항상 비활성 상태였음). DB 컬럼·코드 제거는 이번 범위에 포함하지 않음
+- [x] 아래 "5-A. 결제 안내 API/UI 연결"은 이 정책 폐기로 착수하지 않음(계획 기록만 유지)
+
 ### 1. 정책 문서 정합성
 
 - [x] `requirements.md`의 `PAYMENT_PENDING → RECEIVED → REVIEWING` 선형 흐름을 새 상태 구조로 교체
@@ -692,7 +701,12 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [ ] `MOBILE`은 카드 파일 준비 시 완료, `MOBILE_AND_PHYSICAL`은 `physicalDispatchedAt` 기록 시 완료
 - [ ] 배송사·운송장·배송 중·배송 완료 상태는 저장하거나 제공하지 않음
 
-### 5-A. 결제 안내 API/UI 연결 — 다음 구현 단위
+### 5-A. 결제 안내 API/UI 연결 — ❌ 폐기(2026-09-20 확정, 아래는 미착수 상태로 남아있던 계획 기록)
+
+**정책 변경**: "결제 안내를 시스템에 기록하고 72시간 뒤 미입금이면 자동 취소한다"는 정책 자체를 폐기한다. 결제 안내는 시스템 밖에서 관리자가 직접 진행하며 시스템은 기록하지 않는다. 미입금 신청의 취소는 관리자가 운영 절차로 판단한다. 이 절 자체가 "아직 구현 안 됨"이 아니라 "이제 구현 안 함"으로 확정됐다 — 아래 계획은 왜 이렇게 설계하려 했는지 참고용으로만 남긴다. `Application.guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`는 이전 정책의 구현 흔적으로 코드에 남지만 신규로 연결하지 않는다(2026-09-13 `refundedAt`/`markRefunded()` 처리와 동일 방식). 최신 정책은 `docs/specs/application/requirements.md` "미입금 자동 취소" 절 참고.
+
+<details>
+<summary>폐기 전 계획 원문(참고용, 구현 안 함)</summary>
 
 범위: 관리자가 외부 상담·연락으로 결제 방법을 안내한 뒤 시스템에서 `결제 안내 완료`를 기록하는 기능이다. 이번 단위에서는 이메일·SMS 발송 기능을 추가하지 않는다. 기존 DB 컬럼, `Application.guidePayment()`, `ApplicationService.guidePayment()`, 자동 취소 스케줄러를 재사용하며 DB 스키마를 변경하지 않는다.
 
@@ -753,6 +767,8 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [ ] 기한 경과 `SUBMITTED + WAITING` 신청이 10분 설정형 스케줄러의 자동 취소 대상이 됨
 - [ ] 자동 취소 후 늦은 입금 예외가 일반 취소 신청에 잘못 적용되지 않음
 - [ ] 기존 신청·취소·결제 확인·검토 시작 흐름에 회귀가 없음
+
+</details>
 
 ### 6. 테스트
 

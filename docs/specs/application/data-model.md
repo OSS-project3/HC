@@ -20,11 +20,11 @@
 | application_type | ENUM | NOT NULL | INDIVIDUAL, GROUP |
 | status | ENUM | NOT NULL | `SUBMITTED, REVIEWING, PHOTO_REJECTED, NAME_EDITING, PRODUCTION_READY, PRODUCING, COMPLETED, CANCELLED` |
 | payment_status | ENUM | NOT NULL | WAITING, CONFIRMED |
-| payment_guided_at | DATETIME | NULL | 관리자가 최초 결제를 안내한 시각. 재안내 시 변경하지 않음 |
-| payment_due_at | DATETIME | NULL | 최초 결제 안내 시각 + 72시간. 10분 주기 자동 취소 조회 기준 |
+| payment_guided_at | DATETIME | NULL | ❌ 정책 폐기(2026-09-20) — "결제 안내" 기록 자체를 하지 않기로 결정. 컬럼과 `Application.guidePayment()`는 이전 정책의 구현 흔적으로만 남아있고 호출하는 Controller가 없어 항상 `NULL`이다 |
+| payment_due_at | DATETIME | NULL | ❌ 정책 폐기(2026-09-20) — 미입금 자동 취소 정책 자체가 폐기돼 항상 `NULL`이다. `ApplicationPaymentTimeoutScheduler`는 남아있지만 이 컬럼이 항상 `NULL`이라 매 실행마다 대상 0건 |
 | cancelled_at | DATETIME | NULL | 최초 취소 완료 시각 |
 | cancellation_type | ENUM | NULL | `USER, SYSTEM, ADMIN`. 이번 구현은 USER/SYSTEM만 사용하고 ADMIN은 예약값 |
-| cancellation_reason | ENUM | NULL | `USER_REQUEST, PAYMENT_TIMEOUT, ADMIN_DECISION`. 이번 구현은 앞의 두 값만 사용 |
+| cancellation_reason | ENUM | NULL | `USER_REQUEST, PAYMENT_TIMEOUT, ADMIN_DECISION`. `PAYMENT_TIMEOUT`은 미입금 자동 취소 정책 폐기(2026-09-20)로 실제로는 절대 기록되지 않는다(`cancelForPaymentTimeout()`을 호출하는 경로가 없음) — 이전 정책의 구현 흔적으로만 남아있음 |
 | refunded_at | DATETIME | NULL | 관리자가 외부 전액 환불을 완료한 시각. `CANCELLED + CONFIRMED`에서만 기록 |
 | card_ready_at | DATETIME | NULL | 신청의 모든 카드 파일 생성 완료 시각. 모바일 다운로드 허용 기준 |
 | physical_dispatched_at | DATETIME | NULL | `MOBILE_AND_PHYSICAL` 신청을 택배사에 인계한 시각 |
@@ -44,7 +44,7 @@
 > ✅ 2026-08-17 확정(Application 상태와 입금 상태 분리):
 > ```
 > SUBMITTED + WAITING
->    │  결제 안내: paymentGuidedAt, paymentDueAt(+72시간)
+>    │  (결제 안내는 시스템 밖에서 처리, paymentGuidedAt/paymentDueAt 기록 안 함 — 2026-09-20 정책 폐기)
 >    │  입금 확인: status 유지, payment_status만 CONFIRMED
 >    ▼
 > SUBMITTED + CONFIRMED

@@ -942,7 +942,7 @@ Application 도메인 완료.
 | 관리자 인가 | /api/admin/**에 ADMIN 권한 적용 | 그대로 재사용 |
 | 관리자 신청 조회 | 목록·상세 API 구현 | 부분 재사용 |
 | 상세의 구성원 데이터 | memberCount만 제공하며 구성원 목록·사진은 없음 | 신규 API 필요 |
-| 결제 안내·입금 확인 | Service 구현, HTTP Controller 미연결 | Service 재사용 |
+| 결제 안내·입금 확인 | 입금 확인은 `confirm-payment`로 구현 완료. 결제 안내는 정책 폐기(2026-09-20) — Controller 연결 계획 없음 | 결제 안내 Service는 죽은 코드로 유지, 신규 연결 안 함 |
 | 사진 반려 | Application 상태 메서드만 존재 | 관리자 Service/API 필요 |
 | 사용자 재제출 | 개인 사진 또는 단체 ZIP 전체 교체와 PHOTO_REJECTED → REVIEWING 구현 | 사진 반려에는 재사용 |
 | 구성원별 검토·일반 정보 수정 요청 | 구성원별 상태·수정 사유·이력 없음 | 신규 |
@@ -1082,7 +1082,7 @@ EC2의 Linux/Alpine 백엔드는 관리자 PC의 USB 프린터에 직접 접근�
 신청 상태 머신	SUBMITTED → REVIEWING → PHOTO_REJECTED → NAME_EDITING → PRODUCTION_READY → PRODUCING → COMPLETED 구현	높음
 관리자 인증	/api/admin/**에 ADMIN 권한 적용	그대로 재사용
 관리자 신청 목록·상세	API 2개 구현	부분 재사용
-결제 안내·입금 확인	Service 구현, HTTP API 없음	Service 재사용
+결제 안내·입금 확인	입금 확인은 confirm-payment로 구현 완료. 결제 안내는 정책 폐기(2026-09-20)	입금 확인만 유지, 결제 안내 Service는 죽은 코드로 유지·신규 연결 안 함
 사진 반려	엔티티 상태 메서드만 존재	API/Service 신규 필요
 사용자 사진 재제출	개인 사진 또는 단체 ZIP 전체 교체 구현	사진 반려에는 재사용 가능
 구성원별 정보 검토	없음	신규
@@ -1163,10 +1163,9 @@ Application.printGeneratedAt
 기존 API 확장/연결
 GET  /api/admin/applications
 GET  /api/admin/applications/{id}
-POST /api/admin/applications/{id}/payment-guide
-POST /api/admin/applications/{id}/payment-confirm
+POST /api/admin/applications/{id}/confirm-payment (구현 완료, payment-confirm이 아니라 confirm-payment)
 POST /api/admin/applications/{id}/start-review
-결제 안내·확인은 기존 Service를 Controller에 연결하면 됩니다.
+결제 안내(payment-guide) API는 정책 폐기(2026-09-20)로 만들지 않습니다 — docs/specs/application/requirements.md "미입금 자동 취소" 절 참고.
 구성원 검토
 GET  /api/admin/applications/{id}/members
 GET  /api/admin/applications/{id}/members/{memberId}
