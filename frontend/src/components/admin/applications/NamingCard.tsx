@@ -18,8 +18,10 @@ import { ManseryeokPanel } from "./ManseryeokPanel";
 const EL_KEY: Record<string, string> = { 목: "mok", 화: "hwa", 토: "to", 금: "geum", 수: "su" };
 const EL_HANJA: Record<string, string> = { 목: "木", 화: "火", 토: "土", 금: "金", 수: "水" };
 
-export function NamingCard({ appId, cardTypeId, confirmedStudentFrontTextColor, confirmedStudentBackTextColor, index, member, isGroup, counts, onSaved, manseryeok, onManseryeokChanged }: {
+export function NamingCard({ appId, cardTypeId, confirmedCardDesignId, confirmedCardIssueDate, confirmedStudentFrontTextColor, confirmedStudentBackTextColor, index, member, isGroup, counts, onSaved, manseryeok, onManseryeokChanged }: {
   appId: number; cardTypeId?: number; index: number; member: AdminApplicationMember; isGroup: boolean;
+  // 신청 단위로 이미 확정된 카드 디자인·발급일자(카드 생성 성공 시 확정됨).
+  confirmedCardDesignId?: number; confirmedCardIssueDate?: string;
   // 학생증(STUDENT) 전용 — 신청 단위로 이미 확정된 카드 텍스트 색상(카드 생성 성공 시 확정됨).
   confirmedStudentFrontTextColor?: StudentTextColor; confirmedStudentBackTextColor?: StudentTextColor;
   counts: Record<string, number>; onSaved: () => Promise<void>;
@@ -96,6 +98,8 @@ export function NamingCard({ appId, cardTypeId, confirmedStudentFrontTextColor, 
             appId={appId}
             memberId={member.memberId}
             cardTypeId={cardTypeId}
+            confirmedCardDesignId={confirmedCardDesignId}
+            confirmedCardIssueDate={confirmedCardIssueDate}
             confirmedFrontTextColor={confirmedStudentFrontTextColor}
             confirmedBackTextColor={confirmedStudentBackTextColor}
             onGenerated={onSaved}
@@ -209,6 +213,8 @@ export function NamingCard({ appId, cardTypeId, confirmedStudentFrontTextColor, 
           appId={appId}
           memberId={member.memberId}
           cardTypeId={cardTypeId}
+          confirmedCardDesignId={confirmedCardDesignId}
+          confirmedCardIssueDate={confirmedCardIssueDate}
           confirmedFrontTextColor={confirmedStudentFrontTextColor}
           confirmedBackTextColor={confirmedStudentBackTextColor}
           onGenerated={onSaved}

@@ -154,6 +154,9 @@ export interface AdminApplicationDetail {
   cardReadyAt?: string; physicalDispatchedAt?: string; photoRejectReason?: string;
   applicant: AdminApplicantSummary; receiver?: AdminReceiverSummary;
   memberCount: number; createdAt: string; depositorName?: string; version?: number;
+  // 카드 생성 성공 시 확정되어 이후 값이 다르면 재생성이 거절된다(CARD_DESIGN_MISMATCH/
+  // CARD_ISSUE_DATE_MISMATCH). 화면 재진입 시 이 값으로 카드 제작 패널을 복원해야 한다.
+  cardDesignId?: number; cardIssueDate?: string;
   // 학생증(STUDENT) 전용 — 카드 생성 성공 시 확정되어 이후 값이 다르면 재생성이 거절된다.
   studentFrontTextColor?: StudentTextColor; studentBackTextColor?: StudentTextColor;
   // 십이간지 캐릭터 디자인 세트(1~5, 카드종류 무관) — 미지정 시 카드 미리보기·생성이 거절된다.

@@ -265,6 +265,8 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
           key={m.memberId}
           appId={app.applicationId}
           cardTypeId={detail.cardTypeId}
+          confirmedCardDesignId={detail.cardDesignId}
+          confirmedCardIssueDate={detail.cardIssueDate}
           confirmedStudentFrontTextColor={detail.studentFrontTextColor}
           confirmedStudentBackTextColor={detail.studentBackTextColor}
           index={i}
