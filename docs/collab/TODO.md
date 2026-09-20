@@ -2266,6 +2266,62 @@ schoolId + orientation으로 CardDesign 조회 (4-B, 이미 구현됨)
 
 ---
 
+## 공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계 (2026-09-20 체크리스트, 백엔드 착수 전)
+
+상태: ⚪ 대기(체크리스트만 작성, 구현 전) — 백엔드
+
+### 배경
+
+`LookupPage.tsx`는 비로그인 방문자 전용 공개 화면인데, 조회 성공 후 바로 호출하는
+`GET /api/applications/{id}/cards/download`는 `SecurityConfig`의 `/api/**` 캐치올
+(`hasAnyRole("USER","ADMIN")`)에 걸려 이 화면의 실제 방문자(항상 비로그인)에게는
+예외 없이 항상 401이 난다. 프론트가 이 실패를 `.catch(() => null)`로 삼키고 고정
+데모 이미지로 조용히 대체해서, 이 기능은 지금까지 실제로 작동한 적이 없는데도
+겉으로는 "작동하는 것처럼" 보인다(`FRONTEND_API_GAPS.md` P0). 단순히 다운로드 API를
+`permitAll()`로 열면 `applicationId`(순차 정수, 조회 응답으로 바로 얻을 수 있음)만
+바꿔가며 타인의 카드(얼굴사진 포함 개인정보)를 누구나 내려받을 수 있다(IDOR) —
+사용자 확인 완료(2026-09-20), 조회 성공 시에만 발급되는 단기 단일 목적 토큰으로
+막기로 함.
+
+### 설계 (정책 결정 불필요 — 기존 인프라 재사용)
+
+- **새 크립토·시크릿을 만들지 않는다.** `VerificationChallengeStore`가 signupToken에
+  이미 쓰는 패턴(`generateUrlSafeToken()` + `sha256Hex()`, 원문은 저장하지 않고 해시만
+  Redis 키로 사용)을 그대로 재사용한다.
+- 신규 Redis 키: `auth:lookup:card-token:{sha256(token)}` → value `applicationId`,
+  TTL 5분, 1회용(redeem 성공 시 즉시 삭제) — signupToken의 consume 패턴과 동일.
+- `ApplicationLookupResponse`에 `cardDownloadToken`(nullable) 필드를 추가하고
+  `lookup()` 성공 시 상태와 무관하게 항상 발급한다(카드 준비 여부는 기존
+  `getCardDownload`의 `CARD_NOT_READY` 검증을 redeem 단계에서 그대로 재사용 — 여기서
+  중복 검사하지 않는다).
+- **기존 로그인 기반 `GET /api/applications/{id}/cards/download`(마이페이지 전용)는
+  건드리지 않는다.** 신규 엔드포인트 `GET /api/applications/{id}/cards/download/public?token=...`를
+  별도로 추가하고 이 경로만 `SecurityConfig`에서 `permitAll()`(44행 `/api/applications/lookup`
+  바로 아래, 58행 캐치올보다 먼저 — 기존 `/api/admin/**` 배치 관례와 동일한 이유).
+- `ApplicationService.getCardDownload`의 본문(COMPLETED 검증 + presigned URL 생성 +
+  개인/단체 분기)을 공유 private 메서드로 추출해, 기존 userId 소유권 검증 경로와
+  신규 토큰 검증 경로가 로직을 중복 없이 공유한다.
+- 신규 `ErrorCode.LOOKUP_TOKEN_INVALID`(401) — `lookup()`이 이미 따르는 "존재 여부를
+  유추할 수 있는 정보를 주지 않는다" 원칙(현재 `NOT_FOUND`를 안 쓰고 일반 실패로
+  처리하는 것과 동일 이유)대로 일반적인 메시지만 반환한다.
+
+### 구현 체크리스트
+
+- [ ] 토큰 발급/검증 컴포넌트 — `issue(applicationId) -> token`, `verifyAndConsume(applicationId, token) -> boolean`(`VerificationChallengeStore`의 기존 public 메서드 재사용 또는 그 패턴을 그대로 따르는 얇은 신규 컴포넌트)
+- [ ] `ApplicationLookupResponse.cardDownloadToken` 필드 추가, `ApplicationService.lookup()`에서 발급
+- [ ] `ApplicationService`: `getCardDownload` 로직을 공유 헬퍼로 추출 + `getCardDownloadByToken(applicationId, token)` 신규 작성(토큰 불일치/만료/재사용 시 `LOOKUP_TOKEN_INVALID`)
+- [ ] `ApplicationController`: `GET /api/applications/{id}/cards/download/public` 신규 엔드포인트
+- [ ] `SecurityConfig`: 신규 경로 `permitAll()` 추가(라인 44 바로 아래)
+- [ ] `ErrorCode.LOOKUP_TOKEN_INVALID` 추가
+- [ ] 테스트: 토큰 저장소 단위테스트(1회성·만료), 서비스 레벨(정상/CARD_NOT_READY/다른 applicationId로 위조/재사용/만료 각각), 컨트롤러 레벨(인증 없이 200, 토큰 누락·불일치 시 401)
+
+### 검증 계획
+
+- [ ] `domain.application.*` + 관련 보안·인증 테스트 전체 재실행, 회귀 없음 확인
+- [ ] (프론트, 별도 확인 필요 — 이번 백엔드 작업 범위 아님) `LookupPage.tsx`가 `cardDownloadToken`을 저장했다가 `/cards/download/public`을 호출하도록 연결. 이 김에 다운로드 실패를 데모 카드로 조용히 대체하는 현재 로직도 재검토 필요(실패를 숨기지 않고 실제 오류로 보여주는 편이 맞음) — 별도 항목으로 처리
+
+---
+
 ## 개인 신청 카드 표기 주소 누락 (2026-09-13 검증 완료, 착수 전)
 
 상태: 🔵 진행중(검증만 완료, 구현 전) — Claude(백엔드) + 프론트 담당자
