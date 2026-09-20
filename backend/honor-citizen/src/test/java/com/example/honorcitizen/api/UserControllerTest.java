@@ -95,6 +95,77 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data.phone").value("010-1234-5678"));
     }
 
+    // QA 체크리스트 13번: 기존 테스트가 응답 JSON만 확인하고 Repository 재조회로 실제 커밋 값을
+    // 확인하지 않아, dirty checking·트랜잭션 설정 문제로 DB 반영이 누락되는 회귀를 못 잡을 수
+    // 있었다(확정 정책: name/phone 생략·null은 기존 값 유지). 아래 3개는 재조회/재요청으로 실제
+    // 커밋 상태까지 검증한다.
+    @Test
+    void updateMeUpdatesNameOnlyAndPersistsExistingPhoneAfterReFetch() throws Exception {
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "First Name", "phone": "010-1111-2222" }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "Second Name" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("Second Name"))
+                .andExpect(jsonPath("$.data.phone").value("010-1111-2222"));
+
+        User persisted = userRepository.findById(user.getId()).orElseThrow();
+        assertThat(persisted.getName()).isEqualTo("Second Name");
+        assertThat(persisted.getPhone()).isEqualTo("010-1111-2222");
+    }
+
+    @Test
+    void updateMeUpdatesPhoneOnlyAndPersistsExistingNameAfterReFetch() throws Exception {
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "Kept Name", "phone": "010-1111-2222" }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "phone": "010-3333-4444" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("Kept Name"))
+                .andExpect(jsonPath("$.data.phone").value("010-3333-4444"));
+
+        User persisted = userRepository.findById(user.getId()).orElseThrow();
+        assertThat(persisted.getName()).isEqualTo("Kept Name");
+        assertThat(persisted.getPhone()).isEqualTo("010-3333-4444");
+    }
+
+    @Test
+    void getMeAfterUpdateReflectsPersistedValuesNotJustTheUpdateResponse() throws Exception {
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "Reloaded Name", "phone": "010-5555-6666" }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("Reloaded Name"))
+                .andExpect(jsonPath("$.data.phone").value("010-5555-6666"));
+    }
+
     // email은 OAuth 식별값이라 이 API로 수정할 수 없다. address는 확정 정책(2026-08-08, 2026-08-20
     // 재확인)상 이 API의 요청 DTO에 필드 자체가 없어 요청 바디에 보내도 무시된다.
     @Test

@@ -43,8 +43,12 @@
 - [x] **12. 단체 신청 Excel — 헤더명·열 순서 계약 미검증 — ✅ 완료(2026-09-20, Claude), 실제 구현 공백이었음.** 정책상 헤더/열 순서가 다르면 전체 거절해야 하는데 파서가 헤더 행을 "읽지 않고" 건너뛰고 있었다. `BulkExcelParser`에 `validateHeader()` 추가: 앞뒤 공백만 제거한 뒤 공식 헤더(일반·고등학교 11열 / 대학교 13열, `COMMON_HEADERS_11`/`UNIVERSITY_HEADERS_13`)와 정확히 비교, 헤더명·개수·순서 중 하나라도 다르거나 정의되지 않은 추가 열이 있으면 헤더 검증 단계에서 즉시 전체 실패(이후 열 위치 기반 데이터 파싱보다 먼저 실행). 신규 테스트 5개(헤더명 오류, 열 순서 바뀜, 정의되지 않은 추가 열, 대학교인데 학번·학과 헤더 없음, 정확한 공식 헤더는 통과) 전부 RED→GREEN.
   - 기존 테스트 다수가 헤더 행에 "ID" 같은 값만 채우거나 아예 채우지 않고 있었던 것도 이번에 확인됨(Codex가 지적한 "일부 테스트가 과거 값으로도 통과" 사례와 동일 패턴) — `BulkExcelParserTest`/`ApplicationServiceBulkTest`/`BulkExcelToCardRenderingEndToEndTest`/`ApplicationBulkControllerTest`/`ApplicationServiceDailyLimitTest`/`ApplicationServicePhotoReuploadTest`/`ApplicationServiceUploadCompensationTest` 7개 파일의 픽스처 헬퍼를 전부 공식 헤더로 고쳐 회귀 없이 통과시킴.
   - 11·12번 공통: 전체 회귀 956개 중 동일한 무관 플레이키(`HighSchoolSeederIntegrationTest`) 1개 제외 통과.
-- [ ] **13. 회원정보 `PATCH /api/users/me` — HTTP 응답만 검증, 실제 DB 반영·부분수정 계약 미검증.** [`UserControllerTest.updateMeUpdatesNameAndPhone()`](backend/honor-citizen/src/test/java/com/example/honorcitizen/api/UserControllerTest.java#L82)이 응답 JSON만 확인하고 Repository 재조회/재조회 GET으로 커밋 값을 확인하지 않음 — "이름만 수정 시 전화번호 유지" 같은 부분수정 계약, dirty checking·트랜잭션 설정 문제로 인한 DB 미반영 회귀를 현재 테스트가 못 잡음.
-  - **확정 방향(승인 완료)**: `name`/`phone` 생략 또는 `null`은 기존 값 유지, 빈 문자열은 오류. 두 필드 모두 생략/`null`이면 `INVALID_INPUT`. 전화번호 삭제(명시적으로 비우기)는 현재 필수 연락처 정책상 지원하지 않는다.
+- [x] **13. 회원정보 `PATCH /api/users/me` — HTTP 응답만 검증, 실제 DB 반영·부분수정 계약 미검증 — ✅ 완료(2026-09-20, Claude), 버그 없음·테스트 공백만 있었음.** 기존 `UserControllerTest.updateMeUpdatesNameAndPhone()`이 응답 JSON만 확인하고 Repository 재조회/재조회 GET으로 커밋 값을 확인하지 않았다. 실제 구현(`UserService.updateMe()` + `User.updateProfile()`)을 확인해보니 확정 정책을 이미 전부 만족하고 있었다: `name`/`phone` 각각 `null`이면 기존 값 유지(`updateProfile`의 null 체크), 빈 문자열 이름은 서비스에서 명시적으로 `INVALID_INPUT`, 빈 문자열 전화번호는 `@Pattern`(9~25자 요구)이 자연히 거절, 둘 다 `null`이면 `INVALID_INPUT`. 신규 테스트 3개로 DB 재조회까지 검증: 이름만 수정 시 전화번호가 재조회에서도 유지됨, 전화번호만 수정 시 이름이 재조회에서도 유지됨, PATCH 이후 별도 GET 요청으로도 커밋된 값이 그대로 조회됨. 셋 다 처음부터 GREEN(버그 아님을 확인).
+  - 전체 회귀 964개 중 동일한 무관 플레이키(`HighSchoolSeederIntegrationTest`) 1개 제외 통과.
+
+## 전체 완료 (2026-09-20, Codex 추가 발견 7건)
+
+7~14번 전부 처리 완료: 7·8·9·14번(실제 버그, 수정 완료), 10·13번(버그 없음, 테스트 공백만 메움), 11·12번(확정 정책과 충돌하는 실제 구현 공백, 구현 완료). 총 커밋: `11eb06e`(7·8번), `9f9a6e8`(14번), `332e9b3`(11·12번), `83d3c14`(9번), `0f63ad4`(10번), 그리고 13번(이번 커밋).
 - [x] **14. `CardGenerationService` — DB 커밋 이후 보상 삭제 오류(P0) — ✅ 완료(2026-09-20, Claude), 실제 데이터 정합성 버그였음.** `CardGenerationService.generate()`가 `persistenceService.persist()` 커밋 이후에도 기존 파일 정리·`CARD_IMAGE_GENERATED` 감사로그 저장을 같은 try 블록 안에서 수행해, 감사로그 저장이 실패하면 방금 커밋된 신규 카드 이미지 S3 파일을 잘못 삭제할 수 있었다(재생성 시 기존·신규 이미지가 모두 사라질 수 있는 버그, 7번 학교 템플릿과 동일 패턴).
   - **적용한 수정(학교 템플릿과 동일 정책)**: `CARD_IMAGE_GENERATED`(성공) 감사로그 저장을 `CardGenerationPersistenceService.persist()`의 같은 `@Transactional` 안으로 옮겨 카드 경로 DB 반영과 원자적으로 묶었다. `CardGenerationService.generate()`의 try/catch는 "S3 업로드+persist" 단계만 감싸 이 단계 실패 시에만 신규 S3 key를 보상 삭제하고, persist()가 예외 없이 반환한 뒤(=DB+로그 커밋 확정 후) 기존 파일 정리 단계는 try/catch 밖으로 빼 신규 이미지를 절대 건드리지 않는다. 실패 시 감사로그를 남기는 기존 catch 분기(생성 실패 로그)는 그대로 유지 — 이번 수정은 성공 경로의 커밋 경계만 바꿨다.
   - 하위 작업 결과: 카드 경로 저장과 감사로그 동일 트랜잭션 처리 완료 / 최초 생성 시 감사로그 실패 → DB rollback + 신규 S3 2개 삭제 확인 / 재생성 시 감사로그 실패 → 기존 DB 경로·기존 S3 유지 + 신규 S3만 삭제 확인 / 성공 시 DB·감사로그 commit 이후에만 기존 S3 삭제(기존 동작 유지, 회귀 없음 확인) / 보상 삭제 실패가 원 예외를 덮지 않는 기존 `deleteQuietly` 동작 그대로 유지.
@@ -60,8 +64,8 @@
 3. ~~단체 ZIP·Excel 계약(11·12번)~~ — 완료
 4. ~~CardType/CardDesign 시더 원자성(9번)~~ — 완료
 5. ~~SchoolSeeder 통합 테스트(10번)~~ — 완료
-6. 회원정보 부분수정 저장 테스트(13번)
-7. 관련 회귀 테스트 실행 및 이 체크리스트·`docs/collab/CHANGELOG.md` 갱신
+6. ~~회원정보 부분수정 저장 테스트(13번)~~ — 완료
+7. ~~관련 회귀 테스트 실행 및 이 체크리스트·`docs/collab/CHANGELOG.md` 갱신~~ — 각 항목마다 회귀 실행 완료, `CHANGELOG.md` 갱신은 아래 별도 확인 필요
 
 ## 진행 방식
 

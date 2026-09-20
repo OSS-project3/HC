@@ -14,6 +14,18 @@
 ```
 
 ---
+## 2026-09-20 — Claude — `main` (QA 체크리스트 — 상태 전이·중간 저장 검증, 14건)
+
+- 변경: `docs/collab/qa_state_persistence_checklist.md`를 새로 만들어 백엔드 전체 도메인의 상태 전이·부분 업데이트 중 "실제 테스트로 검증 안 된" 빈 곳을 훑고, 발견된 14건을 하나씩 정책 확인 → (버그면) 실패 테스트 먼저 → 최소 구현 → 회귀 순서로 처리했다.
+  - 실제 버그로 확인·수정: Review 이미지 부분 유지(`keepImageIds`) 시 UNIQUE(review_id, display_order) 위반, `markCardReady`/`dispatchPhysical`의 감사로그 중복 기록(멱등성 반환값 무시), 학교 카드 템플릿·카드 이미지 생성 둘 다 DB 커밋 이후 실패 시 신규 S3 파일을 잘못 삭제할 수 있던 버그(감사로그 저장을 DB 트랜잭션 안으로 이동해 원자성 확보), CardType/CardDesign 시더가 `count()>0`이면 전체를 건너뛰어 중간 실패 시 영영 복구 안 되던 문제.
+  - 확정 정책과 충돌하는 실제 구현 공백으로 확인·구현: 단체 신청 ZIP 업로드 한도(멀티파트 10MB로 정책상 250MB ZIP이 거절되던 문제, `application.properties`/`frontend/nginx.conf` 조정 + `BulkExcelParser`에 실시간 상한 검증 추가)와 Excel 헤더명·열순서 계약(헤더 검증 자체가 없었음).
+  - 버그 없이 테스트 공백만 확인·보강: `Application.markRefunded()`(2026-09-13 확정 정책상 의도된 죽은 코드), `POST /api/auth/terms`, 리프레시 토큰 재발급·로그아웃 왕복, 대학교 `SchoolSeeder` DB 적재·재실행, 회원정보 `PATCH /api/users/me` 부분수정의 DB 반영.
+- 파일: 상세 목록과 각 항목의 근거·수정 내용은 `docs/collab/qa_state_persistence_checklist.md` 참고. 주요 프로덕션 코드 변경: `ReviewService`, `ApplicationService`(카드발급/배송 로깅), `SchoolCardTemplateService`/`SchoolCardTemplatePersistenceService`, `CardGenerationService`/`CardGenerationPersistenceService`, `BulkExcelParser`, `CardTypeSeeder`/`CardDesignSeeder`, `application.properties`, `frontend/nginx.conf`(예외 승인 완료). 테스트 다수 신규/수정.
+- 사유: 사용자 요청("버그기준으로 취약점 말고 사용자 측면 상태변화·중간저장 검증")에 따른 전수 조사 + 이어서 Codex에게 같은 기준으로 카드 템플릿·시더·단체신청 업로드·회원정보 영역을 추가 조사받아 나온 7건(카드 템플릿 P0 2건 포함) 반영.
+- 테스트: 항목마다 개별 회귀 실행, 최종 전체 회귀 964개 중 무관 플레이키(`HighSchoolSeederIntegrationTest`, 스위트 전체가 공유하는 `schools` 테이블을 여러 테스트가 각자 정리하며 생기는 기존 문제) 1건 제외 통과. 커밋: `b3a6e50`, `3a4a26c`, `6becdf9`, `ff0608f`, `0de160d`, `11eb06e`, `9f9a6e8`, `332e9b3`, `83d3c14`, `0f63ad4`, 그리고 13번 반영 커밋.
+- 관련: `docs/collab/qa_state_persistence_checklist.md`
+
+---
 ## 2026-09-17 — Claude — `main` (`/api/users/me` role 복원)
 
 - 변경: `UserMeResponse`에 `role`(`USER`|`ADMIN`) 필드를 추가했다. `from(User)` 팩토리 하나만 수정해서 회원가입·내 정보 조회·내 정보 수정 응답 전부에 자동 반영됨(2026-08-20 결정을 2026-09-14 정책 확정으로 정정).
