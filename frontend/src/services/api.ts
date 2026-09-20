@@ -75,7 +75,9 @@ async function requestFile(path: string, init: RequestInit = {}, retried = false
 
 export interface ApiUser { id: number; name: string; email: string; role: "USER" | "ADMIN"; phone?: string; address?: string; }
 export interface ApplicationResult { applicationId: number; applicationNumber: string; status: string; paymentStatus?: string; createdAt: string; totalQuantity?: number; }
-export interface LookupResult { applicationId: number; applicationNumber: string; applicationType: "INDIVIDUAL" | "GROUP"; applicantNameMasked: string; cardType: string; status: string; photoRejectReason?: string; submittedAt: string; }
+// cardDownloadToken: 이 조회 건에 한해 로그인 없이 카드 다운로드를 허용하는 1회용 단기 토큰
+// (5분 TTL). getPublicCardDownload에만 쓰고, 카드 준비 여부와 무관하게 조회가 성공하면 항상 내려온다.
+export interface LookupResult { applicationId: number; applicationNumber: string; applicationType: "INDIVIDUAL" | "GROUP"; applicantNameMasked: string; cardType: string; status: string; photoRejectReason?: string; submittedAt: string; cardDownloadToken: string; }
 export interface CardDownload { applicationId: number; applicationType: "INDIVIDUAL" | "GROUP"; cardFrontUrl?: string; cardBackUrl?: string; downloadUrl?: string; expiresAt: string; }
 
 /** Common paginated envelope for list endpoints. */
@@ -244,6 +246,8 @@ export const api = {
   lookupApplication: (body: { method: "application" | "card"; keyValue: string; phone?: string; email?: string }) => request<LookupResult>("/api/applications/lookup", { method: "POST", body: JSON.stringify(body) }),
   reuploadPhoto: (id: number, form: FormData) => request(`/api/applications/${id}/photo`, { method: "PATCH", body: form }),
   getCardDownload: (id: number) => request<CardDownload>(`/api/applications/${id}/cards/download`),
+  // 비로그인 공개 조회(LookupPage) 전용 — lookupApplication이 내려준 cardDownloadToken으로만 인가된다.
+  getPublicCardDownload: (id: number, token: string) => request<CardDownload>(`/api/applications/${id}/cards/download/public${qs({ token })}`),
   cancelApplication: (id: number) => request<{ applicationId: number; status: ApplicationStatus; refundRequired?: boolean }>(`/api/applications/${id}/cancel`, { method: "POST" }),
   // 입금자명 등록/수정 — 완료 화면에서 호출(결제 확인 전까지만 허용, 본인 신청).
   updateDepositor: (id: number, depositorName: string) => request<void>(`/api/applications/${id}/depositor`, { method: "PATCH", body: JSON.stringify({ depositorName }) }),

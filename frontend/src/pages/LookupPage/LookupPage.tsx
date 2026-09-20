@@ -105,14 +105,22 @@ export function LookupPage() {
         phone: phone || undefined,
         email: email || undefined,
       });
-      const download = await api.getCardDownload(result.applicationId).catch(() => null);
-      const frontUrl = download?.cardFrontUrl || DEMO_CARD_FRONT;
-      setError(null);
-      setCard({
-        frontUrl,
-        // 뒷면 URL이 없으면 앞면과 매칭되는 뒷면을 유도해 사용한다.
-        backUrl: download?.cardBackUrl || backFromFront(frontUrl),
-      });
+      // 조회는 성공했으니 다운로드 실패(권한 만료·카드 미생성·서버 오류 등)를 데모 카드로
+      // 가리지 않고 실제 오류로 알린다 — 안 그러면 사용자가 자신의 카드가 아닌 걸 알아챌 수 없다.
+      try {
+        const download = await api.getPublicCardDownload(result.applicationId, result.cardDownloadToken);
+        if (!download.cardFrontUrl) {
+          throw new Error("카드 이미지가 없습니다.");
+        }
+        setError(null);
+        setCard({
+          frontUrl: download.cardFrontUrl,
+          // 뒷면 URL이 없으면 앞면과 매칭되는 뒷면을 유도해 사용한다.
+          backUrl: download.cardBackUrl || backFromFront(download.cardFrontUrl),
+        });
+      } catch {
+        setError("카드 다운로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      }
       return;
     } catch {
       // 조회 API 실패(백엔드 미기동·미발급 등) 시에만 아래 데모 카드 경로로 넘어간다.
