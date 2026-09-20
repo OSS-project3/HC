@@ -2266,9 +2266,9 @@ schoolId + orientation으로 CardDesign 조회 (4-B, 이미 구현됨)
 
 ---
 
-## 공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계 (2026-09-20 체크리스트, 백엔드 착수 전)
+## 공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계 (2026-09-20 완료)
 
-상태: ⚪ 대기(체크리스트만 작성, 구현 전) — 백엔드
+상태: ✅ 완료(Claude, 백엔드+프론트)
 
 ### 배경
 
@@ -2301,24 +2301,25 @@ schoolId + orientation으로 CardDesign 조회 (4-B, 이미 구현됨)
 - `ApplicationService.getCardDownload`의 본문(COMPLETED 검증 + presigned URL 생성 +
   개인/단체 분기)을 공유 private 메서드로 추출해, 기존 userId 소유권 검증 경로와
   신규 토큰 검증 경로가 로직을 중복 없이 공유한다.
-- 신규 `ErrorCode.LOOKUP_TOKEN_INVALID`(401) — `lookup()`이 이미 따르는 "존재 여부를
-  유추할 수 있는 정보를 주지 않는다" 원칙(현재 `NOT_FOUND`를 안 쓰고 일반 실패로
-  처리하는 것과 동일 이유)대로 일반적인 메시지만 반환한다.
+- 신규 `ErrorCode.INVALID_LOOKUP_TOKEN`(400 — 계획 당시엔 401로 적었으나 구현하며
+  `INVALID_SIGNUP_TOKEN`과 동일한 기존 명명·상태코드 관례를 따름) — `lookup()`이 이미
+  따르는 "존재 여부를 유추할 수 있는 정보를 주지 않는다" 원칙(현재 `NOT_FOUND`를 안
+  쓰고 일반 실패로 처리하는 것과 동일 이유)대로 일반적인 메시지만 반환한다.
 
 ### 구현 체크리스트
 
-- [ ] 토큰 발급/검증 컴포넌트 — `issue(applicationId) -> token`, `verifyAndConsume(applicationId, token) -> boolean`(`VerificationChallengeStore`의 기존 public 메서드 재사용 또는 그 패턴을 그대로 따르는 얇은 신규 컴포넌트)
-- [ ] `ApplicationLookupResponse.cardDownloadToken` 필드 추가, `ApplicationService.lookup()`에서 발급
-- [ ] `ApplicationService`: `getCardDownload` 로직을 공유 헬퍼로 추출 + `getCardDownloadByToken(applicationId, token)` 신규 작성(토큰 불일치/만료/재사용 시 `LOOKUP_TOKEN_INVALID`)
-- [ ] `ApplicationController`: `GET /api/applications/{id}/cards/download/public` 신규 엔드포인트
-- [ ] `SecurityConfig`: 신규 경로 `permitAll()` 추가(라인 44 바로 아래)
-- [ ] `ErrorCode.LOOKUP_TOKEN_INVALID` 추가
-- [ ] 테스트: 토큰 저장소 단위테스트(1회성·만료), 서비스 레벨(정상/CARD_NOT_READY/다른 applicationId로 위조/재사용/만료 각각), 컨트롤러 레벨(인증 없이 200, 토큰 누락·불일치 시 401)
+- [x] 토큰 발급/검증 컴포넌트 — `CardLookupTokenService`(신규, `domain/application/service/` 패키지 전용) `issue(applicationId) -> token`, `verifyAndConsume(applicationId, token) -> boolean`. `VerificationChallengeStore`의 시그니처는 회원가입·계정복구 전용 envelope이라 그대로 재사용하지 않고, 같은 원리(무작위 토큰 + SHA-256 해시를 Redis 키로)만 따르는 얇은 컴포넌트로 새로 만듦
+- [x] `ApplicationLookupResponse.cardDownloadToken` 필드 추가, `ApplicationService.lookup()`에서 발급
+- [x] `ApplicationService`: `getCardDownload`의 COMPLETED 검증+presigned URL 생성 로직을 `buildCardDownloadResponse(Application)` 공유 헬퍼로 추출 + `getCardDownloadByToken(applicationId, token)` 신규 작성(토큰 불일치/만료/재사용 시 `INVALID_LOOKUP_TOKEN`)
+- [x] `ApplicationController`: `GET /api/applications/{id}/cards/download/public` 신규 엔드포인트
+- [x] `SecurityConfig`: 신규 경로 `permitAll()` 추가(라인 44 바로 아래, 캐치올보다 먼저)
+- [x] `ErrorCode.INVALID_LOOKUP_TOKEN` 추가
+- [x] 테스트: 서비스 레벨(`ApplicationServiceCardDownloadTest` — 정상/1회성 소진 후 재사용 거절/다른 applicationId로 발급된 토큰 거절/미지 토큰 거절/CARD_NOT_READY는 유효한 토큰이어도 거절), `ApplicationServiceLookupTest`(lookup 응답 토큰이 실제로 redeem 가능함을 확인), 컨트롤러 레벨(`ApplicationControllerTest` — 인증 헤더 없이 호출해도 401이 아니라 토큰 검증 단계(400)까지 도달하는지 확인해 `SecurityConfig` 배선 자체를 검증)
 
 ### 검증 계획
 
-- [ ] `domain.application.*` + 관련 보안·인증 테스트 전체 재실행, 회귀 없음 확인
-- [ ] (프론트, 별도 확인 필요 — 이번 백엔드 작업 범위 아님) `LookupPage.tsx`가 `cardDownloadToken`을 저장했다가 `/cards/download/public`을 호출하도록 연결. 이 김에 다운로드 실패를 데모 카드로 조용히 대체하는 현재 로직도 재검토 필요(실패를 숨기지 않고 실제 오류로 보여주는 편이 맞음) — 별도 항목으로 처리
+- [x] `domain.application.*` + 컨트롤러 테스트 재실행, 신규 테스트 전부 통과. 전체 회귀는 세션 마지막에 실행
+- [x] 프론트 연결 — `services/api.ts`에 `LookupResult.cardDownloadToken`/`getPublicCardDownload` 추가, `LookupPage.tsx`가 `getCardDownload` 대신 이 토큰으로 `/cards/download/public`을 호출하도록 변경. 다운로드가 실패하거나(예외) 성공했지만 `cardFrontUrl`이 없으면(단체 신청 등) 데모 카드로 조용히 대체하던 기존 로직을 제거하고 "카드 다운로드에 실패했습니다" 오류 메시지로 교체(사용자 확인: "그냥 다운로드 실패했다는 메시지 띄우면됨"). `TEST_CARD_NUMBER`(admin-test)와 조회 API 자체가 실패했을 때의 데모 자격 폴백은 이번 범위가 아니라 그대로 둠. `tsc --noEmit`/`npm run build` 통과, 실제 브라우저 클릭 테스트는 미실시(공유 dev 컨테이너 재빌드 보류, 기존 관례와 동일)
 
 ---
 
