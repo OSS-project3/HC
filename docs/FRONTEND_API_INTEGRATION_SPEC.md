@@ -205,6 +205,17 @@ interface PageResponse<T> {
 
 카드 생성 중 버튼을 비활성화한다. 디자인과 발급일을 선택한 뒤 미리보기와 생성을 분리한다.
 
+#### 학생증 앞·뒤 텍스트 색상 (미구현 갭 — `FRONTEND_API_GAPS.md` P2)
+
+`card-preview`/`card-generate` 요청 바디는 `studentFrontTextColor`, `studentBackTextColor`(`DARK_GRAY` | `WHITE`) 두 필드를 선택적으로 받는다(2026-09-19 백엔드 구현 완료, `docs/specs/application/checklist.md` §6).
+
+- **노출 조건**: 신청의 카드종류가 `STUDENT`일 때만 선택 UI를 보여준다. 비학생증 신청에서 이 필드를 보내면 `INVALID_INPUT`으로 거절된다 — 두 필드 모두 아예 안 보내야 한다.
+- **배치**: 아직 프론트에 없는 `zodiacDesignSet`(십이간지 디자인 세트) 선택 UI와 같은 영역에 두도록 설계됐다(`FRONTEND_API_GAPS.md` P0 항목).
+- **단위**: 신청(Application) 전체에 앞면 1개·뒷면 1개 — 단체 신청도 구성원별로 다른 색상을 줄 수 없다.
+- **기본값**: 생략하면 서버가 해당 면을 `DARK_GRAY`로 처리한다. 카드 생성 자체를 막지는 않는다.
+- **새로고침 복원**: 확정된 값은 `MyApplicationDetailResponse.studentFrontTextColor`/`studentBackTextColor`로 내려온다 — 신청 상세 조회 시 이 값으로 선택 UI를 복원한다.
+- **잠금 조건**: 카드가 이미 생성된 신청에서 **다른** 색상으로 재요청하면 `STUDENT_TEXT_COLOR_MISMATCH`(400)로 거절된다. **같은** 색상으로는 재생성(재발급)이 계속 허용된다. UI는 이미 확정된 색상과 다른 값을 고르지 못하게 막거나, 최소한 이 에러코드를 사용자 메시지로 안내해야 한다(`features/i18n/serverErrors.ts`에 매핑 추가 필요).
+
 ### 학생증 템플릿
 
 - `GET /api/admin/schools/{schoolId}/card-template?orientation=...`
@@ -231,6 +242,7 @@ interface PageResponse<T> {
 
 | 날짜 | 변경 |
 |---|---|
+| 2026-09-20 | 카드 제작 절에 학생증 앞·뒤 텍스트 색상(`studentFrontTextColor`/`studentBackTextColor`) 계약 추가 — 백엔드는 2026-09-19에 구현 완료했으나 이 문서에 반영되지 않고 있던 갭(`FRONTEND_API_GAPS.md` P2로도 등록) |
 | 2026-09-16 | 코드 전수 재대조. 단체 신청 ZIP part 명칭을 실제 계약(`submitFile`)으로 정정, 이름 선택 이력 통계 API 추가 |
 | 2026-09-15 | 2026-08-18 준비도 스냅샷을 제거하고 현재 공통 클라이언트와 실제 화면 호출 중심으로 전면 재작성 |
 | 2026-08-18~09-14 | 단계별 API 준비도 조사와 연결 수행. 상세 내역은 Git 및 `docs/collab/CHANGELOG.md` 참고 |

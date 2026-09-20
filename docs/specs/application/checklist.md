@@ -85,7 +85,7 @@
 
 ## 6. 학생증 앞·뒷면 텍스트 색상 선택
 
-> ✅ 2026-09-19 구현 완료(Claude) — 아래 체크박스를 실제 코드·테스트 기준으로 갱신했다. 프론트 UI 배치·문서(항목 2개)만 이번 범위 밖으로 남겨뒀다.
+> ✅ 2026-09-19 구현 완료(Claude) — 아래 체크박스를 실제 코드·테스트 기준으로 갱신했다. 프론트 전달 문서화는 2026-09-20에 완료(`FRONTEND_API_INTEGRATION_SPEC.md`/`FRONTEND_API_GAPS.md`); 실제 프론트 UI·API 연결 코드만 이번 범위 밖으로 남아있다.
 
 ### 확정 정책
 
@@ -119,8 +119,8 @@
 - [x] 관리자 신청 상세 응답(`MyApplicationDetailResponse`, 관리자·사용자 공용)에 `studentFrontTextColor`, `studentBackTextColor`를 포함해 새로고침 후 선택값을 복원할 수 있게 한다.
 - [x] `MyApplicationDetailResponse.withTranslated()` 등 상세 응답을 재조립하는 경로에서 두 필드가 누락되지 않게 전달한다.
 - [x] 확정 색상과 다른 생성 요청을 프론트가 구분할 필요가 있으므로 전용 오류 코드(`STUDENT_TEXT_COLOR_MISMATCH`)를 신설했다(비학생증 거절은 기존 `INVALID_INPUT` 재사용 — "재사용 가능하면 재사용" 원칙, 이 경우는 기존 코드 재사용 시 메시지가 실제 문제와 달라 오해를 유발해 신설).
-- [ ] 프론트 전달 문서에 신청 단위 선택 UI·학생증 전용 노출·생성 후 잠금 조건을 기록한다 — 이번 범위 밖(프론트 작업).
-- [ ] 기존 `zodiacDesignSet` 선택 UI와 같은 영역 배치 — 이번 범위 밖(프론트 작업).
+- [x] 프론트 전달 문서에 신청 단위 선택 UI·학생증 전용 노출·생성 후 잠금 조건을 기록한다 — `docs/FRONTEND_API_INTEGRATION_SPEC.md`("카드 제작" §, 2026-09-20 추가)와 `docs/FRONTEND_API_GAPS.md`(P2 신규 갭)에 기록 완료. 실제 UI·API 연결 코드는 여전히 이번 범위 밖(프론트 작업).
+- [x] 기존 `zodiacDesignSet` 선택 UI와 같은 영역 배치 — 배치 조건을 위 문서에 명시함. 실제 UI 코드는 이번 범위 밖(프론트 작업).
 
 ### 테스트 및 검증 체크리스트
 

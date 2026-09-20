@@ -19,6 +19,7 @@ API의 상세 요청·응답 계약은 도메인 문서(`docs/api/*.md`, `docs/s
 | 선택 | 정적 마케팅 콘텐츠 CMS | 회사 정보, 파트너, 상품, 정책 문안, 행사 PROGRAM은 코드의 정적 데이터다. | 배포 없이 운영자가 수정해야 할 때 CMS 계약 도입 | 제품 결정 필요 |
 | P0 | 십이간지 디자인 세트(`zodiacDesignSet`) 선택 UI | 백엔드 API(`PUT /api/admin/applications/{id}/zodiac-design`)는 구현되어 있으나 프론트 래퍼·UI가 없다(`frontend/src` grep 0건, 2026-09-16 재확인). 값이 없으면 카드 미리보기·생성이 `ZODIAC_DESIGN_NOT_SELECTED`로 거절되어 카드 생성 자체가 막히는 하드 블로커다. | 관리자 선택 UI와 API 래퍼 추가 | 없음(프론트 전용 작업) |
 | P1 | 직접입력 학생증 School 연결 | 관리자 연결 API(`PUT /api/admin/applications/{applicationId}/school`)는 구현·테스트 완료(2026-09-16, 카드 생성 후 잠금·schoolType 일치 검증 포함). 프론트 래퍼·관리자 연결 UI는 아직 없다(`services/api.ts` grep 0건). `schoolId=null` 직접입력 신청은 School 연결 전까지 카드 제작이 막힌다. | 프론트 래퍼와 관리자 연결 UI 추가 | 없음(프론트 전용 작업) |
+| P2 | 학생증 앞·뒤 텍스트 색상 선택 UI | 백엔드는 `card-preview`/`card-generate` 요청에 `studentFrontTextColor`/`studentBackTextColor`(`DARK_GRAY`\|`WHITE`)를 받아 학생증(STUDENT) 카드에만 적용하고, 확정값을 `MyApplicationDetailResponse`로 복원한다(2026-09-19 구현 완료, `docs/specs/application/checklist.md` §6). 프론트 래퍼·선택 UI는 없다(`frontend/src` grep 0건, 2026-09-20 확인). 값을 생략하면 서버가 양면 모두 `DARK_GRAY`로 기본 처리하므로 카드 생성 자체는 막히지 않는다 — `zodiacDesignSet`과 달리 하드 블로커는 아니다. | STUDENT 카드종류에서만 노출되는 앞/뒤 색상 선택 UI 추가(`zodiacDesignSet` 선택 UI와 같은 영역에 배치하도록 설계됨), 두 필드를 기존 card-preview/card-generate 요청에 연결, 상세 응답의 확정값으로 새로고침 후 복원, 카드 생성 후 다른 색상으로 재요청 시 반환되는 `STUDENT_TEXT_COLOR_MISMATCH`(400) 메시지 매핑 | 없음(프론트 전용 작업) |
 
 ### 현재 갭이 아닌 항목
 
@@ -66,6 +67,7 @@ API의 상세 요청·응답 계약은 도메인 문서(`docs/api/*.md`, `docs/s
 
 | 날짜 | 변경 |
 |---|---|
+| 2026-09-20 | 학생증 앞·뒤 텍스트 색상 선택 UI(P2) 신규 추가 — 백엔드가 2026-09-19에 구현 완료했으나 이 문서에 반영되지 않고 있던 갭 |
 | 2026-09-16 | `git pull` 병합 충돌 해소. 십이간지 디자인 세트(zodiacDesignSet) P0 갭과 직접입력 학생증 School 연결 갭을 "1. 현재 미완료 갭" 표에 재기재(재구조화 과정에서 누락됐던 항목, grep으로 프론트 미착수 재확인). School 연결 항목은 백엔드 API 구현·테스트 완료 상태로 갱신 |
 | 2026-09-15 | 누적 조사 기록을 현재 상태 문서로 재작성. 완료·미완료·우선순위·검증을 분리하고 구조 정리 결과 및 정책 충돌을 반영 |
 | 2026-09-14 | 인증 상태 단일화, 만세력 재진입 복원, 결정적 추천, Excel 성씨 열, 목록 페이지 이동, 행사 PROGRAM 정적화 구현 |
