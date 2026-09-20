@@ -1,61 +1,37 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-09-15
-- 작성자: Codex
+- 마지막 갱신: 2026-09-20
+- 작성자: Claude
 - 브랜치: main
-- 커밋·push: 수행하지 않음
+- 커밋·push: 아래 "완료" 항목은 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 25 commits ahead). 프론트엔드 UI 구현(아래 참고)은 **아직 커밋도 안 함** — 사용자 확인 대기 중.
 
 ## 현재 워킹 트리
 
-사용자가 시작 전에 보유하던 백엔드/프론트/API 연동 미커밋 변경을 그대로 보존한 상태에서 프론트 구조 정리를 추가했다. 특히 다음 선행 변경은 이번 작업에서 되돌리지 않았다.
+- 커밋 안 된 변경: `frontend/src/services/api.ts`, `frontend/src/features/i18n/serverErrors.ts`, `frontend/src/components/admin/applications/{CardProductionPanel,NamingCard,ApplicationDetail}.tsx` — 학생증 텍스트 색상 선택 UI. `tsc --noEmit`/`npm run build` 통과 확인, 실제 브라우저 클릭 테스트는 못 함(개발 DB에 STUDENT 타입 데모 신청 없음). 사용자에게 커밋 여부 확인 중.
+- 그 외 워킹 트리는 깨끗함(2026-09-20 세션 작업 전부 커밋 완료).
 
-- 관리자 신청 만세력 결과 일괄 조회 API와 프론트 복원
-- 단체 작명 Excel 선택적 성씨 열
-- 인증 서버 세션 단일화
-- 관리자·마이페이지·공지 페이지 이동
-- 행사 PROGRAM 정적화와 `ContentAdminPanel` 삭제
+## 이번 세션(2026-09-17~09-20) 완료 — 상세는 `docs/collab/CHANGELOG.md` 해당 날짜 항목 참고
 
-## 이번 작업 완료
-
-- `StepInfo.tsx`: 944줄 → 124줄. 개인·단체·학교·수령인 섹션과 검증·학교 검색 hook으로 분리
-- `ApplicationsSection.tsx`: 924줄 → 190줄. 상세·상태, 이름 추천, 만세력, 카드 제작, 카드번호와 복원 hook으로 분리
-- `adminNamingMock.ts` → `lib/namingRecommendations.ts`, `MockSaju` → `SajuSnapshot`
-- 호출되지 않던 `lib/shuffle.ts`와 단건 `getActiveManseryeokResult` 프론트 래퍼 제거
-- UI theme의 직접 색상을 `styles/tokens.css` semantic token으로 이전. 브랜드 SVG와 홈 장식 효과는 예외 유지
-- `frontend/README.md`, `docs/FRONTEND_API_GAPS.md`, `docs/FRONTEND_API_INTEGRATION_SPEC.md`를 현재 코드 기준으로 재작성
-- 초기 조사·누적 이력 문서에 Historical Reference 또는 현재 상태 우선순위 안내 추가
+1. `/api/users/me` 응답에 `role` 추가 (2026-09-17)
+2. 작명 결과 Excel "뜻" 컬럼 파싱 + 관리자 명단 엑셀 내보내기 뜻 컬럼 추가, `NAME_EDITING` 상태 편집 잠금 (2026-09-17)
+3. 단체/개인 신청 사진 **내용** 검증 누락 버그 수정, 학생증 앞·뒤 텍스트 색상 기능 **백엔드 전체 구현** (2026-09-19)
+4. QA 체크리스트(상태 전이·중간 저장 검증) 14건 전부 완료 — 실제 버그 6건 수정(Review 이미지 UNIQUE 위반, 카드발급/배송 감사로그 중복, 학교템플릿·카드생성 커밋경계 오삭제 2건, CardType/CardDesign 시더 부분복구), 확정정책 충돌 구현공백 2건(단체 ZIP 업로드 한도, Excel 헤더 계약), 나머지 6건은 버그 없이 테스트만 보강. 상세: `docs/collab/qa_state_persistence_checklist.md` (2026-09-20)
+5. 운영용 임시 관리자 자동 시드(`DemoDataSeeder.ensureAdminUser()`, `admin@test.com`) 제거 — 확정 정책: 운영 관리자는 일반 가입 후 운영자가 DB에서 `role` 수동 변경, 승격 API/UI는 미구현. 상세: `docs/TEMP_ADMIN_LOGIN.md` (2026-09-20)
+6. 학생증 텍스트 색상 프론트엔드 갭 문서화(`FRONTEND_API_GAPS.md` P2 신규, `FRONTEND_API_INTEGRATION_SPEC.md` 계약 기록) + 실제 UI 구현(위 "현재 워킹 트리" 참고, 미커밋) (2026-09-20)
 
 ## 검증
 
-- TypeScript strict + `noUnusedLocals` + `noUnusedParameters`: PASS
-- `npm run build`: PASS, 225 modules
-- `naming-determinism.spec.ts`: PASS 7/7
-- `playwright.ui.config.ts` 격리 Edge 브라우저: PASS 5/5
-  - 공개 주요 라우트·공지·마이페이지·언어 전환
-  - 개인 신청 검증·수령인·draft 복원
-  - 학생증 학교 검색·직접 입력
-  - 단체 신청·실물 수령인
-  - 관리자 로그인·신청 목록/상세·이름 저장·만세력·카드·페이지 이동
-- 구조 정리 전후 API 호출 집합과 호출 횟수 동일. 미사용 단건 래퍼 1개만 제거
-- CSS 34개 파일을 토큰 값으로 역치환해 기존 selector/value와 동일함 확인
-- 관리자 상세와 모바일 홈 캡처를 육안 확인
-
-Docker 엔진이 실행 중이지 않아 실제 백엔드 통합 E2E는 이번에 재실행하지 않았다. 백엔드 코드는 이번 구조 정리에서 수정하지 않았다.
-
-### 백엔드 단위 테스트 (2026-09-15 재검증)
-
-- `gradlew compileJava compileTestJava`: PASS
-- `gradlew test`: Redis(6379, `docker run redis:7-alpine`) 기동 후 **882개 전부 PASS (실패 0, 스킵 5)**. Redis 없이 실행하면 174개가 `RedisConnectionFailureException`/503으로 실패하므로 테스트 전 Redis가 필요하다.
-- 학생증 카드 렌더링 테스트 3개(`BulkExcelToCardRenderingEndToEndTest`, `CardBackInterpretationWrapTest`의 학생증 케이스, `SchoolCardTemplateEndToEndTest`)는 별도 saju 리포의 디자이너 원본 PNG(`D:\HC-worktrees\saju\시안\...`)를 절대 경로로 읽는다. 자산이 없는 머신에서 실패하지 않도록 JUnit `Assumptions`로 skip 처리했다(자산이 있는 머신에서는 기존과 동일하게 전부 실행된다).
-- 워킹 트리 백엔드 변경과 직접 관련된 스위트는 전부 통과: `ApplicationServiceNamingResultTest`(12), `NamingResultExcelParserTest`(9), `ManseryeokServiceTest`(16), `BirthTimeZoneResolverTest`(12), `BulkExcelParserTest`(22), `ApplicationExportExcelBuilderTest`(4)
-- 이 머신 주의사항: 사용자 홈 경로에 한글이 포함되어 Gradle 테스트 워커 JVM이 classpath를 읽지 못한다(`ClassNotFoundException: GradleWorkerMain`). 우회: `GRADLE_USER_HOME=C:\Users\Public\hc-gradle`(기존 캐시 복사본) + `subst X: C:\Users\이솔하\Desktop\HC` 후 `X:` 경로에서 실행.
+- 백엔드: 항목별 개별 회귀 + 세션 마지막 전체 회귀 실행, 실패 0건(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건만 간헐 — 스위트 전체가 공유하는 `schools` 테이블을 여러 테스트가 각자 `deleteAll()`해서 생기는 기존 문제, 이 세션이 유발한 게 아님. 재현·원인 확인은 `qa_state_persistence_checklist.md` 10번 항목 참고).
+- 테스트 실행 시 `hc-test-redis` 컨테이너(포트 6379) 필요 — 개발 `docker-compose.yml`은 Redis를 호스트에 노출하지 않는다. `docker run -d --name hc-test-redis -p 6379:6379 redis:7-alpine`(최초) 또는 `docker start hc-test-redis`(이후).
+- 프론트: `tsc --noEmit` strict, `npm run build` 둘 다 통과(위 미커밋 변경 포함).
 
 ## 현재 미완료·확인 필요
 
-1. `/api/users/me`가 role을 반환하지 않아 프론트가 로그인 응답 role을 `auth-role` UI 힌트로 유지한다. 서버 인가는 영향 없다.
-2. 신청 전 상담확인·유의사항은 UI 게이트이며 신청 건별 이력이 저장되지 않는다.
-3. 공개 FAQ·Support FAQ·행사 목록은 `size: 100` 단일 조회다. 100건 초과 운영 정책이 필요할 때 페이지 이동을 추가한다.
-4. `docs/collab/TODO.md`의 “Excel에서 성씨를 받지 않는다” 정책과 현재 워킹 트리의 선택적 성씨 열 구현이 충돌한다. 기존 작업을 보존했으며 병합 전 정합화가 필요하다.
-5. 이름 조회 API와 정적 마케팅 CMS는 제품 선택 사항이다.
+1. **프론트엔드 UI 구현(위 "현재 워킹 트리")을 커밋할지** — 사용자 확인 대기.
+2. `FRONTEND_API_GAPS.md`의 기존 P0 갭 — `zodiacDesignSet`(십이간지 디자인 세트) 선택 UI, 직접입력 학생증 School 연결 UI. 이번 세션에서 안 건드림, 여전히 미착수.
+3. `LoginPage.tsx`의 "로그인 실패 시 클라이언트 admin mock 폴백" 제거 — 백엔드 담당 범위 밖, 프론트 수정이라 별도 확인 필요.
+4. `docs/api/admin.md` "8. 환불 완료 기록"과 `docs/specs/application/requirements.md`의 `refundedAt` 서술이 2026-09-13 확정 정책(시스템은 환불 완료 여부를 관리하지 않음)보다 낡음 — 코드는 문제 없어 이번엔 안 건드림, 문서 정리만 남음.
+5. (기존, 미해결 이월) `docs/collab/TODO.md` 상단의 "단체 Excel에서 성씨를 받지 않는다" 정책과 현재 구현(선택적 성씨 열)이 충돌 — 정책 문서와 구현 중 하나를 정합화해야 함.
+6. (기존, 미해결 이월) 신청 전 상담확인·유의사항 체크는 UI 게이트일 뿐 신청 건별 동의 이력이 저장되지 않음(`FRONTEND_API_GAPS.md` P1).
 
-현재 상태의 단일 소스는 `docs/FRONTEND_API_GAPS.md`, 프론트 API 사용법은 `docs/FRONTEND_API_INTEGRATION_SPEC.md`다.
+현재 상태의 단일 소스는 `docs/FRONTEND_API_GAPS.md`(프론트 갭), `docs/FRONTEND_API_INTEGRATION_SPEC.md`(프론트 연동 방식), `docs/collab/CHANGELOG.md`(전체 변경 이력), `docs/collab/qa_state_persistence_checklist.md`(이번 세션 QA 상세)다.
