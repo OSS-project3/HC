@@ -29,6 +29,13 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
     setMembers(await api.getAdminApplicationMembers(app.applicationId));
   }, [app.applicationId]);
 
+  // 카드 생성 성공 시 확정되는 학생증 텍스트 색상(studentFrontTextColor/studentBackTextColor)을
+  // 갱신하기 위해 상세도 함께 다시 불러온다 — onSaved가 이미 여러 저장 동작(작명·카드번호·카드생성)
+  // 공용 콜백이라 여기 추가하는 게 가장 자연스럽다.
+  const reloadDetail = useCallback(async () => {
+    setDetail(await api.getAdminApplication(app.applicationId));
+  }, [app.applicationId]);
+
   const reloadStats = useCallback(async () => {
     try {
       const stats = await api.getNameSelectionStats();
@@ -50,7 +57,7 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
 
   const isGroup = detail.applicationType === "GROUP";
   const first = members[0];
-  const onSaved = async () => { await Promise.all([reloadMembers(), reloadStats()]); };
+  const onSaved = async () => { await Promise.all([reloadMembers(), reloadStats(), reloadDetail()]); };
 
   // 단체 신청: 원본 서식 엑셀 내보내기 + 사주 프로그램 결과 엑셀 업로드(구성원 이름 일괄 반영).
   const exportThisGroup = async () => {
@@ -216,6 +223,8 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
           key={m.memberId}
           appId={app.applicationId}
           cardTypeId={detail.cardTypeId}
+          confirmedStudentFrontTextColor={detail.studentFrontTextColor}
+          confirmedStudentBackTextColor={detail.studentBackTextColor}
           index={i}
           member={m}
           isGroup={isGroup}

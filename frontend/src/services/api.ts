@@ -154,6 +154,8 @@ export interface AdminApplicationDetail {
   cardReadyAt?: string; physicalDispatchedAt?: string; photoRejectReason?: string;
   applicant: AdminApplicantSummary; receiver?: AdminReceiverSummary;
   memberCount: number; createdAt: string; depositorName?: string; version?: number;
+  // 학생증(STUDENT) 전용 — 카드 생성 성공 시 확정되어 이후 값이 다르면 재생성이 거절된다.
+  studentFrontTextColor?: StudentTextColor; studentBackTextColor?: StudentTextColor;
 }
 export interface AdminApplicationMember {
   memberId: number; englishName?: string; nationality?: string; gender?: "MALE" | "FEMALE";
@@ -203,6 +205,8 @@ export interface CardPreviewImages { front: string; back: string; }
 export interface CardGenerateResult { cardFrontPath: string; cardBackPath: string; issueDate: string; }
 export interface AdminMemberCardDownload { applicationId: number; memberId: number; cardFrontUrl: string; cardBackUrl: string; expiresAt: string; }
 export type CardDesignOrientation = "LANDSCAPE" | "PORTRAIT";
+// 학생증(STUDENT) 카드 전용 앞·뒤 텍스트 색상 — 비학생증 카드는 이 값을 보내면 안 된다.
+export type StudentTextColor = "DARK_GRAY" | "WHITE";
 export interface SchoolCardTemplate { cardDesignId: number; frontPreviewUrl: string; backPreviewUrl: string; }
 
 // ── Inquiries (1:1 문의, 고객지원) ───────────────────────────────
@@ -277,9 +281,9 @@ export const api = {
     request<ManseryeokMemberResult[]>(`/api/admin/applications/${applicationId}/manseryeok-results`),
   listCardDesigns: (params: { cardTypeId: number; active?: boolean; applicationId?: number }) =>
     request<CardDesignOption[]>(`/api/admin/card-designs${qs({ ...params })}`),
-  getCardPreview: (applicationId: number, memberId: number, body: { cardDesignId: number; issueDate: string }) =>
+  getCardPreview: (applicationId: number, memberId: number, body: { cardDesignId: number; issueDate: string; studentFrontTextColor?: StudentTextColor; studentBackTextColor?: StudentTextColor }) =>
     request<CardPreviewImages>(`/api/admin/applications/${applicationId}/members/${memberId}/card-preview`, { method: "POST", body: JSON.stringify(body) }),
-  generateCard: (applicationId: number, memberId: number, body: { cardDesignId: number; issueDate: string }) =>
+  generateCard: (applicationId: number, memberId: number, body: { cardDesignId: number; issueDate: string; studentFrontTextColor?: StudentTextColor; studentBackTextColor?: StudentTextColor }) =>
     request<CardGenerateResult>(`/api/admin/applications/${applicationId}/members/${memberId}/card-generate`, { method: "POST", body: JSON.stringify(body) }),
   getAdminApplicationCardsZip: (applicationId: number) =>
     requestFile(`/api/admin/applications/${applicationId}/cards/download`),

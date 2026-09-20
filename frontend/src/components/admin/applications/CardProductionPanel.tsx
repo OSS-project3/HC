@@ -1,23 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { cardTypeById } from "../../../data/cards";
 import {
   api,
   ApiError,
-  type CardDesignOption
+  type CardDesignOption,
+  type StudentTextColor
 } from "../../../services/api";
 import { showToast } from "../../ui/toast";
 
 import { asDataUrl, todayIso } from "./applicationUtils";
-export function CardProductionPanel({ appId, memberId, cardTypeId, onGenerated }: {
+
+const STUDENT_TEXT_COLOR_LABEL: Record<StudentTextColor, string> = { DARK_GRAY: "진회색", WHITE: "흰색" };
+
+export function CardProductionPanel({ appId, memberId, cardTypeId, confirmedFrontTextColor, confirmedBackTextColor, onGenerated }: {
   appId: number;
   memberId: number;
   cardTypeId: number;
+  // 학생증(STUDENT) 전용 — 신청 단위로 이미 확정된 값이면 다른 색으로 바꿀 수 없다(백엔드가 거절).
+  confirmedFrontTextColor?: StudentTextColor;
+  confirmedBackTextColor?: StudentTextColor;
   onGenerated: () => Promise<void>;
 }) {
+  const isStudentCard = cardTypeById[cardTypeId] === "student";
   const [designs, setDesigns] = useState<CardDesignOption[]>([]);
   const [designId, setDesignId] = useState("");
   const [issueDate, setIssueDate] = useState(todayIso());
+  const [frontTextColor, setFrontTextColor] = useState<StudentTextColor>(confirmedFrontTextColor ?? "DARK_GRAY");
+  const [backTextColor, setBackTextColor] = useState<StudentTextColor>(confirmedBackTextColor ?? "DARK_GRAY");
   const [preview, setPreview] = useState<{ front: string; back: string } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // 다른 멤버의 카드 생성으로 신청 단위 색상이 막 확정된 경우에도 선택값을 확정값으로 맞춘다.
+  useEffect(() => { if (confirmedFrontTextColor) setFrontTextColor(confirmedFrontTextColor); }, [confirmedFrontTextColor]);
+  useEffect(() => { if (confirmedBackTextColor) setBackTextColor(confirmedBackTextColor); }, [confirmedBackTextColor]);
 
   const loadDesigns = async () => {
     setBusy(true);
@@ -39,7 +54,9 @@ export function CardProductionPanel({ appId, memberId, cardTypeId, onGenerated }
       showToast("카드 디자인을 선택해 주세요.");
       return null;
     }
-    return { cardDesignId: id, issueDate };
+    // 비학생증 카드는 색상 필드를 아예 보내면 안 된다(서버가 INVALID_INPUT으로 거절).
+    if (!isStudentCard) return { cardDesignId: id, issueDate };
+    return { cardDesignId: id, issueDate, studentFrontTextColor: frontTextColor, studentBackTextColor: backTextColor };
   };
 
   const previewCard = async () => {
@@ -94,10 +111,39 @@ export function CardProductionPanel({ appId, memberId, cardTypeId, onGenerated }
           {designs.map((d) => <option key={d.id} value={d.id}>{d.name} #{d.designNumber}</option>)}
         </select>
         <input className="field__input admin-card-tools__date" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+        {isStudentCard && (
+          <>
+            <select
+              className="field__select"
+              value={frontTextColor}
+              onChange={(e) => setFrontTextColor(e.target.value as StudentTextColor)}
+              disabled={busy || Boolean(confirmedFrontTextColor)}
+              title="학생증 앞면 글씨색"
+            >
+              {(Object.keys(STUDENT_TEXT_COLOR_LABEL) as StudentTextColor[]).map((color) => (
+                <option key={color} value={color}>앞면 글씨색: {STUDENT_TEXT_COLOR_LABEL[color]}</option>
+              ))}
+            </select>
+            <select
+              className="field__select"
+              value={backTextColor}
+              onChange={(e) => setBackTextColor(e.target.value as StudentTextColor)}
+              disabled={busy || Boolean(confirmedBackTextColor)}
+              title="학생증 뒷면 글씨색"
+            >
+              {(Object.keys(STUDENT_TEXT_COLOR_LABEL) as StudentTextColor[]).map((color) => (
+                <option key={color} value={color}>뒷면 글씨색: {STUDENT_TEXT_COLOR_LABEL[color]}</option>
+              ))}
+            </select>
+          </>
+        )}
         <button type="button" className="admin__btn" disabled={busy} onClick={previewCard}>미리보기</button>
         <button type="button" className="admin__btn admin__btn--primary" disabled={busy} onClick={generate}>카드 생성</button>
         <button type="button" className="admin__btn" disabled={busy} onClick={downloadMember}>다운로드</button>
       </div>
+      {isStudentCard && (confirmedFrontTextColor || confirmedBackTextColor) && (
+        <p className="admin__muted">이미 카드가 생성되어 글씨색이 확정됐습니다 — 같은 색으로만 재생성할 수 있습니다.</p>
+      )}
       {preview && (
         <div className="admin-card-tools__preview">
           <img src={preview.front} alt="카드 앞면 미리보기" />

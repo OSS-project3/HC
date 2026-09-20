@@ -5,7 +5,8 @@ import {
   api,
   ApiError,
   type AdminApplicationMember,
-  type ManseryeokActiveResult
+  type ManseryeokActiveResult,
+  type StudentTextColor
 } from "../../../services/api";
 import { showToast } from "../../ui/toast";
 import { genderLabel } from "./applicationUtils";
@@ -17,8 +18,10 @@ import { ManseryeokPanel } from "./ManseryeokPanel";
 const EL_KEY: Record<string, string> = { 목: "mok", 화: "hwa", 토: "to", 금: "geum", 수: "su" };
 const EL_HANJA: Record<string, string> = { 목: "木", 화: "火", 토: "土", 금: "金", 수: "水" };
 
-export function NamingCard({ appId, cardTypeId, index, member, isGroup, counts, onSaved, manseryeok, onManseryeokChanged }: {
+export function NamingCard({ appId, cardTypeId, confirmedStudentFrontTextColor, confirmedStudentBackTextColor, index, member, isGroup, counts, onSaved, manseryeok, onManseryeokChanged }: {
   appId: number; cardTypeId?: number; index: number; member: AdminApplicationMember; isGroup: boolean;
+  // 학생증(STUDENT) 전용 — 신청 단위로 이미 확정된 카드 텍스트 색상(카드 생성 성공 시 확정됨).
+  confirmedStudentFrontTextColor?: StudentTextColor; confirmedStudentBackTextColor?: StudentTextColor;
   counts: Record<string, number>; onSaved: () => Promise<void>;
   // 활성 확정 만세력(1-E) — 예시(preview) 카드는 전달하지 않는다. result=null이면 미확정.
   manseryeok?: { status: "LOADING" | "READY" | "ERROR"; result: ManseryeokActiveResult | null; loaded: boolean };
@@ -88,7 +91,16 @@ export function NamingCard({ appId, cardTypeId, index, member, isGroup, counts, 
           <span className="admin__muted">확정된 이름 (서버 저장)</span>
         </div>
         {!isPreview && <CardNumberField appId={appId} memberId={member.memberId} current={member.cardNumber} onSaved={onSaved} />}
-        {!isPreview && cardTypeId && <CardProductionPanel appId={appId} memberId={member.memberId} cardTypeId={cardTypeId} onGenerated={onSaved} />}
+        {!isPreview && cardTypeId && (
+          <CardProductionPanel
+            appId={appId}
+            memberId={member.memberId}
+            cardTypeId={cardTypeId}
+            confirmedFrontTextColor={confirmedStudentFrontTextColor}
+            confirmedBackTextColor={confirmedStudentBackTextColor}
+            onGenerated={onSaved}
+          />
+        )}
       </div>
     );
   }
@@ -192,7 +204,16 @@ export function NamingCard({ appId, cardTypeId, index, member, isGroup, counts, 
         </>
       )}
       {!isPreview && <CardNumberField appId={appId} memberId={member.memberId} current={member.cardNumber} onSaved={onSaved} />}
-      {!isPreview && cardTypeId && <CardProductionPanel appId={appId} memberId={member.memberId} cardTypeId={cardTypeId} onGenerated={onSaved} />}
+      {!isPreview && cardTypeId && (
+        <CardProductionPanel
+          appId={appId}
+          memberId={member.memberId}
+          cardTypeId={cardTypeId}
+          confirmedFrontTextColor={confirmedStudentFrontTextColor}
+          confirmedBackTextColor={confirmedStudentBackTextColor}
+          onGenerated={onSaved}
+        />
+      )}
     </div>
   );
 }
