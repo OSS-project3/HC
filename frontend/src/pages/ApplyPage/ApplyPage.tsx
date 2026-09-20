@@ -85,10 +85,12 @@ export function ApplyPage() {
           cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined, schoolId,
           applicant: { organizationName: draft.applicant.organizationName, department: draft.applicant.department, name: draft.applicant.name, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
+          consultationConfirmed: draft.consultationConfirmed, disclaimerConfirmed: draft.disclaimerConfirmed,
         } : {
           cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined, schoolId,
           applicant: { name: draft.applicant.name || draft.applicant.englishName, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
+          consultationConfirmed: draft.consultationConfirmed, disclaimerConfirmed: draft.disclaimerConfirmed,
           // 학번·학과는 대학교(UNIVERSITY)에서만 전송한다(고등학교·비학생증은 미전송).
           // address는 학생증이 아닐 때만 전송한다(학생증은 카드에 주소를 표시하지 않음 — 백엔드
           // validateCardAddress와 동일한 정책, StepInfo.tsx 검증도 동일 조건).
