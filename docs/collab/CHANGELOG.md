@@ -17,7 +17,7 @@
 ## 2026-09-20 — Claude — `main` (학생증 텍스트 색상 — 프론트엔드 갭 문서화 + 구현)
 
 - 변경: 백엔드는 2026-09-19에 이미 완료했지만 프론트 전달 문서에 반영되지 않고 있던 학생증 앞·뒤 텍스트 색상 기능을 프론트에 연결했다. 먼저 `FRONTEND_API_GAPS.md`에 P2 신규 갭으로 등록하고 `FRONTEND_API_INTEGRATION_SPEC.md` "카드 제작" 절에 노출조건·기본값·새로고침 복원·잠금조건 계약을 기록, `docs/specs/application/checklist.md` §6의 "프론트 전달 문서" 항목을 완료 처리했다(커밋 `df4e8dc`). 이어서 사용자 승인을 받아 실제 UI까지 구현했다 — STUDENT 카드일 때만 앞/뒤 글씨색 select 노출, 비학생증은 필드 자체를 요청에 안 보냄, 카드가 이미 생성돼 색상이 확정된 신청은 선택창을 잠그고 안내 문구 표시, 카드 생성 후 신청 상세를 재조회해 다른 구성원 패널에도 잠금이 즉시 반영되게 함.
-- 파일: (문서, 커밋 `df4e8dc`) `docs/FRONTEND_API_GAPS.md`, `docs/FRONTEND_API_INTEGRATION_SPEC.md`, `docs/specs/application/checklist.md` / (구현, 미커밋) `frontend/src/services/api.ts`, `frontend/src/features/i18n/serverErrors.ts`, `frontend/src/components/admin/applications/CardProductionPanel.tsx`, `NamingCard.tsx`, `ApplicationDetail.tsx`
+- 파일: (문서, 커밋 `df4e8dc`) `docs/FRONTEND_API_GAPS.md`, `docs/FRONTEND_API_INTEGRATION_SPEC.md`, `docs/specs/application/checklist.md` / (구현, 커밋 `4ae03ec`) `frontend/src/services/api.ts`, `frontend/src/features/i18n/serverErrors.ts`, `frontend/src/components/admin/applications/CardProductionPanel.tsx`, `NamingCard.tsx`, `ApplicationDetail.tsx`
 - 사유: 사용자 질문("색상 변경은 프론트엔드도 만들어짐?")으로 미착수 상태를 확인 → 스코프 정리 후 문서화 승인("문서까지만") → 이어서 구현 승인("구현 같이 해줘").
 - 테스트: `tsc --noEmit` strict 통과, `npm run build` 통과. 개발 DB에 STUDENT 타입 데모 신청이 없어 이 분기를 열어볼 데이터가 없고 공유 dev 컨테이너 재빌드는 보류해, 실제 브라우저 클릭 테스트는 하지 못했다.
 - 관련: `docs/FRONTEND_API_GAPS.md` P2 항목
