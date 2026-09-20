@@ -3,7 +3,7 @@
 - 마지막 갱신: 2026-09-20
 - 작성자: Claude
 - 브랜치: main
-- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 32 commits ahead).
+- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 33 commits ahead).
 
 ## 현재 워킹 트리
 
@@ -18,6 +18,7 @@
 5. 운영용 임시 관리자 자동 시드(`DemoDataSeeder.ensureAdminUser()`, `admin@test.com`) 제거 — 확정 정책: 운영 관리자는 일반 가입 후 운영자가 DB에서 `role` 수동 변경, 승격 API/UI는 미구현. 상세: `docs/TEMP_ADMIN_LOGIN.md` (2026-09-20)
 6. 학생증 텍스트 색상 프론트엔드 갭 문서화(`FRONTEND_API_GAPS.md` P2 신규, `FRONTEND_API_INTEGRATION_SPEC.md` 계약 기록) + 실제 UI 구현(카드 제작 패널에 STUDENT 전용 앞/뒤 글씨색 select, 확정 후 잠금) (2026-09-20)
 7. 십이간지 디자인 세트 선택 UI 구현 — 기존 P0 하드 블로커(모든 카드종류의 카드 생성을 막던 미착수 갭)를 신청 상세 레벨(select 1~5, 텍스트만·미리보기 이미지 없음)에 추가해 해소. `FRONTEND_API_GAPS.md`/`docs/collab/TODO.md`의 완료 반영 누락(6번 항목의 학생증 색상 포함)도 같이 정리 (2026-09-20)
+8. 결제 안내·72시간 미입금 자동취소 정책 폐기를 문서에 반영(코드는 그대로) — `guidePayment()` Service는 있는데 이걸 호출하는 Controller가 없다는 지적에서 시작, 확인해보니 이미 폐기하기로 한 정책인데 requirements.md/data-model.md/api.md(2곳)/admin.md/TODO.md §5-A 전부 여전히 "구현 예정"으로 남아있었음. 확정 정책: 결제 안내는 시스템 밖에서 처리, 관리자는 confirm-payment만 호출, 자동 취소 없음. `guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`는 2026-09-13 `refundedAt` 처리와 동일하게 코드는 그대로 두고 문서만 정정(사용자 확인 완료) (2026-09-20)
 
 ## 검증
 

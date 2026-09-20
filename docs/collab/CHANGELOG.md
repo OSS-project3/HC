@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-20 — Claude — `main` (결제 안내·72시간 미입금 자동취소 정책 폐기 반영, 문서만)
+
+- 변경: 관리자가 "`guidePayment()` Service는 있는데 이걸 호출하는 Controller가 없다"고 지적해 확인하다가, 이 기능이 실제로는 이미 폐기하기로 한 정책이라는 걸 알게 됐다(사용자 확인). 그런데 `docs/specs/application/requirements.md`(7-6절)·`data-model.md`(payment_guided_at/payment_due_at 컬럼 설명)·`api.md`(2곳의 재사용 판단 표)·`docs/api/admin.md`(API 3-A 절)·`docs/collab/TODO.md`(§5-A 상세 구현 계획, 진행 보드 122행)까지 전부 여전히 "구현 예정"으로 서술 중이었다 — 정책 폐기가 문서에 전혀 전파되지 않고 있었다. 확정 정책: 결제 안내는 시스템 밖(전화·카카오 등)에서 관리자가 직접 처리하고 시스템에 기록하지 않는다. 관리자는 입금 확인 시 기존 `confirm-payment`만 호출한다. 미입금 자동 취소는 하지 않으며 취소 여부·시점은 관리자가 운영 절차로 판단한다. `Application.guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`/`cancelForPaymentTimeout()`는 2026-09-13 `refundedAt`/`markRefunded()` 처리와 동일하게 이전 정책의 구현 흔적으로 코드에 남기고 신규로 연결하지 않는다(**코드 변경 없음, 문서만 정정** — 사용자 확인 완료, 이미 호출 경로가 없어 운영에서 항상 비활성 상태였다).
+- 파일: `docs/specs/application/requirements.md`, `docs/specs/application/data-model.md`, `docs/specs/application/api.md`, `docs/api/admin.md`, `docs/collab/TODO.md`
+- 사유: 사용자 질문("guidePayment() Service는 있으나 Controller API가 없습니다... 이건 뭐임")과 확인("아 이거 정책 빼기로 했잖아")으로 시작. 문서만 고칠지 코드도 정리할지 확인받아 문서만 정정하기로 결정.
+- 테스트: 코드 변경 없음(문서만).
+- 관련: `docs/collab/TODO.md` "최신 결제 안내·자동취소 정책 (2026-09-20 확정)" 절, "5-A. 결제 안내 API/UI 연결 — ❌ 폐기" 절
+
+---
 ## 2026-09-20 — Claude — `main` (십이간지 디자인 세트 프론트엔드 UI 구현 + 갭 문서 완료 반영 정리)
 
 - 변경: `zodiacDesignSet`(십이간지 캐릭터 디자인 세트 1~5) 선택 UI가 2026-09-14부터 P0 하드 블로커로 등록만 돼 있고 실제 구현이 안 된 상태였다(값이 없으면 모든 카드종류의 카드 미리보기·생성이 거절됨) — 사용자가 "이미 구현됐다고 들었다"며 재확인을 요청해 저장소 전체(모든 브랜치·전체 히스토리·stash)를 다시 뒤졌으나 실제로 어디에도 없음을 재확인했다. 범위를 먼저 `docs/collab/TODO.md`에 체크리스트로 작성하고(미리보기 이미지 표시 여부만 정책 확인 — 새 백엔드 엔드포인트 없이 텍스트 선택만 하기로 사용자 승인), 신청 전체에 1개(멤버별 아님)라는 실제 성격에 맞춰 `CardProductionPanel`이 아닌 `ApplicationDetail`(신청 상세) 레벨에 select+저장 버튼을 구현했다. 이 과정에서 학생증 텍스트 색상(이전 항목, 커밋 `4ae03ec`로 이미 구현 완료)이 `FRONTEND_API_GAPS.md`에 반영되지 않은 채 남아있던 것도 함께 발견해 정리했다.
