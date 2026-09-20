@@ -51,6 +51,7 @@ public enum ErrorCode {
     GEOCODING_NOT_CONFIGURED(503, "출생지역 조회 기능이 아직 설정되지 않았습니다."),
     GEOCODING_PROVIDER_ERROR(503, "출생지역 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
     REGION_NOT_FOUND(404, "일치하는 출생지역을 찾을 수 없습니다."),
+    INVALID_LOOKUP_TOKEN(400, "조회가 만료되었거나 유효하지 않습니다. 다시 조회해 주세요."),
 
     // Upload
     FILE_TOO_LARGE(413, "파일 크기는 10MB를 초과할 수 없습니다."),

@@ -42,6 +42,10 @@ public class SecurityConfig {
                 // 계정 복구(아이디/비밀번호 찾기)도 비로그인 상태에서 쓰는 공개 API다(RECOVERY-1/2 정책).
                 .requestMatchers("/api/auth/recovery/**").permitAll()
                 .requestMatchers("/api/applications/lookup").permitAll()
+                // 공개 카드 조회 화면 전용 다운로드 — 로그인 없이 lookup() 발급 토큰으로만 인가한다
+                // (CardLookupTokenService). 로그인 기반 /cards/download(마이페이지)는 아래 /api/**
+                // 공통 규칙 그대로 유지 — 이 경로만 별도로 연다.
+                .requestMatchers(HttpMethod.GET, "/api/applications/*/cards/download/public").permitAll()
                 // 학생증 신청서(개인·단체) 작성 화면의 학교 검색select — 신청자는 로그인 여부와 무관하다.
                 .requestMatchers(HttpMethod.GET, "/api/schools/search").permitAll()
                 // 후기 목록/단건 조회는 비로그인 공개 조회다(등록/수정/삭제는 아래 hasAnyRole 규칙 그대로 적용).

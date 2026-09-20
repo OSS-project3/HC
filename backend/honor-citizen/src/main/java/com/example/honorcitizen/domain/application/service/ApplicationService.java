@@ -145,6 +145,8 @@ public class ApplicationService {
     // ZIP 파일에서 엑셀을 파싱하고 사진을 매칭하는 단체 신청 전용 파서
     private final BulkExcelParser bulkExcelParser;
     private final SchoolRepository schoolRepository;
+    // 공개 카드 조회(lookup) 성공 시 그 조회 건에 한해 다운로드를 허용하는 단기 토큰 발급/검증 전담
+    private final CardLookupTokenService cardLookupTokenService;
 
     // JPA Repository가 아닌 네이티브 쿼리(SELECT nextval)로 DB 시퀀스를 직접 채번해야 하므로
     // EntityManager를 직접 주입받는다. @Autowired 대신 @PersistenceContext를 사용하는 이유는
@@ -1205,6 +1207,31 @@ public class ApplicationService {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
 
+        return buildCardDownloadResponse(application);
+    }
+
+    /**
+     * 비로그인 공개 카드 조회(lookup) 화면 전용 다운로드 — 로그인 세션이 없으므로 userId 소유권 대신
+     * lookup() 성공 시 발급된 1회용 단기 토큰(CardLookupTokenService)으로 IDOR을 막는다. 토큰이
+     * applicationId와 일치하지 않거나 만료·이미 소비됐으면 INVALID_LOOKUP_TOKEN으로 거절한다(존재
+     * 여부를 유추할 수 있는 정보를 주지 않는다는 lookup()과 동일한 원칙).
+     */
+    @Transactional(readOnly = true)
+    public ApplicationCardDownloadResponse getCardDownloadByToken(Long applicationId, String token) {
+        if (!cardLookupTokenService.verifyAndConsume(applicationId, token)) {
+            throw new CustomException(ErrorCode.INVALID_LOOKUP_TOKEN);
+        }
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
+
+        return buildCardDownloadResponse(application);
+    }
+
+    // getCardDownload(로그인 소유권 검증)와 getCardDownloadByToken(공개 토큰 검증)이 공유하는 본체 —
+    // 인가 방식만 다르고 그 이후 로직(발급 완료 검사 + presigned URL 생성)은 완전히 동일하다.
+    private ApplicationCardDownloadResponse buildCardDownloadResponse(Application application) {
+        Long applicationId = application.getId();
+
         // 카드 다운로드는 발급 완료(COMPLETED) 상태에서만 허용한다.
         // COMPLETED 미만의 상태(예: PENDING, REVIEWING)에서는 카드 이미지 자체가 아직 생성되지 않았으므로
         // cardFrontPath, cardBackPath가 null이어서 presigned URL 생성 자체가 불가능하다.
@@ -1388,7 +1415,8 @@ public class ApplicationService {
                 cardType.getName(),
                 application.getStatus(),
                 application.getPhotoRejectReason(),
-                application.getCreatedAt());
+                application.getCreatedAt(),
+                cardLookupTokenService.issue(application.getId()));
     }
 
     // 카드번호로 ApplicationMember를 찾고, 해당 멤버가 속한 상위 Application을 반환한다.

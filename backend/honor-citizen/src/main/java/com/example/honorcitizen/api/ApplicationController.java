@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -105,5 +106,15 @@ public class ApplicationController {
             @PathVariable Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.getCardDownload(userId, applicationId)));
+    }
+
+    // 비로그인 공개 카드 조회(/lookup) 화면 전용 — 로그인 세션 대신 lookup() 성공 시 발급된 1회용
+    // 단기 토큰으로 인가한다(SecurityConfig에서 이 경로만 permitAll).
+    @GetMapping("/{applicationId}/cards/download/public")
+    public ResponseEntity<ApiResponse<ApplicationCardDownloadResponse>> getCardDownloadByToken(
+            @PathVariable Long applicationId,
+            @RequestParam String token) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.getCardDownloadByToken(applicationId, token)));
     }
 }

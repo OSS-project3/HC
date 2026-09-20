@@ -257,6 +257,21 @@ class ApplicationControllerTest {
                         .header("Authorization", token))
                 .andExpect(status().isBadRequest());
     }
+
+    // 공개 카드 조회 화면 전용 다운로드 — SecurityConfig가 이 경로만 permitAll인지가 이 테스트의 핵심
+    // 검증 대상이다(잘못 설정되면 401이 나서 토큰 검증까지 가지도 못하고 여기서 실패한다).
+    @Test
+    void getCardDownloadByTokenIsReachableWithoutAuthenticationAndRejectsInvalidToken() throws Exception {
+        Application application = applicationRepository.save(Application.createIndividual(
+                user.getId(), "APP-2026-PUBLIC-DL-1", cardType.getId(), IssueType.MOBILE, true, null, null));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/applications/{applicationId}/cards/download/public", application.getId())
+                        .param("token", "not-a-real-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_LOOKUP_TOKEN"));
+    }
+
     private byte[] imageBytes() {
         try {
             BufferedImage image = new BufferedImage(300, 400, BufferedImage.TYPE_INT_RGB);

@@ -47,6 +47,8 @@ class ApplicationServiceCardDownloadTest {
     private ApplicationMemberRepository applicationMemberRepository;
     @Autowired
     private CardTypeRepository cardTypeRepository;
+    @Autowired
+    private CardLookupTokenService cardLookupTokenService;
 
     @MockitoBean
     private StorageService storageService;
@@ -84,8 +86,9 @@ class ApplicationServiceCardDownloadTest {
     }
 
     private Application completedIndividualApplication(Long ownerId) {
+        // ownerId를 번호에 반영해, 한 테스트 안에서 서로 다른 소유자로 두 번 호출해도 번호가 겹치지 않게 한다.
         Application application = applicationRepository.save(Application.createIndividual(
-                ownerId, "APP-2026-400001", cardType.getId(), IssueType.MOBILE, true, null, null));
+                ownerId, "APP-2026-40000" + ownerId, cardType.getId(), IssueType.MOBILE, true, null, null));
         applicantRepository.save(Applicant.createIndividual(application.getId(), "홍길동", "owner@example.com", "010-1234-5678"));
         ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createIndividual(
                 application.getId(), "Hong Gildong", LocalDate.of(1990, 1, 1), "US",
@@ -165,5 +168,60 @@ class ApplicationServiceCardDownloadTest {
         assertThatThrownBy(() -> applicationService.getCardDownload(1L, 999999L))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.APPLICATION_NOT_FOUND);
+    }
+
+    @Test
+    void getCardDownloadByTokenReturnsUrlsForValidToken() {
+        Application application = completedIndividualApplication(1L);
+        String token = cardLookupTokenService.issue(application.getId());
+
+        ApplicationCardDownloadResponse response =
+                applicationService.getCardDownloadByToken(application.getId(), token);
+
+        assertThat(response.getCardFrontUrl()).isEqualTo("http://mock-storage/presigned");
+        assertThat(response.getCardBackUrl()).isEqualTo("http://mock-storage/presigned");
+    }
+
+    @Test
+    void getCardDownloadByTokenIsSingleUse() {
+        Application application = completedIndividualApplication(1L);
+        String token = cardLookupTokenService.issue(application.getId());
+
+        applicationService.getCardDownloadByToken(application.getId(), token);
+
+        assertThatThrownBy(() -> applicationService.getCardDownloadByToken(application.getId(), token))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_LOOKUP_TOKEN);
+    }
+
+    @Test
+    void getCardDownloadByTokenRejectsTokenIssuedForDifferentApplication() {
+        Application application = completedIndividualApplication(1L);
+        Application other = completedIndividualApplication(2L);
+        String tokenForOther = cardLookupTokenService.issue(other.getId());
+
+        assertThatThrownBy(() -> applicationService.getCardDownloadByToken(application.getId(), tokenForOther))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_LOOKUP_TOKEN);
+    }
+
+    @Test
+    void getCardDownloadByTokenRejectsUnknownToken() {
+        Application application = completedIndividualApplication(1L);
+
+        assertThatThrownBy(() -> applicationService.getCardDownloadByToken(application.getId(), "not-a-real-token"))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_LOOKUP_TOKEN);
+    }
+
+    @Test
+    void getCardDownloadByTokenRejectsWhenApplicationNotCompletedEvenWithValidToken() {
+        Application application = applicationRepository.save(Application.createIndividual(
+                1L, "APP-2026-400004", cardType.getId(), IssueType.MOBILE, true, null, null));
+        String token = cardLookupTokenService.issue(application.getId());
+
+        assertThatThrownBy(() -> applicationService.getCardDownloadByToken(application.getId(), token))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_NOT_READY);
     }
 }

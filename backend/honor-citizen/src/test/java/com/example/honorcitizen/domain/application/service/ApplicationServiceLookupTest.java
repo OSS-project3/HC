@@ -195,6 +195,21 @@ class ApplicationServiceLookupTest {
     }
 
     @Test
+    void lookupIssuesCardDownloadTokenRedeemableForTheSameApplication() {
+        ApplicationLookupResponse response = applicationService.lookup(request("""
+                { "method": "card", "keyValue": "ROK-00001-0001" }
+                """));
+
+        assertThat(response.getCardDownloadToken()).isNotBlank();
+        // 카드가 아직 준비되지 않은 상태(SUBMITTED)라도 토큰 자체는 발급된다 — 준비 여부 검사는
+        // redeem 단계(getCardDownloadByToken)에서 CARD_NOT_READY로 걸러진다.
+        assertThatThrownBy(() -> applicationService.getCardDownloadByToken(
+                response.getApplicationId(), response.getCardDownloadToken()))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_NOT_READY);
+    }
+
+    @Test
     void lookupThrowsNotFoundForUnknownApplicationNumber() {
         assertThatThrownBy(() -> applicationService.lookup(request("""
                 { "method": "application", "keyValue": "APP-2026-999999", "phone": "010-1111-2222", "email": "lee@example.com" }
