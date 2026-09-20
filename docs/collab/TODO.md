@@ -150,7 +150,7 @@
 | ⚪ | 관리자(Admin) 신청 목록·상태변경·통계 API | 미정 | `main` | `docs/FRONTEND_API_GAPS.md` §1.2·§1.4 | `GET /api/admin/applications`(목록, 상태·유형 필터), `GET /api/admin/applications/{id}`, 상태별 명령 API, `GET /api/admin/stats`가 아직 없음. 백엔드 확정 상태는 `SUBMITTED→REVIEWING↔PHOTO_REJECTED→NAME_EDITING→PRODUCTION_READY→PRODUCING→COMPLETED/CANCELLED`이며 PaymentStatus는 별도 관리 |
 | ✅ | "내 후기" 목록 조회 API | Claude | `main` | `docs/BACKEND_API_GAPS.md` P0-2 | ⚠️ 2026-08-19 정정: 이 행이 미정으로 남아있었으나 실제로는 이미 구현·연동 완료된 상태였다(코드로 재확인). `GET /api/my/reviews`(`MyReviewController`, `page`/`size` 페이지네이션) 구현 완료, 프론트 `MyPage` 내 후기 섹션에서 실 연동까지 완료(`docs/BACKEND_API_GAPS.md` P0-2 표 참고). 문서만 정정, 코드 작업 없음 |
 | ⚪ | 단체신청 Excel 양식 다운로드 API 필요 여부 확정 | 미정 | `main` | `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 백엔드에 template 관련 엔드포인트가 확인되지 않음(코드 검색 결과 없음) — 프론트에도 양식 다운로드 버튼 자체가 없음. 신규 API가 필요한 건지, 정적 파일 제공으로 충분한지 정책 확인부터 필요 |
-| 🔴 | 십이간지 디자인 세트(`zodiacDesignSet`) 선택 UI 없음 — 카드 생성 자체를 막는 P0 하드 블로커 (2026-09-14 신규) | 프론트 담당자 | `main` | `docs/FRONTEND_API_GAPS.md` §1.21 | 백엔드 API(`PUT /api/admin/applications/{id}/zodiac-design`)는 구현·검증 완료됐으나 `services/api.ts` 래퍼·관리자 선택 UI가 전혀 없음(grep 0건). 값이 없으면 카드 미리보기·생성이 `ZODIAC_DESIGN_NOT_SELECTED`로 무조건 거절되어, 만세력 확정→이름·성씨 확정→카드번호→카드디자인까지 다 끝내도 이 값 하나 때문에 카드 생성까지 못 감. 상세 계약·완료 조건은 GAPS.md §1.21 참고, 백엔드 추가 작업 없음 |
+| ✅ | 십이간지 디자인 세트(`zodiacDesignSet`) 선택 UI 완료 (2026-09-20) | Claude | `main` | 본 문서 "십이간지 캐릭터 디자인 세트 — 프론트엔드 선택 UI" 절 | `services/api.ts` 래퍼·타입, `serverErrors.ts` 매핑, `ApplicationDetail.tsx` 선택 UI(신청 상세 레벨, 텍스트 선택만) 추가 완료. 상세는 위 전용 절 참고 |
 | 🔴 | GitHub Actions self-hosted 배포 러너(`ec2-hc-runner`) 오프라인 — 배포 파이프라인 전면 중단 (2026-09-14 발견) | 서버 접근 가능한 담당자 | - | 본 문서 없음, 대화 기록 참고 | `gh api repos/OSS-project3/HC/actions/runners` 확인 결과 `status: offline`. 최근 푸시(`ef66751` 포함, 2026-09-13T16:09:40Z부터)의 Deploy 워크플로가 전부 `queued`로 멈춰있어 그 이후 커밋이 하나도 실제 배포되지 않음 — 현재 라이브 도메인(`name.hanse.kr`)의 문제(JS 번들 `net::ERR_CONTENT_LENGTH_MISMATCH`로 잘려 화면이 빈 채로 뜸)는 최근 작업과 무관하게 그 이전에 이미 배포돼 있던 버전의 문제. EC2에서 러너 프로세스 재시작 필요(`sudo systemctl status/start actions.runner.*` 또는 `~/actions-runner/svc.sh status/start`) — 코드 수정으로 해결 불가, 서버 접근 필수 |
 
 > 아래 "Task 1~4" 4행 요약은 이 로드맵이 Task 1~6(5-A/5-B 포함)으로 세분화되기 전의 옛 버전이라 삭제함 — 최신 진행 상태는 바로 아래 "Application 개인 신청 리팩터링 로드맵" 절 참고.
@@ -2221,9 +2221,9 @@ schoolId + orientation으로 CardDesign 조회 (4-B, 이미 구현됨)
 
 ---
 
-## 십이간지 캐릭터 디자인 세트 — 프론트엔드 선택 UI (2026-09-20 체크리스트 작성)
+## 십이간지 캐릭터 디자인 세트 — 프론트엔드 선택 UI (2026-09-20 완료)
 
-상태: 🔵 진행 예정(Claude, `frontend/` 수정 — 사용자 확인 완료)
+상태: ✅ 완료(Claude, `frontend/` 수정)
 
 ### 배경
 
@@ -2236,17 +2236,17 @@ schoolId + orientation으로 CardDesign 조회 (4-B, 이미 구현됨)
 
 ### 구현 체크리스트
 
-- [ ] `services/api.ts`: `assignZodiacDesignSet(applicationId, zodiacDesignSet)` 래퍼 추가(`PUT .../zodiac-design`)
-- [ ] `services/api.ts`: `AdminApplicationDetail`에 `zodiacDesignSet?: number` 필드 추가(백엔드 응답엔 이미 있음, 프론트 타입만 누락)
-- [ ] `features/i18n/serverErrors.ts`: `ZODIAC_DESIGN_NOT_SELECTED` 메시지 매핑 추가(현재 미매핑 확인함)
-- [ ] `components/admin/applications/ApplicationDetail.tsx`: 신청 상세에 십이간지 디자인 세트 선택 select(1~5, 텍스트 라벨) + 저장 버튼 추가 — 신청 전체에 1개(멤버별 아님)이므로 `NamingCard`/`CardProductionPanel`(멤버별 반복 렌더)이 아니라 상세 화면 레벨에 배치
-- [ ] 저장 성공 시 `reloadDetail()`로 최신값 반영해 새로고침 후에도 선택 상태 복원되게 함
+- [x] `services/api.ts`: `assignZodiacDesignSet(applicationId, zodiacDesignSet)` 래퍼 추가(`PUT .../zodiac-design`)
+- [x] `services/api.ts`: `AdminApplicationDetail`에 `zodiacDesignSet?: number` 필드 추가(백엔드 응답엔 이미 있음, 프론트 타입만 누락)
+- [x] `features/i18n/serverErrors.ts`: `ZODIAC_DESIGN_NOT_SELECTED` 메시지 매핑 추가(현재 미매핑 확인함)
+- [x] `components/admin/applications/ApplicationDetail.tsx`: 신청 상세에 십이간지 디자인 세트 선택 select(1~5, 텍스트 라벨) + 저장 버튼 추가 — 신청 전체에 1개(멤버별 아님)이므로 `NamingCard`/`CardProductionPanel`(멤버별 반복 렌더)이 아니라 상세 화면 레벨에 배치
+- [x] 저장 성공 시 `reloadDetail()`로 최신값 반영해 새로고침 후에도 선택 상태 복원되게 함
 
 ### 검증 계획
 
-- [ ] `tsc --noEmit` strict, `npm run build` 통과
-- [ ] 실제 브라우저 클릭 테스트 시도(가능하면) — 안 되면 학생증 색상 때와 동일하게 그 사유를 명시
-- [ ] 완료 후 `FRONTEND_API_GAPS.md` §1.21과 본 문서 153행 상태를 완료로 갱신, `docs/collab/HANDOFF.md`/`CHANGELOG.md`도 갱신
+- [x] `tsc --noEmit` strict, `npm run build` 통과
+- [ ] 실제 브라우저 클릭 테스트 — 학생증 색상 때와 동일한 사유(개발 DB 데모 신청으로 확인 가능하지만 공유 dev 컨테이너 재빌드는 보류)로 못 함
+- [x] 완료 후 `FRONTEND_API_GAPS.md` §1.21과 본 문서 153행 상태를 완료로 갱신, `docs/collab/HANDOFF.md`/`CHANGELOG.md`도 갱신
 
 ---
 
