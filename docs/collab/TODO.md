@@ -2221,6 +2221,35 @@ schoolId + orientation으로 CardDesign 조회 (4-B, 이미 구현됨)
 
 ---
 
+## 십이간지 캐릭터 디자인 세트 — 프론트엔드 선택 UI (2026-09-20 체크리스트 작성)
+
+상태: 🔵 진행 예정(Claude, `frontend/` 수정 — 사용자 확인 완료)
+
+### 배경
+
+백엔드는 완료(위 두 절 참고) — `PUT /api/admin/applications/{id}/zodiac-design`, `GET .../applications/{id}`(`MyApplicationDetailResponse.zodiacDesignSet`) 둘 다 이미 동작한다. 그런데 프론트에는 이 값을 고르는 UI도, `services/api.ts` 래퍼도 전혀 없다(`FRONTEND_API_GAPS.md` §1.21, 본 문서 153행 P0). 값이 없으면 카드 미리보기·생성이 `ZODIAC_DESIGN_NOT_SELECTED`로 무조건 거절되어, 만세력·이름·카드번호·카드디자인까지 다 끝내도 이 값 하나 때문에 카드 생성 자체가 막히는 하드 블로커다. 저장소 전체(모든 브랜치·전체 히스토리·stash)를 재확인해 실제로 어디에도 구현된 적 없음을 확인했다(2026-09-20).
+
+### 정책 확인
+
+- **미리보기 이미지 표시 여부 — 텍스트 선택만 하기로 확정(2026-09-20, 사용자 승인).** 백엔드가 5개 디자인 이미지를 공개 엔드포인트로 제공하지 않아(카드 합성 렌더링 전용 classpath 자원), 시각적 미리보기를 붙이려면 새 백엔드 엔드포인트가 필요해 범위가 커진다. 대신 값을 저장한 뒤 기존 "미리보기" 버튼(카드 전체 렌더링)으로 육안 확인하는 방식으로 대체한다.
+- 그 외 신규 정책 없음 — 선택 단위(신청 1건당 1개, 카드종류 무관)·잠금 없음(카드 생성 전후 아무 때나 변경 가능)·범위(1~5)는 위 두 절에서 이미 확정된 백엔드 정책 그대로 따른다.
+
+### 구현 체크리스트
+
+- [ ] `services/api.ts`: `assignZodiacDesignSet(applicationId, zodiacDesignSet)` 래퍼 추가(`PUT .../zodiac-design`)
+- [ ] `services/api.ts`: `AdminApplicationDetail`에 `zodiacDesignSet?: number` 필드 추가(백엔드 응답엔 이미 있음, 프론트 타입만 누락)
+- [ ] `features/i18n/serverErrors.ts`: `ZODIAC_DESIGN_NOT_SELECTED` 메시지 매핑 추가(현재 미매핑 확인함)
+- [ ] `components/admin/applications/ApplicationDetail.tsx`: 신청 상세에 십이간지 디자인 세트 선택 select(1~5, 텍스트 라벨) + 저장 버튼 추가 — 신청 전체에 1개(멤버별 아님)이므로 `NamingCard`/`CardProductionPanel`(멤버별 반복 렌더)이 아니라 상세 화면 레벨에 배치
+- [ ] 저장 성공 시 `reloadDetail()`로 최신값 반영해 새로고침 후에도 선택 상태 복원되게 함
+
+### 검증 계획
+
+- [ ] `tsc --noEmit` strict, `npm run build` 통과
+- [ ] 실제 브라우저 클릭 테스트 시도(가능하면) — 안 되면 학생증 색상 때와 동일하게 그 사유를 명시
+- [ ] 완료 후 `FRONTEND_API_GAPS.md` §1.21과 본 문서 153행 상태를 완료로 갱신, `docs/collab/HANDOFF.md`/`CHANGELOG.md`도 갱신
+
+---
+
 ## 개인 신청 카드 표기 주소 누락 (2026-09-13 검증 완료, 착수 전)
 
 상태: 🔵 진행중(검증만 완료, 구현 전) — Claude(백엔드) + 프론트 담당자
