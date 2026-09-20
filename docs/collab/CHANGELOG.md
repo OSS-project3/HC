@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-20 — Claude — `main` (신청 건별 동의 이력 — 백엔드 저장 계약 추가, 프론트 연동은 별도)
+
+- 변경: 신청 전 사전 상담 확인·유의사항(면책) 체크박스(`StepType.tsx`)는 UI 진행 조건일 뿐 서버에 값이 전달되지 않아 법적·운영상 필요한 동의 이력이 전혀 남지 않고 있었다(`FRONTEND_API_GAPS.md` P1). 사용자가 "백엔드만 먼저" 진행을 요청해, 프론트 연동 전에 저장 계약부터 추가했다. `Application`에 `consultationConfirmed`/`disclaimerConfirmed`(boolean)와 `consentPolicyVersion`(현재 값 `2026-09-20`, 동의 문구 버전 상수) 필드를 추가하고 기존 팩토리 오버로드 관례대로 하위호환 오버로드를 유지했다. 개인·단체 생성 요청 DTO(`ApplicationCreateRequest`/`BulkApplicationCreateRequest`)에 같은 이름의 boolean 필드를 추가해 값을 그대로 저장한다. **의도적으로 필수 검증을 걸지 않았다** — 프론트가 아직 이 필드를 전송하지 않는 상태에서 `@AssertTrue` 등으로 거절 조건을 걸면 배포 즉시 모든 신청 생성이 막히기 때문(현재는 항상 `false`로 기록됨, 프론트 연동 후 별도로 검증 추가 예정). 부수적으로 `ApplicationCreateRequest`의 미사용 `@AllArgsConstructor`를 제거했다 — Jackson이 이를 암묵적 생성자 기반 creator로 채택해, 새로 추가한 boolean 필드가 JSON에 없을 때 `MismatchedInputException`(null → boolean)으로 기존 통과 테스트 4건이 깨지는 걸 발견해 원인 제거.
+- 파일: `Application.java`, `ApplicationFactory.java`, `ApplicationPersistenceService.java`, `ApplicationCreateRequest.java`, `BulkApplicationCreateRequest.java` (main) / `ApplicationFactoryTest.java`, `ApplicationPersistenceServiceTest.java` (test) — 커밋 `6cbeafb` / `docs/FRONTEND_API_GAPS.md` P1 항목 갱신
+- 사유: 사용자 질문("신청 건별 확인·동의 이력... 이거 db에 남아야하는거아닌가")으로 시작, 백엔드만/프론트 포함 범위를 설명한 뒤 "백엔드 먼저" 확정.
+- 테스트: 신규 테스트 6건(`ApplicationFactoryTest` 2건, `ApplicationPersistenceServiceTest` 4건) 전부 통과. 전체 회귀 969건 중 968건 통과, 무관 플레이키 `HighSchoolSeederIntegrationTest` 1건만 실패(기존에 알려진 schools 테이블 공유 상태 문제, 이번 변경과 무관).
+- 관련: `docs/FRONTEND_API_GAPS.md` P1 "신청 건별 동의 이력"
+
+---
 ## 2026-09-20 — Claude — `main` (카드 제작 설정 복원 — cardDesignId/cardIssueDate 화면 재진입 시 초기화 문제 수정)
 
 - 변경: 백엔드 `MyApplicationDetailResponse`는 카드 생성 성공 시 확정되는 `cardDesignId`/`cardIssueDate`를 이미 상세 응답에 내려주고 있었지만, 프론트 `AdminApplicationDetail` 타입에 해당 필드가 없어 `CardProductionPanel`이 화면 재진입 때마다 항상 기본 디자인·오늘 날짜로 리셋됐다. 확정 후 다른 값으로 재생성을 시도하면 백엔드가 `CARD_DESIGN_MISMATCH`/`CARD_ISSUE_DATE_MISMATCH`로 거절하므로, 관리자가 확정값을 모른 채 잘못된 값을 골라 거절당하는 문제가 있었다. 학생증 텍스트 색상에 이미 적용한 confirmed-value 잠금·복원 패턴을 그대로 적용 — 확정값이 있으면 디자인 select·발급일자 input을 그 값으로 초기화하고 비활성화, 확정 디자인이 있으면 목록을 자동으로 불러와 드롭다운에 표시되게 함.

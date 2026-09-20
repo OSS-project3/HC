@@ -3,7 +3,7 @@
 - 마지막 갱신: 2026-09-20
 - 작성자: Claude
 - 브랜치: main
-- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 34 commits ahead).
+- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 36 commits ahead).
 
 ## 현재 워킹 트리
 
@@ -20,6 +20,7 @@
 7. 십이간지 디자인 세트 선택 UI 구현 — 기존 P0 하드 블로커(모든 카드종류의 카드 생성을 막던 미착수 갭)를 신청 상세 레벨(select 1~5, 텍스트만·미리보기 이미지 없음)에 추가해 해소. `FRONTEND_API_GAPS.md`/`docs/collab/TODO.md`의 완료 반영 누락(6번 항목의 학생증 색상 포함)도 같이 정리 (2026-09-20)
 8. 결제 안내·72시간 미입금 자동취소 정책 폐기를 문서에 반영(코드는 그대로) — `guidePayment()` Service는 있는데 이걸 호출하는 Controller가 없다는 지적에서 시작, 확인해보니 이미 폐기하기로 한 정책인데 requirements.md/data-model.md/api.md(2곳)/admin.md/TODO.md §5-A 전부 여전히 "구현 예정"으로 남아있었음. 확정 정책: 결제 안내는 시스템 밖에서 처리, 관리자는 confirm-payment만 호출, 자동 취소 없음. `guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`는 2026-09-13 `refundedAt` 처리와 동일하게 코드는 그대로 두고 문서만 정정(사용자 확인 완료) (2026-09-20)
 9. 카드 제작 설정 복원 — 백엔드가 이미 내려주던 확정 `cardDesignId`/`cardIssueDate`를 프론트 타입이 무시해 화면 재진입 시 항상 기본 디자인·오늘 날짜로 리셋되던 문제 수정. 학생증 텍스트 색상과 동일한 confirmed-value 잠금·복원 패턴 적용(정책 질문 없이 바로 구현, 사전 갭 문서 등록도 없었음). 커밋 `b611676` (2026-09-20)
+10. 신청 건별 동의 이력 — 백엔드 저장 계약만 우선 추가(사용자 요청: "백엔드 먼저"). `Application`에 `consultationConfirmed`/`disclaimerConfirmed`/`consentPolicyVersion` 추가, 개인·단체 생성 DTO에 같은 필드 추가해 값을 저장. **의도적으로 필수 검증은 아직 안 걸었다** — 프론트(`StepType.tsx`)가 이 값을 아직 안 보내므로 지금 검증을 걸면 모든 신청 생성이 막힌다(현재는 항상 `false`로 기록됨). 부수적으로 Jackson이 `ApplicationCreateRequest`의 미사용 `@AllArgsConstructor`를 암묵적 creator로 채택해 새 boolean 필드 때문에 기존 테스트 4건이 깨지는 걸 발견해 그 어노테이션을 제거. 커밋 `6cbeafb`, `FRONTEND_API_GAPS.md` P1 갱신 (2026-09-20)
 
 ## 검증
 
@@ -33,7 +34,7 @@
 2. `LoginPage.tsx`의 "로그인 실패 시 클라이언트 admin mock 폴백" 제거 — 백엔드 담당 범위 밖, 프론트 수정이라 별도 확인 필요.
 3. `docs/api/admin.md` "8. 환불 완료 기록"과 `docs/specs/application/requirements.md`의 `refundedAt` 서술이 2026-09-13 확정 정책(시스템은 환불 완료 여부를 관리하지 않음)보다 낡음 — 코드는 문제 없어 이번엔 안 건드림, 문서 정리만 남음.
 4. (기존, 미해결 이월) `docs/collab/TODO.md` 상단의 "단체 Excel에서 성씨를 받지 않는다" 정책과 현재 구현(선택적 성씨 열)이 충돌 — 정책 문서와 구현 중 하나를 정합화해야 함.
-5. (기존, 미해결 이월) 신청 전 상담확인·유의사항 체크는 UI 게이트일 뿐 신청 건별 동의 이력이 저장되지 않음(`FRONTEND_API_GAPS.md` P1).
+5. 신청 건별 동의 이력 — 백엔드 저장 계약은 이번 세션에서 완료(위 10번). 남은 건 프론트 `StepType.tsx`가 체크박스 값을 신청 생성 요청에 실어 보내는 것과, 그 이후 백엔드에 "둘 다 true 아니면 거절" 검증을 추가하는 것(`FRONTEND_API_GAPS.md` P1).
 6. **작업 완료 직후 `FRONTEND_API_GAPS.md`/`docs/collab/TODO.md` 갱신을 매번 습관화할 것** — 이번 세션 중 학생증 색상 프론트 구현(커밋 `4ae03ec`)이 `FRONTEND_API_GAPS.md`에 반영 안 된 채로 남아있던 걸 십이간지 작업 도중에야 발견해 뒤늦게 정리함(커밋 `a68f713`).
 
 현재 상태의 단일 소스는 `docs/FRONTEND_API_GAPS.md`(프론트 갭), `docs/FRONTEND_API_INTEGRATION_SPEC.md`(프론트 연동 방식), `docs/collab/CHANGELOG.md`(전체 변경 이력), `docs/collab/qa_state_persistence_checklist.md`(이번 세션 QA 상세)다.
