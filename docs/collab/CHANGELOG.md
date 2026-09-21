@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-21 — Claude — `main` (신청 건별 동의 이력 — 프론트 연결 + 백엔드 검증 활성화, 완료)
+
+- 변경: 2026-09-20에 백엔드 저장 계약만 먼저 추가해뒀던 신청 건별 동의 이력을 완결했다. `ApplyPage.tsx`의 신청 생성 요청(개인·단체 둘 다)에 `draft.consultationConfirmed`/`draft.disclaimerConfirmed`를 실어 보내도록 2줄 추가(커밋 `b86c5a7`). 백엔드는 `ApplicationCreateRequest`/`BulkApplicationCreateRequest`의 두 필드에 `@AssertTrue`를 걸어 Inquiry.privacyConsent와 동일한 패턴으로 활성화 — 이제 둘 다 true가 아니면 Bean Validation이 Controller 진입 전에 INVALID_INPUT으로 거절한다(커밋 `bfa776e`). `@AssertTrue`는 실제 요청(HTTP를 거치는 MockMvc/Controller 테스트)에서만 발동하고 Service를 직접 호출하는 테스트는 영향 없다는 점을 미리 확인한 뒤 진행했다 — 실제로 영향받은 건 신청 생성 성공 경로를 검증하던 테스트 7개(`ApplicationControllerTest` 2, `ApplicationBulkControllerTest` 2, `GlobalExceptionHandlerTest` 2, `UserApplicationFlowTest` 1)뿐이었고, 이들 픽스처 JSON에 두 필드(`true`)를 추가해 해결했다. 에러 경로 테스트는 `errorCode`만 확인해 영향 없었다.
+- 파일: (프론트, 커밋 `b86c5a7`) `pages/ApplyPage/ApplyPage.tsx` / (백엔드, 커밋 `bfa776e`) `ApplicationCreateRequest.java`, `BulkApplicationCreateRequest.java` + 테스트 4개 / (문서, 커밋 `68d1158`) `docs/FRONTEND_API_GAPS.md`(P1 갭 제거, "신청" 완료 행에 반영)
+- 사유: 사용자 확인("응")으로 2026-09-20에 보류해뒀던 검증 활성화 단계를 진행.
+- 테스트: 신규 실패 7건 모두 원인 규명 후 수정, 전체 회귀 976건 중 975건 통과(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건만 실패, 이번 변경과 무관). 프론트 `tsc --noEmit`/`npm run build` 통과.
+- 관련: `docs/FRONTEND_API_GAPS.md`
+
+---
 ## 2026-09-20 — Claude — `main` (공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계)
 
 - 변경: 비로그인 공개 조회 화면(`LookupPage.tsx`)이 조회 성공 직후 호출하는 카드 다운로드 API(`GET /api/applications/{id}/cards/download`)가 `SecurityConfig`의 `/api/**` 캐치올에 걸려 로그인이 필수였다 — 이 화면 방문자는 정의상 항상 비로그인이라 다운로드는 예외 없이 항상 401이었고, 프론트가 이 실패를 `.catch(() => null)`로 삼켜 고정 데모 이미지로 조용히 대체해왔다. 즉 이 기능은 실제로 작동한 적이 없는데 겉으로는 작동하는 것처럼 보였다. 단순히 다운로드 API를 `permitAll()`로 여는 건 `applicationId`(순차 정수)만 바꿔 타인의 카드(얼굴사진 포함)를 내려받을 수 있어(IDOR) 위험하다는 지적을 받아, "조회를 실제로 거쳤다"는 사실을 인가 근거로 쓰는 1회용 단기 토큰 방식으로 재설계했다(사용자 확인 완료). 신규 `CardLookupTokenService`가 `lookup()` 성공 시 토큰을 발급(Redis, TTL 5분, 원문 미저장·SHA-256 해시만 키로 사용, redeem 성공 시 즉시 삭제 — `VerificationChallengeStore`의 signupToken과 동일한 패턴을 새 컴포넌트로 재구현, 새 시크릿 추가 없음)하고, 신규 공개 엔드포인트 `GET /cards/download/public`이 이 토큰만으로 인가한다. 기존 로그인 기반 엔드포인트는 건드리지 않았고, 공유 로직(COMPLETED 검증 + presigned URL 생성)만 `buildCardDownloadResponse`로 추출해 재사용한다. 프론트는 `getPublicCardDownload`로 교체하고, 다운로드 실패(또는 성공했지만 카드 이미지가 없는 경우 — 단체 신청 등)를 데모 카드로 가리던 로직을 제거해 실제 오류 메시지("카드 다운로드에 실패했습니다")로 바꿨다(사용자 확인: "그냥 다운로드 실패했다는 메시지 띄우면됨"). `TEST_CARD_NUMBER`(admin-test)와 조회 API 자체 실패 시의 데모 자격 폴백은 이번 범위 밖이라 그대로 둠.
