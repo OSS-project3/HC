@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-21 — Claude — `main` (소셜 로그인 시 관리자 메뉴 미표시 버그 수정 — /me role 미사용)
+
+- 변경: 사용자가 운영 DB에서 본인 계정 role을 ADMIN으로 승격한 뒤 로그인해도 관리자 메뉴("관리")가 안 뜨는 걸 발견해 원인 규명. `AuthContext.tsx`의 `refreshProfile()`이 "/me에는 role이 없다"는 **낡은 주석**을 근거로, 서버가 실제로 내려주는 `/api/users/me`의 `role`을 무시하고 `prev?.role ?? readRoleHint()`(로그인 시점에만 `localStorage`에 기록되는 힌트)로만 관리자 여부를 판단하고 있었다. 이 백엔드 필드는 이미 2026-09-17에 추가됐는데(`docs/collab/CHANGELOG.md` 해당 날짜 항목) 프론트가 반영을 안 한 채로 `FRONTEND_API_GAPS.md` P1 "`/api/users/me` 역할 복원" 갭으로만 남아있었다. 비밀번호 로그인(`LoginPage.tsx`)은 성공 시 명시적으로 `login({role})`을 호출해 힌트가 정상적으로 채워지므로 문제가 드러나지 않았지만, **소셜 로그인(OAuth)은 백엔드 `OAuth2SuccessHandler`가 쿠키만 심고 `/`(또는 신규 가입이면 `/terms`)로 바로 리다이렉트할 뿐, 프론트 어디에도 이 리다이렉트를 받아 `login()`을 호출하는 코드가 없었다** — 그래서 OAuth로 처음 로그인한 관리자는 `refreshProfile()`의 힌트 폴백만 타고, 힌트가 없으니 항상 "user"로 떨어졌다. `refreshProfile()`이 `profile.role`("USER"/"ADMIN")을 그대로 매핑해 쓰도록 고치고, 더 이상 필요 없어진 `ROLE_HINT_KEY`/`readRoleHint`/`writeRoleHint`를 제거했다.
+- 파일: `frontend/src/features/auth/AuthContext.tsx` (커밋 `22a8a30`) / `docs/FRONTEND_API_GAPS.md`(P1 갭 제거, "인증·계정" 완료 행에 반영, 커밋 `502a3f1`)
+- 사유: 사용자가 관리자 승격 후 실제로 로그인해보다가 발견("엥 원래 관리자 로그인되면 옆에 관리자 페이지가 떠야하는데") → 원인 진단 후 "해당 범위만 고쳐줘"로 확정.
+- 테스트: `tsc --noEmit`/`npm run build` 통과. OAuth 자체는 로컬 dev에 실제 Google/Naver 자격증명이 없어 재현 테스트는 못 했으나(placeholder client id), 코드 경로(로그인 성공 시 `login()` 미호출 → `refreshProfile()`만 실행 → 힌트 폴백)는 `OAuth2SuccessHandler.java`/`AuthContext.tsx`를 직접 추적해 확인.
+- 관련: `docs/FRONTEND_API_GAPS.md` "인증·계정" 완료 행
+
+---
 ## 2026-09-21 — Claude — `main` (배포급 버그 — populated DB에 NOT NULL 컬럼 무기본값 추가 시 마이그레이션 조용히 실패)
 
 - 변경: 사용자가 "실제 브라우저에서 클릭해보는 테스트 해보면 안 됨?"이라고 물어, 이 세션에서 늘 "공유 dev 컨테이너 재빌드는 보류"로 넘겨왔던 것을 처음으로 실행했다(`docker compose up -d --build`) — 대상은 몇 주치 실 신청 데이터가 쌓인 이 worktree의 dev DB. 재빌드 직후 백엔드 로그에 `PSQLException: column "disclaimer_confirmed" of relation "applications" contains null values`가 찍혔다. 원인: `Application.consultationConfirmed`/`disclaimerConfirmed`를 `@Column(nullable = false)`로만 선언(2026-09-20 커밋 `6cbeafb`)했는데, 이미 행이 있는 테이블에 DEFAULT 없이 NOT NULL 컬럼을 추가하는 `ALTER TABLE`을 Postgres가 거부한 것. 더 심각한 부분은 Hibernate `ddl-auto=update`가 이 실패를 **로그만 남기고 무시한 채 애플리케이션을 정상 기동시켰다는 점** — 컬럼 자체가 생성되지 않은 상태로 조용히 돌아가서, `\d applications`로 직접 확인하기 전까지는 겉보기엔 멀쩡했다. 이 상태로 배포됐다면 이후 모든 Application 조회/저장이 "column does not exist"로 깨졌을 것이다. 순수 유닛/통합 테스트는 항상 빈 스키마에서 시작해 ALTER TABLE이 매번 빈 테이블에 적용되므로, 이 클래스의 버그는 **populated DB에 실제로 붙여보지 않으면 원천적으로 발견 불가능**하다. `@ColumnDefault("false")`(org.hibernate.annotations)를 두 필드에 추가해 `ALTER TABLE ... ADD COLUMN ... DEFAULT false NOT NULL`이 나가도록 고쳤고, 같은 populated DB에 재적용해 컬럼이 정상 생성되는 것까지 직접 확인했다. 이어서 실제 컨테이너에 `Invoke-RestMethod`로 조회→토큰발급→다운로드(CARD_NOT_READY 정상 응답)→토큰 재사용 거절(INVALID_LOOKUP_TOKEN 정상 응답)까지 전 구간을 검증했다(브라우저 자동화 도구는 이 환경에 없어 클릭 자체는 못 함).

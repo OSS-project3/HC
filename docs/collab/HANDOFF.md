@@ -3,7 +3,7 @@
 - 마지막 갱신: 2026-09-21
 - 작성자: Claude
 - 브랜치: main
-- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 45 commits ahead).
+- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 47 commits ahead).
 
 ## 현재 워킹 트리
 
@@ -23,6 +23,7 @@
 10. 신청 건별 동의 이력 — **완료(백엔드+프론트)**. 1단계로 백엔드 저장 계약만 먼저 추가(사용자 요청: "백엔드 먼저") — `Application.consultationConfirmed`/`disclaimerConfirmed`/`consentPolicyVersion`, 개인·단체 생성 DTO에 같은 필드(커밋 `6cbeafb`, 부수적으로 Jackson이 `ApplicationCreateRequest`의 미사용 `@AllArgsConstructor`를 암묵적 creator로 채택해 새 boolean 필드 때문에 기존 테스트 4건이 깨지는 걸 발견해 제거). 2단계로 `ApplyPage.tsx`가 체크박스 값을 실제로 전송하도록 연결하고(커밋 `b86c5a7`), 백엔드에 `@AssertTrue` 검증을 활성화해 둘 다 true가 아니면 거절하도록 마무리(커밋 `bfa776e` — 성공 경로를 검증하던 기존 테스트 7건이 동의 필드 누락으로 새로 실패해 픽스처에 추가). `FRONTEND_API_GAPS.md` P1에서 제거 (2026-09-20~21)
 11. 공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계 완료(백엔드+프론트). 비로그인 조회 화면이 로그인 전용 다운로드 API를 호출해 항상 401이었고, 프론트가 그 실패를 데모 카드로 조용히 대체해 실제로 작동한 적이 없던 기능이었음(외부 감사표에서 P0로 지적). 단순 `permitAll()`은 `applicationId`만 바꿔 타인의 카드를 내려받는 IDOR을 만들어 대신 `CardLookupTokenService`(신규, Redis 기반 1회용 단기 토큰, `VerificationChallengeStore`의 signupToken 패턴 재사용·새 시크릿 없음)로 조회 성공 사실 자체를 인가 근거로 삼는 신규 공개 엔드포인트(`GET .../cards/download/public`)를 추가했다. 기존 로그인 기반 엔드포인트는 그대로 두고 공유 로직만 추출. 프론트는 데모 카드 fallback을 제거하고 실제 실패 메시지로 교체(사용자 확인 완료). 커밋 `4ea6801`(백엔드) / `9b8da0e`(프론트) / `688c3fa`(체크리스트) (2026-09-20)
 12. **실제 dev 컨테이너(기존 데이터가 쌓인 populated DB) 재빌드 검증 중 배포 위험 버그 발견·수정**. 사용자가 "실제 브라우저 클릭 테스트 해보면 안 됨?"이라고 물어 dev 스택을 오늘 코드로 재빌드했더니, 이미 행이 있는 `applications` 테이블에 DEFAULT 없는 `NOT NULL` boolean 컬럼(`consultation_confirmed`/`disclaimer_confirmed`)을 추가하려다 Postgres가 거부했고, Hibernate `ddl-auto=update`는 이 실패를 **조용히 무시**하고 앱을 계속 띄웠다 — 컬럼 자체가 안 생겨서 이후 모든 Application 읽기/쓰기가 "column does not exist"로 깨지는 상태였다(순수 유닛 테스트는 항상 빈 스키마에서 시작하므로 이 클래스의 버그를 원천적으로 못 잡는다). `@ColumnDefault("false")` 추가로 수정하고 같은 populated DB에 재적용해 컬럼이 정상 생성됨을 확인(커밋 `c68cc2f`). 이어서 실제 chromium-cli/Playwright는 이 환경에 없어 브라우저 클릭 자체는 못 했지만, 살아있는 컨테이너에 `Invoke-RestMethod`로 프론트와 동일한 실제 요청을 직접 보내 조회→토큰발급→다운로드(CARD_NOT_READY)→토큰 재사용 거절(INVALID_LOOKUP_TOKEN)까지 전 구간을 실제 스택으로 확인 (2026-09-21)
+13. **소셜 로그인 시 관리자 메뉴가 안 뜨는 버그 발견·수정**. 사용자가 로컬 dev DB에 만든 관리자 계정, 이어서 운영 DB에서 본인 계정을 `role='ADMIN'`으로 승격 후 로그인했는데도 관리자 메뉴가 안 뜬다고 지적. 원인: `AuthContext.refreshProfile()`이 백엔드가 2026-09-17부터 내려주던 `/api/users/me`의 실제 `role`을 무시하고, 로그인 시점에만 기록되는 localStorage 힌트(`auth-role`)로 role을 복원해왔음 — 비밀번호 로그인은 로그인 성공 시 명시적으로 `login()`을 호출해 문제가 안 드러났지만, **소셜 로그인(OAuth)은 백엔드가 쿠키만 심고 바로 리다이렉트할 뿐 프론트 어디서도 `login()`을 안 불러서** `refreshProfile()`의 힌트 폴백만 타고, 이 계정으로 첫 로그인이면 힌트가 없어 관리자도 항상 "user"로 떨어짐. `FRONTEND_API_GAPS.md` P1 "`/api/users/me` 역할 복원" 갭이 실제로 이 버그였음(문서엔 "백엔드에 role이 없다"고 적혀 있었는데 이미 2026-09-17에 추가돼 있었고, 프론트가 안 쓰고 있었을 뿐). `refreshProfile()`이 `profile.role`을 그대로 쓰도록 고치고 이제 불필요한 힌트 메커니즘(`ROLE_HINT_KEY`/`readRoleHint`/`writeRoleHint`) 제거. 커밋 `22a8a30` (2026-09-21)
 
 ## 검증
 
