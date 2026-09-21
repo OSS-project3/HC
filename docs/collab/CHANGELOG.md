@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-21 — Claude — `main` (배포급 버그 — populated DB에 NOT NULL 컬럼 무기본값 추가 시 마이그레이션 조용히 실패)
+
+- 변경: 사용자가 "실제 브라우저에서 클릭해보는 테스트 해보면 안 됨?"이라고 물어, 이 세션에서 늘 "공유 dev 컨테이너 재빌드는 보류"로 넘겨왔던 것을 처음으로 실행했다(`docker compose up -d --build`) — 대상은 몇 주치 실 신청 데이터가 쌓인 이 worktree의 dev DB. 재빌드 직후 백엔드 로그에 `PSQLException: column "disclaimer_confirmed" of relation "applications" contains null values`가 찍혔다. 원인: `Application.consultationConfirmed`/`disclaimerConfirmed`를 `@Column(nullable = false)`로만 선언(2026-09-20 커밋 `6cbeafb`)했는데, 이미 행이 있는 테이블에 DEFAULT 없이 NOT NULL 컬럼을 추가하는 `ALTER TABLE`을 Postgres가 거부한 것. 더 심각한 부분은 Hibernate `ddl-auto=update`가 이 실패를 **로그만 남기고 무시한 채 애플리케이션을 정상 기동시켰다는 점** — 컬럼 자체가 생성되지 않은 상태로 조용히 돌아가서, `\d applications`로 직접 확인하기 전까지는 겉보기엔 멀쩡했다. 이 상태로 배포됐다면 이후 모든 Application 조회/저장이 "column does not exist"로 깨졌을 것이다. 순수 유닛/통합 테스트는 항상 빈 스키마에서 시작해 ALTER TABLE이 매번 빈 테이블에 적용되므로, 이 클래스의 버그는 **populated DB에 실제로 붙여보지 않으면 원천적으로 발견 불가능**하다. `@ColumnDefault("false")`(org.hibernate.annotations)를 두 필드에 추가해 `ALTER TABLE ... ADD COLUMN ... DEFAULT false NOT NULL`이 나가도록 고쳤고, 같은 populated DB에 재적용해 컬럼이 정상 생성되는 것까지 직접 확인했다. 이어서 실제 컨테이너에 `Invoke-RestMethod`로 조회→토큰발급→다운로드(CARD_NOT_READY 정상 응답)→토큰 재사용 거절(INVALID_LOOKUP_TOKEN 정상 응답)까지 전 구간을 검증했다(브라우저 자동화 도구는 이 환경에 없어 클릭 자체는 못 함).
+- 파일: `Application.java` (커밋 `c68cc2f`)
+- 사유: 사용자 요청("실제 브라우저 테스트")으로 처음 dev 컨테이너를 재빌드하다 발견. 일반적인 교훈: 앞으로 `@Column(nullable = false)`를 기존 populated 테이블에 새로 추가할 때는 항상 `@ColumnDefault`를 함께 검토할 것 — Hibernate ddl-auto=update는 실패해도 앱을 막지 않으므로 별도로 확인하지 않으면 조용히 넘어간다.
+- 테스트: 전체 회귀 976개 전부 통과. `hc-test-redis`가 Docker Desktop 재시작으로 같이 내려가 있던 것도 이 과정에서 발견해 재기동(코드 문제 아님, docker-compose 관리 밖 컨테이너라 자동 복구 안 됨).
+- 관련: 없음(사전 갭 문서 등록 없이 발견 당일 바로 처리)
+
+---
 ## 2026-09-21 — Claude — `main` (신청 건별 동의 이력 — 프론트 연결 + 백엔드 검증 활성화, 완료)
 
 - 변경: 2026-09-20에 백엔드 저장 계약만 먼저 추가해뒀던 신청 건별 동의 이력을 완결했다. `ApplyPage.tsx`의 신청 생성 요청(개인·단체 둘 다)에 `draft.consultationConfirmed`/`draft.disclaimerConfirmed`를 실어 보내도록 2줄 추가(커밋 `b86c5a7`). 백엔드는 `ApplicationCreateRequest`/`BulkApplicationCreateRequest`의 두 필드에 `@AssertTrue`를 걸어 Inquiry.privacyConsent와 동일한 패턴으로 활성화 — 이제 둘 다 true가 아니면 Bean Validation이 Controller 진입 전에 INVALID_INPUT으로 거절한다(커밋 `bfa776e`). `@AssertTrue`는 실제 요청(HTTP를 거치는 MockMvc/Controller 테스트)에서만 발동하고 Service를 직접 호출하는 테스트는 영향 없다는 점을 미리 확인한 뒤 진행했다 — 실제로 영향받은 건 신청 생성 성공 경로를 검증하던 테스트 7개(`ApplicationControllerTest` 2, `ApplicationBulkControllerTest` 2, `GlobalExceptionHandlerTest` 2, `UserApplicationFlowTest` 1)뿐이었고, 이들 픽스처 JSON에 두 필드(`true`)를 추가해 해결했다. 에러 경로 테스트는 `errorCode`만 확인해 영향 없었다.

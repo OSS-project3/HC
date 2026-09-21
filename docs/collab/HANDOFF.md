@@ -3,7 +3,7 @@
 - 마지막 갱신: 2026-09-21
 - 작성자: Claude
 - 브랜치: main
-- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 44 commits ahead).
+- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 45 commits ahead).
 
 ## 현재 워킹 트리
 
@@ -22,12 +22,14 @@
 9. 카드 제작 설정 복원 — 백엔드가 이미 내려주던 확정 `cardDesignId`/`cardIssueDate`를 프론트 타입이 무시해 화면 재진입 시 항상 기본 디자인·오늘 날짜로 리셋되던 문제 수정. 학생증 텍스트 색상과 동일한 confirmed-value 잠금·복원 패턴 적용(정책 질문 없이 바로 구현, 사전 갭 문서 등록도 없었음). 커밋 `b611676` (2026-09-20)
 10. 신청 건별 동의 이력 — **완료(백엔드+프론트)**. 1단계로 백엔드 저장 계약만 먼저 추가(사용자 요청: "백엔드 먼저") — `Application.consultationConfirmed`/`disclaimerConfirmed`/`consentPolicyVersion`, 개인·단체 생성 DTO에 같은 필드(커밋 `6cbeafb`, 부수적으로 Jackson이 `ApplicationCreateRequest`의 미사용 `@AllArgsConstructor`를 암묵적 creator로 채택해 새 boolean 필드 때문에 기존 테스트 4건이 깨지는 걸 발견해 제거). 2단계로 `ApplyPage.tsx`가 체크박스 값을 실제로 전송하도록 연결하고(커밋 `b86c5a7`), 백엔드에 `@AssertTrue` 검증을 활성화해 둘 다 true가 아니면 거절하도록 마무리(커밋 `bfa776e` — 성공 경로를 검증하던 기존 테스트 7건이 동의 필드 누락으로 새로 실패해 픽스처에 추가). `FRONTEND_API_GAPS.md` P1에서 제거 (2026-09-20~21)
 11. 공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계 완료(백엔드+프론트). 비로그인 조회 화면이 로그인 전용 다운로드 API를 호출해 항상 401이었고, 프론트가 그 실패를 데모 카드로 조용히 대체해 실제로 작동한 적이 없던 기능이었음(외부 감사표에서 P0로 지적). 단순 `permitAll()`은 `applicationId`만 바꿔 타인의 카드를 내려받는 IDOR을 만들어 대신 `CardLookupTokenService`(신규, Redis 기반 1회용 단기 토큰, `VerificationChallengeStore`의 signupToken 패턴 재사용·새 시크릿 없음)로 조회 성공 사실 자체를 인가 근거로 삼는 신규 공개 엔드포인트(`GET .../cards/download/public`)를 추가했다. 기존 로그인 기반 엔드포인트는 그대로 두고 공유 로직만 추출. 프론트는 데모 카드 fallback을 제거하고 실제 실패 메시지로 교체(사용자 확인 완료). 커밋 `4ea6801`(백엔드) / `9b8da0e`(프론트) / `688c3fa`(체크리스트) (2026-09-20)
+12. **실제 dev 컨테이너(기존 데이터가 쌓인 populated DB) 재빌드 검증 중 배포 위험 버그 발견·수정**. 사용자가 "실제 브라우저 클릭 테스트 해보면 안 됨?"이라고 물어 dev 스택을 오늘 코드로 재빌드했더니, 이미 행이 있는 `applications` 테이블에 DEFAULT 없는 `NOT NULL` boolean 컬럼(`consultation_confirmed`/`disclaimer_confirmed`)을 추가하려다 Postgres가 거부했고, Hibernate `ddl-auto=update`는 이 실패를 **조용히 무시**하고 앱을 계속 띄웠다 — 컬럼 자체가 안 생겨서 이후 모든 Application 읽기/쓰기가 "column does not exist"로 깨지는 상태였다(순수 유닛 테스트는 항상 빈 스키마에서 시작하므로 이 클래스의 버그를 원천적으로 못 잡는다). `@ColumnDefault("false")` 추가로 수정하고 같은 populated DB에 재적용해 컬럼이 정상 생성됨을 확인(커밋 `c68cc2f`). 이어서 실제 chromium-cli/Playwright는 이 환경에 없어 브라우저 클릭 자체는 못 했지만, 살아있는 컨테이너에 `Invoke-RestMethod`로 프론트와 동일한 실제 요청을 직접 보내 조회→토큰발급→다운로드(CARD_NOT_READY)→토큰 재사용 거절(INVALID_LOOKUP_TOKEN)까지 전 구간을 실제 스택으로 확인 (2026-09-21)
 
 ## 검증
 
-- 백엔드: 항목별 개별 회귀 + 세션 마지막 전체 회귀 실행(976개 중 975개 통과), 무관 플레이키 `HighSchoolSeederIntegrationTest` 1건만 간헐 실패 — 스위트 전체가 공유하는 `schools` 테이블을 여러 테스트가 각자 `deleteAll()`해서 생기는 기존 문제, 이 세션이 유발한 게 아님(재현·원인 확인은 `qa_state_persistence_checklist.md` 10번 항목 참고).
-- 테스트 실행 시 `hc-test-redis` 컨테이너(포트 6379) 필요 — 개발 `docker-compose.yml`은 Redis를 호스트에 노출하지 않는다. `docker run -d --name hc-test-redis -p 6379:6379 redis:7-alpine`(최초) 또는 `docker start hc-test-redis`(이후).
-- 프론트: `tsc --noEmit` strict, `npm run build` 둘 다 통과(학생증 색상·십이간지 선택 UI 포함). 실제 브라우저 클릭 테스트는 공유 dev 컨테이너 재빌드를 보류해 하지 못함(학생증 색상은 STUDENT 타입 데모 신청도 없음).
+- 백엔드: 항목별 개별 회귀 + 세션 마지막 전체 회귀 실행, 마지막 실행은 976개 전부 통과(무관 플레이키 `HighSchoolSeederIntegrationTest`는 세션 중 간헐적으로 실패했었지만 이번 마지막 실행에는 안 걸림) — 스위트 전체가 공유하는 `schools` 테이블을 여러 테스트가 각자 `deleteAll()`해서 생기는 기존 문제, 이 세션이 유발한 게 아님(재현·원인 확인은 `qa_state_persistence_checklist.md` 10번 항목 참고).
+- 테스트 실행 시 `hc-test-redis` 컨테이너(포트 6379) 필요 — 개발 `docker-compose.yml`은 Redis를 호스트에 노출하지 않는다. `docker run -d --name hc-test-redis -p 6379:6379 redis:7-alpine`(최초) 또는 `docker start hc-test-redis`(이후). **주의**: 이 컨테이너는 docker-compose 관리 밖이라 Docker Desktop 재시작 시 자동으로 안 살아난다 — 재시작 직후 테스트가 전부 `RedisConnectionException`으로 실패하면 이것부터 의심할 것(이번 세션에 실제로 겪음, 코드 문제 아니었음).
+- 프론트: `tsc --noEmit` strict, `npm run build` 둘 다 통과(학생증 색상·십이간지 선택 UI·공개 카드 다운로드 포함).
+- **실제 dev 컨테이너 검증**: 2026-09-21에 처음으로 `docker compose up -d --build`로 이 세션의 실제 코드를 기존 populated DB에 반영해 검증(위 12번 참고) — 이 과정에서 순수 유닛 테스트로는 못 잡는 배포급 버그(populated 테이블에 DEFAULT 없는 NOT NULL 컬럼 추가 실패)를 발견·수정했다. 실제 브라우저 클릭 자동화(chromium-cli/Playwright)는 이 환경에 없어 여전히 못 하지만, 살아있는 컨테이너에 직접 HTTP 요청을 보내는 방식으로 공개 조회→다운로드 토큰 흐름 전 구간을 확인했다. **다음에 이런 요청이 오면**: `docker compose up -d --build`로 재빌드 후 `Invoke-RestMethod`(PowerShell)로 실제 엔드포인트를 직접 호출하는 방식이 이 환경에서 유효했다 — Bash 도구의 셸이 이번 세션 중간에 일시적으로 깨진 적이 있었는데(`git`/`head`/`tail` 등 기본 명령이 안 잡힘) PowerShell 도구는 계속 정상이었다.
 
 ## 현재 미완료·확인 필요
 
