@@ -21,6 +21,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.ColumnDefault;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -176,13 +177,17 @@ public class Application extends BaseTimeEntity {
     private Long schoolId;
 
     // 신청 전 사전 상담 확인·유의사항(면책) 동의 — 프론트 StepType.tsx의 두 체크박스에 대응하는
-    // 신청 건별 동의 이력(2026-09-20, 백엔드 저장만 우선 구현 — 프론트는 아직 이 값을 전송하지
-    // 않아 항상 false로 저장된다). 신청 생성 시점에 클라이언트가 실제로 보낸 값을 그대로 저장하며
-    // 서버가 임의로 true로 간주하지 않는다. 프론트 연동 후 두 값 모두 true가 아니면 신청 생성
-    // 자체를 거절하도록 강화할 예정(docs/collab/TODO.md 참고) — 그 전까지는 기록만 한다.
+    // 신청 건별 동의 이력(2026-09-20). 신청 생성 시점에 클라이언트가 실제로 보낸 값을 그대로
+    // 저장하며 서버가 임의로 true로 간주하지 않는다. 둘 다 true가 아니면 요청 DTO의 @AssertTrue가
+    // 신청 생성 자체를 거절한다(2026-09-21부터 활성화). @ColumnDefault 필수 — 기존 행이 있는
+    // 테이블에 DEFAULT 없이 NOT NULL 컬럼을 추가하면 Postgres가 거절해 ddl-auto가 조용히
+    // 실패한다(운영 DB 대비 재현: 이 세션에서 실제로 겪은 문제, 컬럼 자체가 안 생겨 이후 모든
+    // Application 쓰기가 "column does not exist"로 깨졌다).
+    @ColumnDefault("false")
     @Column(nullable = false)
     private boolean consultationConfirmed;
 
+    @ColumnDefault("false")
     @Column(nullable = false)
     private boolean disclaimerConfirmed;
 
