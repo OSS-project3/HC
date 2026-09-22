@@ -20,8 +20,12 @@ import java.util.function.Predicate;
 @RequiredArgsConstructor
 public class CardPreviewService {
 
+    // 2026-09-22 정책 변경(카드 미리보기 자동 갱신) — NAME_EDITING에서도 미리보기를 허용해 이름·카드번호
+    // 저장 직후 관리자가 완성본을 바로 확인할 수 있게 한다. PRODUCING 이후는 이미 생성된 카드 이미지를
+    // 쓰므로(프론트가 미리보기 대신 다운로드로 전환) 이 게이트에 포함하지 않는다.
     private static final Predicate<Application> PREVIEW_STATUS_GATE =
-            application -> application.getStatus() == ApplicationStatus.PRODUCTION_READY;
+            application -> application.getStatus() == ApplicationStatus.NAME_EDITING
+                    || application.getStatus() == ApplicationStatus.PRODUCTION_READY;
 
     private final CardRenderPreparation preparation;
 

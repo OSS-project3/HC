@@ -388,6 +388,7 @@ NAME_EDITING
 - 디자인은 Application 전체에서 하나를 공유합니다.
 - 발급일자는 Application 단위로 한 번 입력하고 모든 `ApplicationMember.issueDate`에 동일하게 저장합니다.
 - 미리보기는 Member 한 명 단위로 동기 생성하며 DB와 S3에 저장하지 않습니다. 앞/뒤는 한 번의 호출에서 함께 반환합니다(2026-08-27 계약 변경 — 이전엔 `FRONT`/`BACK`을 나눠 요청해야 했으나, 공통 검증·조회·S3다운로드가 매번 중복 실행되는 낭비가 있어 한 번에 반환하도록 바꿨습니다).
+- **2026-09-22 정책 변경(카드 미리보기 자동 갱신)**: 미리보기 허용 상태를 `PRODUCTION_READY` 단독에서 `NAME_EDITING`·`PRODUCTION_READY` 둘로 넓혔습니다. 위 흐름도의 "→ Member 한 명·한 면 미리보기"는 `completeNaming` 이후(원래 경로)뿐 아니라, 그 이전 `NAME_EDITING` 중에도 이름·카드번호·만세력 등 렌더링 필수값이 전부 **저장 완료**된 상태라면 호출할 수 있습니다(입력 중 값이 아니라 서버에 저장된 값만 반영 — 별도 자동저장 없음). `PRODUCING` 이후에는 이 API 대신 이미 생성된 카드 이미지를 사용합니다. 그 외 상태(`SUBMITTED`/`REVIEWING` 등)는 이전과 동일하게 `INVALID_STATUS_TRANSITION`으로 거절합니다. `CardPreviewRequest`/응답 계약과 DB 스키마는 변경하지 않았습니다.
 - 최종 확정은 Application의 전체 Member를 한 작업으로 생성합니다.
 - 한 명이라도 실패하면 어떤 Member의 새 카드 경로도 DB에 반영하지 않습니다.
 - 카드번호는 관리자가 Member별로 입력·확정하며 최초 최종 생성 전에 저장합니다. 재생성할 때 기존 번호를 유지합니다.

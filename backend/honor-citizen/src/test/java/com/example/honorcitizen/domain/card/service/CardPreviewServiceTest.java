@@ -221,15 +221,31 @@ class CardPreviewServiceTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }
 
+    // 2026-09-22 정책 변경(카드 미리보기 자동 갱신) — 미리보기 허용 상태를 NAME_EDITING/PRODUCTION_READY
+    // 둘로 넓혔다. 그 밖의 상태(예: REVIEWING, 아직 작명 승인 전)는 여전히 거절한다.
     @Test
-    void rejectsWhenApplicationNotProductionReady() {
+    void rejectsWhenApplicationStatusNotPreviewable() {
         Application application = applicationRepository.findById(applicationId).orElseThrow();
-        ReflectionTestUtils.setField(application, "status", ApplicationStatus.NAME_EDITING);
+        ReflectionTestUtils.setField(application, "status", ApplicationStatus.REVIEWING);
         applicationRepository.save(application);
 
         assertThatThrownBy(() -> cardPreviewService.preview(adminId, applicationId, memberId, request()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_STATUS_TRANSITION);
+    }
+
+    // 2026-09-22 신규: NAME_EDITING 중에도 미리보기를 허용해 이름·카드번호·디자인 저장 직후 관리자가
+    // 카드 완성본을 바로 확인할 수 있게 한다(카드 미리보기 자동 갱신 정책).
+    @Test
+    void allowsPreviewWhenApplicationInNameEditing() throws Exception {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        ReflectionTestUtils.setField(application, "status", ApplicationStatus.NAME_EDITING);
+        applicationRepository.save(application);
+
+        CardPreviewResponse response = cardPreviewService.preview(adminId, applicationId, memberId, request());
+
+        assertThat(decode(response.front())).isNotNull();
+        assertThat(decode(response.back())).isNotNull();
     }
 
     @Test
