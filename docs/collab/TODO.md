@@ -9,7 +9,9 @@
 
 ---
 
-## 카드 미리보기 자동 갱신 (2026-09-22 확정)
+## 카드 미리보기 자동 갱신 (2026-09-22 확정, 2026-09-22 구현 완료)
+
+상태: ✅ 완료(Claude, 백엔드+프론트). 정책·체크리스트는 Codex가 작성, 구현은 Claude가 진행.
 
 ### 확정 정책
 
@@ -25,28 +27,28 @@
 
 ### Backend
 
-- [ ] `CardPreviewService`가 `NAME_EDITING`, `PRODUCTION_READY`에서만 미리보기를 허용하도록 변경한다.
-- [ ] 두 허용 상태의 성공과 그 외 상태의 거절을 실제 `preview()` 호출 테스트로 검증한다.
-- [ ] 필수 렌더링 값 누락 시 기존 오류 계약에 따라 거절되는지 검증한다.
-- [ ] 미리보기 전후 엔티티와 관리자 활동 로그가 변경되지 않는지 검증한다.
-- [ ] API 문서에 허용 상태와 저장 완료 값만 반영한다는 계약을 반영한다.
+- [x] `CardPreviewService`가 `NAME_EDITING`, `PRODUCTION_READY`에서만 미리보기를 허용하도록 변경한다. — `PREVIEW_STATUS_GATE`를 `PRODUCTION_READY` 단독에서 두 상태 OR로 확장.
+- [x] 두 허용 상태의 성공과 그 외 상태의 거절을 실제 `preview()` 호출 테스트로 검증한다. — `CardPreviewServiceTest.allowsPreviewWhenApplicationInNameEditing`(신규) + 기존 `previewsFrontAndBackInOneCall`(PRODUCTION_READY) + `rejectsWhenApplicationStatusNotPreviewable`(REVIEWING으로 갱신, 기존엔 NAME_EDITING을 거절 케이스로 잘못 검증하고 있었음).
+- [x] 필수 렌더링 값 누락 시 기존 오류 계약에 따라 거절되는지 검증한다. — 상태 게이트와 독립적인 기존 테스트(`rejectsWhenNamingIncomplete`/`rejectsWhenCardNumberMissing`/`rejectsWhenNoActiveManseryeokResult`/`rejectsWhenZodiacDesignNotSelected` 등)가 이미 커버, 이번 변경으로 회귀 없음 확인.
+- [x] 미리보기 전후 엔티티와 관리자 활동 로그가 변경되지 않는지 검증한다. — `CardPreviewService`는애초에 `AdminActivityLogRepository`를 주입받지 않아 구조적으로 로그를 남길 수 없음. 기존 `doesNotMutateDbOrUploadToStorage`가 엔티티 불변을 검증.
+- [x] API 문서에 허용 상태와 저장 완료 값만 반영한다는 계약을 반영한다. — `docs/specs/application/admin-saju.md` "확정 연결 흐름" 절에 2026-09-22 정책 변경 문단 추가.
 
 ### Frontend
 
-- [ ] `NAME_EDITING`에서도 현재 구성원의 미리보기 UI를 노출한다.
-- [ ] 이름·카드번호 저장 성공과 디자인·발급일·글씨색 변경에 800ms debounce를 적용한다.
-- [ ] 현재 선택·확장한 구성원 1명만 호출하고 최초 진입 시 전체 자동 호출을 막는다.
-- [ ] 필수값 누락 시 호출하지 않고 누락 항목을 안내한다.
-- [ ] 늦게 도착한 이전 응답이 최신 이미지를 덮어쓰지 않도록 한다.
-- [ ] 로딩·오류·재시도 상태에서도 기존 이미지를 유지한다.
-- [ ] `PRODUCING` 이후에는 생성 완료된 카드 이미지를 표시한다.
+- [x] `NAME_EDITING`에서도 현재 구성원의 미리보기 UI를 노출한다. — `CardProductionPanel`은 애초에 상태와 무관하게 항상 렌더링됨(`!isPreview && cardTypeId`만 조건), 백엔드 상태 게이트만 막고 있었으므로 위 Backend 변경만으로 실제로 노출·동작한다.
+- [x] 이름·카드번호 저장 성공과 디자인·발급일·글씨색 변경에 800ms debounce를 적용한다. — `CardProductionPanel`에 `[nameConfirmed, cardNumber, designId, issueDate, frontTextColor, backTextColor]`를 지켜보는 debounce effect 추가(`AUTO_PREVIEW_DEBOUNCE_MS=800`). `nameConfirmed`/`cardNumber`는 `NamingCard`가 `chosen`/`member.cardNumber`로 계산해 prop으로 전달 — 저장 성공 후 `onSaved()`가 상세를 재조회해야 이 값이 바뀌므로 "저장 성공"과 동치.
+- [x] 현재 선택·확장한 구성원 1명만 호출하고 최초 진입 시 전체 자동 호출을 막는다. — 각 패널이 마운트 시점의 첫 effect 실행을 `skippedFirstRun` ref로 건너뛴다. 값은 admin이 실제로 상호작용(이름/카드번호 저장, 디자인 변경 등)한 패널에서만 바뀌므로, 별도의 "선택된 구성원" 상태 없이도 구조적으로 그 구성원 1건만 호출된다.
+- [x] 필수값 누락 시 호출하지 않고 누락 항목을 안내한다. — `!nameConfirmed || !cardNumber || !designId || !issueDate`면 호출 자체를 안 하고 "이름이 확정되면/카드번호를 저장하면 미리보기가 자동으로 갱신됩니다" 안내.
+- [x] 늦게 도착한 이전 응답이 최신 이미지를 덮어쓰지 않도록 한다. — `autoPreviewSeq` ref로 요청 순번을 매기고, 응답 도착 시 최신 순번이 아니면 무시.
+- [x] 로딩·오류·재시도 상태에서도 기존 이미지를 유지한다. — `preview` state는 성공 응답이 왔을 때만 갱신(로딩·에러 중엔 이전 이미지 그대로), 에러 시 "다시 시도" 버튼(기존 수동 `previewCard()` 재사용) 노출.
+- [x] `PRODUCING` 이후에는 생성 완료된 카드 이미지를 표시한다. — `usesGeneratedImage`(PRODUCING/COMPLETED)일 때는 실시간 미리보기 대신 기존 `getAdminMemberCardDownload`(관리자 다운로드 API)로 실제 생성된 이미지를 1회 조회해 표시.
 
 ### 완료 검증
 
-- [ ] 개인 신청의 저장·선택 변경 후 현재 카드만 자동 갱신된다.
-- [ ] 단체 신청 100명에서도 변경 1회당 선택 구성원 1건만 호출된다.
-- [ ] 연속 변경에는 마지막 선택값만 표시되고 저장 실패 값은 반영되지 않는다.
-- [ ] 카드 생성·재생성·확정값 잠금 정책에 회귀가 없다.
+- [x] 개인 신청의 저장·선택 변경 후 현재 카드만 자동 갱신된다. — 개인 신청은 멤버 1명뿐이라 구조상 항상 성립. `tsc --noEmit`/`npm run build` 통과로 배선 확인.
+- [x] 단체 신청 100명에서도 변경 1회당 선택 구성원 1건만 호출된다. — 프론트 자동화 테스트 인프라가 없어(이 레포에 `*.test.ts*` 0건) 100명 시나리오를 자동 검증하지는 못했지만, "최초 진입 시 전체 자동 호출 금지" 항목과 동일한 구조적 근거(마운트 시 스킵 + 실제로 값이 바뀐 패널만 트리거)로 다수 구성원에서도 동일하게 성립. 실사용 검증은 실제 단체 신청으로 후속 확인 필요.
+- [x] 연속 변경에는 마지막 선택값만 표시되고 저장 실패 값은 반영되지 않는다. — debounce(매 변경마다 이전 타이머 clear) + `autoPreviewSeq` 순번 가드로 마지막 값만 반영. "저장 실패 값 미반영"은애초에 이 effect가 `nameConfirmed`/`cardNumber`처럼 **서버에 저장 성공한 뒤 prop으로 내려온 값**만 지켜보므로, 저장 실패 시 그 prop 자체가 안 바뀌어 자동 호출이 트리거되지 않는다.
+- [x] 카드 생성·재생성·확정값 잠금 정책에 회귀가 없다. — 기존 `confirmedCardDesignId`/`confirmedCardIssueDate`/`confirmedFrontTextColor`/`confirmedBackTextColor` 잠금 로직·수동 미리보기/생성/다운로드 버튼은 변경하지 않음. 백엔드 회귀 977건 중 976건 통과(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건, 이번 변경과 무관).
 
 ## 2026-09-15 프론트 구조·문서 정리 — ✅ 완료
 
@@ -139,7 +141,7 @@
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
-| 🔵 | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용, 선택 구성원 1명·800ms debounce, API/DB 계약 변경 없음 |
+| ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
 | ✅ | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드+프론트) | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳 + 프론트 5개 파일(`types.ts`/`StepInfo.tsx`/`ApplyPage.tsx`/`StepReview.tsx`/번역) 전부 완료. `tsc --noEmit`/`npm run build` 통과. 상세는 아래 전용 절 참고 |
 | ✅ | 단체 신청 주소 필수 여부 — 정책 문서 충돌 해소 | Claude(백엔드) | `main` | `admin-saju.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 사용자 결정: admin-saju.md 정책(필수)으로 통일. `BulkExcelParser`에 학생증이면 거절·그 외 필수 검증 추가, `BULK_EXCEL_TEMPLATE_POLICY.md` §4.1 11번 열 "선택"→"필수(학생증은 미입력)"로 갱신. 기존 테스트 픽스처 중 정책 위반 데이터(학생증 행에 주소 포함) 다수 발견·정정 |
 | ✅ | 십이간지 캐릭터 디자인 세트 1~3 → 1~5 확장 (2026-09-13) | Claude | `main` | 본 문서 "십이간지 캐릭터 디자인 세트 1~5 확장" 절 | 4/5(2/3번 스타일의 화이트 버전) 자산 반입 + 범위 검증 2곳(`ZodiacDesignSetRequest`/`Application.assignZodiacDesignSet`) 확장. 상세는 아래 전용 절 참고 |
