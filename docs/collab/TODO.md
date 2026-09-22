@@ -46,9 +46,145 @@
 ### 완료 검증
 
 - [x] 개인 신청의 저장·선택 변경 후 현재 카드만 자동 갱신된다. — 개인 신청은 멤버 1명뿐이라 구조상 항상 성립. `tsc --noEmit`/`npm run build` 통과로 배선 확인.
-- [x] 단체 신청 100명에서도 변경 1회당 선택 구성원 1건만 호출된다. — 프론트 자동화 테스트 인프라가 없어(이 레포에 `*.test.ts*` 0건) 100명 시나리오를 자동 검증하지는 못했지만, "최초 진입 시 전체 자동 호출 금지" 항목과 동일한 구조적 근거(마운트 시 스킵 + 실제로 값이 바뀐 패널만 트리거)로 다수 구성원에서도 동일하게 성립. 실사용 검증은 실제 단체 신청으로 후속 확인 필요.
+- [x] 단체 신청 100명에서도 변경 1회당 선택 구성원 1건만 호출된다. — Playwright로 실제 dev 컨테이너에 접속해 구성원 4명짜리 단체 신청(`APP-2026-900006`, 3명 준비완료·1명 미완성)으로 직접 검증(2026-09-22). 페이지 진입 시 자동 호출 0건, 미완성 구성원 패널 조작 시에도 0건, 준비된 구성원 A 패널만 조작 시 정확히 그 구성원 1건만(`members/{A}/card-preview`), 이어서 구성원 B만 조작 시 다시 그 1건만 — 다른 구성원은 전혀 호출 안 됨을 네트워크 요청 로그로 직접 확인. 100명 규모 자체는 아니지만 격리 메커니즘(마운트 스킵 + 실제로 바뀐 패널만 트리거)이 구성원 수와 무관하게 동일하게 동작하므로 규모와 무관하게 결론은 동일.
 - [x] 연속 변경에는 마지막 선택값만 표시되고 저장 실패 값은 반영되지 않는다. — debounce(매 변경마다 이전 타이머 clear) + `autoPreviewSeq` 순번 가드로 마지막 값만 반영. "저장 실패 값 미반영"은애초에 이 effect가 `nameConfirmed`/`cardNumber`처럼 **서버에 저장 성공한 뒤 prop으로 내려온 값**만 지켜보므로, 저장 실패 시 그 prop 자체가 안 바뀌어 자동 호출이 트리거되지 않는다.
 - [x] 카드 생성·재생성·확정값 잠금 정책에 회귀가 없다. — 기존 `confirmedCardDesignId`/`confirmedCardIssueDate`/`confirmedFrontTextColor`/`confirmedBackTextColor` 잠금 로직·수동 미리보기/생성/다운로드 버튼은 변경하지 않음. 백엔드 회귀 977건 중 976건 통과(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건, 이번 변경과 무관).
+
+## 십이간지·카드 디자인 선택 이미지 미리보기 (2026-09-22 확정)
+
+### 확정 정책
+
+- 십이간지 세트는 대표 캐릭터 `쥐`, `호랑이`, `용`, `돼지` 4마리를 작은 그리드로 표시한다.
+- 흰색 이미지인 세트 4·5도 식별할 수 있도록 각 캐릭터 타일에 어두운 체크무늬 배경을 적용한다.
+- 카드 디자인은 앞면과 뒷면을 모두 제공한다. PC는 좌우, 모바일은 위아래로 표시한다.
+- 선택 항목의 이미지는 실제 신청자 정보가 합성된 카드가 아니라 템플릿·캐릭터 원본 미리보기다.
+- PC hover·키보드 focus는 조회만 수행한다. 클릭·Enter·Space와 모바일 touch는 로컬 선택값도 변경하지만 DB 저장은 기존 저장·카드 생성 동작에서만 수행한다.
+- 이미지는 최초 노출 시 지연 로딩하고 같은 항목은 프론트에서 캐시한다.
+- 이미지 조회 실패는 선택·저장을 막지 않으며 오류 안내와 재시도를 제공한다.
+- 관리자 인증이 필요한 읽기 전용 조회로 제공하고 DB 변경 및 `AdminActivityLog`를 생성하지 않는다.
+- 백엔드 카드 합성의 원본 classpath 파일은 이동하지 않는다.
+- Entity와 DB 스키마는 변경하지 않는다.
+
+### API 계약
+
+#### 십이간지 대표 이미지
+
+```http
+GET /api/admin/zodiac-designs/{designSet}/preview
+```
+
+- `designSet`: 정수 `1`~`5`만 허용하며 그 밖의 값은 `INVALID_INPUT`으로 거절한다.
+- 대표 동물과 반환 순서는 `RAT(쥐)`, `TIGER(호랑이)`, `DRAGON(용)`, `PIG(돼지)`로 고정한다.
+- 원본 경로는 `classpath:card-templates/zodiac/{designSet}/{한글동물명}.png`다.
+
+| 응답 필드 | 타입·계약 |
+|---|---|
+| `success` | `true` |
+| `data.designSet` | 요청한 정수 1~5 |
+| `data.animals` | 아래 네 항목을 고정 순서로 담는 배열 |
+| `data.animals[].code` | `RAT`, `TIGER`, `DRAGON`, `PIG` |
+| `data.animals[].name` | 각각 `쥐`, `호랑이`, `용`, `돼지` |
+| `data.animals[].imageBase64` | PNG 원본의 base64 문자열 |
+
+#### 카드 디자인 앞·뒷면
+
+```http
+GET /api/admin/card-designs/{cardDesignId}/preview
+```
+
+| 응답 필드 | 타입·계약 |
+|---|---|
+| `success` | `true` |
+| `data.cardDesignId` | 요청한 카드 디자인 ID |
+| `data.frontImageBase64` | 앞면 PNG 원본의 base64 문자열 |
+| `data.backImageBase64` | 뒷면 PNG 원본의 base64 문자열 |
+
+- 이미지 형식은 모두 PNG이며 프론트는 `data:image/png;base64,` 접두어를 붙여 표시한다.
+- 존재하지 않거나 비활성인 디자인은 `CARD_DESIGN_NOT_FOUND`로 거절한다.
+- 일반 카드는 `classpath:card-templates/{CardType.code}/{designNumber}/앞면.png`와 `뒷면.png`를 읽는다.
+- 학생증은 `templateFrontId`/`templateBackId` → `UploadFile.filePath` → `StorageService.download()` 순으로 읽는다. 어느 참조든 없으면 `CARD_DESIGN_NOT_FOUND`로 거절한다.
+- 두 API는 `/api/admin/**`의 기존 관리자 인증을 적용하며 조회 성공·실패 모두 감사 로그를 남기지 않는다.
+- base64 JSON 응답으로 통일하여 classpath와 S3 저장 방식, presigned URL 만료 차이를 프론트에 노출하지 않는다.
+- 십이간지의 classpath 파일이 실제로 없으면 기존 `NOT_FOUND`, 카드 디자인의 classpath/S3 파일이 없으면 `CARD_DESIGN_NOT_FOUND`를 사용한다. 이번 작업에서 새 `ErrorCode`는 만들지 않는다.
+
+### 예상 변경 파일
+
+| 구분 | 파일 | 변경 |
+|---|---|---|
+| Backend 신규 | `domain/card/dto/ZodiacDesignPreviewResponse.java` | 세트와 대표 4종 응답 |
+| Backend 신규 | `domain/card/dto/CardDesignTemplatePreviewResponse.java` | 카드 앞·뒷면 base64 응답 |
+| Backend 신규 | `domain/card/service/CardAssetPreviewService.java` | classpath/S3 이미지 조회·검증·base64 변환 |
+| Backend 신규 | `api/ZodiacDesignController.java` | 십이간지 preview GET |
+| Backend 수정 | `api/CardDesignController.java` | 카드 디자인 preview GET 추가 |
+| Backend test | `CardAssetPreviewServiceTest`, 두 Controller 테스트 | API·분기·무변경 검증 |
+| Frontend 신규 | `components/admin/applications/ZodiacDesignSelector.tsx` | 대표 4종 custom listbox |
+| Frontend 신규 | `components/admin/applications/CardDesignSelector.tsx` | 앞·뒷면 custom listbox |
+| Frontend 수정 | `services/api.ts` | 응답 타입과 GET 메서드 |
+| Frontend 수정 | `ApplicationDetail.tsx`, `CardProductionPanel.tsx` | 기존 select 교체·기존 저장 콜백 유지 |
+| Frontend 수정 | `pages/AdminPage/AdminPage.css` | popover, 2×2 그리드, 양면·반응형 스타일 |
+| Docs 수정 | `docs/api/card-design.md`, `docs/specs/application/admin-saju.md` | 확정 API·UX 계약 반영 |
+
+### Backend
+
+- [ ] `ZodiacDesignPreviewResponse(designSet, animals)`와 `ZodiacAnimalPreview(code, name, imageBase64)` DTO를 추가한다.
+- [ ] `CardDesignTemplatePreviewResponse(cardDesignId, frontImageBase64, backImageBase64)` DTO를 추가한다.
+- [ ] `CardAssetPreviewService`를 추가해 classpath/S3 읽기·검증·base64 변환만 담당하게 한다. 기존 렌더러와 카드 생성 Service는 수정하지 않는다.
+- [ ] `CardAssetPreviewService`는 `AdminAuthorizationService`, `CardDesignRepository`, `CardTypeRepository`, `UploadFileRepository`, `StorageService`만 의존한다.
+- [ ] 십이간지 파일은 `ClassPathResource`로 읽고 세트 1~5 및 고정 동물 4종만 허용한다. 원본 파일은 복사·이동하지 않는다.
+- [ ] 일반 카드 디자인은 `CardType.code`와 `CardDesign.designNumber`로 앞·뒷면 classpath 경로를 구성한다.
+- [ ] 학생증은 두 template ID, 두 `UploadFile` row, 두 `filePath`를 확인한 뒤 S3에서 앞·뒷면을 읽는다.
+- [ ] `ZodiacDesignController`를 추가해 `GET /api/admin/zodiac-designs/{designSet}/preview`를 제공한다.
+- [ ] 기존 `CardDesignController`에 `GET /api/admin/card-designs/{cardDesignId}/preview`를 추가하고 기존 목록 API는 변경하지 않는다.
+- [ ] 두 Controller는 `@AuthenticationPrincipal Long adminId`를 Service에 전달하고 공통 `ApiResponse`로 위 DTO를 반환한다.
+- [ ] 기존 `CardDesignResponse`와 `CardDesign` Entity에는 이미지·URL 필드를 추가하지 않는다.
+- [ ] `CardAssetPreviewServiceTest`에서 세트 1·5의 고정 4종 순서와 PNG 디코딩, 범위 밖 세트, 일반 카드 양면, 학생증 S3 양면, 비활성·없는 디자인, 누락된 UploadFile을 검증한다.
+- [ ] Controller 테스트에서 정확한 경로·응답 필드·관리자 인증을 검증한다.
+- [ ] `StorageService.upload/delete` 및 모든 Repository `save/delete`가 호출되지 않고 `AdminActivityLog`가 생성되지 않는 것을 검증한다.
+- [ ] 관련 API 문서에 위 요청·응답·오류·classpath/S3 분기를 그대로 반영한다.
+
+### Frontend
+
+- [ ] `api.ts`에 위 두 응답 타입과 `getZodiacDesignPreview(designSet)`, `getCardDesignTemplatePreview(cardDesignId)`를 정확한 GET 경로로 추가한다.
+- [ ] base64 필드는 기존 `asDataUrl()` 또는 동일한 `data:image/png;base64,` 변환을 한 곳에서 재사용한다.
+- [ ] `ApplicationDetail`의 십이간지 native `<select>`를 `ZodiacDesignSelector`로 분리·교체한다.
+- [ ] `CardProductionPanel`의 카드 디자인 native `<select>`를 `CardDesignSelector`로 분리·교체한다.
+- [ ] 두 selector는 `role=listbox`, `role=option`, `aria-selected`, 방향키 이동, Enter/Space 선택, Escape 닫기를 지원한다.
+- [ ] PC는 항목 hover·focus 시 팝업만 열고 클릭·Enter/Space 때만 로컬 선택값을 바꾼다.
+- [ ] 모바일은 항목 터치 시 로컬 선택과 팝업 표시를 함께 수행하되 DB 저장은 기존 십이간지 저장 또는 카드 생성 동작에서만 수행한다.
+- [ ] 십이간지 팝업은 고정 순서의 2×2 대표 4종 그리드로 표시하고 세트 4·5 타일에는 어두운 체크무늬 배경을 적용한다.
+- [ ] 카드 디자인 팝업은 PC에서 앞·뒷면 좌우 배치, 좁은 화면에서 위아래 배치한다.
+- [ ] 팝업은 pointer leave 후 150ms, 바깥 클릭, Escape, 다른 항목 focus로 닫는다. 항목과 팝업 사이에 pointer가 들어오면 닫기 타이머를 취소한다.
+- [ ] preview 요청은 항목이 처음 노출될 때만 수행하고 컴포넌트 생명주기 동안 `zodiac:{set}`/`card-design:{id}` 키로 캐시한다.
+- [ ] 디자인 목록을 다시 불러오거나 selector가 remount되면 캐시를 새로 구성해 교체된 학생증 템플릿을 영구적으로 고정하지 않는다.
+- [ ] 로딩 skeleton, 오류 문구, 재시도를 제공하되 미리보기 실패 상태에서도 선택·저장 버튼은 활성 정책을 그대로 유지한다.
+- [ ] 확정된 디자인으로 disabled 상태가 된 경우에도 현재 디자인의 앞·뒷면 미리보기는 조회할 수 있게 한다.
+- [ ] 기존 `saveZodiacDesignSet`, 자동 카드 미리보기, 카드 생성, 확정값 잠금 로직은 변경하지 않는다.
+
+### 구현 순서와 검증
+
+1. 위 API 계약에 맞는 Service·Controller 실패 테스트를 먼저 작성하고 현재 구현에서 endpoint 부재로 실패하는지 확인한다.
+2. DTO → `CardAssetPreviewService` → Controller 순으로 최소 구현한다.
+3. 백엔드 집중 테스트를 통과시킨 뒤 `docs/api/card-design.md`와 `docs/specs/application/admin-saju.md`에 계약을 반영한다.
+4. 프론트 API 타입·호출 메서드를 추가한 다음 `ZodiacDesignSelector`, `CardDesignSelector`를 구현한다.
+5. 기존 저장·카드 생성 호출을 변경하지 않았는지 diff로 확인하고 typecheck·build를 수행한다.
+6. PC·모바일 폭에서 hover/focus/touch, 양면 배치, 흰색 이미지 가시성, 실패·재시도를 수동 검증한다.
+7. 완료 후 이 절과 진행 보드 상태를 갱신하고 `CHANGELOG.md`에 구현·테스트 결과를 남긴다.
+
+검증 명령의 전체 stdout/stderr는 `build/logs` 아래 파일로 저장하고 대화에는 종료 코드·테스트 수·실패 대상만 보고한다.
+
+```powershell
+.\gradlew.bat test --tests '*CardAssetPreviewServiceTest' --tests '*CardDesignControllerTest' --tests '*ZodiacDesignControllerTest'
+npx tsc --noEmit
+npm run build
+```
+
+### 완료 검증
+
+- [ ] 십이간지 5세트에서 대표 4종이 올바른 세트 이미지로 표시된다.
+- [ ] 일반 카드 classpath 디자인과 학생증 S3 디자인 모두 앞·뒷면이 표시된다.
+- [ ] PC hover·키보드 focus·모바일 touch에서 열고 닫는 동작을 확인한다.
+- [ ] 반복 hover에서 불필요한 재요청이 없고 이미지 실패가 선택·저장을 막지 않는다.
+- [ ] 이미지 조회로 신청·디자인·파일·감사 로그 데이터가 변경되지 않는다.
 
 ## 2026-09-15 프론트 구조·문서 정리 — ✅ 완료
 
@@ -141,6 +277,7 @@
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
+| ⚪ | 십이간지·카드 디자인 선택 이미지 미리보기 | 미정 | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 대표 4종 그리드, 카드 앞·뒷면, classpath/S3 통합 조회, custom listbox |
 | ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
 | ✅ | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드+프론트) | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳 + 프론트 5개 파일(`types.ts`/`StepInfo.tsx`/`ApplyPage.tsx`/`StepReview.tsx`/번역) 전부 완료. `tsc --noEmit`/`npm run build` 통과. 상세는 아래 전용 절 참고 |
 | ✅ | 단체 신청 주소 필수 여부 — 정책 문서 충돌 해소 | Claude(백엔드) | `main` | `admin-saju.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 사용자 결정: admin-saju.md 정책(필수)으로 통일. `BulkExcelParser`에 학생증이면 거절·그 외 필수 검증 추가, `BULK_EXCEL_TEMPLATE_POLICY.md` §4.1 11번 열 "선택"→"필수(학생증은 미입력)"로 갱신. 기존 테스트 픽스처 중 정책 위반 데이터(학생증 행에 주소 포함) 다수 발견·정정 |
