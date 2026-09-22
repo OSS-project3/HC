@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-22 — Claude — `main` (카드 미리보기 자동 갱신 — Codex 정책 구현, 완료)
+
+- 변경: Codex가 `docs/collab/TODO.md`에 확정 정책·체크리스트로 남긴 "카드 미리보기 자동 갱신"을 구현했다. 사용자가 원했던 것: "이름이 추가되고 카드번호가 추가되고 디자인이 추가될 때마다 미리보기로 렌더링 화면이 뜨길 원했다"(버튼을 매번 눌러야 하는 지금 방식 대신). 핵심 정책 두 가지 — ① 저장 완료된 값만 반영(입력 중 값 자동저장 금지), ② `NAME_EDITING`에서도 미리보기 허용(기존엔 `PRODUCTION_READY`부터만 가능). **백엔드**: `CardPreviewService.PREVIEW_STATUS_GATE`를 `PRODUCTION_READY` 단독에서 `NAME_EDITING`도 포함하도록 확장(커밋 `39bed2e`) — 기존 `rejectsWhenApplicationNotProductionReady` 테스트가 NAME_EDITING을 거절 케이스로 검증하던 걸 REVIEWING으로 교체하고 NAME_EDITING 성공 케이스를 신규 추가. **프론트**: `CardProductionPanel`에 800ms debounce 자동 미리보기 effect 추가(커밋 `1cfb666`) — `nameConfirmed`/`cardNumber` prop 변경(=저장 성공)이나 디자인·발급일·글씨색 변경 시 트리거, 마운트 시 첫 실행은 건너뛰어 전체 구성원 일괄 호출 방지(별도 "선택 구성원" 상태 없이 실제로 값이 바뀐 패널만 트리거되는 구조로 자연히 1명 제한 충족), `autoPreviewSeq` 순번 가드로 늦은 응답 무시, 필수값 누락 시 호출 안 하고 안내, `PRODUCING`/`COMPLETED`에서는 실시간 대신 기존 관리자 다운로드 API로 생성된 이미지 표시.
+- 파일: (백엔드) `CardPreviewService.java`, `CardPreviewServiceTest.java` / (프론트) `CardProductionPanel.tsx`, `NamingCard.tsx`, `ApplicationDetail.tsx`, `ApplicationsSection.tsx`(예시 카드 호출부 타입 대응) / (문서) `docs/specs/application/admin-saju.md`(정책 반영), `docs/collab/TODO.md`(완료 반영, 커밋 `c01f2fd`)
+- 사유: 사용자가 십이간지·카드 디자인 select에 hover 미리보기를 요청 → 실시간 렌더링 아키텍처 논의 중 "원래 원했던 건 자동 갱신이었다"고 확인 → 그 직후 Codex가 이미 TODO.md에 같은 요구를 정책·체크리스트로 정리해둔 걸 발견해 그대로 구현.
+- 테스트: 신규 백엔드 테스트 2건 통과(RED→GREEN 확인), 전체 회귀 977건 중 976건 통과(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건, 이번 변경과 무관). 프론트 `tsc --noEmit`/`npm run build` 통과. 프론트 자동화 테스트 인프라가 없어(이 레포에 `*.test.ts*` 0건) debounce·순번가드·단체 100명 시나리오는 코드 검토로만 확인, 실사용 검증은 후속 필요.
+- 관련: `docs/collab/TODO.md` "카드 미리보기 자동 갱신" 절
+
+---
 ## 2026-09-21 — Claude — `main` (소셜 로그인 시 관리자 메뉴 미표시 버그 수정 — /me role 미사용)
 
 - 변경: 사용자가 운영 DB에서 본인 계정 role을 ADMIN으로 승격한 뒤 로그인해도 관리자 메뉴("관리")가 안 뜨는 걸 발견해 원인 규명. `AuthContext.tsx`의 `refreshProfile()`이 "/me에는 role이 없다"는 **낡은 주석**을 근거로, 서버가 실제로 내려주는 `/api/users/me`의 `role`을 무시하고 `prev?.role ?? readRoleHint()`(로그인 시점에만 `localStorage`에 기록되는 힌트)로만 관리자 여부를 판단하고 있었다. 이 백엔드 필드는 이미 2026-09-17에 추가됐는데(`docs/collab/CHANGELOG.md` 해당 날짜 항목) 프론트가 반영을 안 한 채로 `FRONTEND_API_GAPS.md` P1 "`/api/users/me` 역할 복원" 갭으로만 남아있었다. 비밀번호 로그인(`LoginPage.tsx`)은 성공 시 명시적으로 `login({role})`을 호출해 힌트가 정상적으로 채워지므로 문제가 드러나지 않았지만, **소셜 로그인(OAuth)은 백엔드 `OAuth2SuccessHandler`가 쿠키만 심고 `/`(또는 신규 가입이면 `/terms`)로 바로 리다이렉트할 뿐, 프론트 어디에도 이 리다이렉트를 받아 `login()`을 호출하는 코드가 없었다** — 그래서 OAuth로 처음 로그인한 관리자는 `refreshProfile()`의 힌트 폴백만 타고, 힌트가 없으니 항상 "user"로 떨어졌다. `refreshProfile()`이 `profile.role`("USER"/"ADMIN")을 그대로 매핑해 쓰도록 고치고, 더 이상 필요 없어진 `ROLE_HINT_KEY`/`readRoleHint`/`writeRoleHint`를 제거했다.

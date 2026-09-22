@@ -1,15 +1,15 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-09-21
+- 마지막 갱신: 2026-09-22
 - 작성자: Claude
 - 브랜치: main
-- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 47 commits ahead).
+- 커밋·push: 아래 "완료" 항목 전부 로컬 커밋 완료. **push는 하지 않음**(`origin/main` 대비 4 commits ahead — 2026-09-21에 그 전까지의 전체 세션 작업을 이미 push·배포했고, 이 4개는 그 이후 신규 작업).
 
 ## 현재 워킹 트리
 
-깨끗함(2026-09-21까지 세션 작업 전부 커밋 완료, push만 안 함).
+깨끗함(2026-09-22까지 세션 작업 전부 커밋 완료, push만 안 함).
 
-## 이번 세션(2026-09-17~09-21) 완료 — 상세는 `docs/collab/CHANGELOG.md` 해당 날짜 항목 참고
+## 이번 세션(2026-09-17~09-22) 완료 — 상세는 `docs/collab/CHANGELOG.md` 해당 날짜 항목 참고
 
 1. `/api/users/me` 응답에 `role` 추가 (2026-09-17)
 2. 작명 결과 Excel "뜻" 컬럼 파싱 + 관리자 명단 엑셀 내보내기 뜻 컬럼 추가, `NAME_EDITING` 상태 편집 잠금 (2026-09-17)
@@ -24,10 +24,11 @@
 11. 공개 카드 조회 → 다운로드 — 단기 토큰 기반 재설계 완료(백엔드+프론트). 비로그인 조회 화면이 로그인 전용 다운로드 API를 호출해 항상 401이었고, 프론트가 그 실패를 데모 카드로 조용히 대체해 실제로 작동한 적이 없던 기능이었음(외부 감사표에서 P0로 지적). 단순 `permitAll()`은 `applicationId`만 바꿔 타인의 카드를 내려받는 IDOR을 만들어 대신 `CardLookupTokenService`(신규, Redis 기반 1회용 단기 토큰, `VerificationChallengeStore`의 signupToken 패턴 재사용·새 시크릿 없음)로 조회 성공 사실 자체를 인가 근거로 삼는 신규 공개 엔드포인트(`GET .../cards/download/public`)를 추가했다. 기존 로그인 기반 엔드포인트는 그대로 두고 공유 로직만 추출. 프론트는 데모 카드 fallback을 제거하고 실제 실패 메시지로 교체(사용자 확인 완료). 커밋 `4ea6801`(백엔드) / `9b8da0e`(프론트) / `688c3fa`(체크리스트) (2026-09-20)
 12. **실제 dev 컨테이너(기존 데이터가 쌓인 populated DB) 재빌드 검증 중 배포 위험 버그 발견·수정**. 사용자가 "실제 브라우저 클릭 테스트 해보면 안 됨?"이라고 물어 dev 스택을 오늘 코드로 재빌드했더니, 이미 행이 있는 `applications` 테이블에 DEFAULT 없는 `NOT NULL` boolean 컬럼(`consultation_confirmed`/`disclaimer_confirmed`)을 추가하려다 Postgres가 거부했고, Hibernate `ddl-auto=update`는 이 실패를 **조용히 무시**하고 앱을 계속 띄웠다 — 컬럼 자체가 안 생겨서 이후 모든 Application 읽기/쓰기가 "column does not exist"로 깨지는 상태였다(순수 유닛 테스트는 항상 빈 스키마에서 시작하므로 이 클래스의 버그를 원천적으로 못 잡는다). `@ColumnDefault("false")` 추가로 수정하고 같은 populated DB에 재적용해 컬럼이 정상 생성됨을 확인(커밋 `c68cc2f`). 이어서 실제 chromium-cli/Playwright는 이 환경에 없어 브라우저 클릭 자체는 못 했지만, 살아있는 컨테이너에 `Invoke-RestMethod`로 프론트와 동일한 실제 요청을 직접 보내 조회→토큰발급→다운로드(CARD_NOT_READY)→토큰 재사용 거절(INVALID_LOOKUP_TOKEN)까지 전 구간을 실제 스택으로 확인 (2026-09-21)
 13. **소셜 로그인 시 관리자 메뉴가 안 뜨는 버그 발견·수정**. 사용자가 로컬 dev DB에 만든 관리자 계정, 이어서 운영 DB에서 본인 계정을 `role='ADMIN'`으로 승격 후 로그인했는데도 관리자 메뉴가 안 뜬다고 지적. 원인: `AuthContext.refreshProfile()`이 백엔드가 2026-09-17부터 내려주던 `/api/users/me`의 실제 `role`을 무시하고, 로그인 시점에만 기록되는 localStorage 힌트(`auth-role`)로 role을 복원해왔음 — 비밀번호 로그인은 로그인 성공 시 명시적으로 `login()`을 호출해 문제가 안 드러났지만, **소셜 로그인(OAuth)은 백엔드가 쿠키만 심고 바로 리다이렉트할 뿐 프론트 어디서도 `login()`을 안 불러서** `refreshProfile()`의 힌트 폴백만 타고, 이 계정으로 첫 로그인이면 힌트가 없어 관리자도 항상 "user"로 떨어짐. `FRONTEND_API_GAPS.md` P1 "`/api/users/me` 역할 복원" 갭이 실제로 이 버그였음(문서엔 "백엔드에 role이 없다"고 적혀 있었는데 이미 2026-09-17에 추가돼 있었고, 프론트가 안 쓰고 있었을 뿐). `refreshProfile()`이 `profile.role`을 그대로 쓰도록 고치고 이제 불필요한 힌트 메커니즘(`ROLE_HINT_KEY`/`readRoleHint`/`writeRoleHint`) 제거. 커밋 `22a8a30` (2026-09-21)
+14. **카드 미리보기 자동 갱신 구현 — Codex가 정책·체크리스트 작성, Claude가 구현**. Codex가 `docs/collab/TODO.md` 최상단(그때 기준 라인 12)에 "카드 미리보기 자동 갱신" 확정 정책·Backend/Frontend/완료검증 체크리스트를 직접 워킹 트리에 커밋 없이 추가해뒀고, 사용자가 이를 진행하라고 지시. 핵심 정책: ① 저장 완료된 값만 반영, ② `NAME_EDITING`에서도 미리보기 허용(기존엔 `PRODUCTION_READY`부터만). 백엔드는 `CardPreviewService`의 상태 게이트를 확장(커밋 `39bed2e`), 프론트는 `CardProductionPanel`에 800ms debounce 자동 갱신 effect 추가 — 순번 가드로 stale 응답 무시, 마운트 시 스킵으로 전체 구성원 일괄 호출 방지, `PRODUCING` 이후엔 생성된 이미지로 전환(커밋 `1cfb666`). `docs/collab/TODO.md` 체크리스트 전 항목 완료 반영(커밋 `c01f2fd`). **다른 세션(Codex)이 같은 워킹 트리에 직접 파일을 써두고 커밋은 안 한 상태였던 사례** — 내가 그 다음 편집(진행중 상태 표시)을 하면서 그 내용까지 같이 커밋하게 됐음(정상, 공유 워킹 트리 관례상 문제없음). 커밋 `39bed2e`/`1cfb666`/`c01f2fd` (2026-09-22)
 
 ## 검증
 
-- 백엔드: 항목별 개별 회귀 + 세션 마지막 전체 회귀 실행, 마지막 실행은 976개 전부 통과(무관 플레이키 `HighSchoolSeederIntegrationTest`는 세션 중 간헐적으로 실패했었지만 이번 마지막 실행에는 안 걸림) — 스위트 전체가 공유하는 `schools` 테이블을 여러 테스트가 각자 `deleteAll()`해서 생기는 기존 문제, 이 세션이 유발한 게 아님(재현·원인 확인은 `qa_state_persistence_checklist.md` 10번 항목 참고).
+- 백엔드: 항목별 개별 회귀 + 세션 마지막 전체 회귀 실행, 마지막 실행(2026-09-22, 카드 미리보기 자동 갱신 포함)은 977개 중 976개 통과(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건만 실패) — 스위트 전체가 공유하는 `schools` 테이블을 여러 테스트가 각자 `deleteAll()`해서 생기는 기존 문제, 이 세션이 유발한 게 아님(재현·원인 확인은 `qa_state_persistence_checklist.md` 10번 항목 참고).
 - 테스트 실행 시 `hc-test-redis` 컨테이너(포트 6379) 필요 — 개발 `docker-compose.yml`은 Redis를 호스트에 노출하지 않는다. `docker run -d --name hc-test-redis -p 6379:6379 redis:7-alpine`(최초) 또는 `docker start hc-test-redis`(이후). **주의**: 이 컨테이너는 docker-compose 관리 밖이라 Docker Desktop 재시작 시 자동으로 안 살아난다 — 재시작 직후 테스트가 전부 `RedisConnectionException`으로 실패하면 이것부터 의심할 것(이번 세션에 실제로 겪음, 코드 문제 아니었음).
 - 프론트: `tsc --noEmit` strict, `npm run build` 둘 다 통과(학생증 색상·십이간지 선택 UI·공개 카드 다운로드 포함).
 - **실제 dev 컨테이너 검증**: 2026-09-21에 처음으로 `docker compose up -d --build`로 이 세션의 실제 코드를 기존 populated DB에 반영해 검증(위 12번 참고) — 이 과정에서 순수 유닛 테스트로는 못 잡는 배포급 버그(populated 테이블에 DEFAULT 없는 NOT NULL 컬럼 추가 실패)를 발견·수정했다. 실제 브라우저 클릭 자동화(chromium-cli/Playwright)는 이 환경에 없어 여전히 못 하지만, 살아있는 컨테이너에 직접 HTTP 요청을 보내는 방식으로 공개 조회→다운로드 토큰 흐름 전 구간을 확인했다. **다음에 이런 요청이 오면**: `docker compose up -d --build`로 재빌드 후 `Invoke-RestMethod`(PowerShell)로 실제 엔드포인트를 직접 호출하는 방식이 이 환경에서 유효했다 — Bash 도구의 셸이 이번 세션 중간에 일시적으로 깨진 적이 있었는데(`git`/`head`/`tail` 등 기본 명령이 안 잡힘) PowerShell 도구는 계속 정상이었다.
