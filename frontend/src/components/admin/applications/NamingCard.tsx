@@ -5,6 +5,7 @@ import {
   api,
   ApiError,
   type AdminApplicationMember,
+  type ApplicationStatus,
   type ManseryeokActiveResult,
   type StudentTextColor
 } from "../../../services/api";
@@ -18,8 +19,10 @@ import { ManseryeokPanel } from "./ManseryeokPanel";
 const EL_KEY: Record<string, string> = { 목: "mok", 화: "hwa", 토: "to", 금: "geum", 수: "su" };
 const EL_HANJA: Record<string, string> = { 목: "木", 화: "火", 토: "土", 금: "金", 수: "水" };
 
-export function NamingCard({ appId, cardTypeId, confirmedCardDesignId, confirmedCardIssueDate, confirmedStudentFrontTextColor, confirmedStudentBackTextColor, index, member, isGroup, counts, onSaved, manseryeok, onManseryeokChanged }: {
+export function NamingCard({ appId, cardTypeId, applicationStatus, confirmedCardDesignId, confirmedCardIssueDate, confirmedStudentFrontTextColor, confirmedStudentBackTextColor, index, member, isGroup, counts, onSaved, manseryeok, onManseryeokChanged }: {
   appId: number; cardTypeId?: number; index: number; member: AdminApplicationMember; isGroup: boolean;
+  // 카드 미리보기 자동 갱신(2026-09-22) — PRODUCING 이후엔 실시간 미리보기 대신 생성된 이미지를 쓴다.
+  applicationStatus: ApplicationStatus;
   // 신청 단위로 이미 확정된 카드 디자인·발급일자(카드 생성 성공 시 확정됨).
   confirmedCardDesignId?: number; confirmedCardIssueDate?: string;
   // 학생증(STUDENT) 전용 — 신청 단위로 이미 확정된 카드 텍스트 색상(카드 생성 성공 시 확정됨).
@@ -98,6 +101,9 @@ export function NamingCard({ appId, cardTypeId, confirmedCardDesignId, confirmed
             appId={appId}
             memberId={member.memberId}
             cardTypeId={cardTypeId}
+            applicationStatus={applicationStatus}
+            nameConfirmed={Boolean(chosen)}
+            cardNumber={member.cardNumber}
             confirmedCardDesignId={confirmedCardDesignId}
             confirmedCardIssueDate={confirmedCardIssueDate}
             confirmedFrontTextColor={confirmedStudentFrontTextColor}
@@ -213,6 +219,9 @@ export function NamingCard({ appId, cardTypeId, confirmedCardDesignId, confirmed
           appId={appId}
           memberId={member.memberId}
           cardTypeId={cardTypeId}
+          applicationStatus={applicationStatus}
+          nameConfirmed={Boolean(chosen)}
+          cardNumber={member.cardNumber}
           confirmedCardDesignId={confirmedCardDesignId}
           confirmedCardIssueDate={confirmedCardIssueDate}
           confirmedFrontTextColor={confirmedStudentFrontTextColor}

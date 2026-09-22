@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cardTypeById } from "../../../data/cards";
 import {
   api,
   ApiError,
+  type ApplicationStatus,
   type CardDesignOption,
   type StudentTextColor
 } from "../../../services/api";
@@ -12,10 +13,22 @@ import { asDataUrl, todayIso } from "./applicationUtils";
 
 const STUDENT_TEXT_COLOR_LABEL: Record<StudentTextColor, string> = { DARK_GRAY: "진회색", WHITE: "흰색" };
 
-export function CardProductionPanel({ appId, memberId, cardTypeId, confirmedCardDesignId, confirmedCardIssueDate, confirmedFrontTextColor, confirmedBackTextColor, onGenerated }: {
+// 카드 미리보기 자동 갱신(2026-09-22 확정 정책) — 이름·카드번호 저장 성공 또는 디자인·발급일·
+// 글씨색 변경 후 이 지연만큼 기다렸다가 자동으로 미리보기를 다시 부른다.
+const AUTO_PREVIEW_DEBOUNCE_MS = 800;
+
+export function CardProductionPanel({
+  appId, memberId, cardTypeId, applicationStatus, nameConfirmed, cardNumber,
+  confirmedCardDesignId, confirmedCardIssueDate, confirmedFrontTextColor, confirmedBackTextColor, onGenerated,
+}: {
   appId: number;
   memberId: number;
   cardTypeId: number;
+  applicationStatus: ApplicationStatus;
+  // 이름 확정 여부(member.surname && member.assignedName) — 자동 미리보기 필수 조건.
+  nameConfirmed: boolean;
+  // 저장된 카드번호 — 자동 미리보기 필수 조건이자, 값이 바뀌면(=방금 저장 성공) 갱신 트리거가 된다.
+  cardNumber?: string;
   // 카드 생성 성공 시 신청 단위로 확정되어 이후 다른 값이면 재생성이 거절된다(백엔드가 거절).
   confirmedCardDesignId?: number;
   confirmedCardIssueDate?: string;
@@ -32,6 +45,12 @@ export function CardProductionPanel({ appId, memberId, cardTypeId, confirmedCard
   const [backTextColor, setBackTextColor] = useState<StudentTextColor>(confirmedBackTextColor ?? "DARK_GRAY");
   const [preview, setPreview] = useState<{ front: string; back: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [autoPreviewLoading, setAutoPreviewLoading] = useState(false);
+  const [autoPreviewError, setAutoPreviewError] = useState<string | null>(null);
+  // 마지막으로 시작한 자동 미리보기 요청의 순번 — 늦게 도착한 이전 응답이 최신 이미지를 덮어쓰지 않도록 막는다.
+  const autoPreviewSeq = useRef(0);
+  // 최초 마운트(=신청 상세 진입) 시점의 effect 실행은 건너뛴다 — "최초 진입 시 전체 구성원 일괄 호출 금지" 정책.
+  const skippedFirstRun = useRef(false);
 
   // 다른 멤버의 카드 생성으로 신청 단위 색상이 막 확정된 경우에도 선택값을 확정값으로 맞춘다.
   useEffect(() => { if (confirmedFrontTextColor) setFrontTextColor(confirmedFrontTextColor); }, [confirmedFrontTextColor]);
@@ -70,6 +89,57 @@ export function CardProductionPanel({ appId, memberId, cardTypeId, confirmedCard
     if (!isStudentCard) return { cardDesignId: id, issueDate };
     return { cardDesignId: id, issueDate, studentFrontTextColor: frontTextColor, studentBackTextColor: backTextColor };
   };
+
+  // PRODUCING 이후에는 백엔드 미리보기 API 자체가 막히므로(2-C는 NAME_EDITING/PRODUCTION_READY 전용),
+  // 실시간 재렌더링 대신 이미 생성·저장된 카드 이미지를 그대로 보여준다.
+  const usesGeneratedImage = applicationStatus === "PRODUCING" || applicationStatus === "COMPLETED";
+
+  useEffect(() => {
+    if (!usesGeneratedImage) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.getAdminMemberCardDownload(appId, memberId);
+        if (!cancelled) setPreview({ front: data.cardFrontUrl, back: data.cardBackUrl });
+      } catch {
+        // 카드 파일이 아직 없는 경우(드묾) — 조용히 넘어간다. "다운로드" 버튼을 누르면 같은 오류가 토스트로 뜬다.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [usesGeneratedImage, appId, memberId]);
+
+  // 카드 미리보기 자동 갱신 — 이름·카드번호 저장 성공(prop 값 변경) 또는 디자인·발급일·글씨색 변경 시
+  // 800ms 뒤 자동으로 다시 부른다. 입력 중인 값이 아니라 이미 저장된 값(nameConfirmed/cardNumber)과
+  // 이 패널 자체의 확정 요청 파라미터만 쓴다 — DB 저장이나 관리자 활동 로그를 남기지 않는 읽기 전용 호출.
+  useEffect(() => {
+    if (usesGeneratedImage) return;
+    if (!skippedFirstRun.current) { skippedFirstRun.current = true; return; }
+    if (!nameConfirmed || !cardNumber || !designId || !issueDate) {
+      setAutoPreviewError(null);
+      return;
+    }
+    const seq = ++autoPreviewSeq.current;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const body = requestBody();
+        if (!body) return;
+        setAutoPreviewLoading(true);
+        try {
+          const data = await api.getCardPreview(appId, memberId, body);
+          if (seq !== autoPreviewSeq.current) return; // 늦게 도착한 이전 요청 — 무시
+          setPreview({ front: asDataUrl(data.front), back: asDataUrl(data.back) });
+          setAutoPreviewError(null);
+        } catch (e) {
+          if (seq !== autoPreviewSeq.current) return;
+          setAutoPreviewError(e instanceof ApiError ? e.message : "미리보기 갱신에 실패했습니다.");
+        } finally {
+          if (seq === autoPreviewSeq.current) setAutoPreviewLoading(false);
+        }
+      })();
+    }, AUTO_PREVIEW_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameConfirmed, cardNumber, designId, issueDate, frontTextColor, backTextColor, usesGeneratedImage]);
 
   const previewCard = async () => {
     const body = requestBody();
@@ -158,6 +228,21 @@ export function CardProductionPanel({ appId, memberId, cardTypeId, confirmedCard
       )}
       {isStudentCard && (confirmedFrontTextColor || confirmedBackTextColor) && (
         <p className="admin__muted">이미 카드가 생성되어 글씨색이 확정됐습니다 — 같은 색으로만 재생성할 수 있습니다.</p>
+      )}
+      {!usesGeneratedImage && !nameConfirmed && (
+        <p className="admin__muted">이름이 확정되면 미리보기가 자동으로 갱신됩니다.</p>
+      )}
+      {!usesGeneratedImage && nameConfirmed && !cardNumber && (
+        <p className="admin__muted">카드번호를 저장하면 미리보기가 자동으로 갱신됩니다.</p>
+      )}
+      {!usesGeneratedImage && autoPreviewLoading && (
+        <p className="admin__muted">미리보기 자동 갱신 중…</p>
+      )}
+      {!usesGeneratedImage && autoPreviewError && (
+        <p className="admin-panel__note admin-panel__note--error">
+          미리보기 자동 갱신 실패: {autoPreviewError}{" "}
+          <button type="button" className="admin__btn" disabled={busy} onClick={() => void previewCard()}>다시 시도</button>
+        </p>
       )}
       {preview && (
         <div className="admin-card-tools__preview">

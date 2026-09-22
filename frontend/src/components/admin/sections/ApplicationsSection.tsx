@@ -170,6 +170,8 @@ export function ApplicationsSection() {
               appId={0}
               index={i}
               isGroup={tab === "GROUP"}
+              // 예시(preview) 카드는 memberId<0이라 CardProductionPanel 자체가 안 그려진다 — 실제로 안 쓰이는 값.
+              applicationStatus="SUBMITTED"
               counts={{}}
               onSaved={async () => {}}
               member={{
