@@ -14,7 +14,10 @@ export interface PopoverPosition {
   position: "fixed";
   top: number;
   left: number;
+  maxHeight: number;
 }
+
+const VIEWPORT_MARGIN = 12;
 
 export function usePreviewPopover() {
   const [open, setOpen] = useState(false);
@@ -22,20 +25,34 @@ export function usePreviewPopover() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // 패널 높이는 옵션 수·미리보기 크기에 따라 뷰포트보다 커질 수 있다(특히 모바일) — 트리거
+  // 아래 남은 세로 공간으로 max-height를 제한하고 패널 자체를 내부 스크롤시킨다. 그러지 않으면
+  // position:fixed 패널이 뷰포트 아래로 넘치는 부분은 페이지 스크롤로도 닿을 수 없다(fixed는
+  // 페이지 스크롤을 따라가지 않으므로) — 2026-09-23 모바일 Playwright 검증 중 실제로 발견.
   const reposition = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setStyle({ position: "fixed", top: rect.bottom + 6, left: rect.left });
+    const top = rect.bottom + 6;
+    setStyle({
+      position: "fixed",
+      top,
+      left: rect.left,
+      maxHeight: Math.max(120, window.innerHeight - top - VIEWPORT_MARGIN),
+    });
   };
 
   useEffect(() => {
     if (!open) { setStyle(null); return; }
     reposition();
-    // 열려 있는 동안 스크롤·리사이즈가 일어나면 트리거와 어긋나므로 닫는다(포탈이라 트리거를
-    // 따라 자동으로 움직이지 않는다) — 대부분의 드롭다운 라이브러리가 쓰는 것과 같은 처리다.
-    const close = () => setOpen(false);
-    window.addEventListener("scroll", close, { capture: true, passive: true });
-    window.addEventListener("resize", close);
+    // 열려 있는 동안 페이지가 스크롤·리사이즈되면 트리거와 어긋나므로 다시 계산한다(포탈이라
+    // 트리거를 따라 자동으로 움직이지 않는다). 닫지 않고 재계산하는 이유: 모바일 브라우저는
+    // 스크롤 중 주소창이 접히고 펴지면서 window resize를 계속 쏘고(실제 기기 회전이 아니어도),
+    // 옵션 목록 자체의 내부 스크롤(overflow-y:auto, 방향키·자동 포커스의 scrollIntoView 포함)도
+    // scroll 이벤트를 낸다 — 이 둘을 "닫기"로 처리하면 열자마자 다시 닫혀버린다(실제로 겪은
+    // 버그: 모바일 tap으로 열고 다음 옵션을 tap하려는 사이에 팝업이 사라짐). 재계산은 이런
+    // 이벤트가 실제 트리거 위치 변화든 아니든 항상 안전하다.
+    window.addEventListener("scroll", reposition, { capture: true, passive: true });
+    window.addEventListener("resize", reposition);
     const onDocPointer = (event: MouseEvent) => {
       const target = event.target as Node;
       if (triggerRef.current?.contains(target)) return;
@@ -46,8 +63,8 @@ export function usePreviewPopover() {
     document.addEventListener("mousedown", onDocPointer);
     document.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("scroll", close, { capture: true });
-      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", reposition, { capture: true });
+      window.removeEventListener("resize", reposition);
       document.removeEventListener("mousedown", onDocPointer);
       document.removeEventListener("keydown", onKey);
     };

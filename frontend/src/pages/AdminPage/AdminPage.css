@@ -339,8 +339,11 @@
   border-radius: 8px;
   box-shadow: var(--shadow-panel);
   min-width: 220px;
+  /* max-height는 인라인 style(JS로 계산한 뷰포트 잔여 공간)로 내려온다 — 옵션이 많거나
+     미리보기 이미지가 커서 뷰포트보다 길어지면(특히 모바일) 패널 자체가 내부 스크롤된다. */
+  overflow-y: auto;
 }
-.preview-listbox__options { position: static; box-shadow: none; border: none; padding: 0; max-height: 260px; overflow-y: auto; }
+.preview-listbox__options { position: static; box-shadow: none; border: none; padding: 0; flex: none; }
 .preview-listbox__preview { padding-top: 8px; border-top: 1px solid var(--color-border-soft); }
 .preview-listbox__preview-title { margin: 0 0 8px; font-size: 12px; color: var(--color-text-muted); }
 
