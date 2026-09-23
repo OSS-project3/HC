@@ -277,7 +277,7 @@ npm run build
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
-| ⚪ | 십이간지·카드 디자인 선택 이미지 미리보기 | 미정 | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 대표 4종 그리드, 카드 앞·뒷면, classpath/S3 통합 조회, custom listbox |
+| 🔵 | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude(백엔드 착수) | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 대표 4종 그리드, 카드 앞·뒷면, classpath/S3 통합 조회, custom listbox — 백엔드부터 진행 |
 | ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
 | ✅ | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드+프론트) | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳 + 프론트 5개 파일(`types.ts`/`StepInfo.tsx`/`ApplyPage.tsx`/`StepReview.tsx`/번역) 전부 완료. `tsc --noEmit`/`npm run build` 통과. 상세는 아래 전용 절 참고 |
 | ✅ | 단체 신청 주소 필수 여부 — 정책 문서 충돌 해소 | Claude(백엔드) | `main` | `admin-saju.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 사용자 결정: admin-saju.md 정책(필수)으로 통일. `BulkExcelParser`에 학생증이면 거절·그 외 필수 검증 추가, `BULK_EXCEL_TEMPLATE_POLICY.md` §4.1 11번 열 "선택"→"필수(학생증은 미입력)"로 갱신. 기존 테스트 픽스처 중 정책 위반 데이터(학생증 행에 주소 포함) 다수 발견·정정 |
