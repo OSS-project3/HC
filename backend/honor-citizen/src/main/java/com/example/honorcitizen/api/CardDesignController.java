@@ -2,11 +2,14 @@ package com.example.honorcitizen.api;
 
 import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.domain.card.dto.CardDesignResponse;
+import com.example.honorcitizen.domain.card.dto.CardDesignTemplatePreviewResponse;
+import com.example.honorcitizen.domain.card.service.CardAssetPreviewService;
 import com.example.honorcitizen.domain.card.service.CardDesignService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,6 +24,7 @@ import java.util.List;
 public class CardDesignController {
 
     private final CardDesignService cardDesignService;
+    private final CardAssetPreviewService cardAssetPreviewService;
 
     // applicationId는 학생증(cardTypeId가 STUDENT)일 때만 필수 — 그 신청의 schoolId+orientation으로
     // 디자인을 자동 확정하는 데 쓰인다(4-B). 비학생증 조회에는 영향 없음(무시된다).
@@ -32,5 +36,13 @@ public class CardDesignController {
             @RequestParam(required = false) Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
                 cardDesignService.listCardDesigns(adminId, cardTypeId, active, applicationId)));
+    }
+
+    @GetMapping("/{cardDesignId}/preview")
+    public ResponseEntity<ApiResponse<CardDesignTemplatePreviewResponse>> preview(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long cardDesignId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                cardAssetPreviewService.previewCardDesign(adminId, cardDesignId)));
     }
 }
