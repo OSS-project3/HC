@@ -215,6 +215,11 @@ export type CardDesignOrientation = "LANDSCAPE" | "PORTRAIT";
 // 학생증(STUDENT) 카드 전용 앞·뒤 텍스트 색상 — 비학생증 카드는 이 값을 보내면 안 된다.
 export type StudentTextColor = "DARK_GRAY" | "WHITE";
 export interface SchoolCardTemplate { cardDesignId: number; frontPreviewUrl: string; backPreviewUrl: string; }
+// 십이간지·카드 디자인 선택 이미지 미리보기(2026-09-22 확정) — 읽기 전용, DB 미변경.
+export type ZodiacAnimalCode = "RAT" | "TIGER" | "DRAGON" | "PIG";
+export interface ZodiacAnimalPreview { code: ZodiacAnimalCode; name: string; imageBase64: string; }
+export interface ZodiacDesignPreview { designSet: number; animals: ZodiacAnimalPreview[]; }
+export interface CardDesignTemplatePreview { cardDesignId: number; frontImageBase64: string; backImageBase64: string; }
 
 // ── Inquiries (1:1 문의, 고객지원) ───────────────────────────────
 // 백엔드가 @JsonValue/@JsonCreator로 한글 값을 그대로 주고받는다(InquiryCategory enum). 표시값 = 이 문자열.
@@ -290,6 +295,9 @@ export const api = {
     request<ManseryeokMemberResult[]>(`/api/admin/applications/${applicationId}/manseryeok-results`),
   listCardDesigns: (params: { cardTypeId: number; active?: boolean; applicationId?: number }) =>
     request<CardDesignOption[]>(`/api/admin/card-designs${qs({ ...params })}`),
+  // 선택 전 미리보기(조회 전용, DB 미변경) — 십이간지는 세트별 대표 4종, 카드 디자인은 앞·뒷면 원본.
+  getZodiacDesignPreview: (designSet: number) => request<ZodiacDesignPreview>(`/api/admin/zodiac-designs/${designSet}/preview`),
+  getCardDesignTemplatePreview: (cardDesignId: number) => request<CardDesignTemplatePreview>(`/api/admin/card-designs/${cardDesignId}/preview`),
   getCardPreview: (applicationId: number, memberId: number, body: { cardDesignId: number; issueDate: string; studentFrontTextColor?: StudentTextColor; studentBackTextColor?: StudentTextColor }) =>
     request<CardPreviewImages>(`/api/admin/applications/${applicationId}/members/${memberId}/card-preview`, { method: "POST", body: JSON.stringify(body) }),
   generateCard: (applicationId: number, memberId: number, body: { cardDesignId: number; issueDate: string; studentFrontTextColor?: StudentTextColor; studentBackTextColor?: StudentTextColor }) =>

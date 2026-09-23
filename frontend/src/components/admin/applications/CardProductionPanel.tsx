@@ -10,6 +10,7 @@ import {
 import { showToast } from "../../ui/toast";
 
 import { asDataUrl, todayIso } from "./applicationUtils";
+import { CardDesignSelector } from "./CardDesignSelector";
 
 const STUDENT_TEXT_COLOR_LABEL: Record<StudentTextColor, string> = { DARK_GRAY: "진회색", WHITE: "흰색" };
 
@@ -188,10 +189,13 @@ export function CardProductionPanel({
     <div className="admin-card-tools">
       <div className="admin-card-tools__row">
         <button type="button" className="admin__btn" disabled={busy} onClick={loadDesigns}>디자인 불러오기</button>
-        <select className="field__select" value={designId} onChange={(e) => setDesignId(e.target.value)} disabled={busy || designs.length === 0 || Boolean(confirmedCardDesignId)}>
-          <option value="">디자인 선택</option>
-          {designs.map((d) => <option key={d.id} value={d.id}>{d.name} #{d.designNumber}</option>)}
-        </select>
+        <CardDesignSelector
+          designs={designs}
+          value={designId}
+          onChange={setDesignId}
+          disabled={busy || designs.length === 0}
+          locked={Boolean(confirmedCardDesignId)}
+        />
         <input className="field__input admin-card-tools__date" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} disabled={busy || Boolean(confirmedCardIssueDate)} />
         {isStudentCard && (
           <>

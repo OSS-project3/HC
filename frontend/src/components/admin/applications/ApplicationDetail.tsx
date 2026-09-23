@@ -12,6 +12,7 @@ import { showToast } from "../../ui/toast";
 import { genderLabel } from "./applicationUtils";
 
 import { NamingCard } from "./NamingCard";
+import { ZodiacDesignSelector } from "./ZodiacDesignSelector";
 import { downloadApplicationsExcel, downloadBlob, statusLabels } from "./applicationUtils";
 // 신청 상세 + 구성원 작명 플로우 + 상태 전이(모두 실제 API), 만세력은 실제 계산.
 export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationListItem; onChanged?: () => void | Promise<void> }) {
@@ -210,16 +211,7 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
 
       <div className="admin-naming__zodiac">
         <span className="admin-naming__subtitle">십이간지 디자인</span>
-        <select
-          className="field__select"
-          aria-label="십이간지 디자인 세트"
-          value={zodiacDesignSet}
-          onChange={(e) => setZodiacDesignSet(e.target.value)}
-          disabled={zodiacBusy}
-        >
-          <option value="">디자인 세트 선택</option>
-          {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>디자인 세트 {n}</option>)}
-        </select>
+        <ZodiacDesignSelector value={zodiacDesignSet} onChange={setZodiacDesignSet} disabled={zodiacBusy} />
         <button type="button" className="admin__btn" disabled={zodiacBusy || !zodiacDesignSet} onClick={saveZodiacDesignSet}>저장</button>
         <span className="admin__muted">
           {detail.zodiacDesignSet != null ? `현재 확정: 세트 ${detail.zodiacDesignSet}` : "미선택 — 카드 미리보기·생성이 거절됩니다"} · 카드 생성 전후 언제든 변경 가능, 저장 후 "미리보기"로 실제 카드에서 확인
