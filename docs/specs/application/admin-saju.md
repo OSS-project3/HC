@@ -578,6 +578,31 @@ HC는 띠를 생년의 양력 1월 1일, 음력 설 또는 입춘 기준으로 �
 - 비활성 디자인은 신규 미리보기와 최종 생성에서 거절합니다.
 - 과거 Application이 비활성화된 디자인을 참조하더라도 기존 생성 결과 조회는 허용하되 재생성하려면 활성 디자인을 다시 선택해야 합니다.
 
+### 십이간지·카드 디자인 선택 이미지 미리보기 (2026-09-22 확정)
+
+관리자가 십이간지 디자인 세트나 카드 디자인을 고를 때, 선택을 확정하기 전에 실제 원본 이미지를
+조회만 할 수 있는 읽기 전용 API입니다. 이 절의 다른 정책(신청 상태·확정 저장 흐름)에는 영향을
+주지 않습니다.
+
+```
+GET /api/admin/zodiac-designs/{designSet}/preview
+GET /api/admin/card-designs/{cardDesignId}/preview
+```
+
+- `designSet`은 1~5만 허용하며 범위를 벗어나면 `INVALID_INPUT`(400)을 반환합니다.
+- 십이간지 미리보기는 12지 전체가 아니라 대표 4종(쥐/호랑이/용/돼지, 코드 `RAT`/`TIGER`/`DRAGON`/`PIG`)을
+  고정 순서로 반환합니다. 원본 경로는 `classpath:card-templates/zodiac/{designSet}/{한글동물명}.png`이며
+  파일이 없으면 `NOT_FOUND`(404)를 반환합니다.
+- 카드 디자인 미리보기는 앞·뒷면 원본 템플릿을 base64로 함께 반환합니다. 일반 카드는
+  `classpath:card-templates/{CardType.code}/{designNumber}/`의 앞면·뒷면 후보 파일을
+  `CardImageCompositor`와 동일한 순서로 탐색하고, 학생증은 `CardDesign.templateFrontId`/`templateBackId`가
+  가리키는 `UploadFile.filePath`를 `StorageService`로 내려받습니다.
+- 존재하지 않거나 `active=false`인 디자인, 검증되지 않은 방문증 디자인 1, 템플릿 참조가 없거나
+  `UploadFile` 행이 유실된 학생증 디자인은 모두 `CARD_DESIGN_NOT_FOUND`(404)로 거절합니다.
+- 두 API 모두 기존 `/api/admin/**` 인증(관리자 역할)만 요구하며, 조회만 수행하고 신청·디자인·파일
+  데이터나 `AdminActivityLog`를 변경하지 않습니다. `CardImageCompositor`·기존 카드 생성 Service는
+  이 API의 구현 대상이 아니며 수정되지 않았습니다.
+
 ### 필수 검증
 
 - Member 한 명이라도 성씨·이름·필수 의미가 없으면 `completeNaming` 실패.

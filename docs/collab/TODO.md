@@ -126,21 +126,21 @@ GET /api/admin/card-designs/{cardDesignId}/preview
 
 ### Backend
 
-- [ ] `ZodiacDesignPreviewResponse(designSet, animals)`와 `ZodiacAnimalPreview(code, name, imageBase64)` DTO를 추가한다.
-- [ ] `CardDesignTemplatePreviewResponse(cardDesignId, frontImageBase64, backImageBase64)` DTO를 추가한다.
-- [ ] `CardAssetPreviewService`를 추가해 classpath/S3 읽기·검증·base64 변환만 담당하게 한다. 기존 렌더러와 카드 생성 Service는 수정하지 않는다.
-- [ ] `CardAssetPreviewService`는 `AdminAuthorizationService`, `CardDesignRepository`, `CardTypeRepository`, `UploadFileRepository`, `StorageService`만 의존한다.
-- [ ] 십이간지 파일은 `ClassPathResource`로 읽고 세트 1~5 및 고정 동물 4종만 허용한다. 원본 파일은 복사·이동하지 않는다.
-- [ ] 일반 카드 디자인은 `CardType.code`와 `CardDesign.designNumber`로 앞·뒷면 classpath 경로를 구성한다.
-- [ ] 학생증은 두 template ID, 두 `UploadFile` row, 두 `filePath`를 확인한 뒤 S3에서 앞·뒷면을 읽는다.
-- [ ] `ZodiacDesignController`를 추가해 `GET /api/admin/zodiac-designs/{designSet}/preview`를 제공한다.
-- [ ] 기존 `CardDesignController`에 `GET /api/admin/card-designs/{cardDesignId}/preview`를 추가하고 기존 목록 API는 변경하지 않는다.
-- [ ] 두 Controller는 `@AuthenticationPrincipal Long adminId`를 Service에 전달하고 공통 `ApiResponse`로 위 DTO를 반환한다.
-- [ ] 기존 `CardDesignResponse`와 `CardDesign` Entity에는 이미지·URL 필드를 추가하지 않는다.
-- [ ] `CardAssetPreviewServiceTest`에서 세트 1·5의 고정 4종 순서와 PNG 디코딩, 범위 밖 세트, 일반 카드 양면, 학생증 S3 양면, 비활성·없는 디자인, 누락된 UploadFile을 검증한다.
-- [ ] Controller 테스트에서 정확한 경로·응답 필드·관리자 인증을 검증한다.
-- [ ] `StorageService.upload/delete` 및 모든 Repository `save/delete`가 호출되지 않고 `AdminActivityLog`가 생성되지 않는 것을 검증한다.
-- [ ] 관련 API 문서에 위 요청·응답·오류·classpath/S3 분기를 그대로 반영한다.
+- [x] `ZodiacDesignPreviewResponse(designSet, animals)`와 `ZodiacAnimalPreview(code, name, imageBase64)` DTO를 추가한다.
+- [x] `CardDesignTemplatePreviewResponse(cardDesignId, frontImageBase64, backImageBase64)` DTO를 추가한다.
+- [x] `CardAssetPreviewService`를 추가해 classpath/S3 읽기·검증·base64 변환만 담당하게 한다. 기존 렌더러와 카드 생성 Service는 수정하지 않는다.
+- [x] `CardAssetPreviewService`는 `AdminAuthorizationService`, `CardDesignRepository`, `CardTypeRepository`, `UploadFileRepository`, `StorageService`만 의존한다.
+- [x] 십이간지 파일은 `ClassPathResource`로 읽고 세트 1~5 및 고정 동물 4종만 허용한다. 원본 파일은 복사·이동하지 않는다.
+- [x] 일반 카드 디자인은 `CardType.code`와 `CardDesign.designNumber`로 앞·뒷면 classpath 경로를 구성한다. (`CardImageCompositor`의 후보 파일명 목록 `앞면.png`→`대지 1.png`, `뒷면.png`→`대지 1 사본.png` 순 탐색과 VISITOR 디자인 1 미검수 가드를 그대로 복제 — 실제 리소스 확인 결과 방문증 디자인 1은 `대지 1.png` 한 장만 있어 앞/뒤 구분이 불가능함.)
+- [x] 학생증은 두 template ID, 두 `UploadFile` row, 두 `filePath`를 확인한 뒤 S3에서 앞·뒷면을 읽는다.
+- [x] `ZodiacDesignController`를 추가해 `GET /api/admin/zodiac-designs/{designSet}/preview`를 제공한다.
+- [x] 기존 `CardDesignController`에 `GET /api/admin/card-designs/{cardDesignId}/preview`를 추가하고 기존 목록 API는 변경하지 않는다.
+- [x] 두 Controller는 `@AuthenticationPrincipal Long adminId`를 Service에 전달하고 공통 `ApiResponse`로 위 DTO를 반환한다.
+- [x] 기존 `CardDesignResponse`와 `CardDesign` Entity에는 이미지·URL 필드를 추가하지 않는다.
+- [x] `CardAssetPreviewServiceTest`에서 세트 1·5의 고정 4종 순서와 PNG 디코딩, 범위 밖 세트, 일반 카드 양면, 학생증 S3 양면, 비활성·없는 디자인, 누락된 UploadFile을 검증한다. (VISITOR 디자인 1 미검수 가드 케이스 포함 16개 테스트)
+- [x] Controller 테스트에서 정확한 경로·응답 필드·관리자 인증을 검증한다. (`CardDesignControllerTest`, `ZodiacDesignControllerTest` 신규 작성)
+- [x] `StorageService.upload/delete` 및 모든 Repository `save/delete`가 호출되지 않고 `AdminActivityLog`가 생성되지 않는 것을 검증한다.
+- [x] 관련 API 문서에 위 요청·응답·오류·classpath/S3 분기를 그대로 반영한다. (`docs/api/card-design.md` API 3 신규 절, `docs/specs/application/admin-saju.md` "십이간지·카드 디자인 선택 이미지 미리보기" 절 추가)
 
 ### Frontend
 
@@ -277,7 +277,7 @@ npm run build
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
-| 🔵 | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude(백엔드 착수) | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 대표 4종 그리드, 카드 앞·뒷면, classpath/S3 통합 조회, custom listbox — 백엔드부터 진행 |
+| 🔵 | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude(백엔드 완료, 프론트 대기) | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 백엔드(DTO·Service·Controller·테스트·문서) 완료, GREEN. 프론트는 사용자 재확인 후 착수 예정 |
 | ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
 | ✅ | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드+프론트) | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳 + 프론트 5개 파일(`types.ts`/`StepInfo.tsx`/`ApplyPage.tsx`/`StepReview.tsx`/번역) 전부 완료. `tsc --noEmit`/`npm run build` 통과. 상세는 아래 전용 절 참고 |
 | ✅ | 단체 신청 주소 필수 여부 — 정책 문서 충돌 해소 | Claude(백엔드) | `main` | `admin-saju.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 사용자 결정: admin-saju.md 정책(필수)으로 통일. `BulkExcelParser`에 학생증이면 거절·그 외 필수 검증 추가, `BULK_EXCEL_TEMPLATE_POLICY.md` §4.1 11번 열 "선택"→"필수(학생증은 미입력)"로 갱신. 기존 테스트 픽스처 중 정책 위반 데이터(학생증 행에 주소 포함) 다수 발견·정정 |
