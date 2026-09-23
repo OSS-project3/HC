@@ -22,7 +22,7 @@ export function CardDesignSelector({
   /** 선택 변경만 막고 조회(hover/focus 미리보기)는 계속 허용한다(카드 생성 후 확정 잠금). */
   locked?: boolean;
 }) {
-  const { open, setOpen, triggerRef, panelRef, style } = usePreviewPopover();
+  const { open, setOpen, triggerRef, panelRef, style, onListKeyDown } = usePreviewPopover();
   const [activeId, setActiveId] = useState<number | null>(null);
   const [cache, setCache] = useState<Record<number, CacheEntry>>({});
   const leaveTimer = useRef<number | null>(null);
@@ -96,7 +96,7 @@ export function CardDesignSelector({
       </button>
       {open && style && createPortal(
         <div className="preview-listbox__panel" ref={panelRef} style={style}>
-          <ul className="select-field__options preview-listbox__options" role="listbox" aria-label="카드 디자인">
+          <ul className="select-field__options preview-listbox__options" role="listbox" aria-label="카드 디자인" onKeyDown={onListKeyDown}>
             {designs.map((d) => (
               <li key={d.id}>
                 <button

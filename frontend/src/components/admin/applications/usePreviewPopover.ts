@@ -8,7 +8,7 @@
 // 소용없고, 일반 position:absolute 패널은 이 래퍼의 콘텐츠 기준 높이를 넘는 순간 그냥 잘려서
 // 안 보인다(2026-09-23, Playwright로 실제 확인). 포탈로 document.body에 렌더링하면 이 클리핑을
 // 구조적으로 피할 수 있다.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 export interface PopoverPosition {
   position: "fixed";
@@ -54,5 +54,37 @@ export function usePreviewPopover() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  return { open, setOpen, triggerRef, panelRef, style };
+  // 트리거를 클릭/Enter/Space로 열어도 DOM 포커스는 트리거 버튼에 남아있다 — 방향키가 목록에
+  // 닿으려면 패널이 실제로 마운트된 뒤 옵션 하나로 포커스를 옮겨줘야 한다. 이미 선택된 항목이
+  // 있으면 거기로, 없으면 첫 항목으로 이동한다.
+  useEffect(() => {
+    if (!open || !style) return;
+    const id = requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const selected = panel.querySelector<HTMLElement>('[aria-selected="true"]');
+      const first = panel.querySelector<HTMLElement>('[role="option"]');
+      (selected ?? first)?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [open, style]);
+
+  // 방향키로 옵션 사이를 이동한다(role=listbox 표준 패턴) — 이동 자체는 포커스만 옮기고
+  // onFocus 핸들러가 알아서 그 항목의 미리보기를 띄운다. Enter/Space 선택은 각 옵션이
+  // <button>이라 브라우저 기본 동작으로 이미 처리된다.
+  const onListKeyDown = (event: ReactKeyboardEvent) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const options = Array.from(panelRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
+    if (options.length === 0) return;
+    const current = options.indexOf(document.activeElement as HTMLElement);
+    let next: number;
+    if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = options.length - 1;
+    else if (event.key === "ArrowDown") next = current < 0 ? 0 : (current + 1) % options.length;
+    else next = current < 0 ? options.length - 1 : (current - 1 + options.length) % options.length;
+    options[next]?.focus();
+  };
+
+  return { open, setOpen, triggerRef, panelRef, style, onListKeyDown };
 }

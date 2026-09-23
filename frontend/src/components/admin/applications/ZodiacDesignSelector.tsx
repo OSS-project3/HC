@@ -24,7 +24,7 @@ export function ZodiacDesignSelector({
   /** 선택 변경만 막고 조회(hover/focus 미리보기)는 계속 허용한다. */
   locked?: boolean;
 }) {
-  const { open, setOpen, triggerRef, panelRef, style } = usePreviewPopover();
+  const { open, setOpen, triggerRef, panelRef, style, onListKeyDown } = usePreviewPopover();
   const [activeSet, setActiveSet] = useState<number | null>(null);
   const [cache, setCache] = useState<Record<number, CacheEntry>>({});
   const leaveTimer = useRef<number | null>(null);
@@ -94,7 +94,7 @@ export function ZodiacDesignSelector({
       </button>
       {open && style && createPortal(
         <div className="preview-listbox__panel" ref={panelRef} style={style}>
-          <ul className="select-field__options preview-listbox__options" role="listbox" aria-label="십이간지 디자인 세트">
+          <ul className="select-field__options preview-listbox__options" role="listbox" aria-label="십이간지 디자인 세트" onKeyDown={onListKeyDown}>
             {ZODIAC_SETS.map((set) => (
               <li key={set}>
                 <button
