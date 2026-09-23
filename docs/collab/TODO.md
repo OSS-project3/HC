@@ -50,7 +50,9 @@
 - [x] 연속 변경에는 마지막 선택값만 표시되고 저장 실패 값은 반영되지 않는다. — debounce(매 변경마다 이전 타이머 clear) + `autoPreviewSeq` 순번 가드로 마지막 값만 반영. "저장 실패 값 미반영"은애초에 이 effect가 `nameConfirmed`/`cardNumber`처럼 **서버에 저장 성공한 뒤 prop으로 내려온 값**만 지켜보므로, 저장 실패 시 그 prop 자체가 안 바뀌어 자동 호출이 트리거되지 않는다.
 - [x] 카드 생성·재생성·확정값 잠금 정책에 회귀가 없다. — 기존 `confirmedCardDesignId`/`confirmedCardIssueDate`/`confirmedFrontTextColor`/`confirmedBackTextColor` 잠금 로직·수동 미리보기/생성/다운로드 버튼은 변경하지 않음. 백엔드 회귀 977건 중 976건 통과(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건, 이번 변경과 무관).
 
-## 십이간지·카드 디자인 선택 이미지 미리보기 (2026-09-22 확정)
+## 십이간지·카드 디자인 선택 이미지 미리보기 (2026-09-22 확정, 2026-09-23 구현 완료)
+
+상태: ✅ 완료(Claude, 백엔드+프론트, 사용자 지시대로 백엔드부터 순서대로 진행). 정책·체크리스트는 Codex가 작성, 구현은 Claude가 진행. 모바일 touch 자동 검증만 headless 환경 한계로 미완료 — 아래 완료 검증 절 참고.
 
 ### 확정 정책
 
@@ -144,21 +146,26 @@ GET /api/admin/card-designs/{cardDesignId}/preview
 
 ### Frontend
 
-- [ ] `api.ts`에 위 두 응답 타입과 `getZodiacDesignPreview(designSet)`, `getCardDesignTemplatePreview(cardDesignId)`를 정확한 GET 경로로 추가한다.
-- [ ] base64 필드는 기존 `asDataUrl()` 또는 동일한 `data:image/png;base64,` 변환을 한 곳에서 재사용한다.
-- [ ] `ApplicationDetail`의 십이간지 native `<select>`를 `ZodiacDesignSelector`로 분리·교체한다.
-- [ ] `CardProductionPanel`의 카드 디자인 native `<select>`를 `CardDesignSelector`로 분리·교체한다.
-- [ ] 두 selector는 `role=listbox`, `role=option`, `aria-selected`, 방향키 이동, Enter/Space 선택, Escape 닫기를 지원한다.
-- [ ] PC는 항목 hover·focus 시 팝업만 열고 클릭·Enter/Space 때만 로컬 선택값을 바꾼다.
-- [ ] 모바일은 항목 터치 시 로컬 선택과 팝업 표시를 함께 수행하되 DB 저장은 기존 십이간지 저장 또는 카드 생성 동작에서만 수행한다.
-- [ ] 십이간지 팝업은 고정 순서의 2×2 대표 4종 그리드로 표시하고 세트 4·5 타일에는 어두운 체크무늬 배경을 적용한다.
-- [ ] 카드 디자인 팝업은 PC에서 앞·뒷면 좌우 배치, 좁은 화면에서 위아래 배치한다.
-- [ ] 팝업은 pointer leave 후 150ms, 바깥 클릭, Escape, 다른 항목 focus로 닫는다. 항목과 팝업 사이에 pointer가 들어오면 닫기 타이머를 취소한다.
-- [ ] preview 요청은 항목이 처음 노출될 때만 수행하고 컴포넌트 생명주기 동안 `zodiac:{set}`/`card-design:{id}` 키로 캐시한다.
-- [ ] 디자인 목록을 다시 불러오거나 selector가 remount되면 캐시를 새로 구성해 교체된 학생증 템플릿을 영구적으로 고정하지 않는다.
-- [ ] 로딩 skeleton, 오류 문구, 재시도를 제공하되 미리보기 실패 상태에서도 선택·저장 버튼은 활성 정책을 그대로 유지한다.
-- [ ] 확정된 디자인으로 disabled 상태가 된 경우에도 현재 디자인의 앞·뒷면 미리보기는 조회할 수 있게 한다.
-- [ ] 기존 `saveZodiacDesignSet`, 자동 카드 미리보기, 카드 생성, 확정값 잠금 로직은 변경하지 않는다.
+- [x] `api.ts`에 위 두 응답 타입과 `getZodiacDesignPreview(designSet)`, `getCardDesignTemplatePreview(cardDesignId)`를 정확한 GET 경로로 추가한다.
+- [x] base64 필드는 기존 `asDataUrl()`을 재사용한다.
+- [x] `ApplicationDetail`의 십이간지 native `<select>`를 `ZodiacDesignSelector`로 분리·교체한다.
+- [x] `CardProductionPanel`의 카드 디자인 native `<select>`를 `CardDesignSelector`로 분리·교체한다.
+- [x] 두 selector는 `role=listbox`, `role=option`, `aria-selected`, 방향키 이동(ArrowUp/Down/Home/End, wraparound), Enter/Space 선택, Escape 닫기를 지원한다. (열릴 때 선택된 항목 또는 첫 항목으로 자동 포커스 — 그러지 않으면 방향키가 여전히 트리거 버튼에 머물러 있어 목록에 닿지 않았다.)
+- [x] PC는 항목 hover·focus 시 팝업만 열고 클릭·Enter/Space 때만 로컬 선택값을 바꾼다. (Playwright로 실제 확인)
+- [x] 모바일은 항목 터치 시 로컬 선택과 팝업 표시를 함께 수행 — `<button onClick>` 표준 시맨틱이라 코드상 desktop click과 동일 경로다. ⚠️ 단, 이 환경(headless Chromium + Playwright 모바일 에뮬레이션)에서 실제 터치 시뮬레이션 자동 검증은 `position:fixed` 포탈 패널과의 상호작용에서 원인 불명의 한계에 부딪혀 끝내 성공시키지 못했다(패널 상태는 안정적으로 열려 있는데 tap 이벤트 자체가 버튼에 도달하지 않음 — 여러 방식으로 반복 확인). 실기기 수동 QA 필요.
+- [x] 십이간지 팝업은 고정 순서의 2×2 대표 4종 그리드로 표시하고 세트 4·5 타일에는 어두운 체크무늬 배경을 적용한다. (Playwright 스크린샷으로 실제 확인 — 흰색 이미지가 체크무늬 위에서 잘 보임)
+- [x] 카드 디자인 팝업은 PC에서 앞·뒷면 좌우 배치(auto-fit grid), 좁은 화면에서 위아래 배치(640px 이하 media query)한다.
+- [x] 팝업은 pointer leave 후 150ms, 바깥 클릭, Escape로 닫는다. 항목과 팝업 사이에 pointer가 들어오면 닫기 타이머를 취소한다. (모두 Playwright로 실제 확인) "다른 항목 focus로 닫는다"는 그 항목의 미리보기가 새 항목으로 교체되는 형태로 구현(팝업 자체는 안 닫힘 — 방향키로 계속 탐색 가능해야 하므로).
+- [x] preview 요청은 항목이 처음 활성화될 때만 수행하고 컴포넌트 생명주기 동안 세트/id별로 캐시한다(문자열 키 `zodiac:{set}` 대신 `Record<number, ...>` 객체 — 기능적으로 동일). (재요청 안 함을 Playwright로 실제 확인)
+- [x] 디자인 목록을 다시 불러오거나(`designs` prop 변경) 캐시를 새로 구성한다.
+- [x] 로딩 skeleton, 오류 문구, 재시도를 제공하되 미리보기 실패 상태에서도 선택·저장 버튼은 활성 정책을 그대로 유지한다. (네트워크 요청을 강제로 실패시켜 재시도 버튼→성공까지 Playwright로 실제 확인)
+- [x] 확정된 디자인으로 locked 상태가 된 경우에도 현재 디자인의 앞·뒷면 미리보기는 조회할 수 있게 한다. (실제 확정된 신청으로 Playwright 확인 — 클릭해도 선택은 안 바뀌지만 팝업은 열린 채 다른 디자인도 계속 조회 가능)
+- [x] 기존 `saveZodiacDesignSet`, 자동 카드 미리보기, 카드 생성, 확정값 잠금 로직은 변경하지 않는다. (diff로 select 교체 외 변경 없음 확인)
+
+구현 중 실제로 찾아 고친 버그 3건(모두 코드 리뷰가 아니라 실제 dev 컨테이너 + Playwright 라이브 테스트로 발견):
+1. per-item fetch effect가 자기 자신의 `setCache("loading")`으로 재실행되어 막 시작한 요청을 스스로 취소 — 네트워크 호출은 성공하는데 이미지가 끝내 안 뜸. ref 기반 "이미 요청함" 가드로 수정.
+2. 이 셀렉터가 `.admin__table-wrap`(가로 스크롤용 `overflow-x:auto`) 안에 있어 CSS Overflow 스펙상 overflow-y도 강제로 auto가 되어, 펼친 신청 상세 안에서 패널이 그 래퍼의 콘텐츠 높이를 넘는 순간 통째로 잘려 안 보임. `document.body`로 포탈 렌더링해 구조적으로 회피.
+3. 포탈 위치 유지를 위한 scroll/resize 리스너가 "닫기"로 구현돼 있어, 옵션 목록 자체의 내부 스크롤(overflow-y:auto, 방향키·자동포커스의 scrollIntoView)이나 모바일 브라우저의 주소창 접힘에 의한 resize에도 팝업이 열자마자 닫혀버림 — "닫기"가 아니라 "재계산"으로 수정. 동시에 패널이 뷰포트보다 커질 수 있는 문제(특히 모바일)도 발견해 max-height+내부 스크롤로 고침.
 
 ### 구현 순서와 검증
 
@@ -180,11 +187,11 @@ npm run build
 
 ### 완료 검증
 
-- [ ] 십이간지 5세트에서 대표 4종이 올바른 세트 이미지로 표시된다.
-- [ ] 일반 카드 classpath 디자인과 학생증 S3 디자인 모두 앞·뒷면이 표시된다.
-- [ ] PC hover·키보드 focus·모바일 touch에서 열고 닫는 동작을 확인한다.
-- [ ] 반복 hover에서 불필요한 재요청이 없고 이미지 실패가 선택·저장을 막지 않는다.
-- [ ] 이미지 조회로 신청·디자인·파일·감사 로그 데이터가 변경되지 않는다.
+- [x] 십이간지 5세트에서 대표 4종이 올바른 세트 이미지로 표시된다. (dev 컨테이너 + Playwright, 세트 4 체크무늬 배경까지 스크린샷으로 확인)
+- [x] 일반 카드 classpath 디자인과 학생증 S3 디자인 모두 앞·뒷면이 표시된다. (일반 카드는 Playwright로 실측, 학생증 S3 경로는 백엔드 `CardAssetPreviewServiceTest`의 `previewsStudentCardDesignFromUploadedTemplates`로 검증 — 로컬 dev 데이터에 학생증 카드 디자인이 없어 프론트 화면에서까지는 못 봄)
+- [x] PC hover·키보드 focus에서 열고 닫는 동작을 확인한다. ⚠️ 모바일 touch는 아래 Frontend 체크리스트 항목 참고 — headless 환경의 한계로 자동 검증 미완료, 실기기 수동 QA 필요.
+- [x] 반복 hover에서 불필요한 재요청이 없고 이미지 실패가 선택·저장을 막지 않는다. (Playwright로 실제 확인)
+- [x] 이미지 조회로 신청·디자인·파일·감사 로그 데이터가 변경되지 않는다. (백엔드는 `CardAssetPreviewServiceTest`의 `previewDoesNotCallStorageUploadOrDelete`로 검증, 프론트는 GET 전용 API만 호출하는 구조상 변경 경로 자체가 없음)
 
 ## 2026-09-15 프론트 구조·문서 정리 — ✅ 완료
 
@@ -277,7 +284,7 @@ npm run build
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
-| 🔵 | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude(백엔드 완료, 프론트 대기) | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 백엔드(DTO·Service·Controller·테스트·문서) 완료, GREEN. 프론트는 사용자 재확인 후 착수 예정 |
+| ✅ | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 백엔드·프론트 모두 완료, GREEN. 모바일 touch 자동 검증만 headless 환경 한계로 미완료(실기기 QA 권장) |
 | ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
 | ✅ | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드+프론트) | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳 + 프론트 5개 파일(`types.ts`/`StepInfo.tsx`/`ApplyPage.tsx`/`StepReview.tsx`/번역) 전부 완료. `tsc --noEmit`/`npm run build` 통과. 상세는 아래 전용 절 참고 |
 | ✅ | 단체 신청 주소 필수 여부 — 정책 문서 충돌 해소 | Claude(백엔드) | `main` | `admin-saju.md`, `docs/collab/BULK_EXCEL_TEMPLATE_POLICY.md` | 사용자 결정: admin-saju.md 정책(필수)으로 통일. `BulkExcelParser`에 학생증이면 거절·그 외 필수 검증 추가, `BULK_EXCEL_TEMPLATE_POLICY.md` §4.1 11번 열 "선택"→"필수(학생증은 미입력)"로 갱신. 기존 테스트 픽스처 중 정책 위반 데이터(학생증 행에 주소 포함) 다수 발견·정정 |
