@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-24 — Claude — `main` (작명 업무 진행중/완료/캔슬 조회 — 프론트엔드)
+
+- 변경: 백엔드 완료(아래 항목) 후 사용자 승인("더 정해야할 정책없으면 진행해도돼")을 받아 프론트를 구현했다. `ApplicationsSection.tsx`에 "작명 업무: 진행중/완료/캔슬" 필터 버튼 3개를 추가 — 기존 개인/단체 탭(밑줄 스타일)과는 다른 축·다른 모양(버튼 묶음)으로 둬서 두 필터가 별개임을 시각적으로 구분했다. 새 필터는 서버 파라미터(`namingProgress`) 기반으로 동작하도록 만들었다 — 기존 개인/단체 탭이 서버 필터 없이 페이지당 50건을 받아와 클라이언트에서 `.filter()`로 나누는(코드 주석에 이미 한계로 명시된) 방식이라, 새 필터를 같은 방식으로 만들면 같은 부정확성을 물려받는다는 걸 조사 단계에서 이미 확인해뒀던 것을 그대로 반영했다. 기본값은 "진행중"(관리자가 매일 처리할 건이 먼저 보이도록). 단체 신청 목록에는 "작명 진행률" 컬럼을 추가해 `completedMemberCount/totalQuantity`(예: `18/30`)를 보여준다 — 개인 신청은 기존 상태 배지로 이미 완료 여부가 보이므로 컬럼을 따로 안 만들었다.
+- 파일: (프론트 수정) `ApplicationsSection.tsx`(필터 상태·핸들러·테이블 진행률 컬럼), `services/api.ts`(`NamingProgress` 타입, `listAdminApplications`의 `namingProgress` 파라미터, `AdminApplicationListItem.completedMemberCount`), `AdminPage.css`(`.admin-naming-progress` 스타일) — 커밋 `dda3762` / (문서) `docs/collab/TODO.md`(Frontend 체크리스트 완료 표시, 진행 보드 갱신)
+- 사유: 사용자가 "백엔드먼저 구현좀" 지시로 백엔드를 먼저 확인받은 뒤, 추가 정책 질문 없이 "더 정해야할 정책없으면 진행해도돼"로 프론트 착수를 승인 — 남아있던 유일한 미정 사항(필터 UI를 기존 탭과 같은 자리에 둘지)은 정책이 아니라 구현 디테일이라 판단해 직접 결정하고 진행했다.
+- 테스트: `tsc --noEmit`/`npm run build` 통과. dev 컨테이너를 재빌드해 Playwright로 실제 확인 — 필터 3개를 전환할 때마다 정확한 `namingProgress` 쿼리 파라미터가 나가는지, 활성 버튼에 강조 스타일이 적용되는지, 단체 탭에서 "작명 진행률" 컬럼이 완료 조건(1/1, 실제 완료된 단체 4건)과 진행중 조건(0/N, 실제 미완료 단체 다수)에서 각각 정확한 값을 보여주는지 스크린샷으로 확인. 부분 완료(예: 2/4처럼 0도 전체도 아닌 값) 케이스는 별도 검증 없음 — 카운팅 로직 자체는 백엔드 `ApplicationNamingProgressListTest`가 이미 2/3 케이스로 검증했고 프론트는 그 숫자를 그대로 표시만 하는 산술 표현이라 추가 리스크가 낮다고 판단.
+- 관련: `docs/collab/TODO.md` "작명 업무 진행중/완료/캔슬 조회" 절 — 이 기능은 이제 백엔드+프론트 모두 완료.
+
+---
 ## 2026-09-24 — Claude — `main` (작명 업무 진행중/완료/캔슬 조회 — 백엔드)
 
 - 변경: 사용자가 관리자 "제작신청 관리" 화면에 작명 업무 진행중/완료 구분 조회 기능을 요청 → 먼저 코드 조사만 수행해(수정 없음) 현재 구조·갭을 보고하고, 이어진 대화에서 정책을 확정한 뒤(개인·단체 모두) "백엔드먼저 구현좀" 지시로 백엔드를 구현했다. `GET /api/admin/applications?namingProgress={IN_PROGRESS|DONE|CANCELLED}` 신규 — 개인은 `Application.status`(COMPLETED/CANCELLED)로 그대로 판정하지만, 단체는 **status와 무관하게** 해당 신청의 모든 Member가 `cardFrontPath`·`cardBackPath`를 둘 다 가지고 있는지로 "완료"를 판정한다(전원 카드가 생성돼도 관리자가 "카드 발급 완료" 버튼을 안 눌렀으면 status는 여전히 PRODUCTION_READY/PRODUCING일 수 있는데, 이 경우도 완료로 집계). 카드가 다 만들어진 뒤 취소된 단체 신청은 완료가 아니라 캔슬로 집계해 세 분류가 상호 배타적이 되도록 했다. 새 상태값·테이블·컬럼은 전혀 추가하지 않았고(기존 `ApplicationStatus`/`ApplicationMember.cardFrontPath`/`cardBackPath` 재사용), `completeNaming()`/`markCardReady()` 등 기존 상태 전이 로직도 손대지 않은 순수 조회 기능이다. 목록 페이지 안에 단체 신청이 여러 건 있어도 N+1이 안 나도록 멤버 카드생성 완료 수를 한 번에 배치 집계하는 쿼리를 별도로 뒀다.
