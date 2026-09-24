@@ -191,8 +191,15 @@
 .admin-naming__subtitle { font-size: 13px; color: var(--color-text-secondary); }
 /* 상태 관리 액션 바 */
 .admin-naming__status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 8px; background: var(--color-surface-soft); border: 1px solid var(--color-border-soft); border-radius: 8px; }
-.admin-naming__status-select { margin-left: auto; width: auto; max-width: 260px; padding: 8px 12px; cursor: pointer; }
-.admin-naming__status-select:disabled { cursor: default; opacity: 0.7; }
+.admin-naming__status-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.admin-naming__pipeline-toggle { font-size: 12.5px; padding: 6px 10px; }
+.admin-naming__pipeline { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--color-surface); border: 1px dashed var(--color-border-soft); border-radius: 8px; }
+.admin-naming__pipeline-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; list-style: none; padding: 0; margin: 0; }
+.admin-naming__pipeline-step { padding: 4px 10px; border-radius: var(--radius-pill); font-size: 12px; background: var(--color-surface-soft); color: var(--color-text-secondary); border: 1px solid transparent; }
+.admin-naming__pipeline-step.is-done { background: var(--color-success-surface); color: var(--color-success); }
+.admin-naming__pipeline-step.is-current { background: var(--color-primary); color: var(--color-primary-foreground); font-weight: 700; }
+.admin-naming__pipeline-arrow { color: var(--color-text-secondary); font-size: 12px; }
+.admin-naming__pipeline-branches { margin: 0; }
 .admin-naming__preview-banner { font-size: 13px; color: var(--color-warning); background: var(--color-warning-surface); border-radius: 6px; padding: 10px 12px; line-height: 1.55; }
 .admin-naming__card { border: 1px solid var(--color-border-soft); border-radius: 8px; padding: 16px; background: var(--color-surface); }
 .admin-naming__card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }

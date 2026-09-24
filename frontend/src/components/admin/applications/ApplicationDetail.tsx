@@ -14,12 +14,20 @@ import { genderLabel } from "./applicationUtils";
 import { NamingCard } from "./NamingCard";
 import { ZodiacDesignSelector } from "./ZodiacDesignSelector";
 import { downloadApplicationsExcel, downloadBlob, statusLabels } from "./applicationUtils";
+
+// 전체 파이프라인 조회용(2026-09-24, 읽기 전용) — 실제 전이 규칙은 백엔드
+// ApplicationStatus.canTransitionTo와 동일: 주 경로는 선형이고, PHOTO_REJECTED/CANCELLED는
+// 이탈 경로(각각 REVIEWING에서 갈렸다가 되돌아올 수 있음 / 여러 단계에서 취소로 빠질 수 있음)다.
+const PIPELINE_MAIN = ["SUBMITTED", "REVIEWING", "NAME_EDITING", "PRODUCTION_READY", "PRODUCING", "COMPLETED"] as const;
+const PIPELINE_BRANCHES = ["PHOTO_REJECTED", "CANCELLED"] as const;
+
 // 신청 상세 + 구성원 작명 플로우 + 상태 전이(모두 실제 API), 만세력은 실제 계산.
 export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationListItem; onChanged?: () => void | Promise<void> }) {
   const [detail, setDetail] = useState<AdminApplicationDetail | null>(null);
   const [members, setMembers] = useState<AdminApplicationMember[] | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [statusBusy, setStatusBusy] = useState(false);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
   const [groupBusy, setGroupBusy] = useState(false);
   const [cardBatchOpen, setCardBatchOpen] = useState(false);
   const [cardBatchText, setCardBatchText] = useState("");
@@ -164,14 +172,16 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
   };
 
   const s = detail.status;
+  // "작명 완료 처리"/"제작 시작"은 목록에서 제거됐다(2026-09-24 확정) — 마지막 구성원의
+  // 이름 확정/카드 생성 시점에 백엔드가 자동으로 전이시킨다. 아래 엔드포인트는 자동 전이가
+  // 어떤 이유로든 안 걸렸을 때의 수동 복구 경로로 백엔드에 계속 남아있지만, 평소 업무 흐름에는
+  // 노출하지 않는다.
   const statusActions: { label: string; danger?: boolean; call: () => Promise<{ status: ApplicationStatus }> | null }[] = [];
   // 접수 직후 앞단 흐름: 결제 확인 → 검토 시작 → 작명 승인.
   if (s === "SUBMITTED" && detail.paymentStatus !== "CONFIRMED") statusActions.push({ label: "결제 확인", call: () => api.confirmApplicationPayment(app.applicationId) });
   if (s === "SUBMITTED" && detail.paymentStatus === "CONFIRMED") statusActions.push({ label: "검토 시작", call: () => api.startApplicationReview(app.applicationId) });
   if (s === "REVIEWING") statusActions.push({ label: "작명 승인(작명중으로)", call: () => api.approveApplicationNaming(app.applicationId) });
   if (s === "REVIEWING") statusActions.push({ label: "사진 반려", danger: true, call: () => { const r = window.prompt("사진 반려 사유를 입력하세요."); return r && r.trim() ? api.rejectApplicationPhoto(app.applicationId, r.trim()) : null; } });
-  if (s === "NAME_EDITING") statusActions.push({ label: "작명 완료 처리", call: () => api.completeNaming(app.applicationId) });
-  if (s === "PRODUCTION_READY") statusActions.push({ label: "제작 시작", call: () => api.startProducing(app.applicationId) });
   if (s === "PRODUCING" && !detail.cardReadyAt) statusActions.push({ label: "카드 발급 완료", call: () => api.markCardReady(app.applicationId) });
   if (s === "PRODUCING" && detail.cardReadyAt && detail.issueType === "MOBILE_AND_PHYSICAL" && !detail.physicalDispatchedAt) statusActions.push({ label: "배송 발송(운송장 등록)", call: () => { const t = window.prompt("운송장 번호를 입력하세요."); return t && t.trim() ? api.dispatchApplication(app.applicationId, t.trim()) : null; } });
 
@@ -197,17 +207,55 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
         <span className="admin-naming__subtitle">상태 관리</span>
         <span className="admin__badge">{statusLabels[s]}</span>
         {detail.physicalDispatchedAt && <span className="admin__muted">발송됨</span>}
-        <select
-          className="field__select admin-naming__status-select"
-          aria-label="상태 변경"
-          value=""
-          disabled={statusBusy || statusActions.length === 0}
-          onChange={(e) => { const a = statusActions.find((x) => x.label === e.target.value); if (a) void runStatus(a.label, a.call); }}
+        <div className="admin-naming__status-actions">
+          {statusActions.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              className={`admin__btn${a.danger ? " admin__btn--danger" : ""}`}
+              disabled={statusBusy}
+              onClick={() => void runStatus(a.label, a.call)}
+            >
+              {a.label}
+            </button>
+          ))}
+          {statusActions.length === 0 && <span className="admin__muted">가능한 수동 전이 없음</span>}
+        </div>
+        <button
+          type="button"
+          className="admin__btn admin-naming__pipeline-toggle"
+          aria-expanded={pipelineOpen}
+          onClick={() => setPipelineOpen((v) => !v)}
         >
-          <option value="" disabled>{statusActions.length ? "상태 변경 선택…" : "가능한 전이 없음"}</option>
-          {statusActions.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}
-        </select>
+          전체 진행 단계 {pipelineOpen ? "숨기기" : "보기"}
+        </button>
       </div>
+
+      {pipelineOpen && (
+        <div className="admin-naming__pipeline">
+          <ol className="admin-naming__pipeline-main">
+            {PIPELINE_MAIN.map((st, i) => {
+              const currentIdx = PIPELINE_MAIN.indexOf(s as typeof PIPELINE_MAIN[number]);
+              const stepState = s === st ? "current" : currentIdx >= 0 && i < currentIdx ? "done" : "pending";
+              return (
+                <li key={st} className={`admin-naming__pipeline-step is-${stepState}`}>
+                  {i > 0 && <span className="admin-naming__pipeline-arrow" aria-hidden="true">→ </span>}
+                  {statusLabels[st]}
+                </li>
+              );
+            })}
+          </ol>
+          <p className="admin__muted admin-naming__pipeline-branches">
+            이탈 경로 —{" "}
+            {PIPELINE_BRANCHES.map((st, i) => (
+              <span key={st}>
+                {i > 0 && " · "}
+                {statusLabels[st]}{s === st ? "(현재)" : ""}
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
 
       <div className="admin-naming__zodiac">
         <span className="admin-naming__subtitle">십이간지 디자인</span>
