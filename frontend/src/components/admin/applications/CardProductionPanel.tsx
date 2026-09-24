@@ -9,7 +9,7 @@ import {
 } from "../../../services/api";
 import { showToast } from "../../ui/toast";
 
-import { asDataUrl, todayIso } from "./applicationUtils";
+import { asDataUrl, todayIso, triggerRemoteDownload } from "./applicationUtils";
 import { CardDesignSelector } from "./CardDesignSelector";
 
 const STUDENT_TEXT_COLOR_LABEL: Record<StudentTextColor, string> = { DARK_GRAY: "진회색", WHITE: "흰색" };
@@ -175,9 +175,9 @@ export function CardProductionPanel({
     setBusy(true);
     try {
       const data = await api.getAdminMemberCardDownload(appId, memberId);
-      window.open(data.cardFrontUrl, "_blank", "noopener,noreferrer");
-      window.open(data.cardBackUrl, "_blank", "noopener,noreferrer");
-      showToast("카드 다운로드 링크를 열었습니다.");
+      triggerRemoteDownload(data.cardFrontUrl);
+      triggerRemoteDownload(data.cardBackUrl);
+      showToast("카드 파일을 다운로드했습니다.");
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "카드 다운로드에 실패했습니다.");
     } finally {
