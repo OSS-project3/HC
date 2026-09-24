@@ -9,6 +9,53 @@
 
 ---
 
+## 작명 업무 진행중/완료/캔슬 조회 (2026-09-24 정책 확정, 미착수)
+
+상태: ⚪ 대기. 정책은 확정(개인·단체 모두), 구현은 아직 착수 안 함. 담당자는 착수 시 이 절 상태를 `🔵 진행중`으로 바꾸고 채울 것.
+
+### 배경 — 조사 결과 요약
+
+관리자 "제작신청 관리" 목록에 진행중/완료/캔슬 구분 조회를 추가하기 위해 기존 구조를 조사했다(코드 조사만, 수정 없음). 핵심 발견:
+
+- `ApplicationStatus`(`common/enums/ApplicationStatus.java:3-24`)는 `SUBMITTED → REVIEWING → NAME_EDITING → PRODUCTION_READY → PRODUCING → COMPLETED` 선형 전이 + `PHOTO_REJECTED`, `CANCELLED`. "작명 완료"(`NAME_EDITING → PRODUCTION_READY`)는 `Application.completeNaming()`(`Application.java:392`)이 수행하며, 실제 완료 검증(성씨·이름·뜻 전원 필수)은 `ApplicationService.completeNaming()`(722-735)의 `validateNamingComplete()`(740-757)에 있다 — 단체는 all-or-nothing, 부분 완료 시에도 Application 상태는 여전히 `NAME_EDITING`(개별 Member 상태는 없음, `docs/api/admin.md:37`의 기존 확정 정책).
+- `ApplicationMember`에는 작명 완료를 나타내는 저장된 플래그·타임스탬프가 없다(성씨·이름·뜻 필드로 매번 즉석 판정). 반면 카드 생성 결과인 `cardFrontPath`/`cardBackPath`는 멤버별로 실제 저장되는 필드라 바로 집계 가능하다.
+- `GET /api/admin/applications/{id}/members`(`ApplicationService.getApplicationMembersForAdmin`, 493-502)는 Application 상태와 무관하게 항상 각 멤버의 최종 작명 결과를 그대로 반환한다 — 완료된 건의 "재조회"는 이미 아무 변경 없이 가능하다.
+- 목록 조회는 `ApplicationRepository.findByStatus(status, pageable)`(단일 상태 exact match)뿐이고 다중 상태 필터(`findByStatusIn` 등)는 없다.
+- 프론트 `ApplicationsSection.tsx`의 개인/단체 탭(15, 31, 44행)은 서버 필터 없이 페이지당 50건을 받아와 클라이언트에서 `.filter()`하는 방식이다(코드 주석에 이미 한계로 명시됨) — 새 탭을 똑같이 만들면 같은 부정확성을 물려받는다.
+- `totalQuantity`(`Application.java:112, 296`)는 단체 신청의 제출 인원 수(엑셀/ZIP 행 수)와 이미 동일하다 — 진행률 분모로 재사용 가능, 새 필드 불필요.
+
+### 확정 정책
+
+- 새 상태값·새 테이블·새 컬럼은 만들지 않는다. 기존 `ApplicationStatus`와 `ApplicationMember.cardFrontPath`/`cardBackPath`만 재사용한다.
+- 이 기능은 **조회·표시 전용**이다. 기존 상태 전이 로직(`completeNaming()`, `markCardReady()`("카드 발급 완료" 버튼) 등)은 전혀 건드리지 않는다 — 관리자가 버튼을 눌러야 상태가 바뀌는 흐름은 그대로 유지.
+- 분류는 **진행중 / 완료 / 캔슬** 3가지로 나눈다(개인·단체 공통 축, 필터링 방식 자체는 유형과 무관하게 3분류로만 처리).
+  - **캔슬**: `Application.status == CANCELLED` (개인·단체 동일, 예외 없음).
+  - **완료**:
+    - 개인 신청: `Application.status == COMPLETED`.
+    - 단체 신청: 해당 신청의 **모든 Member**가 `cardFrontPath`·`cardBackPath` 둘 다 존재("멤버별 카드 생성 완료") — `Application.status` 값과 무관하게 판정한다(전원 카드가 생성됐어도 관리자가 아직 "카드 발급 완료"를 안 눌렀으면 `status`는 `PRODUCTION_READY`/`PRODUCING`일 수 있는데, 이 경우도 "완료"로 집계한다).
+    - 단체 신청은 진행률을 `완료 멤버 수 / totalQuantity` 형태(예: `18/30`)로 함께 보여준다.
+  - **진행중**: 위 두 분류에 안 들어가는 나머지 전부.
+
+### 아직 안 정해진 것(구현 착수 시 결정)
+
+- 정확한 API 파라미터 설계(예: `namingStage=IN_PROGRESS|DONE|CANCELLED` 신규 파라미터 vs 기존 `status` 확장) — 계약 스타일 문제라 구현자가 정해도 무방.
+- 단체 신청의 "완료" 판정을 위한 멤버 카드-생성 집계 쿼리 방식(요청마다 계산 vs 목록 조회 시 배치 집계로 N+1 방지) — 리스트 화면 성능에 영향.
+- 개인은 DB에서 `status` 단일 조건으로 필터 가능하지만, 단체는 파생 집계 조건이라 순수 SQL `WHERE`로 깔끔히 안 됨 — 후보를 가져온 뒤 서비스 레이어에서 계산·필터하는 방식이 될 가능성이 높고, 이때 페이지네이션을 어떻게 유지할지 결정 필요.
+- 프론트 탭 UI를 기존 개인/단체 탭(현재도 페이지 내 클라이언트 필터, 부정확함)과 같은 자리에 나란히 둘지, 아니면 새 필터가 서버 기반이므로 완전히 새 자리에 둘지.
+
+### Backend
+
+- [ ] 진행중/완료/캔슬 3분류를 반환하는 목록 조회 API(또는 기존 목록 API 확장) 설계·구현.
+- [ ] 단체 신청의 멤버별 카드 생성 완료 집계(카운트) 쿼리 추가.
+- [ ] 완료 검증 관련 기존 테스트에 회귀 없는지 확인(상태 전이 로직 자체는 안 건드리므로 새 테스트 위주).
+
+### Frontend
+
+- [ ] `ApplicationsSection.tsx`(또는 후속 화면)에 진행중/완료/캔슬 필터·탭 추가.
+- [ ] 단체 신청 행에 진행률(`완료멤버수/totalQuantity`) 표시.
+
+---
+
 ## 카드 미리보기 자동 갱신 (2026-09-22 확정, 2026-09-22 구현 완료)
 
 상태: ✅ 완료(Claude, 백엔드+프론트). 정책·체크리스트는 Codex가 작성, 구현은 Claude가 진행.
@@ -284,6 +331,7 @@ npm run build
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
+| ⚪ | 작명 업무 진행중/완료/캔슬 조회 | 미정 | `main` | 본 문서 "작명 업무 진행중/완료/캔슬 조회" 절 | 정책 확정(개인=status, 단체=멤버별 카드생성 집계, 상태전이 없음), 구현 미착수 |
 | ✅ | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 백엔드·프론트 모두 완료, GREEN. 모바일 touch 자동 검증만 headless 환경 한계로 미완료(실기기 QA 권장) |
 | ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
 | ✅ | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드+프론트) | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳 + 프론트 5개 파일(`types.ts`/`StepInfo.tsx`/`ApplyPage.tsx`/`StepReview.tsx`/번역) 전부 완료. `tsc --noEmit`/`npm run build` 통과. 상세는 아래 전용 절 참고 |
