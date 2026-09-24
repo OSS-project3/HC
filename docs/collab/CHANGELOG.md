@@ -14,6 +14,16 @@
 ```
 
 ---
+## 2026-09-24 — Claude — `main` (추천 이름 데이터 정합화 — 태산/현산 한자 수정 + 1·4글자 추천 제외, 범위 축소판)
+
+- 변경: 이전에 `docs/collab/TODO.md`에 Codex가 미리 써둔 "추천 이름 데이터와 백엔드 이름 검증 정합화" 정책 절(기존 DB의 손상 행까지 멱등 보정하는 계획 포함)을 사용자가 "확인해주세요"로 검토 요청 → 실제 코드(`ApplicationMember.validateNameFormat`, `SajuNameSeeder`, 두 JSON 파일)와 대조해 문서의 모든 수치·주장(700건 중 문제 20건, SHA-256 동일 복사본, `count()>0`이면 시드 스킵 등)이 정확함을 확인해 보고했다. 이어서 사용자가 더 단순한 대안("검증 자체를 1~4글자로 완화하면 안 되나")을 제안했는데, `docs/specs/application/admin-saju.md`(전체 한글 이름 최대 5글자 — 카드 레이아웃 제약과 직결)와 실제 `CardImageCompositor`에 오버플로우 시 생성 실패 처리가 구현돼 있지 않다는 점을 근거로 "검증 완화는 카드 렌더링 결함으로 이어질 수 있는 별개의 정책 결정"이라고 반박 → 사용자가 최종적으로 범위를 명시적으로 줄여서 확정: `validateNameFormat()` 2~3자 규칙은 유지, **기존 DB 보정·`SajuNameSeeder` idempotent 보정은 이번 범위에서 제외**, 추천 필터는 길이 조건만 적용, `태산`/`현산`은 필터가 아니라 JSON 데이터 자체를 직접 수정, 프론트·백엔드 JSON은 동일하게 고치고 관련 테스트만 갱신, 카드 렌더링·이름 길이 정책은 안 건드림.
+- 실제 구현: ①`frontend/src/data/sajuNames.json` + `backend/.../seed/saju-names.json` 두 파일에 Node 스크립트로 동일한 치환을 적용해 `태산`(`兌示산`→`兌祘`)·`현산`(`鉉示산`→`鉉祘`)의 hanja·reading만 정확히 수정(700건 유지, 나머지는 바이트 단위로 무변경, 수정 후 SHA-256 재일치 확인). ②`frontend/src/lib/namingRecommendations.ts`의 `recommendNames()`에 `isRecommendable()`(이름 Unicode 코드포인트 길이 2 또는 3) 필터를 점수 계산 전에 추가 — 사전 index는 필터 전 원본 위치를 그대로 캡처해 동점 시 정렬 기준(§1.19 결정성, score DESC → 원본 사전 index ASC)이 안 흔들리게 했다. 백엔드 소스 코드는 전혀 건드리지 않음(범위 축소 결정대로 시더·DB 보정 로직 미착수).
+- 파일: (프론트+백엔드 데이터) `frontend/src/data/sajuNames.json`, `backend/honor-citizen/src/main/resources/seed/saju-names.json`(동일 diff) / (프론트 로직) `frontend/src/lib/namingRecommendations.ts`(`isRecommendable` 추가, `recommendNames` 필터 순서 변경) / (프론트 테스트) `frontend/e2e/naming-determinism.spec.ts`(신규 6건: 1·4글자 미추천 확인, 682건 정확히 일치, 기본 5건 유지, 태산/현산 수정값 고정 2건, 사전 전체 hanja-길이 불일치 0건 회귀 가드) / (문서) `docs/collab/TODO.md`(범위 축소 결정 기록, Task 1은 "이번 범위에서 제외"로 명시, Task 2 체크리스트 완료 표시).
+- 사유: 사용자가 명시적으로 스코프를 좁혀서 지시("기존 DB 보정과 idempotent seeder correction은 이번 작업에서 제외해... 카드 렌더링이나 이름 길이 정책은 변경하지 마") — 애초 계획보다 작은 범위로, 정책 재검증(문서 정확성 확인) → 대안 검토·반박(카드 레이아웃 리스크 근거 제시) → 최종 축소 확정의 순서로 진행했다.
+- 테스트: `frontend/e2e/naming-determinism.spec.ts` 13건(기존 7 + 신규 6, 신규분은 위 목록대로 필터 검증 3건 + 태산/현산 데이터 정합성 3건) 전부 GREEN, `tsc --noEmit`/`npm run build` 통과. 백엔드 `SajuNameSeederTest`/`SajuNameSeederIntegrationTest`/`ApplicationMemberTest`는 데이터 파일만 바뀌었을 뿐 코드는 안 건드렸으므로 회귀 없음을 재실행으로 확인(테스트 자체는 미수정).
+- 관련: `docs/collab/TODO.md` "추천 이름 데이터와 백엔드 이름 검증 정합화" 절 — Task 2(프론트)만 이번에 완료, Task 1(백엔드 DB 보정)은 범위 축소로 미착수 상태로 명시.
+
+---
 ## 2026-09-24 — Claude — `main` (관리자 상태 전이 — 드롭다운 제거, 업무 버튼 + 자동 전이 — 백엔드)
 
 - 변경: 사용자가 "제작신청 관리" 화면의 범용 "상태 변경" `<select>`를 없애고 업무 버튼만 남기되, 버튼을 누르면 백엔드가 알아서 다음 상태로 전이되게 해달라고 요청 → 먼저 코드 조사만 수행(수정 없음)해 `ApplicationDetail.tsx`의 드롭다운이 실제로는 이미 이름 붙은 8개 업무 액션을 필터링해 보여주는 것뿐이고, `completeNaming()`/`startProducing()`도 이미 전원 검증 후에만 전이한다는 걸 보고했다. 이어진 대화에서 사용자가 요구사항을 여러 차례 구체화했고("작명완료되면 바로 제작 시작으로 알아서" → "이름 확정/작명완료는 같은 의미" → "버튼은 그대로 두고, 상태 전이는 버튼을 누르면 알아서 이루어지게"), 최종 확정 정책은: **버튼 자체(이름 확정/카드 생성)의 위치·동작은 바꾸지 않고**, 그 버튼을 눌러 저장한 게 "마지막 멤버"였을 경우에만 부수효과로 자동 상태 전이가 걸린다 — 마지막 멤버 이름 확정 시 `NAME_EDITING→PRODUCTION_READY`(기존 `completeNaming()` 검증 그대로 재사용), 마지막 멤버 카드 생성 시 `PRODUCTION_READY→PRODUCING`(기존 `startProducing()`/`requireCardGenerationComplete()` 검증 그대로 재사용). 기존 수동 엔드포인트(`/complete-naming`, `/start-producing`)는 삭제하지 않고 자동 전이가 안 걸렸을 때의 관리자 복구 경로로 유지한다.

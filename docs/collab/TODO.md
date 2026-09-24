@@ -54,9 +54,28 @@
 
 ---
 
-## 추천 이름 데이터와 백엔드 이름 검증 정합화 (2026-09-24 정책 확정, 구현 전)
+## 추천 이름 데이터와 백엔드 이름 검증 정합화 (2026-09-24 정책 확정 → 같은 날 범위 축소·구현 완료)
 
-상태: ⚪ 대기 — **백엔드 데이터 정합화부터 완료한 뒤 프론트 추천 필터를 적용한다.**
+상태: ✅ 완료(Claude) — **범위 축소판으로 구현·검증 완료.** 아래 "범위 축소 결정"을 먼저 볼 것.
+
+### 범위 축소 결정 (2026-09-24, 사용자 확정 — 아래 "확정 정책"·Task 1보다 우선)
+
+애초 계획(아래 "확정 정책" 7번, Task 1)은 기존 DB의 손상된 두 행까지 멱등 보정하는 것까지 포함했으나, 사용자가 다음과 같이 범위를 줄였다:
+
+- `validateNameFormat()`의 2~3자 규칙은 유지(원래 계획과 동일, 변경 없음).
+- **기존 DB 보정과 `SajuNameSeeder`의 idempotent 보정 로직은 이번 작업에서 제외** — Task 1은 수행하지 않는다. 신규 DB는 수정된 JSON으로 정상 시드되지만, 이미 700건이 들어간 기존 DB의 `태산`/`현산` 두 행은 이번엔 자동 교정되지 않는다(운영 DB 수동 확인·필요 시 추후 별도 작업 대상).
+- 추천 로직 필터는 **1글자·4글자 길이 조건만** 적용한다(원래 계획의 "hanja 코드포인트 수 일치" 조건은 필터로 넣지 않음) — `태산`/`현산`은 필터가 아니라 **JSON 데이터 자체를 직접 수정**해 해결한다(사전 전체에서 이름·한자 글자 수가 어긋나는 항목은 이 두 건이 전부였음이 이미 확인돼 있어, 고치고 나면 별도 필터가 필요 없음).
+- 프론트·백엔드 JSON 복사본은 동일하게 수정하고, 관련 테스트만 업데이트한다(새 테스트 파일이나 인프라 신설 없음).
+- 카드 렌더링이나 이름 길이 정책(`docs/specs/application/admin-saju.md`의 "전체 한글 이름 최대 5글자")은 변경하지 않는다.
+
+### 실제 구현 내용 (범위 축소판)
+
+- `frontend/src/data/sajuNames.json` + `backend/honor-citizen/src/main/resources/seed/saju-names.json`: `태산`(`兌示산`→`兌祘`, reading도 함께 수정)·`현산`(`鉉示산`→`鉉祘`, reading도 함께 수정) 두 항목만 정확히 치환(Node 스크립트로 두 파일에 동일 diff 적용, 수정 후 SHA-256 재일치 확인). 700건 유지, 그 외 데이터는 바이트 단위로 안 건드림.
+- `frontend/src/lib/namingRecommendations.ts`: `recommendNames()`에 `isRecommendable()`(이름 Unicode 코드포인트 길이가 2 또는 3) 필터를 점수 계산 전에 추가. 사전 index(원본 위치)는 필터 전에 미리 캡처해 동점 시 정렬 기준(§1.19 결정성)이 그대로 유지되도록 함.
+- `frontend/e2e/naming-determinism.spec.ts`(순수 로직 테스트, 브라우저·백엔드 불필요): 신규 6건 — 1·4글자 이름이 어떤 오행 입력에서도 추천되지 않음, `recommendNames(saju, 700)`이 정확히 682건, 기본 호출은 여전히 5건, `태산`/`현산`의 수정된 hanja·reading 값 확인 2건, 사전 전체에 이름·한자 글자 수 불일치가 더 이상 없음을 확인하는 회귀 가드 1건.
+- 백엔드는 코드 변경 없음(위 범위 축소 결정대로 시더·DB 보정 로직 미착수) — 기존 `SajuNameSeederTest`/`SajuNameSeederIntegrationTest`/`ApplicationMemberTest`는 JSON 데이터 수정 후에도 그대로 GREEN임을 재실행으로 확인만 함(테스트 자체는 수정 안 함).
+
+### (참고, 미착수) 원래 확정 정책 — 범위 축소로 Task 1은 수행하지 않음
 
 ### 배경 및 확인 결과
 
@@ -84,38 +103,34 @@
 7. 기존 DB는 전체 삭제·재시드하지 않는다. 기존 PK나 향후 참조 가능성을 보존하기 위해 `태산/兌示산`, `현산/鉉示산` 두 행만 **멱등적인 표적 보정**으로 갱신한다. 이미 올바른 값이면 아무 작업도 하지 않고, 재기동해도 행 수나 중복이 늘어나면 안 된다.
 8. 별도 이름 상태, 신규 테이블, DB 스키마 변경, 추천 API 신설은 이번 범위가 아니다.
 
-### Task 1 — Backend 데이터 원본 및 기존 DB 정합화 (먼저 수행)
+### Task 1 — Backend 데이터 원본 및 기존 DB 정합화 — ⛔ 이번 범위에서 제외(2026-09-24 사용자 확정)
+
+아래는 원래 계획이며 이번엔 수행하지 않았다. 나중에 기존 운영 DB의 `태산`/`현산` 두 행까지 교정이 필요해지면 이 목록을 그대로 재사용할 수 있다.
 
 - [ ] 정책에 맞는 테스트를 먼저 작성하고 현재 데이터에서 의도대로 실패하는지 확인한다.
-- [ ] 백엔드 시드 리소스 `seed/saju-names.json`의 `태산`·`현산` 한자와 reading을 위 확정값으로 수정한다. 1글자·4글자 18건은 삭제하지 않는다.
 - [ ] `SajuNameSeeder`에 기존 DB의 손상된 두 행만 고치는 멱등 보정 경로를 추가한다. 전체 `deleteAll()`·전체 재시드·ID 재생성은 금지한다.
 - [ ] 보정 조회는 `name + 기존 손상 hanja`처럼 대상을 정확히 한정한다. 같은 한글 이름의 다른 정상 한자 조합을 덮어쓰지 않는다.
-- [ ] 신규 DB에서는 수정된 JSON 700건이 그대로 시드되고 `태산=兌祘`, `현산=鉉祘`으로 저장되는지 검증한다.
 - [ ] 기존 DB를 모사해 손상 행을 준비한 뒤 시더/보정 로직을 실행하면 두 행만 수정되는지 검증한다.
 - [ ] 보정 로직을 두 번 실행해도 총 행 수가 700으로 유지되고 중복 행이 생기지 않는지 검증한다.
-- [ ] 기존 `SajuNameSeederTest`, `SajuNameSeederIntegrationTest`를 먼저 재사용하고 실제 검증 공백만 최소 보강한다. 1글자 이름 파싱 테스트는 사전 보존 정책상 삭제하지 않는다.
-- [ ] `ApplicationMember` 이름 저장 검증 테스트를 변경하지 않는다. 백엔드가 1글자·4글자 이름을 거절하는 기존 계약이 계속 유지되는지만 관련 기존 테스트로 확인한다.
-- [ ] API·DTO·Entity 스키마·Application 상태 전이 변경이 없는지 `git diff`로 확인한다.
+- [ ] 기존 운영 DB에서 두 손상 행이 실제로 교정됐는지 비식별 조회로 확인한다.
 
-### Task 2 — Frontend 추천 후보 필터 및 복사본 동기화 (Backend 완료 후)
+### Task 2 — Frontend 추천 후보 필터 및 복사본 동기화 — ✅ 완료(범위 축소판)
 
-정책 결정 필요 사항 없음 — 아래 계약대로 바로 구현 가능하다. UI 구성이나 API 계약은 변경하지 않고 추천 후보 데이터와 추천 계산 입력만 정합화한다.
-
-- [ ] `frontend/src/data/sajuNames.json`에도 백엔드와 동일한 `태산`·`현산` 수정값을 반영하고 두 JSON의 SHA-256 동일성을 다시 확인한다.
-- [ ] `namingRecommendations.ts`에 백엔드 검증 규칙과 동일한 추천 가능 판정 함수를 추가한다.
-- [ ] `recommendNames()`가 전체 사전을 필터링한 다음 점수화·정렬·`slice(0, limit)`하도록 변경한다.
-- [ ] `recommendNames(saju, 700)` 결과가 682건이며 모든 결과가 한글 2~3글자이고 한자 코드포인트 수가 이름과 같은지 검증한다.
-- [ ] `태산`과 `현산`이 각각 `兌祘`, `鉉祘`으로 추천 후보에 포함될 수 있고 reading도 수정됐는지 검증한다.
-- [ ] 기본 호출 결과가 항상 5건이며 중복이 없고, 동일 입력의 결과와 순서가 계속 결정적인지 기존 `naming-determinism.spec.ts`에서 검증한다.
-- [ ] 홈페이지 이름 검색용 `nameResults.json`은 별도 기능이므로 이번 작업에서 수정하지 않는다.
+- [x] `frontend/src/data/sajuNames.json`·`backend/.../seed/saju-names.json` 둘 다에 `태산`·`현산` 수정값 반영, SHA-256 동일성 재확인 완료.
+- [x] `namingRecommendations.ts`에 길이 기반(`[가-힣]{2,3}`) 추천 가능 판정 함수 `isRecommendable()` 추가(hanja 코드포인트 일치 조건은 범위 축소로 필터에 넣지 않음 — 사전 데이터 자체를 고쳐서 해결).
+- [x] `recommendNames()`가 필터링 → 점수화·정렬·`slice(0, limit)` 순서로 동작하도록 변경, 사전 index는 필터 전 원본 위치를 유지(결정성 tie-break 불변).
+- [x] `recommendNames(saju, 700)` 결과가 682건이며 모든 결과가 한글 2~3글자인지 신규 테스트로 검증(hanja 코드포인트 일치는 데이터 자체 보정으로 이미 전건 충족 — 별도 회귀 가드 테스트로 확인).
+- [x] `태산`/`현산`의 수정된 hanja·reading 값을 신규 테스트로 고정(회귀 방지).
+- [x] 기본 호출 결과가 항상 5건이며 동일 입력의 결과와 순서가 계속 결정적인지 `naming-determinism.spec.ts` 기존 테스트로 재확인(그대로 GREEN).
+- 홈페이지 이름 검색용 `nameResults.json`은 이번에도 건드리지 않음(원래 계획대로 별도 기능).
 
 ### 완료 검증 및 문서
 
-- [ ] Backend targeted tests: `SajuNameSeederTest`, `SajuNameSeederIntegrationTest`, 이름 형식 관련 `ApplicationMemberTest` 통과.
-- [ ] Frontend targeted test: `naming-determinism.spec.ts` 통과.
-- [ ] 프론트 빌드와 백엔드 compile/test의 대량 출력은 `RULES.md` §9에 따라 로그 파일로 저장하고 종료 코드·테스트 수·실패 대상만 보고한다.
-- [ ] 구현 완료 후 이 절의 체크박스/상태를 갱신하고 `docs/collab/CHANGELOG.md`에 백엔드 데이터 보정과 프론트 추천 필터를 각각 기록한다.
-- [ ] 기존 운영 DB에서 두 손상 행이 실제로 교정됐는지 비식별 조회로 확인한다. 원본 700건·추천 가능 682건·제외 18건 집계도 함께 확인한다.
+- [x] Backend targeted tests: `SajuNameSeederTest`, `SajuNameSeederIntegrationTest`, `ApplicationMemberTest` — JSON 데이터 수정 후에도 코드 변경 없이 그대로 GREEN(회귀 없음 확인만, 테스트 자체는 미수정).
+- [x] Frontend targeted test: `naming-determinism.spec.ts` — 기존 4건 + 신규 6건, 총 13건 GREEN.
+- [x] `tsc --noEmit`/`npm run build` 통과.
+- [x] `docs/collab/CHANGELOG.md`에 범위 축소 경위와 실제 구현 내용 기록.
+- 기존 운영 DB 비식별 조회 확인은 Task 1과 함께 이번 범위에서 제외(위 참고).
 
 ---
 
