@@ -5,6 +5,7 @@ export const auth: Record<string, string> = {
   "올바른 이메일 형식으로 입력해 주세요.": "Please enter a valid email address.",
   "비밀번호를 입력해 주세요.": "Please enter your password.",
   "아이디/비밀번호가 틀리거나 존재하지 않는 계정입니다.": "Incorrect email or password, or the account does not exist.",
+  "로그인 시도가 너무 많아 계정이 15분 동안 잠겼습니다. 15분 후 다시 시도해 주세요. 비밀번호가 기억나지 않으면 비밀번호 찾기를 이용해 주세요.": "Too many sign-in attempts. Your account has been locked for 15 minutes. Please try again after 15 minutes. If you don't remember your password, use password recovery.",
   "로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.": "Something went wrong while signing in. Please try again later.",
   "비밀번호": "Password",
   "로그인 중…": "Signing in…",

@@ -39,7 +39,9 @@ export function LoginPage() {
       navigate(dest, { replace: true });
     } catch (err) {
       // 실패 시 mock 로그인/이동 없이 안내 문구만 표시하고 로그인 화면에 머무른다.
-      if (err instanceof ApiError && (err.status === 401 || err.status === 400 || err.status === 404)) {
+      if (err instanceof ApiError && err.code === "ACCOUNT_LOCKED") {
+        setFormError("로그인 시도가 너무 많아 계정이 15분 동안 잠겼습니다. 15분 후 다시 시도해 주세요. 비밀번호가 기억나지 않으면 비밀번호 찾기를 이용해 주세요.");
+      } else if (err instanceof ApiError && (err.status === 401 || err.status === 400 || err.status === 404)) {
         setFormError("아이디/비밀번호가 틀리거나 존재하지 않는 계정입니다.");
       } else {
         setFormError("로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
