@@ -14,6 +14,16 @@
 ```
 
 ---
+## 2026-09-24 — Claude — `main` (관리자 카드 개별 다운로드 — 새 탭 대신 파일 저장, 실제 다운로드 취소 버그 발견·수정)
+
+- 변경: 사용자가 "다운로드 버튼 클릭 시 새 탭에 이미지가 열리는 대신 파일로 바로 저장되게 해달라"고 요청 → 먼저 코드 조사만 수행해(수정 없음) 현재 응답 구조를 보고했다. 핵심 발견: `GET /api/admin/applications/{id}/members/{memberId}/cards/download`는 파일 바이트를 직접 스트리밍하지 않고 **presigned S3 URL**을 JSON으로 반환하며, 실제 파일 전송은 브라우저가 S3/MinIO에 직접 요청해서 일어난다 — 우리 컨트롤러는 그 요청 자체를 보지 못하므로 "컨트롤러 응답에 `Content-Disposition: attachment`를 붙인다"는 접근은 애초에 성립하지 않았다. 대신 presigned URL 발급 시점에 S3 SDK의 `responseContentDisposition(...)`으로 오버라이드를 실어 보내는 방식으로 구현했다 — 기존 `generatePresignedUrl`(후기/공지/행사/학교카드템플릿/사용자용 카드다운로드 등 15곳 이상에서 인라인 열람용으로 재사용 중)은 전혀 건드리지 않고, 이 기능 전용 `generatePresignedDownloadUrl` 메서드를 새로 추가했다. 파일명 규칙(사용자 확정): 개인은 `{신청번호}-front/back.png`, 단체는 `{신청번호}-{이름}-{memberId}-front/back.png`(동명이인이어도 memberId로 항상 구분됨).
+- **구현 중 실제 버그 1건 발견·수정**: 계획대로 프론트를 `window.open` 대신 `<a>` 엘리먼트 클릭 방식(기존 `downloadBlob`과 같은 패턴)으로 바꿨더니, 실제 dev 컨테이너(MinIO)에 Playwright로 붙여 검증하는 과정에서 앞면 다운로드가 계속 빠지는 걸 발견했다. 네트워크 요청은 앞·뒤 둘 다 정상적으로 나가는데, 브라우저의 `download` 이벤트는 뒷면 것 하나만 발생 — 같은 실행 틱에서 두 번째 `<a>` 클릭(다른 origin 네비게이션)이 첫 번째 네비게이션을 취소해버리는 현상이었다. 서로 다른 브라우징 컨텍스트라 겹쳐 호출해도 취소되지 않는 숨긴 `<iframe>` 방식으로 바꿔 해결했다. 이 문제는 순수 코드 리뷰나 `tsc`/`build`로는 절대 못 잡았을 것 — 실제 브라우저 + 실제 오브젝트 스토리지로 검증했기 때문에 발견됨.
+- 파일: (백엔드 신규) 없음(기존 파일 확장) / (백엔드 수정) `StorageService.java`(`generatePresignedDownloadUrl` 추가), `S3StorageService.java`(구현, RFC 6266 파일명 인코딩), `ApplicationService.java`(`getAdminMemberCardDownload`가 `Application` 추가 조회 후 파일명 생성), `ApplicationServiceAdminCardDownloadTest.java`(파일명 규칙 신규 테스트 4건 + 기존 테스트 stub 갱신) — 커밋 `98f3664` / (프론트 수정) `applicationUtils.ts`(`triggerRemoteDownload`를 iframe 방식으로), `CardProductionPanel.tsx`(`downloadMember()`가 새 헬퍼 사용) — 커밋 `ee2f480` / (문서) `docs/collab/TODO.md`(체크리스트 완료 표시, 발견한 버그 기록)
+- 사유: 사용자가 "조사한 최소 구현안대로 진행해줘"로 승인한 설계를 그대로 구현. 사용자가 명시적으로 "수정 후 실제 브라우저에서... 검증해줘"라고 요구했고, 그 라이브 검증 과정에서 계획에 없던 실제 버그를 발견해 같이 고쳤다.
+- 테스트: 백엔드 신규 4건 + 회귀 12건(기존 테스트 stub만 새 메서드로 갱신, 로직 변경 없음) 전부 GREEN, 전체 회귀 1018개 중 1017개 통과(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건, 이 세션에서 반복 확인된 기존 이슈). 프론트 `tsc --noEmit`/`npm run build` 통과. dev 컨테이너를 재빌드해 실제 MinIO 오브젝트로 Playwright 라이브 검증: ① 개인 신청(`APP-2026-000001`) 앞·뒤 PNG가 실제 파일로 저장됨(`download` 이벤트 2건, 파일명 정확), ② 서로 다른 두 단체 신청 멤버(`APP-2026-000011`/`APP-2026-000012`)를 각각 다운로드해도 파일명이 겹치지 않음(같은 그룹·동명이인 케이스는 유닛 테스트로 정밀 검증) ③ 매 케이스마다 새 탭 0건(`context.on("page")` 리스너로 확인).
+- 관련: `docs/collab/TODO.md` "관리자 카드 개별 다운로드 — 새 탭 대신 파일로 저장" 절
+
+---
 ## 2026-09-24 — Claude — `main` (작명 업무 진행중/완료/캔슬 조회 — 프론트엔드)
 
 - 변경: 백엔드 완료(아래 항목) 후 사용자 승인("더 정해야할 정책없으면 진행해도돼")을 받아 프론트를 구현했다. `ApplicationsSection.tsx`에 "작명 업무: 진행중/완료/캔슬" 필터 버튼 3개를 추가 — 기존 개인/단체 탭(밑줄 스타일)과는 다른 축·다른 모양(버튼 묶음)으로 둬서 두 필터가 별개임을 시각적으로 구분했다. 새 필터는 서버 파라미터(`namingProgress`) 기반으로 동작하도록 만들었다 — 기존 개인/단체 탭이 서버 필터 없이 페이지당 50건을 받아와 클라이언트에서 `.filter()`로 나누는(코드 주석에 이미 한계로 명시된) 방식이라, 새 필터를 같은 방식으로 만들면 같은 부정확성을 물려받는다는 걸 조사 단계에서 이미 확인해뒀던 것을 그대로 반영했다. 기본값은 "진행중"(관리자가 매일 처리할 건이 먼저 보이도록). 단체 신청 목록에는 "작명 진행률" 컬럼을 추가해 `completedMemberCount/totalQuantity`(예: `18/30`)를 보여준다 — 개인 신청은 기존 상태 배지로 이미 완료 여부가 보이므로 컬럼을 따로 안 만들었다.

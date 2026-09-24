@@ -9,9 +9,9 @@
 
 ---
 
-## 관리자 카드 개별 다운로드 — 새 탭 대신 파일로 저장 (2026-09-24 정책 확정, 구현 중)
+## 관리자 카드 개별 다운로드 — 새 탭 대신 파일로 저장 (2026-09-24 정책 확정, 구현 완료)
 
-상태: 🔵 진행중(Claude). 정책·설계 확정.
+상태: ✅ 완료(Claude, 백엔드+프론트).
 
 ### 배경 — 조사 결과 요약
 
@@ -35,30 +35,26 @@
 
 ### Backend
 
-- [ ] `StorageService`에 `generatePresignedDownloadUrl(String key, long expirySeconds, String downloadFileName)` 추가 — 기존 `generatePresignedUrl`은 시그니처·동작 그대로 유지.
-- [ ] `S3StorageService`에 구현 — `GetObjectRequest.responseContentDisposition(...)`으로 `attachment; filename="..."` 지정(한글 파일명 포함 가능성 고려, RFC 5987 `filename*=UTF-8''...` 병기).
-- [ ] `ApplicationService.getAdminMemberCardDownload`에서 `Application` 엔티티를 추가 조회(현재는 `applicationId` 일치만 검증하고 엔티티 자체는 안 가져옴)해 `applicationNumber`/`applicationType` 확보, 위 파일명 규칙대로 파일명을 만들어 새 메서드 호출로 교체.
-- [ ] 기존 `AdminMemberCardDownloadResponse`/컨트롤러는 변경하지 않는다(회귀 확인용으로 기존 테스트 그대로 통과해야 함).
-- [ ] 신규 테스트: 개인 신청 파일명 규칙, 단체 신청 파일명 규칙(멤버 이름·ID 포함, 충돌 없음), 기존 `generatePresignedUrl` 호출부(후기/공지/행사/학교카드템플릿/사용자용 카드다운로드)가 전혀 영향받지 않는지.
+- [x] `StorageService`에 `generatePresignedDownloadUrl(String key, long expirySeconds, String downloadFileName)` 추가 — 기존 `generatePresignedUrl`은 시그니처·동작 그대로 유지.
+- [x] `S3StorageService`에 구현 — `GetObjectRequest.responseContentDisposition(...)`으로 `attachment; filename="..."` 지정, RFC 6266 `filename*=UTF-8''...` 병기(한글 파일명 대응).
+- [x] `ApplicationService.getAdminMemberCardDownload`에서 `Application` 엔티티를 추가 조회해 `applicationNumber`/`applicationType` 확보, 파일명 규칙대로 파일명을 만들어 새 메서드 호출로 교체.
+- [x] 기존 `AdminMemberCardDownloadResponse`/컨트롤러는 변경하지 않음(필드명·형태 그대로, 값만 바뀜).
+- [x] 신규 테스트 4건(`ApplicationServiceAdminCardDownloadTest`): 개인 신청 파일명 규칙, 단체 신청 파일명 규칙(이름+memberId), 이름 없을 때 memberId만으로 폴백, 같은 그룹 내 동명이인이어도 memberId로 파일명 충돌 안 남 — `ArgumentCaptor`로 실제 전달된 파일명을 정확히 검증.
 
 ### Frontend
 
-- [ ] `CardProductionPanel.tsx`의 `downloadMember()`를 `window.open` 2회 대신 숨긴 `<a>` 클릭 방식으로 교체(새 탭 미생성).
+- [x] `CardProductionPanel.tsx`의 `downloadMember()`를 `window.open` 2회 대신 숨긴 iframe 트리거 방식으로 교체(새 탭 미생성). **`<a>` 클릭 방식이 아니라 iframe을 쓴 이유는 구현 중 발견한 버그 참고.**
 
-### 구현 순서와 검증
+### 구현 중 발견한 버그 1건
 
-1. 위 계약에 맞는 실패 테스트를 먼저 작성하고 현재 구현에서 실패하는지 확인한다.
-2. `StorageService`/`S3StorageService` → `ApplicationService` 순으로 최소 구현한다.
-3. 백엔드 테스트 통과 후 프론트 `downloadMember()`를 교체한다.
-4. dev 컨테이너를 재빌드해 실제 브라우저(Playwright)로 다음을 확인한다: ① 개인 카드 앞/뒤 PNG가 파일로 저장되는지, ② 단체 멤버 여러 명을 다운로드했을 때 파일명이 서로 겹치지 않는지, ③ 새 탭이 열리지 않는지.
-5. 완료 후 이 절과 진행 보드 상태를 갱신하고 `CHANGELOG.md`에 구현·테스트 결과를 남긴다.
+당초 계획대로 `<a>` 엘리먼트를 만들어 클릭 후 바로 제거하는 방식(기존 `downloadBlob`과 같은 패턴)으로 앞·뒤 2개 파일을 연달아 호출했더니, **실제 MinIO 요청은 둘 다 나가는데 브라우저가 "download" 이벤트로 완결짓는 건 두 번째(뒷면) 것 하나뿐**이었다 — 같은 틱에서 두 번째 `<a>` 클릭(다른 origin으로의 네비게이션)이 첫 번째 네비게이션을 취소해버리는 현상. Playwright로 실제 dev 컨테이너(MinIO)에 붙여 네트워크 요청과 `download` 이벤트를 직접 관찰해서 잡았다(요청은 2건 나가는데 이벤트는 1건만 → 정황 확인). 숨긴 `<iframe>`(서로 다른 브라우징 컨텍스트라 겹쳐 호출해도 서로 취소하지 않음)으로 바꿔서 해결 — 재검증까지 완료.
 
 ### 완료 검증
 
-- [ ] 개인 신청 카드 다운로드 클릭 시 `{applicationNumber}-front.png`/`-back.png` 파일이 저장된다.
-- [ ] 단체 신청 여러 멤버를 각각 다운로드해도 파일명이 겹치지 않는다.
-- [ ] 다운로드 클릭 시 새 탭이 열리지 않는다.
-- [ ] 전체 ZIP 다운로드와 다른 presigned URL 사용처(후기/공지/행사/학교카드템플릿/사용자용 카드다운로드)는 기존과 동일하게 동작한다.
+- [x] 개인 신청 카드 다운로드 클릭 시 `{applicationNumber}-front.png`/`-back.png` 파일이 저장된다. (`APP-2026-000001`, 실제 MinIO, Playwright `download` 이벤트로 확인)
+- [x] 단체 신청 여러 멤버를 각각 다운로드해도 파일명이 겹치지 않는다. (`APP-2026-000011`(김성노)·`APP-2026-000012`(한산호) 각각 실제 다운로드로 확인 + 같은 그룹·동명이인 케이스는 유닛 테스트로 정밀 검증)
+- [x] 다운로드 클릭 시 새 탭이 열리지 않는다. (Playwright `context.on("page")` 리스너로 매 케이스마다 0건 확인)
+- [x] 전체 ZIP 다운로드와 다른 presigned URL 사용처(후기/공지/행사/학교카드템플릿/사용자용 카드다운로드)는 손대지 않음 — `generatePresignedUrl` 시그니처·호출부 전부 그대로.
 
 ---
 
@@ -388,7 +384,7 @@ npm run build
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
-| 🔵 | 관리자 카드 개별 다운로드 — 새 탭 대신 파일 저장 | Claude | `main` | 본 문서 "관리자 카드 개별 다운로드 — 새 탭 대신 파일로 저장" 절 | 정책·설계 확정(presigned URL response-content-disposition 오버라이드, 기존 generatePresignedUrl 불변), 구현 미착수 |
+| ✅ | 관리자 카드 개별 다운로드 — 새 탭 대신 파일 저장 | Claude | `main` | 본 문서 "관리자 카드 개별 다운로드 — 새 탭 대신 파일로 저장" 절 | 백엔드·프론트 모두 완료, GREEN. 구현 중 실제 다운로드 취소 버그 발견·수정(iframe 방식으로 전환) |
 | ✅ | 작명 업무 진행중/완료/캔슬 조회 | Claude | `main` | 본 문서 "작명 업무 진행중/완료/캔슬 조회" 절 | 백엔드·프론트 모두 완료, GREEN |
 | ✅ | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 백엔드·프론트 모두 완료, GREEN. 모바일 touch 자동 검증만 headless 환경 한계로 미완료(실기기 QA 권장) |
 | ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
