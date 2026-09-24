@@ -9,9 +9,9 @@
 
 ---
 
-## 관리자 상태 전이 — 드롭다운 제거, 업무 버튼 + 자동 전이 (2026-09-24 정책 확정, 백엔드 구현 중)
+## 관리자 상태 전이 — 드롭다운 제거, 업무 버튼 + 자동 전이 (2026-09-24 정책 확정, 백엔드 구현 완료)
 
-상태: 🔵 진행중(Claude, 백엔드부터). 정책 확정.
+상태: 🔵 진행중(Claude) — **백엔드 구현·테스트 완료, 문서 반영 중**. 프론트는 아직 착수 전.
 
 ### 배경 — 조사 결과 요약
 
@@ -32,15 +32,18 @@
 - 나머지 상태 전이(입금확인/검토시작/작명승인/사진반려/카드발급완료/배송발송)는 지금처럼 관리자가 명시적으로 누르는 **독립 버튼**으로 유지한다(드롭다운만 없앤다). *(검토시작·작명승인·배송발송을 버튼으로 유지할지는 명시적 확답을 못 받았으나, 별다른 이견이 없어 "그대로 유지"로 진행 — 프론트 작업 전에 다시 한 번 확인 가능)*
 - 전체 파이프라인(`SUBMITTED→REVIEWING→...→COMPLETED`) 진행 단계를 한눈에 볼 수 있는 토글/드롭다운 형태의 **읽기 전용 상태 표시기**를 별도로 추가한다(액션 버튼이 아니라 조회용).
 - Entity의 상태 전이 규칙(`ApplicationStatus.canTransitionTo`, `transitionTo`)과 기존 검증 로직 자체는 바꾸지 않는다 — 그 검증을 "언제 호출하느냐"만 바뀐다(관리자 명시적 클릭 → 마지막 멤버 저장 시점의 자동 체크).
+- **추가 확정(사용자 확인, 2026-09-24)**: `PRODUCTION_READY`로 자동 전이된 뒤에도 아직 카드가 생성되지 않은 멤버의 이름은 재확정을 허용한다. 이유 — 자동 전이 전에는 `NAME_EDITING` 상태에서 언제든 이름을 고칠 수 있었는데, 자동 잠금이 그 교정 경로를 없애버리는 회귀가 될 수 있기 때문. 반대로 그 멤버의 카드가 이미 생성된 뒤에는 여전히 거절한다(카드 이미지와 이름이 어긋나면 안 됨).
 
-### Backend
+### Backend — ✅ 구현 완료, 테스트 GREEN(타겟 테스트 + 전체 회귀 확인 완료)
 
-- [ ] `requireCardGenerationComplete(application)`을 "에러 리스트 반환" 메서드로 리팩터링하고, 기존 호출부(`startProducing`/`markCardReady`)는 그 리스트가 비어있지 않으면 throw하는 얇은 wrapper를 그대로 쓰게 해서 동작 불변을 유지한다.
-- [ ] `assignMemberName()`에서 저장 후 `validateNamingComplete(members)`가 비어있으면 `application.completeNaming()`을 호출하고 감사로그(`AdminActivityLog.NAMING_COMPLETE`, 자동 전이임을 구분할 수 있는 사유 문구)를 남긴다.
-- [ ] `CardGenerationService.generate()`(또는 그 persist 단계)에서 저장 후 새 non-throw 카드완료검증이 비어있으면 `application.startProducing()`을 호출하고 감사로그(`AdminActivityLog.PRODUCTION_START`, 자동 전이 사유 문구)를 남긴다.
-- [ ] 동시성: 마지막 멤버 저장과 다른 요청이 겹칠 가능성을 기존 `findApplicationForUpdate`(비관적 락) 패턴으로 방어할지 검토.
-- [ ] 기존 `/complete-naming`, `/start-producing` 엔드포인트·서비스 메서드·테스트는 그대로 유지(삭제하지 않음) — 회귀 테스트로 계속 동작 확인.
-- [ ] 신규 테스트: 마지막 멤버 이름 확정 시 자동 전이됨, 멤버가 남아있으면 전이 안 됨(에러도 안 남), 마지막 멤버 카드 생성 시 자동 전이됨, 카드 미완료 멤버 있으면 전이 안 됨, 자동 전이 시 감사로그가 남음, 기존 수동 엔드포인트 호출도 여전히 정상 동작(회귀).
+- [x] `requireCardGenerationComplete(application)`을 "에러 리스트 반환"(`cardGenerationErrors`) + throw wrapper로 분리. 기존 호출부(`startProducing`/`markCardReady`) 동작 불변.
+- [x] `assignMemberName()`/`applyNamingResult()` 저장 후 `autoCompleteNamingIfReady()`가 `validateNamingComplete(members)`를 재확인해 비어있으면 `application.completeNaming()` 호출 + 감사로그(`AdminActivityLog.NAMING_COMPLETE`, "마지막 구성원 이름 확정으로 자동 전이" 문구).
+- [x] `CardGenerationService.generate()`가 카드 저장 커밋 후 `ApplicationService.tryAutoStartProducing()`을 호출 — `cardGenerationErrors()`가 비어있으면 `application.startProducing()` + 감사로그(`AdminActivityLog.PRODUCTION_START`, "마지막 구성원 카드 생성으로 자동 전이" 문구). 실패는 `RuntimeException`으로 잡아 로깅만 하고 카드 생성 응답 자체는 그대로 성공 처리(자동 전이 실패해도 기존 수동 "제작 시작"으로 복구 가능).
+- [x] 동시성: `tryAutoStartProducing`은 기존 `findApplicationForUpdate`(비관적 락) 패턴 재사용.
+- [x] `assignMemberName()`의 이름-수정 가능 조건을 `requireMemberNameEditable()`로 분리 — `NAME_EDITING`은 항상 허용, `PRODUCTION_READY`는 해당 멤버 카드가 아직 미생성일 때만 허용(위 추가 확정 정책), 그 외 상태는 `INVALID_STATUS_TRANSITION`. `applyNamingResult()`의 게이트는 의도적으로 건드리지 않음(여전히 `NAME_EDITING`만).
+- [x] 기존 `/complete-naming`, `/start-producing` 엔드포인트·서비스 메서드·테스트는 그대로 유지(삭제하지 않음) — 회귀 테스트로 계속 동작 확인.
+- [x] 신규 테스트(`ApplicationServiceNameAssignTest`, `CardGenerationServiceTest`): 마지막 멤버 이름 확정 시 자동 전이됨, 단체 신청에서 멤버가 남아있으면 전이 안 됨(에러도 안 남), 마지막 멤버 카드 생성 시 자동 전이됨(개인·단체 둘 다), 카드 미완료 멤버 있으면 전이 안 됨, 자동 전이 시 감사로그가 남음, `PRODUCTION_READY`+카드 미생성 멤버는 이름 재확정 허용, `PRODUCTION_READY`+카드 생성된 멤버는 거절, 관련 없는 상태(`REVIEWING` 등)는 거절. 기존 수동 엔드포인트 호출도 여전히 정상 동작(회귀 확인).
+- 구현 중 발견한 테스트-픽스처 갭(제품 코드 버그 아님, 테스트 파일만 수정): ①`CardGenerationServiceTest`의 기존 픽스처가 `ReflectionTestUtils`로 `status=PRODUCTION_READY`만 찍고 `paymentStatus`는 세팅하지 않아 `Application.startProducing()`의 기존 결제 확인 검증에 걸림 → `paymentStatus=CONFIRMED`도 함께 세팅해 해결. ②신규 단체 테스트 픽스처가 `logoFileId`/`sealFileId`를 `null`로 만들어 `CardRenderPreparation.validateIssuerAssets()`의 기존 검증(단체 신청은 로고·직인 필수)에 걸림 → 실제 `UploadFile` 행을 만들어 ID를 전달해 해결.
 
 ### Frontend (백엔드 완료 후, 별도 확인 후 착수)
 
