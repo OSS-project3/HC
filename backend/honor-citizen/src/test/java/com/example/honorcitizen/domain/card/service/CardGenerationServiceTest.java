@@ -5,7 +5,9 @@ import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.PaymentStatus;
 import com.example.honorcitizen.common.enums.TimeAccuracy;
+import com.example.honorcitizen.common.enums.UploadFileType;
 import com.example.honorcitizen.common.enums.UserRole;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
@@ -23,6 +25,7 @@ import com.example.honorcitizen.domain.log.entity.AdminActivityLog;
 import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository;
 import com.example.honorcitizen.domain.manseryeok.entity.ManseryeokResult;
 import com.example.honorcitizen.domain.manseryeok.repository.ManseryeokResultRepository;
+import com.example.honorcitizen.domain.uploadfile.entity.UploadFile;
 import com.example.honorcitizen.domain.uploadfile.repository.UploadFileRepository;
 import com.example.honorcitizen.domain.user.entity.User;
 import com.example.honorcitizen.domain.user.repository.UserRepository;
@@ -124,6 +127,7 @@ class CardGenerationServiceTest {
         Application application = Application.createIndividual(
                 userId, "APP-2026-GEN0001", honorKoreanTypeId, IssueType.MOBILE, true, null, null);
         ReflectionTestUtils.setField(application, "status", ApplicationStatus.PRODUCTION_READY);
+        ReflectionTestUtils.setField(application, "paymentStatus", PaymentStatus.CONFIRMED);
         application.assignZodiacDesignSet(1);
         application = applicationRepository.save(application);
         applicationId = application.getId();
@@ -184,8 +188,9 @@ class CardGenerationServiceTest {
         Application savedApplication = applicationRepository.findById(applicationId).orElseThrow();
         assertThat(savedApplication.getCardDesignId()).isEqualTo(cardDesignId);
         assertThat(savedApplication.getCardIssueDate()).isEqualTo(LocalDate.now());
-        // 카드 생성 성공이 ApplicationStatus를 자동으로 바꾸지 않는다.
-        assertThat(savedApplication.getStatus()).isEqualTo(ApplicationStatus.PRODUCTION_READY);
+        // 관리자 상태 전이 자동화(2026-09-24 확정) — 이 신청은 멤버가 1명뿐이라 이 카드 생성이 곧
+        // 마지막 멤버 완료. "제작 시작" 버튼을 따로 안 눌러도 자동으로 PRODUCING까지 전이된다.
+        assertThat(savedApplication.getStatus()).isEqualTo(ApplicationStatus.PRODUCING);
 
         verify(storageService).uploadBytes(eq(response.cardFrontPath()), any(byte[].class), eq("image/png"));
         verify(storageService).uploadBytes(eq(response.cardBackPath()), any(byte[].class), eq("image/png"));
@@ -193,6 +198,11 @@ class CardGenerationServiceTest {
                 .anySatisfy(log -> {
                     assertThat(log.getActionType()).isEqualTo(AdminActivityLog.CARD_IMAGE_GENERATED);
                     assertThat(log.getTargetId()).isEqualTo(memberId);
+                });
+        assertThat(adminActivityLogRepository.findAll())
+                .anySatisfy(log -> {
+                    assertThat(log.getActionType()).isEqualTo(AdminActivityLog.PRODUCTION_START);
+                    assertThat(log.getTargetId()).isEqualTo(applicationId);
                 });
     }
 
@@ -331,6 +341,78 @@ class CardGenerationServiceTest {
         assertThatThrownBy(() -> cardGenerationService.generate(adminId, applicationId, memberId, request()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_STATUS_TRANSITION);
+    }
+
+    // --- 관리자 상태 전이 자동화(2026-09-24 확정) — 단체 신청, 멤버 전원 완료 여부에 따른 경계 ---
+
+    private ApplicationMember groupMemberReadyForGeneration(Long applicationId, String englishName, String cardNumber) {
+        ApplicationMember member = ApplicationMember.createGroupRow(applicationId, englishName,
+                LocalDate.of(1995, 2, 7), "KR", LocalTime.of(10, 0), "Seoul", Gender.MALE, null,
+                englishName + "@example.com", "010-0000-0000", "대한민국 전라북도 전주시", null, null,
+                "photos/" + englishName + ".jpg");
+        member.assignKoreanName("김", "학생", "學生", "배울 학(學) 날 생(生)", "배우고 익히며 성장한다.");
+        member.assignCardNumber(cardNumber);
+        member = applicationMemberRepository.save(member);
+        manseryeokResultRepository.save(ManseryeokResult.create(member.getId(), "hash-" + englishName, "Asia/Seoul",
+                127.0, "+09:00", Instant.parse("1995-02-07T01:00:00Z"), TimeAccuracy.EXACT,
+                "{\"year\":{\"stem\":\"갑\",\"branch\":\"술\"}}", "[]", "{}",
+                "2026b", "test-v1", LocalDateTime.now(), adminId));
+        return member;
+    }
+
+    @Test
+    void doesNotAutoTransitionWhileOtherGroupMemberStillNeedsCard() {
+        UploadFile logo = uploadFileRepository.save(UploadFile.create(
+                "logo.png", "stored-logo.png", "uploads/logo.png", UploadFileType.PHOTO, "image/png", 100));
+        UploadFile seal = uploadFileRepository.save(UploadFile.create(
+                "seal.png", "stored-seal.png", "uploads/seal.png", UploadFileType.PHOTO, "image/png", 100));
+        Application group = Application.createGroup(
+                userId, "APP-2026-GEN0002", honorKoreanTypeId, IssueType.MOBILE, true, 2,
+                logo.getId(), seal.getId(), null);
+        ReflectionTestUtils.setField(group, "status", ApplicationStatus.PRODUCTION_READY);
+        ReflectionTestUtils.setField(group, "paymentStatus", PaymentStatus.CONFIRMED);
+        group.assignZodiacDesignSet(1);
+        group = applicationRepository.save(group);
+        Long groupId = group.getId();
+        ApplicationMember first = groupMemberReadyForGeneration(groupId, "FirstMember", "ROK-11111-0001");
+        groupMemberReadyForGeneration(groupId, "SecondMember", "ROK-11111-0002"); // 카드 미생성 상태로 남겨둠.
+
+        cardGenerationService.generate(adminId, groupId, first.getId(), request());
+
+        Application reloaded = applicationRepository.findById(groupId).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(ApplicationStatus.PRODUCTION_READY);
+    }
+
+    @Test
+    void autoTransitionsToProducingWhenLastGroupMemberCardGenerated() {
+        UploadFile logo = uploadFileRepository.save(UploadFile.create(
+                "logo.png", "stored-logo.png", "uploads/logo2.png", UploadFileType.PHOTO, "image/png", 100));
+        UploadFile seal = uploadFileRepository.save(UploadFile.create(
+                "seal.png", "stored-seal.png", "uploads/seal2.png", UploadFileType.PHOTO, "image/png", 100));
+        Application group = Application.createGroup(
+                userId, "APP-2026-GEN0003", honorKoreanTypeId, IssueType.MOBILE, true, 2,
+                logo.getId(), seal.getId(), null);
+        ReflectionTestUtils.setField(group, "status", ApplicationStatus.PRODUCTION_READY);
+        ReflectionTestUtils.setField(group, "paymentStatus", PaymentStatus.CONFIRMED);
+        group.assignZodiacDesignSet(1);
+        group = applicationRepository.save(group);
+        Long groupId = group.getId();
+        ApplicationMember first = groupMemberReadyForGeneration(groupId, "FirstMember2", "ROK-22222-0001");
+        ApplicationMember second = groupMemberReadyForGeneration(groupId, "SecondMember2", "ROK-22222-0002");
+
+        cardGenerationService.generate(adminId, groupId, first.getId(), request());
+        Application afterFirst = applicationRepository.findById(groupId).orElseThrow();
+        assertThat(afterFirst.getStatus()).isEqualTo(ApplicationStatus.PRODUCTION_READY);
+
+        cardGenerationService.generate(adminId, groupId, second.getId(), request());
+
+        Application afterSecond = applicationRepository.findById(groupId).orElseThrow();
+        assertThat(afterSecond.getStatus()).isEqualTo(ApplicationStatus.PRODUCING);
+        assertThat(adminActivityLogRepository.findAll())
+                .anySatisfy(log -> {
+                    assertThat(log.getActionType()).isEqualTo(AdminActivityLog.PRODUCTION_START);
+                    assertThat(log.getTargetId()).isEqualTo(groupId);
+                });
     }
 
     @Test

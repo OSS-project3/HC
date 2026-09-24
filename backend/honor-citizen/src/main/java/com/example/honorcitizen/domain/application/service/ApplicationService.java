@@ -547,12 +547,12 @@ public class ApplicationService {
             String surname, String name, String hanja, String reading, String meaning) {
         validateAdmin(adminId);
         Application application = findApplicationForUpdate(applicationId);
-        application.requireNamingEditable();
         ApplicationMember member = applicationMemberRepository.findById(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
         if (!member.getApplicationId().equals(applicationId)) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
+        requireMemberNameEditable(application, member);
         // assignKoreanName(..., nameMeaning, nameInterpretation) — nameMeaning은 짧은 훈음(카드 뒷면
         // "한자뜻음" 위치), nameInterpretation은 긴 풀이 문단("풀이" 위치)을 기대한다. 이 메서드의
         // reading 파라미터가 짧은 훈음, meaning이 긴 풀이 문단이므로 순서를 맞춰 전달한다(기존엔
@@ -565,6 +565,8 @@ public class ApplicationService {
                 .orElseGet(() -> NameSelectionStat.create(name, safeHanja));
         stat.increment();
         nameSelectionStatRepository.save(stat);
+
+        autoCompleteNamingIfReady(adminId, application);
     }
 
     /** 이름별 선택 이력 카운트 전체 — 작명 화면의 "선택 이력 N회" 표시용. */
@@ -585,8 +587,9 @@ public class ApplicationService {
      *   (NamingResultExcelParser가 형식 오류는 이미 걸러서 BulkValidationException으로 던짐 —
      *   여기서는 매칭 단계 오류만 같은 방식으로 모아 던진다).
      * - 이미 이름이 채워진 구성원도 덮어쓴다.
-     * - Application.status는 건드리지 않는다 — NAME_EDITING→PRODUCTION_READY 전이는 관리자가
-     *   별도로 {@link #completeNaming}을 트리거할 때만 일어난다(이 API가 자동으로 상태를 바꾸지 않음).
+     * - (2026-09-24 변경) 이 엑셀 반영으로 전 구성원의 작명이 완료되면 {@link #autoCompleteNamingIfReady}가
+     *   자동으로 {@code NAME_EDITING→PRODUCTION_READY} 전이까지 수행한다 — 더 이상 관리자가 별도로
+     *   {@link #completeNaming}을 눌러야만 전이되는 게 아니다(그 수동 엔드포인트 자체는 복구용으로 남아있음).
      * - 멤버별로 신규 등록/덮어쓰기를 구분해 AdminActivityLog에 남긴다(KOREAN_NAME_REGISTER/UPDATE).
      *   completeNaming()의 NAMING_COMPLETE 로그와는 의미가 달라 중복 기록하지 않는다.
      */
@@ -637,6 +640,7 @@ public class ApplicationService {
                     isUpdate ? AdminActivityLog.KOREAN_NAME_UPDATE : AdminActivityLog.KOREAN_NAME_REGISTER,
                     applicationId, member.getEmail() + " → " + row.name()));
         }
+        autoCompleteNamingIfReady(adminId, application);
         return NamingResultApplyResponse.of(matchedTargets.size());
     }
 
@@ -716,6 +720,16 @@ public class ApplicationService {
     // Entity 상태 전이 메서드(startProducing/markCardReady)는 건드리지 않고, 그 호출 직전에 Service가
     // 먼저 전원 완료 여부를 확인해 미완성 상태로 다음 단계로 넘어가는 걸 막는다.
     private void requireCardGenerationComplete(Application application) {
+        List<ValidationErrorDetail> errors = cardGenerationErrors(application);
+        if (!errors.isEmpty()) {
+            throw new BulkValidationException(ErrorCode.CARD_GENERATION_INCOMPLETE, errors);
+        }
+    }
+
+    // 위 requireCardGenerationComplete()의 검증 로직 본체 — 관리자 상태 전이 자동화(2026-09-24,
+    // 마지막 멤버 카드 생성 시 자동 PRODUCTION_READY→PRODUCING)에서는 "실패해도 예외 없이 조용히
+    // 넘어가야" 하므로 예외를 던지지 않는 리스트-반환 형태로 분리해 두 곳에서 공유한다.
+    private List<ValidationErrorDetail> cardGenerationErrors(Application application) {
         List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(application.getId());
         List<ValidationErrorDetail> errors = new ArrayList<>();
         if (members.size() != application.getTotalQuantity()) {
@@ -735,9 +749,30 @@ public class ApplicationService {
                         "발급일자가 신청 발급일자와 다릅니다."));
             }
         }
-        if (!errors.isEmpty()) {
-            throw new BulkValidationException(ErrorCode.CARD_GENERATION_INCOMPLETE, errors);
+        return errors;
+    }
+
+    /**
+     * 관리자 상태 전이 자동화(2026-09-24 확정) — 카드 생성 버튼은 그대로 두고, 그 버튼을 눌러
+     * 마지막 구성원까지 카드가 완성되는 순간 "제작 시작" 버튼을 누른 것과 동일하게 자동으로
+     * {@code PRODUCTION_READY → PRODUCING}으로 전이시킨다. 아직 완료 안 된 구성원이 남아있으면
+     * 예외 없이 조용히 아무 일도 하지 않는다(호출부가 실패로 취급하면 안 됨 — 카드 생성 자체는
+     * 이미 성공했으므로). 기존 {@link #startProducing} 수동 엔드포인트는 그대로 유지한다(자동
+     * 전이가 어떤 이유로든 안 걸렸을 때 관리자가 수동으로 복구하는 경로).
+     */
+    @Transactional
+    public void tryAutoStartProducing(Long adminId, Long applicationId) {
+        validateAdmin(adminId);
+        Application application = findApplicationForUpdate(applicationId);
+        if (application.getStatus() != ApplicationStatus.PRODUCTION_READY) {
+            return;
         }
+        if (!cardGenerationErrors(application).isEmpty()) {
+            return;
+        }
+        application.startProducing();
+        adminActivityLogRepository.save(AdminActivityLog.create(adminId, AdminActivityLog.PRODUCTION_START,
+                applicationId, "제작 시작(마지막 구성원 카드 생성으로 자동 전이)"));
     }
 
     @Transactional
@@ -791,6 +826,49 @@ public class ApplicationService {
             }
         }
         return errors;
+    }
+
+    /**
+     * 개별 멤버 이름 확정 가능 여부(2026-09-24 확정, {@link #requireNamingEditable}보다 완화된
+     * 버전) — 마지막 멤버 이름 확정과 동시에 {@code PRODUCTION_READY}로 자동 전이되면(바로 위
+     * {@link #autoCompleteNamingIfReady}), 그 직후 "다른 추천 이름으로 다시 고르고 싶다"는
+     * 정정이 불가능해진다(PRODUCTION_READY → NAME_EDITING으로 되돌아가는 전이가 없어서). 그래서
+     * NAME_EDITING뿐 아니라 PRODUCTION_READY 상태에서도 **그 멤버의 카드가 아직 생성 전이라면**
+     * 이름을 다시 고를 수 있게 허용한다 — 카드가 이미 생성된 뒤라면(이름이 이미 이미지에 박힘)
+     * 재생성 없이 이름만 바꾸면 카드와 데이터가 어긋나므로 그때는 거절한다. 사주 엑셀 일괄 반영
+     * (applyNamingResult)은 이 완화 대상이 아니다 — 여러 멤버를 한 번에 건드리는 일괄 작업이라
+     * 기존 {@link #requireNamingEditable}(NAME_EDITING 전용) 그대로 유지한다.
+     */
+    private void requireMemberNameEditable(Application application, ApplicationMember member) {
+        if (application.getStatus() == ApplicationStatus.NAME_EDITING) {
+            return;
+        }
+        if (application.getStatus() == ApplicationStatus.PRODUCTION_READY && !member.isCardGenerated()) {
+            return;
+        }
+        throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
+    }
+
+    /**
+     * 관리자 상태 전이 자동화(2026-09-24 확정) — 이름 확정 버튼(개별)과 사주 엑셀 반영(일괄)은
+     * 그대로 두고, 그 호출로 마지막 구성원까지 작명이 완료되는 순간 "작명 완료 처리" 버튼을
+     * 누른 것과 동일하게 자동으로 {@code NAME_EDITING → PRODUCTION_READY}로 전이시킨다. 아직
+     * 완료 안 된 구성원이 남아있으면 예외 없이 조용히 아무 일도 하지 않는다(호출부가 실패로
+     * 취급하면 안 됨 — 이름 저장 자체는 이미 성공했으므로). 기존 {@link #completeNaming} 수동
+     * 엔드포인트는 그대로 유지한다(자동 전이가 어떤 이유로든 안 걸렸을 때 관리자가 수동으로
+     * 복구하는 경로).
+     */
+    private void autoCompleteNamingIfReady(Long adminId, Application application) {
+        if (application.getStatus() != ApplicationStatus.NAME_EDITING) {
+            return;
+        }
+        List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(application.getId());
+        if (!validateNamingComplete(members).isEmpty()) {
+            return;
+        }
+        application.completeNaming();
+        adminActivityLogRepository.save(AdminActivityLog.create(adminId, AdminActivityLog.NAMING_COMPLETE,
+                application.getId(), "작명 완료 처리(마지막 구성원 이름 확정으로 자동 전이)"));
     }
 
     /**

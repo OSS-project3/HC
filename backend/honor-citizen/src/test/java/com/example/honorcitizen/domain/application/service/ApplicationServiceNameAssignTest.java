@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.application.service;
 
+import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.Gender;
 import com.example.honorcitizen.common.enums.IssueType;
@@ -159,10 +160,50 @@ class ApplicationServiceNameAssignTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }
 
+    // 2026-09-24 정책 변경: 마지막 멤버 이름 확정과 동시에 PRODUCTION_READY로 자동 전이되면(관리자
+    // 상태 전이 자동화), 그 직후 "다른 추천 이름으로 다시 고르고 싶다"는 정정이 막혀버린다
+    // (PRODUCTION_READY→NAME_EDITING으로 되돌아가는 전이가 없어서). 그래서 카드가 아직 생성되기
+    // 전이라면 PRODUCTION_READY 상태에서도 이름을 다시 고를 수 있어야 한다 — requireNamingEditable
+    // (NAME_EDITING 전용)보다 완화된 requireMemberNameEditable로 이 케이스만 허용한다.
     @Test
-    void rejectsWhenApplicationIsNotInNameEditing() {
+    void allowsRenamingInProductionReadyWhenMemberCardNotYetGenerated() {
         Application application = applicationRepository.findById(applicationId).orElseThrow();
         application.completeNaming();
+        applicationRepository.save(application);
+
+        applicationService.assignMemberName(adminId, applicationId, memberId, "홍", "길동", "吉童", "뜻", null);
+
+        ApplicationMember reloaded = applicationMemberRepository.findById(memberId).orElseThrow();
+        assertThat(reloaded.getName()).isEqualTo("길동");
+        Application reloadedApplication = applicationRepository.findById(applicationId).orElseThrow();
+        assertThat(reloadedApplication.getStatus()).isEqualTo(ApplicationStatus.PRODUCTION_READY);
+    }
+
+    // 카드가 이미 생성된 뒤에는 이름만 바꾸면 이미지에 박힌 이름과 데이터가 어긋나므로(재생성 없이는),
+    // PRODUCTION_READY라도 그 멤버의 카드가 이미 생성됐으면 여전히 거절한다.
+    @Test
+    void rejectsRenamingWhenMemberCardAlreadyGenerated() {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        application.completeNaming();
+        applicationRepository.save(application);
+        ApplicationMember member = applicationMemberRepository.findById(memberId).orElseThrow();
+        member.assignCardImages("cards/front.png", "cards/back.png", LocalDate.now());
+        applicationMemberRepository.save(member);
+
+        assertThatThrownBy(() -> applicationService.assignMemberName(
+                adminId, applicationId, memberId, "홍", "길동", "吉童", "뜻", null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_STATUS_TRANSITION);
+
+        ApplicationMember reloaded = applicationMemberRepository.findById(memberId).orElseThrow();
+        assertThat(reloaded.getName()).isNull();
+    }
+
+    // REVIEWING·PRODUCING 등 NAME_EDITING/PRODUCTION_READY가 아닌 상태는 여전히 무조건 거절한다.
+    @Test
+    void rejectsWhenApplicationIsInUnrelatedStatus() {
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        ReflectionTestUtils.setField(application, "status", ApplicationStatus.REVIEWING);
         applicationRepository.save(application);
 
         assertThatThrownBy(() -> applicationService.assignMemberName(
@@ -173,6 +214,42 @@ class ApplicationServiceNameAssignTest {
         ApplicationMember reloaded = applicationMemberRepository.findById(memberId).orElseThrow();
         assertThat(reloaded.getName()).isNull();
         assertThat(nameSelectionStatRepository.findByNameAndHanja("길동", "吉童")).isEmpty();
+    }
+
+    // 관리자 상태 전이 자동화(2026-09-24 확정) — 이 신청은 멤버가 1명뿐이라 이름 확정이 곧 마지막
+    // 멤버 완료. "작명 완료 처리" 버튼을 따로 안 눌러도 자동으로 PRODUCTION_READY까지 전이된다.
+    @Test
+    void autoCompletesNamingWhenLastMemberNameConfirmed() {
+        applicationService.assignMemberName(adminId, applicationId, memberId, "홍", "길동", "吉童", "뜻", "풀이");
+
+        Application application = applicationRepository.findById(applicationId).orElseThrow();
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.PRODUCTION_READY);
+    }
+
+    // 단체 신청은 한 명만 확정해서는 자동 전이되지 않는다 — 아직 남은 멤버가 있으면 조용히
+    // NAME_EDITING을 유지한다(에러도 없음, 이름 저장 자체는 성공해야 함).
+    @Test
+    void doesNotAutoCompleteNamingWhileOtherGroupMembersStillIncomplete() {
+        Application group = Application.createGroup(
+                applicationRepository.findById(applicationId).orElseThrow().getUserId(),
+                "APP-2026-950010", cardTypeRepository.findAll().get(0).getId(), IssueType.MOBILE, true,
+                2, null, null, null);
+        group.confirmPayment();
+        group.startReview();
+        group.approveToNaming();
+        group = applicationRepository.save(group);
+        Long groupId = group.getId();
+        ApplicationMember first = applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                groupId, "First Member", LocalDate.of(1990, 1, 1), "US", null, null, Gender.MALE, null,
+                "first@example.com", "010-1111-1111", "Seoul", null, null, "photos/first.jpg"));
+        applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                groupId, "Second Member", LocalDate.of(1990, 1, 1), "US", null, null, Gender.MALE, null,
+                "second@example.com", "010-2222-2222", "Seoul", null, null, "photos/second.jpg"));
+
+        applicationService.assignMemberName(adminId, groupId, first.getId(), "홍", "길동", "吉童", "뜻", "풀이");
+
+        Application reloaded = applicationRepository.findById(groupId).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(ApplicationStatus.NAME_EDITING);
     }
 
     @Test

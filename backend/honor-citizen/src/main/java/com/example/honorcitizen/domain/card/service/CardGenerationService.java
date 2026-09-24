@@ -3,12 +3,14 @@ package com.example.honorcitizen.domain.card.service;
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.domain.application.entity.Application;
+import com.example.honorcitizen.domain.application.service.ApplicationService;
 import com.example.honorcitizen.domain.card.dto.CardGenerateResponse;
 import com.example.honorcitizen.domain.card.dto.CardPreviewRequest;
 import com.example.honorcitizen.domain.log.entity.AdminActivityLog;
 import com.example.honorcitizen.domain.log.repository.AdminActivityLogRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ import java.util.function.Predicate;
 // CardGenerationPersistenceService의 짧은 @Transactional에만 맡긴다(3-A "서비스 구조 분리").
 // FRONT/BACK은 하나의 결과 세트로 취급 — 렌더링·업로드·DB반영 중 어디서 실패해도 이번 요청에서
 // 새로 올라간 S3 key를 역순으로 보상 삭제한다.
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CardGenerationService {
@@ -36,6 +39,7 @@ public class CardGenerationService {
     private final CardGenerationPersistenceService persistenceService;
     private final StorageService storageService;
     private final AdminActivityLogRepository adminActivityLogRepository;
+    private final ApplicationService applicationService;
 
     // 동일 요청을 다시 호출해도 멱등 처리(스킵)하지 않는다 — 상태 게이트를 통과하는 한 매번
     // 새로 렌더링·업로드·재확정한다(2026-08-30 정책, "동일 요청 재호출 = 재생성").
@@ -80,6 +84,16 @@ public class CardGenerationService {
             deleteQuietly(persisted.oldFrontPath());
             deleteQuietly(persisted.oldBackPath());
         }
+
+        // 관리자 상태 전이 자동화(2026-09-24 확정) — 카드 저장은 이미 커밋됐으므로, 자동 전이
+        // 시도가 실패하더라도(동시성 등 예상 못한 이유) 이번 요청 자체는 성공으로 응답한다.
+        // 전이가 안 걸렸으면 기존 "제작 시작" 수동 엔드포인트로 관리자가 복구할 수 있다.
+        try {
+            applicationService.tryAutoStartProducing(adminId, applicationId);
+        } catch (RuntimeException e) {
+            log.warn("카드 생성 후 자동 제작 시작 전이 실패 — applicationId={}, memberId={}", applicationId, memberId, e);
+        }
+
         return new CardGenerateResponse(frontKey, backKey, request.getIssueDate());
     }
 
