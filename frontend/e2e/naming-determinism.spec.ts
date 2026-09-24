@@ -5,6 +5,7 @@ import { test, expect } from "@playwright/test";
 import { recommendNames, type SajuSnapshot } from "../src/lib/namingRecommendations";
 import { fromActiveManseryeokResult } from "../src/lib/saju";
 import type { ManseryeokActiveResult } from "../src/services/api";
+import sajuNamesRaw from "../src/data/sajuNames.json" with { type: "json" };
 
 const SAMPLE_SAJU: SajuSnapshot = {
   pillars: {
@@ -40,6 +41,64 @@ test.describe("recommendNames — 결정적 추천(§1.19)", () => {
       missing: ["목"],
     };
     expect(recommendNames(other)).toEqual(recommendNames(other));
+  });
+});
+
+// 추천 후보 필터(2026-09-24 확정) — 사전에는 1글자·4글자 이름도 보존돼 있지만(원본 삭제 안 함),
+// 백엔드 저장 검증은 2~3글자만 허용하므로 추천 후보에서만 제외한다. 필터는 점수·순위와 무관하게
+// 항상 적용돼야 하므로 여러 오행 입력으로 넓게(limit=700, 사전 전체) 확인한다.
+test.describe("recommendNames — 추천 후보 길이 필터(2026-09-24)", () => {
+  const INPUTS: SajuSnapshot[] = [
+    SAMPLE_SAJU,
+    { ...SAMPLE_SAJU, elementCounts: { 목: 0, 화: 2, 토: 2, 금: 2, 수: 2 }, missing: ["목"] },
+    { ...SAMPLE_SAJU, elementCounts: { 목: 2, 화: 0, 토: 0, 금: 3, 수: 3 }, missing: ["화", "토"] },
+  ];
+
+  test("1글자·4글자 이름은 어떤 오행 입력에서도 추천되지 않는다", () => {
+    for (const saju of INPUTS) {
+      const all = recommendNames(saju, 700);
+      for (const rec of all) {
+        const length = Array.from(rec.name).length;
+        expect(length === 2 || length === 3).toBe(true);
+      }
+    }
+  });
+
+  test("추천 가능 후보는 정확히 682건(700 - 1글자 14건 - 4글자 4건)이다", () => {
+    const all = recommendNames(SAMPLE_SAJU, 700);
+    expect(all).toHaveLength(682);
+  });
+
+  test("기본 호출은 필터 적용 후에도 항상 5건을 반환한다", () => {
+    for (const saju of INPUTS) {
+      expect(recommendNames(saju)).toHaveLength(5);
+    }
+  });
+});
+
+// 태산/현산 한자 오류 수정(2026-09-24) — 사전 원본에 한글 이름과 한자 글자 수가 어긋난 손상
+// 데이터가 있었다(예: "태산"/"兌示산" — 2글자 이름에 3글자 한자). 이미 사전에 존재하는 단독 이름
+// "산"(한자 "祘")을 근거로 "兌祘"/"鉉祘"로 바로잡았다 — 추천 가능 조건(2~3글자)과 무관하게 데이터
+// 자체의 정합성 회귀를 잡기 위한 테스트.
+test.describe("사전 데이터 — 태산/현산 한자 정합성(2026-09-24)", () => {
+  interface SajuNameJson { name: string; hanja: string; reading: string }
+  const SAJU_NAMES = sajuNamesRaw as SajuNameJson[];
+
+  test("태산의 한자는 이름과 글자 수가 같은 兌祘이다", () => {
+    const entry = SAJU_NAMES.find((n) => n.name === "태산");
+    expect(entry?.hanja).toBe("兌祘");
+    expect(entry?.reading).toBe("기쁠 태(兌) 셈 산(祘)");
+  });
+
+  test("현산의 한자는 이름과 글자 수가 같은 鉉祘이다", () => {
+    const entry = SAJU_NAMES.find((n) => n.name === "현산");
+    expect(entry?.hanja).toBe("鉉祘");
+    expect(entry?.reading).toBe("솥귀 현(鉉) 셈 산(祘)");
+  });
+
+  test("사전 전체에 이름·한자 글자 수가 어긋난 항목이 더 이상 없다", () => {
+    const mismatched = SAJU_NAMES.filter((n) => n.hanja && Array.from(n.hanja).length !== Array.from(n.name).length);
+    expect(mismatched).toEqual([]);
   });
 });
 

@@ -41,6 +41,14 @@ export interface RecommendedName {
 const GENERATES: Record<FiveElement, FiveElement> = { 목: "화", 화: "토", 토: "금", 금: "수", 수: "목" }; // 상생
 const CONTROLS: Record<FiveElement, FiveElement> = { 목: "토", 토: "수", 수: "화", 화: "금", 금: "목" }; // 상극
 
+// 추천 후보 필터(2026-09-24 확정) — 사전에는 1글자·4글자 이름도 보존돼 있지만(외자·특수 케이스),
+// 백엔드 저장 검증(ApplicationMember.validateNameFormat)은 성씨 제외 2~3글자만 허용한다. 추천했다가
+// 저장 시 거절되는 걸 막기 위해 추천 후보에서만 제외한다 — 사전 원본·백엔드 검증 자체는 바꾸지 않는다.
+function isRecommendable(entry: SajuNameEntry): boolean {
+  const length = Array.from(entry.name).length;
+  return length === 2 || length === 3;
+}
+
 // 결핍 가중치(saju 레포 recommend.py 규칙): 없음(0)=3, 약함(1)=1, 그 외 0.
 function needWeight(count: number): number {
   return count === 0 ? 3 : count === 1 ? 1 : 0;
@@ -60,10 +68,15 @@ function scoreName(entry: SajuNameEntry, counts: Record<FiveElement, number>): n
   return score;
 }
 
-// 결정적 이름 추천 — 전체 사전을 점수화해 score DESC, 동점이면 사전 index ASC로 상위 limit개.
+// 결정적 이름 추천 — 추천 불가 후보(1글자·4글자)를 먼저 제외한 뒤 점수화해 score DESC, 동점이면
+// 사전 index(원본 사전에서의 고정 위치) ASC로 상위 limit개. 필터는 점수 계산·정렬·상위 limit개
+// 절단보다 먼저 적용한다 — 상위 limit개를 먼저 뽑은 뒤 걸러내면 결과가 limit개보다 적어질 수 있다.
 // 같은 만세력 입력·같은 사전 버전이면 항상 같은 후보가 같은 순서로 반환된다(무작위 없음).
 export function recommendNames(saju: SajuSnapshot, limit = 5): RecommendedName[] {
-  const scored = SAJU_NAMES.map((n, index) => ({ n, index, score: scoreName(n, saju.elementCounts) }));
+  const scored = SAJU_NAMES
+    .map((n, index) => ({ n, index }))
+    .filter(({ n }) => isRecommendable(n))
+    .map(({ n, index }) => ({ n, index, score: scoreName(n, saju.elementCounts) }));
   scored.sort((a, b) => b.score - a.score || a.index - b.index);
   return scored.slice(0, limit).map(({ n }) => ({
     id: `${n.name}|${n.hanja}`,
