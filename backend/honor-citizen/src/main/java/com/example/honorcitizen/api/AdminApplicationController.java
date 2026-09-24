@@ -1,6 +1,7 @@
 package com.example.honorcitizen.api;
 
 import com.example.honorcitizen.common.enums.ApplicationStatus;
+import com.example.honorcitizen.common.enums.NamingProgress;
 import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.common.response.PageResponse;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
@@ -66,10 +67,12 @@ public class AdminApplicationController {
     public ResponseEntity<ApiResponse<PageResponse<MyApplicationListItemResponse>>> list(
             @AuthenticationPrincipal Long adminId,
             @RequestParam(required = false) ApplicationStatus status,
+            // 작명 업무 진행중/완료/캔슬 조회(2026-09-24) — 주어지면 status는 무시된다.
+            @RequestParam(required = false) NamingProgress namingProgress,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                applicationService.listApplicationsForAdmin(adminId, status, page, size)));
+                applicationService.listApplicationsForAdmin(adminId, status, namingProgress, page, size)));
     }
 
     @GetMapping("/{applicationId}")

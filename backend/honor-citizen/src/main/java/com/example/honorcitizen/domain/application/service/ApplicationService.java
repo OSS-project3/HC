@@ -3,6 +3,7 @@ package com.example.honorcitizen.domain.application.service;
 import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.ApplicationType;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.NamingProgress;
 import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.UploadFileType;
@@ -439,22 +440,58 @@ public class ApplicationService {
     @Transactional(readOnly = true)
     public PageResponse<MyApplicationListItemResponse> listApplicationsForAdmin(Long adminId, ApplicationStatus status,
             int page, int size) {
+        return listApplicationsForAdmin(adminId, status, null, page, size);
+    }
+
+    // namingProgress(작명 업무 진행중/완료/캔슬 조회, 2026-09-24)가 주어지면 status는 무시하고
+    // 그 분류로만 필터링한다 — 개인은 status 그대로, 단체는 status와 무관하게 멤버 전원 카드 생성
+    // 완료 여부로 판정한다(ApplicationRepository.findNamingDone/findNamingInProgress 참고).
+    // 상태 전이 로직은 전혀 건드리지 않는 순수 조회 기능이다.
+    @Transactional(readOnly = true)
+    public PageResponse<MyApplicationListItemResponse> listApplicationsForAdmin(Long adminId, ApplicationStatus status,
+            NamingProgress namingProgress, int page, int size) {
         validateAdmin(adminId);
         if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        Page<Application> applications = status == null
-                ? applicationRepository.findAll(pageable)
-                : applicationRepository.findByStatus(status, pageable);
+        Page<Application> applications = resolveApplicationsPage(status, namingProgress, pageable);
 
         Map<Long, CardType> cardTypeById = cardTypeRepository
                 .findAllById(applications.getContent().stream().map(Application::getCardTypeId).collect(Collectors.toSet()))
                 .stream().collect(Collectors.toMap(CardType::getId, Function.identity()));
 
-        return PageResponse.from(applications, application ->
-                MyApplicationListItemResponse.of(application, cardTypeById.get(application.getCardTypeId()).getName()));
+        List<Long> groupApplicationIds = applications.getContent().stream()
+                .filter(application -> application.getApplicationType() == ApplicationType.GROUP)
+                .map(Application::getId)
+                .toList();
+        Map<Long, Integer> completedMemberCountByApplicationId = groupApplicationIds.isEmpty()
+                ? Map.of()
+                : applicationMemberRepository.countCompletedMembersByApplicationIds(groupApplicationIds).stream()
+                        .collect(Collectors.toMap(row -> (Long) row[0], row -> ((Long) row[1]).intValue()));
+
+        return PageResponse.from(applications, application -> MyApplicationListItemResponse.of(
+                application, cardTypeById.get(application.getCardTypeId()).getName(),
+                application.getApplicationType() == ApplicationType.GROUP
+                        ? completedMemberCountByApplicationId.getOrDefault(application.getId(), 0)
+                        : null));
+    }
+
+    private Page<Application> resolveApplicationsPage(ApplicationStatus status, NamingProgress namingProgress,
+            Pageable pageable) {
+        if (namingProgress != null) {
+            return switch (namingProgress) {
+                case CANCELLED -> applicationRepository.findByStatus(ApplicationStatus.CANCELLED, pageable);
+                case DONE -> applicationRepository.findNamingDone(ApplicationType.INDIVIDUAL, ApplicationType.GROUP,
+                        ApplicationStatus.COMPLETED, ApplicationStatus.CANCELLED, pageable);
+                case IN_PROGRESS -> applicationRepository.findNamingInProgress(ApplicationType.INDIVIDUAL,
+                        ApplicationType.GROUP, ApplicationStatus.COMPLETED, ApplicationStatus.CANCELLED, pageable);
+            };
+        }
+        return status == null
+                ? applicationRepository.findAll(pageable)
+                : applicationRepository.findByStatus(status, pageable);
     }
 
     /** 관리자 신청 상세 — 소유권 체크 없이 어떤 신청이든 조회 가능. 나머지는 getMyApplicationDetail과 동일. */

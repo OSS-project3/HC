@@ -130,6 +130,54 @@ class AdminApplicationControllerTest {
                 .andExpect(status().isForbidden());
     }
 
+    // 작명 업무 진행중/완료/캔슬 조회(2026-09-24) — HTTP 배선만 검증(분류 판정 로직 자체는
+    // ApplicationNamingProgressListTest에서 이미 커버). setUp의 otherUsersApplication은
+    // SUBMITTED라 IN_PROGRESS에 속한다.
+    @Test
+    void listFiltersByNamingProgressInProgress() throws Exception {
+        mockMvc.perform(get("/api/admin/applications")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .param("namingProgress", "IN_PROGRESS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].applicationId").value(otherUsersApplication.getId()));
+    }
+
+    @Test
+    void listFiltersByNamingProgressDoneExcludesInProgressApplication() throws Exception {
+        mockMvc.perform(get("/api/admin/applications")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .param("namingProgress", "DONE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
+    @Test
+    void listExposesCompletedMemberCountForGroupApplication() throws Exception {
+        Application group = applicationRepository.save(Application.createGroup(
+                otherUsersApplication.getUserId(), "APP-2026-910100", cardType.getId(),
+                IssueType.MOBILE, true, 2, null, null, null));
+        ApplicationMember done = ApplicationMember.createIndividual(group.getId(), "Member One",
+                LocalDate.of(1990, 1, 1), "KR", null, null, Gender.MALE, null, null, null, "photos/b.jpg");
+        var frontField = ApplicationMember.class.getDeclaredField("cardFrontPath");
+        frontField.setAccessible(true);
+        frontField.set(done, "cards/front.png");
+        var backField = ApplicationMember.class.getDeclaredField("cardBackPath");
+        backField.setAccessible(true);
+        backField.set(done, "cards/back.png");
+        applicationMemberRepository.save(done);
+        applicationMemberRepository.save(ApplicationMember.createIndividual(group.getId(), "Member Two",
+                LocalDate.of(1990, 1, 1), "KR", null, null, Gender.MALE, null, null, null, "photos/c.jpg"));
+
+        mockMvc.perform(get("/api/admin/applications")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .param("namingProgress", "IN_PROGRESS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].applicationId").value(group.getId()))
+                .andExpect(jsonPath("$.data.content[0].completedMemberCount").value(1))
+                .andExpect(jsonPath("$.data.content[0].totalQuantity").value(2));
+    }
+
     @Test
     void listWithInvalidSizeReturnsBadRequest() throws Exception {
         mockMvc.perform(get("/api/admin/applications")
