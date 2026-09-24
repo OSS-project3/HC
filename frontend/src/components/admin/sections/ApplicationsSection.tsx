@@ -3,7 +3,8 @@ import {
   api,
   ApiError,
   type AdminApplicationListItem,
-  type ApplicationType
+  type ApplicationType,
+  type NamingProgress
 } from "../../../services/api";
 import { showToast } from "../../ui/toast";
 import { AdminPager } from "../AdminPager";
@@ -11,10 +12,18 @@ import { AdminPager } from "../AdminPager";
 import { ApplicationDetail } from "../applications/ApplicationDetail";
 import { NamingCard } from "../applications/NamingCard";
 import { downloadApplicationsExcel, statusLabels } from "../applications/applicationUtils";
+const NAMING_PROGRESS_LABELS: Record<NamingProgress, string> = {
+  IN_PROGRESS: "진행중", DONE: "완료", CANCELLED: "캔슬",
+};
+
 export function ApplicationsSection() {
   const [tab, setTab] = useState<ApplicationType>("INDIVIDUAL");
+  // 작명 업무 진행중/완료/캔슬 조회(2026-09-24 확정) — 개인/단체 탭과 독립된 축. 기본은 진행중
+  // (관리자가 매일 처리해야 할 건이 가장 먼저 보이도록).
+  const [namingProgress, setNamingProgress] = useState<NamingProgress>("IN_PROGRESS");
   const [all, setAll] = useState<AdminApplicationListItem[]>([]);
   // 서버 페이지네이션(§1.20) — 목록 API에 신청유형 필터가 없어 페이지 안에서 탭(개인/단체)으로 나눠 보여준다.
+  // namingProgress는 서버 파라미터라 여기서 다시 나눌 필요 없음(개인/단체 탭과 달리 정확하다).
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
@@ -28,7 +37,7 @@ export function ApplicationsSection() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.listAdminApplications({ page, size: 50 });
+      const result = await api.listAdminApplications({ page, size: 50, namingProgress });
       setAll(result.content);
       setTotalPages(Math.max(1, result.totalPages));
       setTotalElements(result.totalElements);
@@ -37,12 +46,17 @@ export function ApplicationsSection() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, namingProgress]);
 
   useEffect(() => { void load(); }, [load]);
 
   const rows = useMemo(() => all.filter((a) => a.applicationType === tab), [all, tab]);
+  // 6개 공통 컬럼(신청번호/카드종류/수량/상태/결제/접수일) + 개인은 체크박스, 단체는 작명 진행률 1개.
+  const columnCount = 7;
   const switchTab = (next: ApplicationType) => { setTab(next); setOpenId(null); setSelected(new Set()); };
+  const switchNamingProgress = (next: NamingProgress) => {
+    setNamingProgress(next); setPage(0); setOpenId(null); setSelected(new Set());
+  };
   const changePage = (next: number) => { setPage(next); setOpenId(null); setSelected(new Set()); };
 
   const toggleSelect = (id: number) => {
@@ -97,6 +111,20 @@ export function ApplicationsSection() {
         <span className="admin__muted">전체 {totalElements}건 · 탭 숫자는 현재 페이지 기준</span>
       </div>
 
+      <div className="admin-naming-progress">
+        <span className="admin__muted">작명 업무:</span>
+        {(Object.keys(NAMING_PROGRESS_LABELS) as NamingProgress[]).map((stage) => (
+          <button
+            key={stage}
+            type="button"
+            className={`admin__btn${namingProgress === stage ? " admin__btn--chosen" : ""}`}
+            onClick={() => switchNamingProgress(stage)}
+          >
+            {NAMING_PROGRESS_LABELS[stage]}
+          </button>
+        ))}
+      </div>
+
       <div className="admin-panel__toolbar">
         <p className="admin__muted">
           {tab === "INDIVIDUAL" ? "행을 펼쳐 만세력·추천 이름을 확인하고 이름을 확정합니다. 여러 건을 선택해 한 엑셀로 내보낼 수 있습니다." : "행을 펼쳐 엑셀 내보내기·작명 결과 업로드를 신청 단위로 진행합니다(단체는 원본 서식 보존을 위해 1건씩)."}
@@ -124,6 +152,7 @@ export function ApplicationsSection() {
                   </th>
                 )}
                 <th>신청번호</th><th>카드 종류</th><th>수량</th><th>상태</th><th>결제</th><th>접수일</th>
+                {tab === "GROUP" && <th>작명 진행률</th>}
               </tr>
             </thead>
             <tbody>
@@ -143,15 +172,16 @@ export function ApplicationsSection() {
                     <td><span className="admin__badge">{statusLabels[a.status]}</span></td>
                     <td>{a.paymentStatus === "CONFIRMED" ? "완료" : "대기"}</td>
                     <td>{new Date(a.createdAt).toLocaleDateString("ko-KR")}</td>
+                    {tab === "GROUP" && <td>{a.completedMemberCount ?? 0}/{a.totalQuantity}</td>}
                   </tr>
                   {openId === a.applicationId && (
                     <tr className="admin__detail-row">
-                      <td colSpan={tab === "INDIVIDUAL" ? 7 : 6}><ApplicationDetail app={a} onChanged={load} /></td>
+                      <td colSpan={columnCount}><ApplicationDetail app={a} onChanged={load} /></td>
                     </tr>
                   )}
                 </Fragment>
               ))}
-              {rows.length === 0 && <tr><td className="admin__empty" colSpan={tab === "INDIVIDUAL" ? 7 : 6}>{tab === "INDIVIDUAL" ? "개인" : "단체"} 신청 내역이 없습니다.</td></tr>}
+              {rows.length === 0 && <tr><td className="admin__empty" colSpan={columnCount}>{tab === "INDIVIDUAL" ? "개인" : "단체"} 신청 내역이 없습니다.</td></tr>}
             </tbody>
           </table>
         </div>

@@ -132,6 +132,10 @@
   background: var(--color-surface-soft); color: var(--color-text-secondary);
 }
 
+/* 작명 업무 진행중/완료/캔슬 필터(2026-09-24) — 개인/단체 탭(.admin-tabs, 밑줄 스타일)과는
+   다른 축이라 일부러 다른 모양(alt 버튼 묶음)을 쓴다. */
+.admin-naming-progress { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+
 /* ── Table ───────────────────────────────────────────── */
 .admin__table-wrap { overflow-x: auto; border: 1px solid var(--color-border-soft); border-radius: 8px; }
 .admin__table { width: 100%; border-collapse: collapse; font-size: 14px; }

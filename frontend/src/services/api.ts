@@ -141,10 +141,15 @@ export type ApplicationStatus =
   | "PRODUCTION_READY" | "PRODUCING" | "COMPLETED" | "CANCELLED";
 export type PaymentStatus = "WAITING" | "CONFIRMED";
 export type IssueType = "MOBILE" | "MOBILE_AND_PHYSICAL";
+// 작명 업무 진행중/완료/캔슬 조회(2026-09-24 확정) — 개인은 status로, 단체는 status와 무관하게
+// 멤버 전원 카드 생성 완료 여부로 DONE을 판정한다. 상세는 docs/api/admin.md 참고.
+export type NamingProgress = "IN_PROGRESS" | "DONE" | "CANCELLED";
 export interface AdminApplicationListItem {
   applicationId: number; applicationNumber: string; applicationType: ApplicationType;
   cardTypeId: number; cardTypeName: string; totalQuantity: number;
   status: ApplicationStatus; paymentStatus: PaymentStatus; createdAt: string;
+  // 단체 신청에서만 채워진다(카드 앞·뒷면이 모두 생성된 멤버 수) — 개인은 항상 undefined.
+  completedMemberCount?: number;
 }
 export interface AdminApplicantSummary { name: string; email: string; phone: string; organizationName?: string; department?: string; }
 export interface AdminReceiverSummary { name: string; phone: string; zipCode?: string; address?: string; detailAddress?: string; deliveryRequest?: string; organizationName?: string; department?: string; }
@@ -277,7 +282,7 @@ export const api = {
   listEvents: (params: { type: EventType; page?: number; size?: number }) => request<PageResponse<EventListItem>>(`/api/events${qs({ ...params })}`),
   getEvent: (id: number) => request<EventDetail>(`/api/events/${id}`),
   // Applications (admin, 제작신청 관리) — 조회(목록/상세/구성원)·이름확정·선택이력·상태전이 8종·엑셀 export·작명결과·카드번호 전부 연결됨.
-  listAdminApplications: (params: { status?: ApplicationStatus; page?: number; size?: number } = {}) => request<PageResponse<AdminApplicationListItem>>(`/api/admin/applications${qs({ ...params })}`),
+  listAdminApplications: (params: { status?: ApplicationStatus; namingProgress?: NamingProgress; page?: number; size?: number } = {}) => request<PageResponse<AdminApplicationListItem>>(`/api/admin/applications${qs({ ...params })}`),
   getAdminApplication: (id: number) => request<AdminApplicationDetail>(`/api/admin/applications/${id}`),
   getAdminApplicationMembers: (id: number) => request<AdminApplicationMember[]>(`/api/admin/applications/${id}/members`),
   // 인앱 작명 확정 — 서버에 저장(멤버 이름 반영 + 선택이력 +1). 프론트 localStorage 미사용.
