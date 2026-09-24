@@ -9,6 +9,59 @@
 
 ---
 
+## 관리자 카드 개별 다운로드 — 새 탭 대신 파일로 저장 (2026-09-24 정책 확정, 미착수)
+
+상태: ⚪ 대기. 정책·설계 확정, 구현 전.
+
+### 배경 — 조사 결과 요약
+
+`GET /api/admin/applications/{id}/members/{memberId}/cards/download`(`ApplicationService.getAdminMemberCardDownload`, `ApplicationService.java:1389-1407`)는 파일 바이트를 직접 스트리밍하지 않고 **presigned S3 URL 2개**(`cardFrontUrl`/`cardBackUrl`, `AdminMemberCardDownloadResponse`)를 JSON으로 반환한다. 프론트(`CardProductionPanel.tsx:174-186`, `downloadMember()`)는 그 URL을 `window.open(url, "_blank")`로 열어 새 탭에 이미지가 표시된다.
+
+- **핵심 제약**: 실제 파일 전송은 브라우저가 S3/MinIO에 직접 요청해서 일어난다 — 우리 Spring 컨트롤러는 그 요청 자체를 보지 못한다. 그래서 "우리 컨트롤러 응답에 `Content-Disposition: attachment`를 붙인다"는 접근은 성립하지 않는다. 인라인 열람 vs 다운로드는 **S3 오브젝트 응답 헤더**로 결정되고, presigned URL 발급 시점에 `response-content-disposition` 오버라이드를 실어 보내야 한다.
+- 이미 쓰고 있는 AWS S3 SDK v2(`S3StorageService.java`)의 `GetObjectRequest`가 `.responseContentDisposition(...)`을 네이티브로 지원한다 — MinIO(로컬 dev)도 S3 API 호환이라 동일하게 동작. 새 의존성 불필요.
+- `StorageService.generatePresignedUrl(key, expirySeconds)`는 이 기능 말고도 15곳 이상(후기/공지/행사/학교카드템플릿/사용자용 카드다운로드 등)에서 "인라인으로 보여주기" 용도로 재사용 중이다 — 이 메서드 자체를 바꾸면 그 전부가 강제 다운로드로 바뀐다. **그대로 둔다.**
+- "생성 완료된 카드만" 조건은 이미 `cardFrontPath`/`cardBackPath` null 체크(`ErrorCode.CARD_NOT_READY`)로 걸려 있어 변경 불필요.
+- 전체 ZIP 다운로드(`downloadCardsZip`/`getAdminCardsZip`)는 완전히 다른 코드 경로(백엔드가 직접 바이트 스트리밍 + 이미 `Content-Disposition: attachment` 적용)라 물리적으로 분리돼 있다 — 안 건드리면 자동으로 영향 없음.
+
+### 확정 정책
+
+- 파일명 규칙:
+  - 개인 신청: `{applicationNumber}-front.png`, `{applicationNumber}-back.png`
+  - 단체 신청: `{applicationNumber}-{memberId}-front.png`, `{applicationNumber}-{memberId}-back.png` — 가독성을 위해 멤버 이름을 함께 넣되(`{applicationNumber}-{name}-{memberId}-front.png`, 예: `APP-2026-000001-홍길동-123-front.png`), 파일명 충돌 방지를 위해 `memberId`는 항상 포함한다.
+- `StorageService.generatePresignedUrl`은 수정하지 않는다 — `generatePresignedDownloadUrl(key, expirySeconds, downloadFileName)` 신규 추가, presigned 요청에 `responseContentDisposition("attachment; filename=...")` 적용.
+- 기존 `AdminMemberCardDownloadResponse` DTO와 컨트롤러 응답 구조(필드명·형태)는 그대로 유지한다 — 값(URL)만 바뀐다.
+- 프론트는 `window.open` 대신 숨긴 `<a>` 엘리먼트 클릭 방식으로 바꿔 새 탭이 열리지 않게 한다(`applicationUtils.downloadBlob`과 같은 패턴).
+- 전체 ZIP 다운로드, 그리고 이 기능 외 다른 presigned URL 사용처(후기/공지/행사/학교카드템플릿/사용자용 카드다운로드)에는 영향을 주지 않는다.
+
+### Backend
+
+- [ ] `StorageService`에 `generatePresignedDownloadUrl(String key, long expirySeconds, String downloadFileName)` 추가 — 기존 `generatePresignedUrl`은 시그니처·동작 그대로 유지.
+- [ ] `S3StorageService`에 구현 — `GetObjectRequest.responseContentDisposition(...)`으로 `attachment; filename="..."` 지정(한글 파일명 포함 가능성 고려, RFC 5987 `filename*=UTF-8''...` 병기).
+- [ ] `ApplicationService.getAdminMemberCardDownload`에서 `Application` 엔티티를 추가 조회(현재는 `applicationId` 일치만 검증하고 엔티티 자체는 안 가져옴)해 `applicationNumber`/`applicationType` 확보, 위 파일명 규칙대로 파일명을 만들어 새 메서드 호출로 교체.
+- [ ] 기존 `AdminMemberCardDownloadResponse`/컨트롤러는 변경하지 않는다(회귀 확인용으로 기존 테스트 그대로 통과해야 함).
+- [ ] 신규 테스트: 개인 신청 파일명 규칙, 단체 신청 파일명 규칙(멤버 이름·ID 포함, 충돌 없음), 기존 `generatePresignedUrl` 호출부(후기/공지/행사/학교카드템플릿/사용자용 카드다운로드)가 전혀 영향받지 않는지.
+
+### Frontend
+
+- [ ] `CardProductionPanel.tsx`의 `downloadMember()`를 `window.open` 2회 대신 숨긴 `<a>` 클릭 방식으로 교체(새 탭 미생성).
+
+### 구현 순서와 검증
+
+1. 위 계약에 맞는 실패 테스트를 먼저 작성하고 현재 구현에서 실패하는지 확인한다.
+2. `StorageService`/`S3StorageService` → `ApplicationService` 순으로 최소 구현한다.
+3. 백엔드 테스트 통과 후 프론트 `downloadMember()`를 교체한다.
+4. dev 컨테이너를 재빌드해 실제 브라우저(Playwright)로 다음을 확인한다: ① 개인 카드 앞/뒤 PNG가 파일로 저장되는지, ② 단체 멤버 여러 명을 다운로드했을 때 파일명이 서로 겹치지 않는지, ③ 새 탭이 열리지 않는지.
+5. 완료 후 이 절과 진행 보드 상태를 갱신하고 `CHANGELOG.md`에 구현·테스트 결과를 남긴다.
+
+### 완료 검증
+
+- [ ] 개인 신청 카드 다운로드 클릭 시 `{applicationNumber}-front.png`/`-back.png` 파일이 저장된다.
+- [ ] 단체 신청 여러 멤버를 각각 다운로드해도 파일명이 겹치지 않는다.
+- [ ] 다운로드 클릭 시 새 탭이 열리지 않는다.
+- [ ] 전체 ZIP 다운로드와 다른 presigned URL 사용처(후기/공지/행사/학교카드템플릿/사용자용 카드다운로드)는 기존과 동일하게 동작한다.
+
+---
+
 ## 작명 업무 진행중/완료/캔슬 조회 (2026-09-24 정책 확정, 백엔드+프론트 구현 완료)
 
 상태: ✅ 완료(Claude, 백엔드+프론트).
@@ -335,6 +388,7 @@ npm run build
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
+| ⚪ | 관리자 카드 개별 다운로드 — 새 탭 대신 파일 저장 | 미정 | `main` | 본 문서 "관리자 카드 개별 다운로드 — 새 탭 대신 파일로 저장" 절 | 정책·설계 확정(presigned URL response-content-disposition 오버라이드, 기존 generatePresignedUrl 불변), 구현 미착수 |
 | ✅ | 작명 업무 진행중/완료/캔슬 조회 | Claude | `main` | 본 문서 "작명 업무 진행중/완료/캔슬 조회" 절 | 백엔드·프론트 모두 완료, GREEN |
 | ✅ | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 백엔드·프론트 모두 완료, GREEN. 모바일 touch 자동 검증만 headless 환경 한계로 미완료(실기기 QA 권장) |
 | ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
