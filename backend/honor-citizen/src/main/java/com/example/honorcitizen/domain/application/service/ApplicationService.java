@@ -1396,14 +1396,32 @@ public class ApplicationService {
         if (member.getCardFrontPath() == null || member.getCardBackPath() == null) {
             throw new CustomException(ErrorCode.CARD_NOT_READY);
         }
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
 
-        String cardFrontUrl = storageService.generatePresignedUrl(member.getCardFrontPath(), ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
-        String cardBackUrl = storageService.generatePresignedUrl(member.getCardBackPath(), ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+        String cardFrontUrl = storageService.generatePresignedDownloadUrl(member.getCardFrontPath(),
+                ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS, cardDownloadFileName(application, member, "front"));
+        String cardBackUrl = storageService.generatePresignedDownloadUrl(member.getCardBackPath(),
+                ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS, cardDownloadFileName(application, member, "back"));
         LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
 
         adminActivityLogRepository.save(AdminActivityLog.create(
                 adminId, AdminActivityLog.CARD_DOWNLOAD, applicationId, "관리자 카드 개별 다운로드: memberId=" + memberId));
         return new AdminMemberCardDownloadResponse(applicationId, memberId, cardFrontUrl, cardBackUrl, expiresAt);
+    }
+
+    // 관리자 카드 개별 다운로드 파일명(2026-09-24 확정) — 개인은 {신청번호}-{side}.png, 단체는
+    // {신청번호}-{이름}-{memberId}-{side}.png. memberId는 파일명 충돌 방지를 위해 단체에서 항상
+    // 포함한다(가독성용 이름은 있으면만 덧붙인다 — surname/name이 아직 없는 이례적인 경우를 대비).
+    private String cardDownloadFileName(Application application, ApplicationMember member, String side) {
+        if (application.getApplicationType() == ApplicationType.INDIVIDUAL) {
+            return application.getApplicationNumber() + "-" + side + ".png";
+        }
+        String fullName = (member.getSurname() != null && member.getName() != null)
+                ? member.getSurname() + member.getName()
+                : null;
+        String memberLabel = fullName != null ? fullName + "-" + member.getId() : String.valueOf(member.getId());
+        return application.getApplicationNumber() + "-" + memberLabel + "-" + side + ".png";
     }
 
     /**

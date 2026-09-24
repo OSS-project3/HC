@@ -23,6 +23,7 @@ import com.example.honorcitizen.domain.user.repository.UserRepository;
 import com.example.honorcitizen.infra.storage.StorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -39,6 +40,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 // 관리자 카드 다운로드(2026-09-05 정책, ApplicationServiceCardDownloadTest의 사용자용과 대비되는 계약):
@@ -87,6 +90,8 @@ class ApplicationServiceAdminCardDownloadTest {
         adminId = admin.getId();
 
         when(storageService.generatePresignedUrl(anyString(), anyLong())).thenReturn("http://mock-storage/presigned");
+        when(storageService.generatePresignedDownloadUrl(anyString(), anyLong(), anyString()))
+                .thenReturn("http://mock-storage/presigned-download");
         when(storageService.download(anyString())).thenAnswer(inv -> ("bytes-of-" + inv.getArgument(0)).getBytes());
     }
 
@@ -127,6 +132,21 @@ class ApplicationServiceAdminCardDownloadTest {
                 applicationId, englishName, LocalDate.of(1990, 1, 1), "US",
                 null, null, Gender.MALE, null, englishName + "@example.com", "010-2222-2222", "Seoul",
                 null, null, "photos/" + englishName + ".jpg"));
+    }
+
+    // 개인 신청 — 관리자 카드 개별 다운로드 파일명 규칙(2026-09-24 확정) 검증용.
+    private Application individualApplicationInProducing() {
+        String applicationNumber = "APP-2026-60" + String.format("%04d", ++applicationSequence);
+        Application application = applicationRepository.save(Application.createIndividual(
+                1L, applicationNumber, cardType.getId(), IssueType.MOBILE, true, null, null));
+        applicantRepository.save(Applicant.createIndividual(
+                application.getId(), "홍길동", "individual-admin-dl@example.com", "010-3333-3333"));
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application.completeNaming();
+        application.startProducing();
+        return applicationRepository.save(application);
     }
 
     @Test
@@ -199,8 +219,8 @@ class ApplicationServiceAdminCardDownloadTest {
                 applicationService.getAdminMemberCardDownload(adminId, application.getId(), ready.getId());
 
         assertThat(response.getMemberId()).isEqualTo(ready.getId());
-        assertThat(response.getCardFrontUrl()).isEqualTo("http://mock-storage/presigned");
-        assertThat(response.getCardBackUrl()).isEqualTo("http://mock-storage/presigned");
+        assertThat(response.getCardFrontUrl()).isEqualTo("http://mock-storage/presigned-download");
+        assertThat(response.getCardBackUrl()).isEqualTo("http://mock-storage/presigned-download");
         // 2026-09-06: presigned URL 만료를 30일에서 7일로 낮춘 버그 수정(SigV4 최대 7일 하드리밋)에
         // 맞춰 갱신 — 사용자용과 같은 7일이다(ApplicationService.ADMIN_CARD_DOWNLOAD_URL_EXPIRY_SECONDS).
         assertThat(response.getExpiresAt()).isAfter(java.time.LocalDateTime.now().plusDays(6));
@@ -226,6 +246,76 @@ class ApplicationServiceAdminCardDownloadTest {
         assertThatThrownBy(() -> applicationService.getAdminMemberCardDownload(adminId, application.getId(), memberOfOther.getId()))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+    }
+
+    // --- 파일명 규칙(2026-09-24 확정) — 새 탭 대신 파일로 저장되도록 presigned URL에 실어보내는
+    // 파일명이 정책과 일치하는지 검증한다. 실제 다운로드(Content-Disposition 헤더 적용) 자체는
+    // S3StorageService가 맡고 여기선 Mock으로 어떤 파일명이 전달됐는지만 확인한다. ---
+
+    @Test
+    void adminMemberDownloadUsesApplicationNumberOnlyFileNameForIndividual() {
+        Application application = individualApplicationInProducing();
+        ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createIndividual(
+                application.getId(), "Hong Gildong", LocalDate.of(1990, 1, 1), "KR",
+                null, null, Gender.MALE, null, null, null, "photos/hong.jpg"));
+        setCardPaths(member, "cards/hong-front.png", "cards/hong-back.png");
+
+        applicationService.getAdminMemberCardDownload(adminId, application.getId(), member.getId());
+
+        ArgumentCaptor<String> fileNames = ArgumentCaptor.forClass(String.class);
+        verify(storageService, org.mockito.Mockito.times(2))
+                .generatePresignedDownloadUrl(anyString(), anyLong(), fileNames.capture());
+        assertThat(fileNames.getAllValues()).containsExactlyInAnyOrder(
+                application.getApplicationNumber() + "-front.png",
+                application.getApplicationNumber() + "-back.png");
+    }
+
+    @Test
+    void adminMemberDownloadIncludesNameAndMemberIdFileNameForGroup() {
+        Application application = groupApplicationInProducing(1);
+        ApplicationMember member = addMember(application.getId(), "GilDongHong");
+        member.assignKoreanName("홍", "길동", null);
+        setCardPaths(member, "cards/gildong-front.png", "cards/gildong-back.png");
+
+        applicationService.getAdminMemberCardDownload(adminId, application.getId(), member.getId());
+
+        verify(storageService).generatePresignedDownloadUrl(eq("cards/gildong-front.png"), anyLong(),
+                eq(application.getApplicationNumber() + "-홍길동-" + member.getId() + "-front.png"));
+        verify(storageService).generatePresignedDownloadUrl(eq("cards/gildong-back.png"), anyLong(),
+                eq(application.getApplicationNumber() + "-홍길동-" + member.getId() + "-back.png"));
+    }
+
+    @Test
+    void adminMemberDownloadFallsBackToMemberIdOnlyWhenNameMissingForGroup() {
+        Application application = groupApplicationInProducing(1);
+        ApplicationMember member = addMember(application.getId(), "NoNameYet");
+        // surname/name을 설정하지 않는다 — 이례적이지만(보통 카드 생성 전 작명이 끝나 있음) 방어적으로 확인.
+        setCardPaths(member, "cards/noname-front.png", "cards/noname-back.png");
+
+        applicationService.getAdminMemberCardDownload(adminId, application.getId(), member.getId());
+
+        verify(storageService).generatePresignedDownloadUrl(eq("cards/noname-front.png"), anyLong(),
+                eq(application.getApplicationNumber() + "-" + member.getId() + "-front.png"));
+    }
+
+    @Test
+    void adminMemberDownloadFileNamesDoNotCollideForSameNameMembersInSameGroup() {
+        Application application = groupApplicationInProducing(2);
+        ApplicationMember first = addMember(application.getId(), "First");
+        first.assignKoreanName("홍", "길동", null);
+        setCardPaths(first, "cards/first-front.png", "cards/first-back.png");
+        ApplicationMember second = addMember(application.getId(), "Second");
+        second.assignKoreanName("홍", "길동", null); // 동명이인 — memberId로만 구분 가능해야 한다.
+        setCardPaths(second, "cards/second-front.png", "cards/second-back.png");
+
+        applicationService.getAdminMemberCardDownload(adminId, application.getId(), first.getId());
+        applicationService.getAdminMemberCardDownload(adminId, application.getId(), second.getId());
+
+        ArgumentCaptor<String> fileNames = ArgumentCaptor.forClass(String.class);
+        verify(storageService, org.mockito.Mockito.times(4))
+                .generatePresignedDownloadUrl(anyString(), anyLong(), fileNames.capture());
+        assertThat(fileNames.getAllValues()).doesNotHaveDuplicates();
+        assertThat(fileNames.getAllValues()).allSatisfy(name -> assertThat(name).contains("홍길동"));
     }
 
     @Test

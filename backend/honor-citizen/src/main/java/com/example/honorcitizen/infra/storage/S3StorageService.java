@@ -16,6 +16,8 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 @Slf4j
@@ -90,6 +92,28 @@ public class S3StorageService implements StorageService {
                         .build())
                 .build();
         return s3Presigner.presignGetObject(presignRequest).url().toString();
+    }
+
+    @Override
+    public String generatePresignedDownloadUrl(String key, long expirySeconds, String downloadFileName) {
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofSeconds(expirySeconds))
+                .getObjectRequest(GetObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(key)
+                        .responseContentDisposition(attachmentContentDisposition(downloadFileName))
+                        .build())
+                .build();
+        return s3Presigner.presignGetObject(presignRequest).url().toString();
+    }
+
+    // RFC 6266 — 한글이 섞인 파일명(예: 멤버 이름)도 대응하도록 ASCII 폴백(filename)과 UTF-8
+    // 인코딩(filename*)을 함께 싣는다. S3 presigned 요청의 response-content-disposition 오버라이드로
+    // 실려가므로 실제 파일 전송(브라우저 → S3 직접 요청)에도 그대로 적용된다.
+    private String attachmentContentDisposition(String fileName) {
+        String asciiFallback = fileName.replaceAll("[^\\x20-\\x7E]", "_");
+        String encoded = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
+        return "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encoded;
     }
 
     @Override
