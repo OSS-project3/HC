@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-24 — Claude — `main` (작명 업무 진행중/완료/캔슬 조회 — 백엔드)
+
+- 변경: 사용자가 관리자 "제작신청 관리" 화면에 작명 업무 진행중/완료 구분 조회 기능을 요청 → 먼저 코드 조사만 수행해(수정 없음) 현재 구조·갭을 보고하고, 이어진 대화에서 정책을 확정한 뒤(개인·단체 모두) "백엔드먼저 구현좀" 지시로 백엔드를 구현했다. `GET /api/admin/applications?namingProgress={IN_PROGRESS|DONE|CANCELLED}` 신규 — 개인은 `Application.status`(COMPLETED/CANCELLED)로 그대로 판정하지만, 단체는 **status와 무관하게** 해당 신청의 모든 Member가 `cardFrontPath`·`cardBackPath`를 둘 다 가지고 있는지로 "완료"를 판정한다(전원 카드가 생성돼도 관리자가 "카드 발급 완료" 버튼을 안 눌렀으면 status는 여전히 PRODUCTION_READY/PRODUCING일 수 있는데, 이 경우도 완료로 집계). 카드가 다 만들어진 뒤 취소된 단체 신청은 완료가 아니라 캔슬로 집계해 세 분류가 상호 배타적이 되도록 했다. 새 상태값·테이블·컬럼은 전혀 추가하지 않았고(기존 `ApplicationStatus`/`ApplicationMember.cardFrontPath`/`cardBackPath` 재사용), `completeNaming()`/`markCardReady()` 등 기존 상태 전이 로직도 손대지 않은 순수 조회 기능이다. 목록 페이지 안에 단체 신청이 여러 건 있어도 N+1이 안 나도록 멤버 카드생성 완료 수를 한 번에 배치 집계하는 쿼리를 별도로 뒀다.
+- 파일: (백엔드 신규) `common/enums/NamingProgress.java`, `ApplicationNamingProgressListTest.java` / (백엔드 수정) `AdminApplicationController.java`(`namingProgress` 쿼리 파라미터), `ApplicationService.java`(`listApplicationsForAdmin` 확장 + `resolveApplicationsPage` 분기), `ApplicationRepository.java`(`findNamingDone`/`findNamingInProgress` JPQL 상관 서브쿼리), `ApplicationMemberRepository.java`(`countCompletedMembersByApplicationIds` 배치 집계), `MyApplicationListItemResponse.java`(`completedMemberCount` nullable 필드 + 3-인자 오버로드, 기존 2-인자 호출부인 마이페이지 목록은 그대로), `AdminApplicationControllerTest.java`(HTTP 배선 테스트 3건 추가) — 커밋 `981a29d` / (문서) `docs/api/admin.md`("작명 업무 진행중/완료/캔슬 조회" 절 신규), `docs/collab/TODO.md`(Backend 체크리스트 완료 표시, API 계약 확정 반영)
+- 사유: 사용자 요청 → 조사(코드 수정 없이 현재 구조·갭 보고) → 대화로 정책 결정(완료 판정 기준이 멤버별 저장 플래그가 없는 작명 완료가 아니라 실제 저장 필드인 카드 생성 완료인지, 상태 자동전이가 필요한지, CANCELLED를 별도 3번째 분류로 뺄지) → "백엔드먼저 구현좀" 지시로 구현. 전체 과정이 이 세션의 "코드 확인 없이 가정하지 않는다" 원칙을 그대로 따랐다 — 예를 들어 "totalQuantity가 단체 인원수와 같다"는 가정도 실제 grep으로 확인 후에만 재사용했다.
+- 테스트: 신규 `ApplicationNamingProgressListTest` 10건(개인 완료/진행중/캔슬 3건, 단체 카드생성기반 완료·부분완료·캔슬우선·멤버없음 4건, completedMemberCount 값·null 2건, 3분류 상호배타성 1건) + `AdminApplicationControllerTest` HTTP 배선 3건, 전부 GREEN(첫 실행에 통과, 별도 수정 불필요). 전체 회귀 1014개 중 1013개 통과 — 무관 플레이키 `HighSchoolSeederIntegrationTest.reseedingTheSameCsvDoesNotDuplicateRows` 1건은 단독 실행 시 통과 재확인(이번 세션에 반복적으로 확인된 기존 이슈, 이번 변경과 무관).
+- 관련: `docs/collab/TODO.md` "작명 업무 진행중/완료/캔슬 조회" 절. 프론트엔드는 사용자 지시에 따라 이번 작업 범위에서 제외 — 별도 확인 후 착수 예정.
+
+---
 ## 2026-09-23 — Claude — `main` (십이간지·카드 디자인 선택 이미지 미리보기 — 프론트엔드, 라이브 테스트로 실제 버그 3건 발견·수정)
 
 - 변경: 백엔드 완료(아래 항목) 후 사용자 승인("정해야할 정책이 완전히 확정됐다면 그대로 진행")을 받아 프론트를 구현했다. `ApplicationDetail`의 십이간지 native `<select>`를 `ZodiacDesignSelector`로, `CardProductionPanel`의 카드 디자인 native `<select>`를 `CardDesignSelector`로 교체 — 둘 다 옵션에 hover/focus/터치하면 그 항목의 원본 이미지를 조회 전용으로 미리 보여주는 custom listbox다(Codex 정책: PC hover·focus는 조회만, 클릭·Enter/Space·모바일 touch만 로컬 선택값 변경, DB 저장은 기존 저장·카드생성 흐름에서만). **다만 이번 작업은 구현보다 검증에서 값어치가 나왔다** — dev 컨테이너를 매 수정마다 재빌드하고 실제 Playwright로 상호작용을 검증하는 과정에서 코드 리뷰만으로는 못 잡았을 실제 버그 3건을 발견해 고쳤다:

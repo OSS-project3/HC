@@ -132,6 +132,23 @@ Cookie: accessToken={JWT}  (role=ADMIN 필요)
 
 **API 1 완료.**
 
+> ⚠️ 위 설계는 초기 설계 문서다. 실제 `AdminApplicationController.list()`/`ApplicationService.listApplicationsForAdmin()`은 `cardTypeId`/`keyword` 필터가 없고, 응답 필드도 `MyApplicationListItemResponse`(마이페이지와 공유하는 DTO) 그대로다: `applicationId/applicationNumber/applicationType/cardTypeId/cardTypeName/totalQuantity/status/paymentStatus/createdAt/completedMemberCount`. `applicantName`/`applicantPhone`/`cardType`(문자열)는 이 응답에 없다.
+
+#### 작명 업무 진행중/완료/캔슬 조회 (2026-09-24 정책 확정·구현 완료)
+
+```
+GET /api/admin/applications?namingProgress={IN_PROGRESS|DONE|CANCELLED}&page=0&size=20
+```
+
+- `namingProgress`가 주어지면 `status` 파라미터는 무시된다.
+- 세 분류는 상호 배타적이며 전체 신청을 정확히 3분할한다(개인·단체 모두 반드시 하나에만 속함):
+  - **`CANCELLED`**: `Application.status == CANCELLED`.
+  - **`DONE`**: 개인은 `Application.status == COMPLETED`. 단체는 **`Application.status`와 무관하게** 해당 신청의 Member가 1명 이상 존재하고 전원 `cardFrontPath`·`cardBackPath`가 모두 채워져 있을 때(전원 카드 생성 완료가 됐어도 관리자가 "카드 발급 완료"를 아직 안 눌렀으면 `status`는 `PRODUCTION_READY`/`PRODUCING`일 수 있는데, 그 경우도 `DONE`으로 집계한다). 카드가 다 만들어진 뒤 취소된 단체 신청은 `DONE`이 아니라 `CANCELLED`로 집계한다.
+  - **`IN_PROGRESS`**: 위 두 분류에 속하지 않는 나머지 전부(멤버가 아직 한 명도 없는 단체 신청 포함).
+- 응답의 `completedMemberCount` 필드는 단체 신청에서만 채워지는 정수(카드 생성 완료 멤버 수) — 개인 신청은 항상 `null`. `totalQuantity`(단체는 제출 인원 수)와 함께 `completedMemberCount/totalQuantity` 형태의 진행률(예: `18/30`)을 프론트가 조립한다.
+- 이 조회는 읽기 전용이며 `Application.status`를 바꾸지 않는다 — `completeNaming()`/`markCardReady()`("카드 발급 완료" 버튼) 등 기존 상태 전이 흐름은 전혀 변경되지 않았다.
+- 구현: `ApplicationRepository.findNamingDone`/`findNamingInProgress`(JPQL, `ApplicationMember` 상관 서브쿼리로 단체 판정), `ApplicationMemberRepository.countCompletedMembersByApplicationIds`(목록 페이지의 여러 단체 신청 진행률을 한 번에 집계, N+1 방지), `common/enums/NamingProgress`.
+
 ---
 
 ### API 2 / 6 — 신청 상세 조회 ⚠️ 확인필요 — 상세/처리 화면 자체가 프론트에 없음(신규)

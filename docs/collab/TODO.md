@@ -9,9 +9,9 @@
 
 ---
 
-## 작명 업무 진행중/완료/캔슬 조회 (2026-09-24 정책 확정, 미착수)
+## 작명 업무 진행중/완료/캔슬 조회 (2026-09-24 정책 확정, 백엔드 구현 완료)
 
-상태: 🔵 진행중(Claude, 백엔드부터). 정책은 확정(개인·단체 모두).
+상태: 🔵 진행중(Claude, 백엔드 완료·프론트 대기). 정책은 확정(개인·단체 모두).
 
 ### 배경 — 조사 결과 요약
 
@@ -36,23 +36,26 @@
     - 단체 신청은 진행률을 `완료 멤버 수 / totalQuantity` 형태(예: `18/30`)로 함께 보여준다.
   - **진행중**: 위 두 분류에 안 들어가는 나머지 전부.
 
-### 아직 안 정해진 것(구현 착수 시 결정)
+### API 계약 (백엔드 구현 확정)
 
-- 정확한 API 파라미터 설계(예: `namingStage=IN_PROGRESS|DONE|CANCELLED` 신규 파라미터 vs 기존 `status` 확장) — 계약 스타일 문제라 구현자가 정해도 무방.
-- 단체 신청의 "완료" 판정을 위한 멤버 카드-생성 집계 쿼리 방식(요청마다 계산 vs 목록 조회 시 배치 집계로 N+1 방지) — 리스트 화면 성능에 영향.
-- 개인은 DB에서 `status` 단일 조건으로 필터 가능하지만, 단체는 파생 집계 조건이라 순수 SQL `WHERE`로 깔끔히 안 됨 — 후보를 가져온 뒤 서비스 레이어에서 계산·필터하는 방식이 될 가능성이 높고, 이때 페이지네이션을 어떻게 유지할지 결정 필요.
-- 프론트 탭 UI를 기존 개인/단체 탭(현재도 페이지 내 클라이언트 필터, 부정확함)과 같은 자리에 나란히 둘지, 아니면 새 필터가 서버 기반이므로 완전히 새 자리에 둘지.
+```
+GET /api/admin/applications?namingProgress={IN_PROGRESS|DONE|CANCELLED}&page=0&size=20
+```
+
+`namingProgress`가 있으면 기존 `status` 파라미터는 무시된다. 응답은 기존 `MyApplicationListItemResponse`(마이페이지와 공유하는 DTO)에 `completedMemberCount`(Integer, nullable) 필드만 추가 — 단체 신청에서만 채워지고(카드 생성 완료 멤버 수), 개인은 항상 `null`. `totalQuantity`(단체=제출 인원 수)와 합쳐 프론트가 `completedMemberCount/totalQuantity` 진행률을 조립한다. 상세는 `docs/api/admin.md`의 "작명 업무 진행중/완료/캔슬 조회" 절 참고.
 
 ### Backend
 
-- [ ] 진행중/완료/캔슬 3분류를 반환하는 목록 조회 API(또는 기존 목록 API 확장) 설계·구현.
-- [ ] 단체 신청의 멤버별 카드 생성 완료 집계(카운트) 쿼리 추가.
-- [ ] 완료 검증 관련 기존 테스트에 회귀 없는지 확인(상태 전이 로직 자체는 안 건드리므로 새 테스트 위주).
+- [x] 진행중/완료/캔슬 3분류를 반환하는 목록 조회 API 확장 — `AdminApplicationController`/`ApplicationService.listApplicationsForAdmin`에 `namingProgress` 파라미터 추가, `common/enums/NamingProgress` 신규.
+- [x] 단체 신청의 멤버별 카드 생성 완료 집계 쿼리 추가 — `ApplicationRepository.findNamingDone`/`findNamingInProgress`(JPQL 상관 서브쿼리로 "멤버 1명 이상 + 전원 카드생성완료" 판정, CANCELLED는 findByStatus 재사용), `ApplicationMemberRepository.countCompletedMembersByApplicationIds`(목록 페이지의 여러 단체 신청을 한 번에 집계, N+1 방지).
+- [x] 완료 검증 관련 기존 테스트에 회귀 없는지 확인 — 신규 테스트 `ApplicationNamingProgressListTest`(10건: 개인 완료/진행중/캔슬, 단체 카드생성기반 완료·부분완료·캔슬우선·멤버없음, completedMemberCount 값·null, 3분류 상호배타성) + `AdminApplicationControllerTest`에 HTTP 배선 테스트 3건 추가. 전체 회귀 1014개 중 1013개 통과(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건, 단독 실행 시 통과 재확인 — 이번 변경과 무관).
 
-### Frontend
+### Frontend (미착수, 아직 안 정해진 것)
 
-- [ ] `ApplicationsSection.tsx`(또는 후속 화면)에 진행중/완료/캔슬 필터·탭 추가.
-- [ ] 단체 신청 행에 진행률(`완료멤버수/totalQuantity`) 표시.
+- [ ] `ApplicationsSection.tsx`(또는 후속 화면)에 진행중/완료/캔슬 필터·탭 추가 — **서버 파라미터(`namingProgress`) 기반으로 구현할 것.** 기존 개인/단체 탭은 서버 필터 없이 페이지당 50건을 받아와 클라이언트 `.filter()`로 나누는 방식이라 이미 부정확함(코드 주석에 명시된 기존 한계, `ApplicationsSection.tsx:15,31,44`) — 새 탭을 같은 방식으로 만들면 같은 결함을 물려받는다.
+- [ ] 새 필터를 기존 개인/단체 탭과 같은 자리에 나란히 둘지, 별도 자리에 둘지는 미정 — 프론트 구현 착수 시 결정.
+- [ ] 단체 신청 행에 진행률(`completedMemberCount/totalQuantity`) 표시.
+- [ ] `services/api.ts`에 `namingProgress` 파라미터와 `completedMemberCount` 응답 필드 타입 반영.
 
 ---
 
@@ -331,7 +334,7 @@ npm run build
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
-| 🔵 | 작명 업무 진행중/완료/캔슬 조회 | Claude(백엔드 착수) | `main` | 본 문서 "작명 업무 진행중/완료/캔슬 조회" 절 | 정책 확정(개인=status, 단체=멤버별 카드생성 집계, 상태전이 없음), 백엔드부터 진행 |
+| 🔵 | 작명 업무 진행중/완료/캔슬 조회 | Claude(백엔드 완료, 프론트 대기) | `main` | 본 문서 "작명 업무 진행중/완료/캔슬 조회" 절 | 백엔드(API·집계쿼리·테스트·문서) 완료, GREEN. 프론트는 사용자 재확인 후 착수 예정 |
 | ✅ | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 백엔드·프론트 모두 완료, GREEN. 모바일 touch 자동 검증만 headless 환경 한계로 미완료(실기기 QA 권장) |
 | ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
 | ✅ | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드+프론트) | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳 + 프론트 5개 파일(`types.ts`/`StepInfo.tsx`/`ApplyPage.tsx`/`StepReview.tsx`/번역) 전부 완료. `tsc --noEmit`/`npm run build` 통과. 상세는 아래 전용 절 참고 |
