@@ -9,9 +9,9 @@
 
 ---
 
-## 작명 업무 진행중/완료/캔슬 조회 (2026-09-24 정책 확정, 백엔드 구현 완료)
+## 작명 업무 진행중/완료/캔슬 조회 (2026-09-24 정책 확정, 백엔드+프론트 구현 완료)
 
-상태: 🔵 진행중(Claude, 백엔드 완료·프론트 착수). 정책은 확정(개인·단체 모두).
+상태: ✅ 완료(Claude, 백엔드+프론트).
 
 ### 배경 — 조사 결과 요약
 
@@ -50,12 +50,13 @@ GET /api/admin/applications?namingProgress={IN_PROGRESS|DONE|CANCELLED}&page=0&s
 - [x] 단체 신청의 멤버별 카드 생성 완료 집계 쿼리 추가 — `ApplicationRepository.findNamingDone`/`findNamingInProgress`(JPQL 상관 서브쿼리로 "멤버 1명 이상 + 전원 카드생성완료" 판정, CANCELLED는 findByStatus 재사용), `ApplicationMemberRepository.countCompletedMembersByApplicationIds`(목록 페이지의 여러 단체 신청을 한 번에 집계, N+1 방지).
 - [x] 완료 검증 관련 기존 테스트에 회귀 없는지 확인 — 신규 테스트 `ApplicationNamingProgressListTest`(10건: 개인 완료/진행중/캔슬, 단체 카드생성기반 완료·부분완료·캔슬우선·멤버없음, completedMemberCount 값·null, 3분류 상호배타성) + `AdminApplicationControllerTest`에 HTTP 배선 테스트 3건 추가. 전체 회귀 1014개 중 1013개 통과(무관 플레이키 `HighSchoolSeederIntegrationTest` 1건, 단독 실행 시 통과 재확인 — 이번 변경과 무관).
 
-### Frontend (미착수, 아직 안 정해진 것)
+### Frontend
 
-- [ ] `ApplicationsSection.tsx`(또는 후속 화면)에 진행중/완료/캔슬 필터·탭 추가 — **서버 파라미터(`namingProgress`) 기반으로 구현할 것.** 기존 개인/단체 탭은 서버 필터 없이 페이지당 50건을 받아와 클라이언트 `.filter()`로 나누는 방식이라 이미 부정확함(코드 주석에 명시된 기존 한계, `ApplicationsSection.tsx:15,31,44`) — 새 탭을 같은 방식으로 만들면 같은 결함을 물려받는다.
-- [ ] 새 필터를 기존 개인/단체 탭과 같은 자리에 나란히 둘지, 별도 자리에 둘지는 미정 — 프론트 구현 착수 시 결정.
-- [ ] 단체 신청 행에 진행률(`completedMemberCount/totalQuantity`) 표시.
-- [ ] `services/api.ts`에 `namingProgress` 파라미터와 `completedMemberCount` 응답 필드 타입 반영.
+- [x] `ApplicationsSection.tsx`에 진행중/완료/캔슬 필터 추가 — **서버 파라미터(`namingProgress`) 기반**으로 구현(요청대로, 기존 개인/단체 탭의 페이지 내 클라이언트 `.filter()` 방식은 답습하지 않음). 필터가 바뀌면 `page`를 0으로 리셋.
+- [x] 새 필터는 기존 개인/단체 탭(밑줄 스타일)과 다른 자리·다른 모양(버튼 묶음, `.admin-naming-progress`)으로 배치 — 서로 다른 축임을 시각적으로 구분. 기본값은 "진행중"(관리자가 매일 처리할 건이 먼저 보이도록).
+- [x] 단체 신청 행에 진행률(`completedMemberCount ?? 0`/`totalQuantity`) 컬럼("작명 진행률") 추가. 개인 신청은 기존 상태 배지로 이미 완료 여부가 보여 컬럼 추가 안 함.
+- [x] `services/api.ts`에 `NamingProgress` 타입, `listAdminApplications`의 `namingProgress` 파라미터, `AdminApplicationListItem.completedMemberCount`(optional) 반영.
+- [x] Playwright로 실제 dev 컨테이너에서 확인: 필터 전환 시 정확한 `namingProgress` 쿼리 파라미터가 나가고, 활성 버튼이 시각적으로 표시되며, 단체 진행률 컬럼이 완료(1/1)·진행중(0/N) 케이스 모두 정확히 렌더링됨.
 
 ---
 
@@ -334,7 +335,7 @@ npm run build
 
 | 상태 | 작업 | 담당 | 브랜치 | 관련 문서 | 비고 |
 |---|---|---|---|---|---|
-| 🔵 | 작명 업무 진행중/완료/캔슬 조회 | Claude(백엔드 완료, 프론트 착수) | `main` | 본 문서 "작명 업무 진행중/완료/캔슬 조회" 절 | 백엔드(API·집계쿼리·테스트·문서) 완료, GREEN. 프론트는 사용자 재확인 후 착수 예정 |
+| ✅ | 작명 업무 진행중/완료/캔슬 조회 | Claude | `main` | 본 문서 "작명 업무 진행중/완료/캔슬 조회" 절 | 백엔드·프론트 모두 완료, GREEN |
 | ✅ | 십이간지·카드 디자인 선택 이미지 미리보기 | Claude | `main` | 본 문서 십이간지·카드 디자인 선택 이미지 미리보기 절 | 백엔드·프론트 모두 완료, GREEN. 모바일 touch 자동 검증만 headless 환경 한계로 미완료(실기기 QA 권장) |
 | ✅ | 저장 완료 값 기반 카드 미리보기 자동 갱신 | Claude | `main` | 본 문서 카드 미리보기 자동 갱신 절 | `NAME_EDITING` 미리보기 허용(백엔드), debounce·순번가드·구성원 1명 제한·PRODUCING 이후 생성이미지 전환(프론트) 구현 완료. 단체 100명 실사용 시나리오는 자동화 테스트 부재로 구조적 근거만 확인, 실사용 검증 후속 필요 |
 | ✅ | 개인 신청(비학생증) 카드 표기용 주소 누락 수정 | Claude(백엔드+프론트) | `main` | 본 문서 "개인 신청 카드 표기 주소 누락" 절 | 백엔드 응답 DTO 2곳 + 프론트 5개 파일(`types.ts`/`StepInfo.tsx`/`ApplyPage.tsx`/`StepReview.tsx`/번역) 전부 완료. `tsc --noEmit`/`npm run build` 통과. 상세는 아래 전용 절 참고 |
