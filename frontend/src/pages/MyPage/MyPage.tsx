@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 import { toReviewPost } from "../../data/reviews";
 import "./MyPage.css";
-import { Fragment, useEffect, useState } from "react";
-import { api, ApiError, type AdminApplicationDetail, type AdminApplicationListItem, type ApplicationStatus, type InquiryListItem } from "../../services/api";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { api, ApiError, type AdminApplicationDetail, type AdminApplicationListItem, type ApplicationStatus, type ApplicationType, type InquiryListItem, type ValidationErrorDetail } from "../../services/api";
 import { Button } from "../../components/ui/Button";
 import { showToast } from "../../components/ui/toast";
 import { useLanguage } from "../../features/i18n/LanguageContext";
@@ -111,6 +111,17 @@ export function MyPage() {
     return () => { cancelled = true; };
   }, [openAppId, language]);
 
+  // 사진 반려 재업로드 성공 콜백 — 목록 행 상태를 즉시 반영하고 펼친 상세를 다시 조회해
+  // 반려 사유·재업로드 UI가 서버 응답 기준으로 사라졌는지 확인한다(정책 8번).
+  const handlePhotoReuploaded = async (applicationId: number, status: ApplicationStatus) => {
+    setMyApplications((cur) => cur.map((a) => (a.applicationId === applicationId ? { ...a, status } : a)));
+    try {
+      setAppDetail(await api.getMyApplication(applicationId));
+    } catch {
+      // 상세 재조회 실패는 조용히 무시 — 목록 상태는 이미 갱신됐고, 다시 펼치면 최신값을 받는다.
+    }
+  };
+
   const cancelApplication = async (id: number) => {
     if (!window.confirm(t("이 신청을 취소하시겠습니까? 취소 후에는 되돌릴 수 없습니다."))) return;
     try {
@@ -189,7 +200,7 @@ export function MyPage() {
       <MySection id="production" title={t("제작 내역")}>
         <div className="mypage-list mypage-list--production">
           <div className="mypage-list__head"><span>{t("신청번호")}</span><span>{t("카드 종류")}</span><span>{t("신청일")}</span><span>{t("상태")}</span></div>
-          {myApplications.map((application) => <Fragment key={application.applicationId}><article><strong><button type="button" className="mypage-appnum" onClick={() => toggleAppDetail(application.applicationId)} aria-expanded={openAppId === application.applicationId}>{application.applicationNumber}</button></strong><span>{application.cardTypeName}</span><time>{new Date(application.createdAt).toLocaleDateString(language === "en" ? "en-US" : "ko-KR")}</time><span className="mypage-status-cell"><b className="mypage-status">{t(APP_STATUS_LABELS[application.status])}</b>{CANCELLABLE.has(application.status) && <button type="button" className="mypage-cancel" onClick={() => cancelApplication(application.applicationId)}>{t("신청 취소")}</button>}</span></article>{openAppId === application.applicationId && <ApplicationDetail loading={appDetailLoading} detail={appDetail} />}</Fragment>)}
+          {myApplications.map((application) => <Fragment key={application.applicationId}><article><strong><button type="button" className="mypage-appnum" onClick={() => toggleAppDetail(application.applicationId)} aria-expanded={openAppId === application.applicationId}>{application.applicationNumber}</button></strong><span>{application.cardTypeName}</span><time>{new Date(application.createdAt).toLocaleDateString(language === "en" ? "en-US" : "ko-KR")}</time><span className="mypage-status-cell"><b className="mypage-status">{t(APP_STATUS_LABELS[application.status])}</b>{CANCELLABLE.has(application.status) && <button type="button" className="mypage-cancel" onClick={() => cancelApplication(application.applicationId)}>{t("신청 취소")}</button>}</span></article>{openAppId === application.applicationId && <ApplicationDetail loading={appDetailLoading} detail={appDetail} onReuploaded={handlePhotoReuploaded} />}</Fragment>)}
           {myApplications.length === 0 && <p className="mypage-list__empty">{t("제작 신청 내역이 없습니다.")}</p>}
           {appsPaging.page + 1 < appsPaging.totalPages && (
             <button type="button" className="mypage__edit" onClick={() => void loadMoreApplications()}>{t("더보기")} ›</button>
@@ -218,7 +229,10 @@ export function MyPage() {
 }
 
 // 내 신청 상세(GET /api/my/applications/{id}) 표시.
-function ApplicationDetail({ loading, detail }: { loading: boolean; detail: AdminApplicationDetail | null }) {
+function ApplicationDetail({ loading, detail, onReuploaded }: {
+  loading: boolean; detail: AdminApplicationDetail | null;
+  onReuploaded: (applicationId: number, status: ApplicationStatus) => void;
+}) {
   const { t, language } = useLanguage();
   if (loading) return <div className="mypage-appdetail">{t("불러오는 중…")}</div>;
   if (!detail) return null;
@@ -227,13 +241,13 @@ function ApplicationDetail({ loading, detail }: { loading: boolean; detail: Admi
   const quantity = language === "en"
     ? `${detail.totalQuantity} ${detail.totalQuantity === 1 ? "card" : "cards"}`
     : `${detail.totalQuantity}매`;
+  // 사진 반려 사유는 일반 행이 아니라 아래 PhotoReupload에서 강조 표시한다(정책 2번, 중복 표시 방지).
   const rows: { label: string; value?: string }[] = [
     { label: "발급 방식", value: detail.issueType === "MOBILE_AND_PHYSICAL" ? t("모바일+실물") : t("모바일") },
     { label: "수량", value: quantity },
     { label: "입금자명", value: detail.depositorName },
     { label: "결제 상태", value: detail.paymentStatus === "CONFIRMED" ? t("입금 확인") : t("입금 대기") },
     { label: "환불", value: detail.refundedAt ? new Date(detail.refundedAt).toLocaleString(locale) : undefined },
-    { label: "사진 반려 사유", value: detail.photoRejectReason },
     { label: "카드 발급 완료", value: fmt(detail.cardReadyAt) },
     { label: "실물 발송", value: fmt(detail.physicalDispatchedAt) },
     { label: "취소됨", value: fmt(detail.cancelledAt) },
@@ -243,6 +257,127 @@ function ApplicationDetail({ loading, detail }: { loading: boolean; detail: Admi
       <dl>
         {rows.map((r) => <div key={r.label}><dt>{t(r.label)}</dt><dd>{r.value}</dd></div>)}
       </dl>
+      {detail.status === "PHOTO_REJECTED" && (
+        <PhotoReupload
+          applicationId={detail.applicationId}
+          applicationType={detail.applicationType}
+          photoRejectReason={detail.photoRejectReason}
+          onReuploaded={onReuploaded}
+        />
+      )}
+    </div>
+  );
+}
+
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const MAX_ZIP_BYTES = 250 * 1024 * 1024;
+const PHOTO_MIME_TYPES = new Set(["image/jpeg", "image/png"]);
+
+function formatFileSize(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+// 사진 반려(PHOTO_REJECTED) 재업로드 — 개인은 photo 1장, 단체는 submitFile(ZIP) 전체(docs/collab/TODO.md
+// "마이페이지 사진 반려 재업로드 연결" 확정 정책). 파일 선택 즉시 업로드하지 않고 별도 버튼으로 제출한다.
+function PhotoReupload({ applicationId, applicationType, photoRejectReason, onReuploaded }: {
+  applicationId: number; applicationType: ApplicationType; photoRejectReason?: string;
+  onReuploaded: (applicationId: number, status: ApplicationStatus) => void;
+}) {
+  const { t, language } = useLanguage();
+  const isGroup = applicationType === "GROUP";
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<ValidationErrorDetail[] | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const pickFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = event.target.files?.[0] ?? null;
+    setError(null);
+    setFieldErrors(null);
+    if (!picked) { setFile(null); return; }
+    if (isGroup) {
+      const isZip = picked.type === "application/zip" || picked.type === "application/x-zip-compressed"
+        || picked.name.toLowerCase().endsWith(".zip");
+      if (!isZip) { setError(t("ZIP 파일만 업로드할 수 있습니다.")); setFile(null); event.target.value = ""; return; }
+      if (picked.size > MAX_ZIP_BYTES) { setError(t("파일 크기는 250MB를 초과할 수 없습니다.")); setFile(null); event.target.value = ""; return; }
+    } else {
+      if (!PHOTO_MIME_TYPES.has(picked.type)) { setError(t("사진 파일(JPG, PNG)만 업로드할 수 있습니다.")); setFile(null); event.target.value = ""; return; }
+      if (picked.size > MAX_PHOTO_BYTES) { setError(t("파일 크기는 5MB를 초과할 수 없습니다.")); setFile(null); event.target.value = ""; return; }
+    }
+    setFile(picked);
+  };
+
+  const submit = async () => {
+    if (!file) { setError(t("재업로드할 파일을 선택해 주세요.")); return; }
+    setUploading(true);
+    setError(null);
+    setFieldErrors(null);
+    const form = new FormData();
+    form.append(isGroup ? "submitFile" : "photo", file);
+    try {
+      const res = await api.reuploadPhoto(applicationId, form);
+      showToast(isGroup ? t("제출 파일이 재업로드되었습니다.") : t("사진이 재업로드되었습니다."));
+      setFile(null);
+      if (inputRef.current) inputRef.current.value = "";
+      onReuploaded(res.applicationId, res.status);
+    } catch (e) {
+      // 실패 시 선택 파일은 그대로 유지한다(정책 9번) — 사용자가 다시 제출 버튼만 눌러 재시도 가능.
+      if (e instanceof ApiError) {
+        setError(e.message);
+        if (e.errors && e.errors.length > 0) setFieldErrors(e.errors);
+      } else {
+        setError(t("재업로드에 실패했습니다."));
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="mypage-reupload">
+      {photoRejectReason && (
+        <p className="mypage-reupload__reason" role="alert">
+          <b>{t("반려 사유")}</b>: {photoRejectReason}
+        </p>
+      )}
+      <label className="field" htmlFor={`reupload-file-${applicationId}`}>
+        <span className="field__label">{isGroup ? t("제출 파일(ZIP) 재업로드") : t("사진 재업로드")}</span>
+        <input
+          id={`reupload-file-${applicationId}`}
+          ref={inputRef}
+          className="field__input"
+          type="file"
+          accept={isGroup ? ".zip,application/zip,application/x-zip-compressed" : "image/jpeg,image/png"}
+          disabled={uploading}
+          onChange={pickFile}
+        />
+      </label>
+      {file && (
+        <p className="mypage-reupload__file">
+          {t("선택한 파일")}: {file.name} ({formatFileSize(file.size)})
+        </p>
+      )}
+      <button
+        type="button"
+        className="mypage-reupload__submit"
+        disabled={uploading || !file}
+        aria-live="polite"
+        onClick={() => void submit()}
+      >
+        {uploading ? t("재업로드 중…") : t("재업로드")}
+      </button>
+      {error && <p className="mypage-reupload__error" role="alert">{error}</p>}
+      {fieldErrors && fieldErrors.length > 0 && (
+        <ul className="mypage-reupload__field-errors" role="alert">
+          {fieldErrors.map((fe, i) => (
+            <li key={i}>
+              {fe.row != null ? (language === "en" ? `Row ${fe.row} — ` : `${fe.row}행 — `) : ""}
+              {fe.field}: {fe.message}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

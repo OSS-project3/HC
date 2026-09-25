@@ -254,7 +254,8 @@ export const api = {
   // 받는다(학교 수가 약 2,800개라 전체 목록을 한 번에 안 준다). 결과는 관련도순 정렬, 최대 20건.
   searchSchools: (query?: string) => request<SchoolOption[]>(`/api/schools/search${qs({ query })}`),
   lookupApplication: (body: { method: "application" | "card"; keyValue: string; phone?: string; email?: string }) => request<LookupResult>("/api/applications/lookup", { method: "POST", body: JSON.stringify(body) }),
-  reuploadPhoto: (id: number, form: FormData) => request(`/api/applications/${id}/photo`, { method: "PATCH", body: form }),
+  reuploadPhoto: (id: number, form: FormData) =>
+    request<{ applicationId: number; status: ApplicationStatus }>(`/api/applications/${id}/photo`, { method: "PATCH", body: form }),
   getCardDownload: (id: number) => request<CardDownload>(`/api/applications/${id}/cards/download`),
   // 비로그인 공개 조회(LookupPage) 전용 — lookupApplication이 내려준 cardDownloadToken으로만 인가된다.
   getPublicCardDownload: (id: number, token: string) => request<CardDownload>(`/api/applications/${id}/cards/download/public${qs({ token })}`),

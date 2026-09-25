@@ -120,6 +120,16 @@ export const auth: Record<string, string> = {
   "사진 반려 사유": "Photo rejection reason",
   "카드 발급 완료": "Card issued",
   "실물 발송": "Physical card shipped",
+  // Photo re-upload (My Page, PHOTO_REJECTED detail)
+  "사진 파일(JPG, PNG)만 업로드할 수 있습니다.": "Only JPG or PNG image files can be uploaded.",
+  "파일 크기는 5MB를 초과할 수 없습니다.": "File size cannot exceed 5MB.",
+  "ZIP 파일만 업로드할 수 있습니다.": "Only ZIP files can be uploaded.",
+  "파일 크기는 250MB를 초과할 수 없습니다.": "File size cannot exceed 250MB.",
+  "재업로드할 파일을 선택해 주세요.": "Please select a file to re-upload.",
+  "선택한 파일": "Selected file",
+  "재업로드": "Re-upload",
+  "재업로드 중…": "Re-uploading…",
+  "재업로드에 실패했습니다.": "Failed to re-upload.",
 
   // Mobile card page
   "모바일 카드": "Mobile Card",

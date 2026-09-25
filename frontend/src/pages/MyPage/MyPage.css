@@ -85,3 +85,26 @@
 .mypage-appdetail dl > div { display: flex; gap: 10px; }
 .mypage-appdetail dt { color: var(--color-detail-label); min-width: 84px; }
 .mypage-appdetail dd { margin: 0; font-weight: 600; }
+
+/* 사진 반려 재업로드 */
+.mypage-reupload { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-danger-border-soft); }
+.mypage-reupload__reason { margin: 0; padding: 10px 12px; background: var(--color-danger-surface); border-radius: 6px; color: var(--color-danger); font-size: 0.88rem; }
+.mypage-reupload__reason b { font-weight: 700; }
+.mypage-reupload .field__label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+.mypage-reupload .field__input[type="file"] { width: 100%; max-width: 100%; font-size: 0.85rem; }
+.mypage-reupload__file { margin: 0; font-size: 0.85rem; color: var(--color-detail-label); word-break: break-all; }
+.mypage-reupload__submit {
+  align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--color-primary-foreground);
+  background: var(--color-primary); border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer;
+}
+.mypage-reupload__submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.mypage-reupload__error { margin: 0; color: var(--color-danger); font-size: 0.85rem; }
+.mypage-reupload__field-errors {
+  margin: 0; padding-left: 18px; color: var(--color-danger); font-size: 0.82rem; display: flex;
+  flex-direction: column; gap: 4px;
+}
+
+@media (max-width: 600px) {
+  .mypage-reupload .field__input[type="file"] { font-size: 0.8rem; }
+  .mypage-reupload__submit { align-self: stretch; text-align: center; }
+}
