@@ -71,4 +71,6 @@ public class AdminActivityLog {
     // 이미지를 가져다 쓸 때 남긴다. detail로 전체/멤버 단위를 구분한다(getAdminCardsZip 참고).
     public static final String CARD_DOWNLOAD = "CARD_DOWNLOAD";
     public static final String SCHOOL_LINKED = "SCHOOL_LINKED";
+    // 관리자 강제 취소(2026-09-25) — 최초 취소에만 1건 남긴다(cancelByAdmin이 boolean으로 최초 여부를 알려준다).
+    public static final String APPLICATION_CANCEL = "APPLICATION_CANCEL";
 }

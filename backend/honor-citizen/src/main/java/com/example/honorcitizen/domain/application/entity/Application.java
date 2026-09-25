@@ -86,6 +86,11 @@ public class Application extends BaseTimeEntity {
     @Column(length = 30)
     private CancellationReason cancellationReason;
 
+    // 관리자 강제 취소 전용 메모(2026-09-25 확정) — ADMIN + ADMIN_DECISION 조합일 때만 non-blank가
+    // 보장된다(cancelByAdmin이 검증). 기존 사용자·시스템 취소 row와 호환되도록 컬럼 자체는 nullable.
+    @Column(length = 500)
+    private String cancellationMemo;
+
     private LocalDateTime refundedAt;
 
     private LocalDateTime cardReadyAt;
@@ -470,6 +475,25 @@ public class Application extends BaseTimeEntity {
             throw new CustomException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
         cancel(cancelledAt, CancellationType.SYSTEM, CancellationReason.PAYMENT_TIMEOUT);
+        return true;
+    }
+
+    // 관리자 강제 취소(2026-09-25 확정) — COMPLETED 전까지 운영상 언제든 취소할 수 있어야 한다는
+    // 요구사항이라 canTransitionTo(CANCELLED)로 허용 상태를 판단한다(SUBMITTED/REVIEWING/
+    // PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING 6개 — COMPLETED만 전이 자체가 없어
+    // 자동으로 거절됨). 메모는 필수이며 trim 결과 1~500자만 허용한다. PaymentStatus는 건드리지
+    // 않는다(결제 확인 여부와 무관하게 취소만 처리하고, CONFIRMED면 관리자가 시스템 밖에서 환불).
+    public boolean cancelByAdmin(LocalDateTime cancelledAt, String cancellationMemo) {
+        if (this.status == ApplicationStatus.CANCELLED) {
+            return false;
+        }
+        requireTimestamp(cancelledAt);
+        String trimmedMemo = cancellationMemo == null ? "" : cancellationMemo.trim();
+        if (trimmedMemo.isEmpty() || trimmedMemo.length() > 500) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        cancel(cancelledAt, CancellationType.ADMIN, CancellationReason.ADMIN_DECISION);
+        this.cancellationMemo = trimmedMemo;
         return true;
     }
 

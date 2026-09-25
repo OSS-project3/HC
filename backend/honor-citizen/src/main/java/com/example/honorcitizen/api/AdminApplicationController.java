@@ -4,6 +4,8 @@ import com.example.honorcitizen.common.enums.ApplicationStatus;
 import com.example.honorcitizen.common.enums.NamingProgress;
 import com.example.honorcitizen.common.response.ApiResponse;
 import com.example.honorcitizen.common.response.PageResponse;
+import com.example.honorcitizen.domain.application.dto.AdminApplicationCancelRequest;
+import com.example.honorcitizen.domain.application.dto.AdminApplicationCancelResponse;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
 import com.example.honorcitizen.domain.application.dto.AdminMemberCardDownloadResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationExportRequest;
@@ -273,6 +275,18 @@ public class AdminApplicationController {
             @PathVariable Long applicationId) {
         return ResponseEntity.ok(ApiResponse.success(
                 applicationService.markCardReady(adminId, applicationId)));
+    }
+
+    // 관리자 강제 취소(2026-09-25 확정) — COMPLETED 전까지 언제든 취소 가능, 취소 사유 메모 필수.
+    // 다른 상태 전이 엔드포인트와 달리 CANCELLED는 전용 응답(AdminApplicationCancelResponse)을 쓴다 —
+    // 취소 유형·사유·메모·최초 처리 여부까지 함께 내려줘야 해서 ApplicationStatusResponse로는 부족하다.
+    @PostMapping("/{applicationId}/cancel")
+    public ResponseEntity<ApiResponse<AdminApplicationCancelResponse>> cancelByAdmin(
+            @AuthenticationPrincipal Long adminId,
+            @PathVariable Long applicationId,
+            @Valid @RequestBody AdminApplicationCancelRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                applicationService.cancelByAdmin(adminId, applicationId, request.getCancellationMemo())));
     }
 
     @PostMapping("/{applicationId}/dispatch")

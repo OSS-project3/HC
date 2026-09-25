@@ -12,6 +12,7 @@ import com.example.honorcitizen.common.exception.CustomException;
 import com.example.honorcitizen.common.exception.ErrorCode;
 import com.example.honorcitizen.common.exception.ValidationErrorDetail;
 import com.example.honorcitizen.common.enums.LookupMethod;
+import com.example.honorcitizen.domain.application.dto.AdminApplicationCancelResponse;
 import com.example.honorcitizen.domain.application.dto.AdminApplicationMemberResponse;
 import com.example.honorcitizen.domain.application.dto.AdminMemberCardDownloadResponse;
 import com.example.honorcitizen.domain.application.dto.ApplicationCardDownloadResponse;
@@ -1078,6 +1079,32 @@ public class ApplicationService {
         return ApplicationCancelResponse.from(application);
     }
 
+    /**
+     * 관리자가 신청을 강제로 취소한다(2026-09-25 확정 정책).
+     *
+     * COMPLETED 전까지는 운영상 언제든 취소할 수 있어야 한다는 요구사항이라 사용자 취소보다 허용
+     * 상태가 훨씬 넓다(SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING).
+     * findApplicationForUpdate(비관적 락)로 카드 생성·다른 상태 전이·입금 확인과의 동시 요청을
+     * 막는다 — 같은 row를 잠그고 있는 동안 다른 트랜잭션의 UPDATE는 이 트랜잭션이 끝날 때까지
+     * 대기하므로, 그 사이 COMPLETED로 이미 넘어간 신청을 뒤늦게 CANCELLED로 덮어쓰는 경쟁이 생기지
+     * 않는다(잠금 해제 후 재조회하면 이미 COMPLETED라 canTransitionTo가 거절).
+     *
+     * PaymentStatus는 그대로 둔다 — CONFIRMED면 응답의 refundRequired로 "관리자가 시스템 밖에서
+     * 전액 환불해야 한다"는 안내만 하고, 환불 완료 여부는 시스템이 추적하지 않는다(2026-09-13 정책).
+     */
+    @Transactional
+    public AdminApplicationCancelResponse cancelByAdmin(Long adminId, Long applicationId, String cancellationMemo) {
+        validateAdmin(adminId);
+        Application application = findApplicationForUpdate(applicationId);
+
+        boolean firstCancellation = application.cancelByAdmin(LocalDateTime.now(), cancellationMemo);
+        if (firstCancellation) {
+            completeAdminCancellation(application, adminId);
+        }
+
+        return AdminApplicationCancelResponse.from(application, firstCancellation);
+    }
+
     // 입금자명 등록/수정 — 신청자 본인만(소유권), 결제 확인 전(엔티티 가드)까지만. 완료 화면에서 호출된다.
     @Transactional
     public void updateDepositorName(Long userId, Long applicationId, String depositorName) {
@@ -1146,6 +1173,30 @@ public class ApplicationService {
         registerCancellationS3CleanupAfterCommit(fileKeysToDelete);
     }
 
+    // 관리자 강제 취소(2026-09-25) 전용 — 사용자 취소와 동일한 슬롯 반환·S3 정리를 재사용하되,
+    // 최초 취소에만 감사로그를 추가로 남긴다(사용자 취소는 감사로그를 남기지 않는 기존 정책 그대로).
+    private void completeAdminCancellation(Application application, Long adminId) {
+        List<String> fileKeysToDelete = clearCancellationFileReferences(application);
+        applicationDailyLimitService.releaseSlot(
+                application.getUserId(), ApplicationDailyLimitService.toCountDate(application.getCreatedAt()));
+        registerCancellationS3CleanupAfterCommit(fileKeysToDelete);
+        adminActivityLogRepository.save(AdminActivityLog.create(adminId, AdminActivityLog.APPLICATION_CANCEL,
+                application.getId(), cancelAuditDetail(application.getCancellationMemo())));
+    }
+
+    // AdminActivityLog.detail 컬럼은 length=200이라 500자까지 허용되는 취소 메모를 그대로 넣으면
+    // DB 오류가 날 수 있다 — 전체 메모는 Application.cancellationMemo에 이미 보존되므로 감사로그에는
+    // 안전하게 잘라 넣는다.
+    private String cancelAuditDetail(String memo) {
+        String prefix = "관리자 취소: ";
+        int maxMemoLength = 200 - prefix.length();
+        String safeMemo = memo.length() > maxMemoLength ? memo.substring(0, maxMemoLength) : memo;
+        return prefix + safeMemo;
+    }
+
+    // 사용자 취소는 SUBMITTED/REVIEWING/PHOTO_REJECTED에서만 허용돼 카드가 생성될 수 없지만, 관리자
+    // 취소는 PRODUCTION_READY/PRODUCING에서도 허용되므로 이미 생성된 Member 카드 이미지도 함께
+    // 정리한다(2026-09-25) — 카드가 없는 멤버·사용자 취소 경로에서는 그냥 아무 항목도 안 걸리는 no-op.
     private List<String> clearCancellationFileReferences(Application application) {
         List<String> fileKeys = new ArrayList<>();
         List<Long> uploadFileIds = new ArrayList<>();
@@ -1170,9 +1221,18 @@ public class ApplicationService {
                 .map(ApplicationMember::getPhotoPath)
                 .filter(this::hasText)
                 .forEach(fileKeys::add);
+        members.stream()
+                .map(ApplicationMember::getCardFrontPath)
+                .filter(this::hasText)
+                .forEach(fileKeys::add);
+        members.stream()
+                .map(ApplicationMember::getCardBackPath)
+                .filter(this::hasText)
+                .forEach(fileKeys::add);
 
         application.clearManagedFileReferences();
         members.forEach(ApplicationMember::clearPhoto);
+        members.forEach(ApplicationMember::clearCardImages);
         uploadFileRepository.deleteAll(managedFiles);
         return fileKeys;
     }

@@ -32,6 +32,8 @@ public class MyApplicationDetailResponse {
     private final LocalDateTime cancelledAt;
     private final CancellationType cancellationType;
     private final CancellationReason cancellationReason;
+    // 관리자 강제 취소(2026-09-25)일 때만 값이 있다 — 사용자·시스템 취소는 항상 null.
+    private final String cancellationMemo;
     private final LocalDateTime cardReadyAt;
     private final LocalDateTime physicalDispatchedAt;
     // 관리자가 화면을 닫았다 다시 열어도 카드 제작 진행 상태를 복원할 수 있도록 노출한다(2026-09-13
@@ -60,7 +62,7 @@ public class MyApplicationDetailResponse {
             Long cardTypeId, String cardTypeName, IssueType issueType, int totalQuantity, ApplicationStatus status,
             PaymentStatus paymentStatus, LocalDateTime paymentGuidedAt, LocalDateTime paymentDueAt,
             LocalDateTime cancelledAt, CancellationType cancellationType, CancellationReason cancellationReason,
-            LocalDateTime cardReadyAt, LocalDateTime physicalDispatchedAt,
+            String cancellationMemo, LocalDateTime cardReadyAt, LocalDateTime physicalDispatchedAt,
             Integer zodiacDesignSet, Long cardDesignId, LocalDate cardIssueDate,
             StudentTextColor studentFrontTextColor, StudentTextColor studentBackTextColor,
             String photoRejectReason, ApplicantSummary applicant, ReceiverSummary receiver, long memberCount,
@@ -79,6 +81,7 @@ public class MyApplicationDetailResponse {
         this.cancelledAt = cancelledAt;
         this.cancellationType = cancellationType;
         this.cancellationReason = cancellationReason;
+        this.cancellationMemo = cancellationMemo;
         this.cardReadyAt = cardReadyAt;
         this.physicalDispatchedAt = physicalDispatchedAt;
         this.zodiacDesignSet = zodiacDesignSet;
@@ -106,7 +109,7 @@ public class MyApplicationDetailResponse {
                 application.getIssueType(), application.getTotalQuantity(), application.getStatus(),
                 application.getPaymentStatus(), application.getPaymentGuidedAt(), application.getPaymentDueAt(),
                 application.getCancelledAt(), application.getCancellationType(), application.getCancellationReason(),
-                application.getCardReadyAt(), application.getPhysicalDispatchedAt(),
+                application.getCancellationMemo(), application.getCardReadyAt(), application.getPhysicalDispatchedAt(),
                 application.getZodiacDesignSet(), application.getCardDesignId(), application.getCardIssueDate(),
                 application.getStudentFrontTextColor(), application.getStudentBackTextColor(),
                 application.getPhotoRejectReason(), ApplicantSummary.from(applicant),
@@ -118,7 +121,7 @@ public class MyApplicationDetailResponse {
     public MyApplicationDetailResponse withTranslated(String photoRejectReason) {
         return new MyApplicationDetailResponse(applicationId, applicationNumber, applicationType, cardTypeId,
                 cardTypeName, issueType, totalQuantity, status, paymentStatus, paymentGuidedAt, paymentDueAt,
-                cancelledAt, cancellationType, cancellationReason, cardReadyAt, physicalDispatchedAt,
+                cancelledAt, cancellationType, cancellationReason, cancellationMemo, cardReadyAt, physicalDispatchedAt,
                 zodiacDesignSet, cardDesignId, cardIssueDate, studentFrontTextColor, studentBackTextColor,
                 photoRejectReason, applicant, receiver, memberCount, createdAt, depositorName, memberAddress, version);
     }

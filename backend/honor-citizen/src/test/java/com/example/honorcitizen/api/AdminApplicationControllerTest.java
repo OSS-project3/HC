@@ -307,6 +307,87 @@ class AdminApplicationControllerTest {
                 .andExpect(jsonPath("$.data.status").value("PHOTO_REJECTED"));
     }
 
+    // 관리자 강제 취소(2026-09-25 확정) — 비즈니스 로직(허용 상태·멱등·파일 정리 등)은
+    // ApplicationServiceAdminCancelTest에서 이미 커버, 여기서는 HTTP/JSON 배선만 검증한다.
+    @Test
+    void cancelEndpointCancelsApplicationAsAdmin() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/cancel")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"cancellationMemo\":\"중복 신청으로 관리자 취소\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.cancellationType").value("ADMIN"))
+                .andExpect(jsonPath("$.data.cancellationReason").value("ADMIN_DECISION"))
+                .andExpect(jsonPath("$.data.cancellationMemo").value("중복 신청으로 관리자 취소"))
+                .andExpect(jsonPath("$.data.firstCancellation").value(true));
+    }
+
+    @Test
+    void cancelEndpointIsIdempotentOnSecondCall() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/cancel")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"cancellationMemo\":\"최초 사유\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/cancel")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"cancellationMemo\":\"다시 보낸 사유\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.cancellationMemo").value("최초 사유"))
+                .andExpect(jsonPath("$.data.firstCancellation").value(false));
+    }
+
+    @Test
+    void cancelEndpointForNonAdminReturnsForbidden() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/cancel")
+                        .header(HttpHeaders.AUTHORIZATION, userToken)
+                        .contentType("application/json")
+                        .content("{\"cancellationMemo\":\"사유\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void cancelEndpointWithBlankMemoReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/cancel")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"cancellationMemo\":\"   \"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void cancelEndpointForMissingApplicationReturnsNotFound() throws Exception {
+        mockMvc.perform(post("/api/admin/applications/999999/cancel")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"cancellationMemo\":\"사유\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void cancelEndpointRejectsCompletedApplication() throws Exception {
+        otherUsersApplication.confirmPayment();
+        otherUsersApplication.startReview();
+        otherUsersApplication.approveToNaming();
+        otherUsersApplication.completeNaming();
+        applicationRepository.saveAndFlush(otherUsersApplication);
+        completeCardGenerationFor(otherUsersApplication, LocalDate.of(2026, 9, 14));
+        Application reloaded = applicationRepository.findById(otherUsersApplication.getId()).orElseThrow();
+        reloaded.startProducing();
+        reloaded.markCardReady(java.time.LocalDateTime.of(2026, 9, 14, 10, 0));
+        applicationRepository.saveAndFlush(reloaded);
+
+        mockMvc.perform(post("/api/admin/applications/" + otherUsersApplication.getId() + "/cancel")
+                        .header(HttpHeaders.AUTHORIZATION, adminToken)
+                        .contentType("application/json")
+                        .content("{\"cancellationMemo\":\"사유\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
     // 카드 생성 완료 집계 검증(3-F) — start-producing/card-ready 둘 다 Member의 카드번호·앞뒤 이미지·
     // 발급일자와 Application의 cardDesignId/cardIssueDate가 전부 확정돼 있어야 통과한다.
     private void completeCardGenerationFor(Application application, LocalDate issueDate) throws Exception {

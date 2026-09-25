@@ -270,6 +270,13 @@ public class ApplicationMember extends BaseTimeEntity {
         this.photoPath = null;
     }
 
+    // 관리자 강제 취소(2026-09-25) 전용 — PRODUCTION_READY/PRODUCING에서 취소되면 이미 생성된 카드
+    // 이미지가 있을 수 있어 S3 정리와 함께 참조도 지운다. cardNumber는 이력 보존을 위해 그대로 둔다.
+    public void clearCardImages() {
+        this.cardFrontPath = null;
+        this.cardBackPath = null;
+    }
+
     // 관리자가 직접 입력·확정하는 카드번호(admin-saju.md "관리자 카드번호 입력 정책") — 서버가 채번하지 않는다.
     // 형식은 ROK-XXXXX-XXXX(5자리-4자리 숫자). 최초 카드 생성(cardFrontPath 확정) 이후에는 값이 바뀌는
     // 변경만 거절한다 — 같은 번호 재저장(멱등)은 항상 허용. DB UNIQUE 제약은 최종 방어선으로 Service가
