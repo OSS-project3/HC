@@ -307,6 +307,42 @@ class ApplicationServicePhotoReuploadTest {
         assertThat(members.get(0).getPhotoNumber()).isEqualTo("9");
     }
 
+    // 2026-09-25: 실사용자가 배포 서버에서 재현한 실제 버그. 반려 후 재업로드는 처음 제출과 같은
+    // 공식 엑셀 양식(같은 사진 번호 체계)을 재사용하는 게 자연스러운 시나리오인데, deleteByApplicationId()는
+    // 즉시 DELETE를 실행하지 않고 엔티티를 remove 마킹만 해서 flush 시점까지 미룬다 — Hibernate의 flush
+    // 순서는 호출 순서와 무관하게 INSERT를 DELETE보다 먼저 처리하므로, 새 멤버를 같은 photo_number로
+    // 저장하면 아직 안 지워진 기존 행과 유니크 제약(application_id, photo_number)이 충돌해
+    // DataIntegrityViolationException이 발생했다. 기존 테스트들은 전부 원본 멤버가 photo_number=null
+    // (레거시 픽스처)이거나 새 사진 번호가 원본과 달라 이 충돌을 재현하지 못했다 — 이 테스트는
+    // buildZip()이 항상 "9.jpg"를 담으므로 원본 멤버도 photo_number="9"로 만들어 실제로 재현한다.
+    @Test
+    void reuploadPhotoForGroupReplacesMemberWithSamePhotoNumberAsOriginal() throws Exception {
+        Application application = applicationRepository.save(Application.createGroup(
+                1L, "APP-2026-200003", cardType.getId(), IssueType.MOBILE, true, 1, 10L, 11L, 12L));
+        applicantRepository.save(Applicant.createGroup(
+                application.getId(), "인사담당", "hr@example.com", "010-1111-1111", "OO기업", "인사팀"));
+        applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                application.getId(), "John Doe", LocalDate.of(1988, 1, 1), "US",
+                null, null, Gender.MALE, null, "john@example.com", "010-2222-2222", "Seoul", null, null,
+                "photos/old.jpg", "9"));
+        application.confirmPayment();
+        application.startReview();
+        application.rejectPhoto("사진이 흐립니다.");
+        applicationRepository.save(application);
+
+        byte[] zip = buildZip("9|Jane Doe|1991-02-02|US||Chicago|FEMALE||jane@example.com|010-3333-3333|Busan");
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
+
+        ApplicationPhotoReuploadResponse response = applicationService.reuploadPhoto(
+                1L, application.getId(), null, submitFile);
+
+        assertThat(response.getStatus().name()).isEqualTo("REVIEWING");
+        List<ApplicationMember> members = applicationMemberRepository.findByApplicationId(application.getId());
+        assertThat(members).hasSize(1);
+        assertThat(members.get(0).getEnglishName()).isEqualTo("Jane Doe");
+        assertThat(members.get(0).getPhotoNumber()).isEqualTo("9");
+    }
+
     @Test
     void reuploadPhotoForGroupDeletesOldMemberPhotosAndOldSubmitFile() throws Exception {
         UploadFile oldSubmitFile = uploadFileRepository.save(UploadFile.create(

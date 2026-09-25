@@ -1276,7 +1276,14 @@ public class ApplicationService {
                 // 기존 멤버를 전체 삭제 후 새 멤버로 재적재한다.
                 // 멤버 수가 다를 수도 있고(ZIP에서 행이 추가/삭제될 수 있음), 어떤 멤버가 반려됐는지
                 // 매핑을 유지하는 것보다 전체 교체가 구현 복잡도 측면에서 훨씬 단순하다.
+                // deleteByApplicationId()는 파생 삭제 쿼리라 즉시 DELETE를 실행하지 않고 엔티티를
+                // remove 마킹만 해서 flush 시점까지 미룬다. Hibernate의 flush 순서는 호출 순서와
+                // 무관하게 INSERT를 DELETE보다 먼저 처리하므로, flush() 없이 바로 아래 루프에서
+                // save()하면 재업로드 엑셀이 원본과 같은 사진 번호를 쓸 때(반려 후 재제출에서 흔한
+                // 시나리오) 아직 안 지워진 기존 행과 유니크 제약(application_id, photo_number)이
+                // 충돌한다(2026-09-25, 실사용자가 배포 서버에서 재현). DELETE를 먼저 실제로 실행시켜야 한다.
                 applicationMemberRepository.deleteByApplicationId(applicationId);
+                applicationMemberRepository.flush();
                 for (BulkMemberRow row : rows) {
                     String photoPath = storePhotoBytes(application.getApplicationNumber(), row.photoFilename(), row.photoBytes(), newUploadedKeys);
                     ApplicationMember member = ApplicationMember.createGroupRow(
