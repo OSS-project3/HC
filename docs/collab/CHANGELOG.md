@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-25 — Claude — `main` (관리자 강제 취소 — 프론트)
+
+- 변경: 바로 아래 "관리자 강제 취소 — 백엔드" 항목을 커밋한 직후, 사용자가 이어서 "프론트구현"으로 요청 → 프론트를 구현했다. 관리자 신청 상세(`ApplicationDetail.tsx`)에서 `COMPLETED`/`CANCELLED`를 제외한 6개 상태에 "신청 취소" 버튼을 노출한다. 취소 사유는 필수 입력이라 확인용 UI가 필요한데, 기존 코드베이스의 "사진 반려"/"배송 발송" 같은 한 줄 사유 입력은 전부 `window.prompt`를 쓰지만 이번 정책은 공백 제외 1~500자 검증과 글자 수 표시, 무효 시 확인 버튼 비활성화를 요구해 `window.prompt`로는 구현할 수 없었다 — 대신 이미 있는 "카드번호 일괄 입력" 토글형 인라인 패널(`cardBatchOpen`/`admin-naming__cardbatch`)과 동일한 패턴으로 별도 모달 라이브러리 도입 없이 textarea 패널(`admin-naming__cancel-panel`)을 새로 만들었다. 취소 성공 후에는 상세를 재조회해 "신청 정보"에 취소 메모를 표시하고, `CANCELLED` 상태에서는 십이간지 디자인·단체 도구·구성원별 작명/카드 패널 전체를 안내 문구로 대체해 상태 액션·카드 생성·이름 수정 버튼을 숨긴다(백엔드 `CardGenerationService.GENERATE_STATUS_GATE`가 `PRODUCTION_READY`/`PRODUCING`만 허용해 이미 서버 단에서도 거절되므로, 이번 변경은 이중 방어 성격의 UX 개선).
+- 파일: `services/api.ts`(`AdminApplicationCancelResult` 타입, `cancelApplicationByAdmin()`, `AdminApplicationDetail.cancellationMemo` 필드 추가), `components/admin/applications/ApplicationDetail.tsx`("신청 취소" 버튼·취소 패널·`CANCELLED` 상태 시 작명/카드 섹션 대체, "취소 메모" `Item` 추가), `pages/AdminPage/AdminPage.css`(`.admin-naming__cancel-panel*` 규칙 3줄).
+- 사유: 사용자가 백엔드 완료를 확인한 뒤 같은 날 이어서 프론트 구현을 요청. `docs/collab/TODO.md`의 "관리자 강제 취소 구현 체크리스트" Frontend 절(8개 항목)을 그대로 구현 대상으로 삼았다.
+- 테스트: `tsc --noEmit` 통과. 자동화 단위/e2e 테스트는 추가하지 않았다(기존 관리자 패널에 Vitest/RTL 커버리지가 전혀 없고, Playwright e2e는 격리된 `docker-compose.e2e.yml` 스택 전용이라 이번 범위에 없음) — 대신 로컬 dev 컨테이너(backend:8080)에 Vite dev 서버를 proxy로 띄워 실제 관리자 계정으로 로그인 후 Playwright로 라이브 조작: 개인 신청 취소(빈 값→비활성화, 공백만→비활성화, 유효 메모→활성화, 확정 후 토스트·상태뱃지·재진입 시 메모 노출·취소 버튼 소멸까지 확인) 및 단체 신청 취소(구성원 10명짜리 신청으로 동일 플로우 확인) 각각 스크린샷으로 검증. 검증에 쓴 스크립트·스크린샷은 세션 스크래치패드에만 남기고 커밋하지 않았다.
+- 관련: `docs/collab/TODO.md` "관리자 강제 취소 구현 체크리스트" 절 — Backend·Frontend 모두 ✅ 완료. `docs/specs/*.md` 등 정책 문서 갱신은 계속 범위 제외.
+
+---
 ## 2026-09-25 — Claude — `main` (관리자 강제 취소 — 백엔드)
 
 - 변경: 사용자가 "TODO.md에 적어둔 관리자 취소 항목 확인해서 백엔드만 구현해줘"로 요청 → 실제 코드와 대조 검증(기존 `cancelByUser`/`cancelForPaymentTimeout`/`completeCancellation` 공유 로직, `@Version`, `CancellationType.ADMIN`/`CancellationReason.ADMIN_DECISION` enum 값 등 문서가 언급한 기존 자산이 실제로 있는지 확인) 후 구현. **구현 중 중요한 갭을 발견**: `ApplicationStatus.canTransitionTo()`가 `NAME_EDITING`/`PRODUCTION_READY`/`PRODUCING`에서 `CANCELLED`로의 전이 자체를 허용하지 않고 있어서, 정책이 요구하는 6개 상태 중 3개는 상태머신 자체가 막고 있었다 — 이 세 상태에 `CANCELLED` 이탈 경로를 추가해 해결(다른 정상 진행 전이는 변경 없음). `Application.cancelByAdmin(cancelledAt, cancellationMemo)`를 신설해 허용 상태·trim 후 1~500자 메모 검증·`CANCELLED` 재호출 멱등을 Entity에서 보장하고, `ApplicationService.cancelByAdmin()`이 `findApplicationForUpdate`(비관적 락) → 취소 → 최초 취소에만 파일 정리·슬롯 반환·감사로그를 처리한다. 기존 사용자 취소가 쓰는 `clearCancellationFileReferences`를 확장해 Member 카드 이미지(`cardFrontPath`/`cardBackPath`)까지 정리하도록 했다 — 관리자 취소는 `PRODUCTION_READY`/`PRODUCING`에서도 허용되어 카드가 이미 생성돼 있을 수 있기 때문(사용자 취소 경로에서는 카드가 존재할 수 없어 이 확장이 항상 no-op, 회귀 없음).

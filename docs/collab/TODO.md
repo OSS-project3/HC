@@ -1113,11 +1113,11 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] `Application.guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`/`cancelForPaymentTimeout()`는 이전 정책의 구현 흔적으로 코드에 남기고 신규로 연결하지 않음(호출하는 Controller가 없어 실제로는 이미 항상 비활성 상태였음). DB 컬럼·코드 제거는 이번 범위에 포함하지 않음
 - [x] 아래 "5-A. 결제 안내 API/UI 연결"은 이 정책 폐기로 착수하지 않음(계획 기록만 유지)
 
-### 관리자 강제 취소 구현 체크리스트 (2026-09-25 확정) — Backend ✅ 완료(Claude), Frontend 대기
+### 관리자 강제 취소 구현 체크리스트 (2026-09-25 확정) — Backend ✅ 완료(Claude), Frontend ✅ 완료(Claude)
 
 > 이 절은 아래 3절의 과거 결정인 “관리자 직접 취소 미구현”보다 우선한다. 신청이 완전히 완료되기 전까지 관리자는 운영상 신청을 강제로 취소할 수 있다. 정책 문서 → 실패 테스트 → 최소 구현 → 관련 회귀 테스트 → 문서 갱신 순서로 진행한다.
 
-사용자가 "백엔드만 구현해줘"로 명시적으로 범위를 좁혀 프론트/`docs/specs/*.md` 갱신은 이번 범위에서 제외했다(아래 Frontend·문서 절 참고).
+사용자가 처음에는 "백엔드만 구현해줘"로 범위를 좁혔다가(2026-09-25), 백엔드 완료·커밋 후 같은 날 "프론트구현"으로 이어서 요청해 프론트도 구현했다. `docs/specs/*.md` 등 정책 문서 갱신은 이번 범위에서 계속 제외한다(아래 문서 절 참고).
 
 **구현 중 발견한 중요한 갭(문서에 명시되지 않았던 부분)**: `ApplicationStatus.canTransitionTo()`가 당시 `NAME_EDITING`/`PRODUCTION_READY`/`PRODUCING`에서 `CANCELLED`로의 전이 자체를 허용하지 않고 있었다 — 즉 이 세 상태에서 관리자가 취소를 시도하면 상태머신 자체가 `INVALID_STATUS_TRANSITION`으로 거절했을 것이다. 확정 정책이 이 6개 상태 전부를 취소 가능하다고 명시하므로, `canTransitionTo`에 이 세 상태 → `CANCELLED` 이탈 경로를 추가했다(다른 정상 진행 전이는 변경 없음).
 
@@ -1157,24 +1157,25 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] 실제 dev 컨테이너(기존 populated DB)에 재빌드 후 실제 HTTP 호출로 최초 취소·멱등 재호출까지 라이브로 재확인(Playwright `fetch`, curl 아님).
 - [x] 전체 백엔드 회귀 1045개 중 1044개 통과 — 실패 1건은 이 세션 내내 반복 확인된 무관한 기존 플레이키 `HighSchoolSeederIntegrationTest`(신규 테스트와 무관).
 
-#### Frontend — ⚪ 대기(사용자가 "백엔드만" 명시적으로 요청, 프론트 착수 전)
+#### Frontend — ✅ 완료(Claude, 2026-09-25, 사용자 “프론트구현” 요청)
 
-- [ ] 관리자 신청 상세에서 `COMPLETED`, `CANCELLED`를 제외한 상태에만 `신청 취소` 버튼을 표시한다. 사용자 마이페이지 취소 UI와 혼용하지 않는다.
-- [ ] 확인 모달에 필수 취소 사유 textarea를 제공한다. 공백 제외 1~500자와 글자 수를 표시하고 유효하지 않으면 확인 버튼을 비활성화한다.
-- [ ] “완료 전 신청을 취소하며 생성된 사진·카드 파일이 삭제됩니다”를 안내한다. `CONFIRMED` 신청에는 별도 운영 절차로 전액 환불해야 한다는 경고를 추가한다.
-- [ ] `POST /api/admin/applications/{id}/cancel`에 `{ cancellationMemo }`를 전송하고 요청 중 중복 클릭·모달 닫기·재요청을 막는다.
-- [ ] 성공 후 상세를 재조회해 취소 상태·시각·관리자 취소·메모를 표시하고 상태 액션·카드 생성·이름 수정 버튼을 비활성화한다.
-- [ ] 선행 취소는 멱등 성공으로 처리하고, 선행 `COMPLETED` 또는 락 충돌이면 서버 메시지 표시 후 상세를 재조회한다.
-- [ ] 목록에는 취소 상태 라벨만 유지하고 긴 메모는 상세에서 확인한다.
-- [ ] API 타입에 관리자 취소 요청·응답과 상세 취소 필드를 반영하고 mock fallback 없이 실제 API만 호출한다.
+- [x] 관리자 신청 상세에서 `COMPLETED`, `CANCELLED`를 제외한 6개 상태에만 `신청 취소` 버튼을 표시한다(`ApplicationDetail.tsx`의 `canCancel`). 사용자 마이페이지 취소(`api.cancelApplication`)와는 별도 함수 `api.cancelApplicationByAdmin`로 분리해 혼용하지 않는다.
+- [x] 확인 UI에 필수 취소 사유 textarea를 제공한다 — 별도 모달 라이브러리 대신 기존 “카드번호 일괄 입력”과 동일한 토글형 인라인 패널 패턴을 재사용(`admin-naming__cancel-panel`). 공백 제외 글자 수를 `N/500자`로 표시하고, 1~500자를 벗어나면(공백만 포함 포함) “취소 확정” 버튼을 비활성화한다.
+- [x] “완료 전 신청을 취소하며 생성된 사진·카드 파일이 삭제됩니다”를 안내하고, `paymentStatus === “CONFIRMED”`인 신청에는 “별도 운영 절차로 전액 환불해야 합니다” 경고를 추가로 표시한다.
+- [x] `POST /api/admin/applications/{id}/cancel`에 `{ cancellationMemo }`를 전송한다. `statusBusy`로 요청 중 중복 클릭을 막고, 성공/닫기 시 패널을 접고 메모를 초기화한다.
+- [x] 성공 후 상세를 재조회(`getAdminApplication`)해 취소 상태·메모(`신청 정보`의 “취소 메모” 항목)를 표시한다. `CANCELLED` 상태에서는 십이간지 디자인·단체 도구·구성원별 작명/카드 패널 전체를 안내 문구로 대체해 상태 액션·카드 생성·이름 수정을 숨긴다(백엔드 `GENERATE_STATUS_GATE`가 이미 서버 단에서도 거절하므로 이중 방어).
+- [x] 멱등 재호출은 UI에서 재시도 경로가 없다(취소 완료 즉시 버튼·패널이 사라짐) — 서버가 멱등을 보장하므로 별도 처리 불필요. `COMPLETED`/권한 오류 등은 `ApiError.message`를 토스트로 표시.
+- [x] 목록에는 기존 상태 라벨만 유지, 메모는 상세에서만 노출(목록 컴포넌트 미변경).
+- [x] `services/api.ts`에 `AdminApplicationCancelResult` 타입과 `cancelApplicationByAdmin` 추가, `AdminApplicationDetail.cancellationMemo` 필드 추가. Mock fallback 없이 실제 API만 호출.
+- [x] `tsc --noEmit` 통과 확인. 실제 dev 컨테이너(Vite dev 서버 + 로컬 backend:8080 프록시)에서 Playwright로 라이브 검증: 개인/단체 신청 각각 취소 성공, 빈 값/공백만 있는 메모에서 확인 버튼 비활성화, 유효한 메모 입력 시 활성화, 취소 후 재진입 시 메모 표시 및 취소 버튼 소멸(멱등 재시도 불가) 전부 스크린샷으로 확인.
 
 #### 문서 및 완료 검증
 
-- [ ] `requirements.md`에 허용 상태·필수 메모·결제/환불·멱등·파일 삭제 정책을 Source of Truth로 반영한다. — **이번 범위 제외**(사용자가 "백엔드만" 요청, 프론트 착수 시 함께 정리 예정)
+- [ ] `requirements.md`에 허용 상태·필수 메모·결제/환불·멱등·파일 삭제 정책을 Source of Truth로 반영한다. — **이번 범위 제외**(백엔드·프론트 구현은 완료됐으나 문서는 별도 후속 작업으로 남김)
 - [ ] `data-model.md`에 nullable `cancellation_memo`와 `ADMIN + ADMIN_DECISION` 불변조건을 반영한다. — **이번 범위 제외**
 - [ ] `docs/api/admin.md`, `docs/specs/application/api.md`, `docs/FRONTEND_API_INTEGRATION_SPEC.md`에 API 및 UI 계약을 반영한다. — **이번 범위 제외**
-- [x] 관련 Backend 테스트 실행(전체 회귀 포함), 대량 출력은 로그 파일로 저장하고 종료코드·개수·실패 대상만 대화에 보고. Frontend typecheck/build는 프론트 미착수라 해당 없음.
-- [x] `CHANGELOG.md`, `HANDOFF.md` 갱신 — Backend 완료 기준으로만 기록, Frontend는 대기 상태로 명시.
+- [x] 관련 Backend 테스트 실행(전체 회귀 포함), 대량 출력은 로그 파일로 저장하고 종료코드·개수·실패 대상만 대화에 보고. Frontend는 `tsc --noEmit` 통과 + 실제 dev 스택 Playwright 라이브 검증 완료.
+- [x] `CHANGELOG.md`, `HANDOFF.md` 갱신 — Backend·Frontend 모두 완료로 기록.
 
 ### 1. 정책 문서 정합성
 

@@ -3,21 +3,30 @@
 - 마지막 갱신: 2026-09-25
 - 작성자: Claude
 - 브랜치: main
-- 커밋·push: `87e44c0`까지 push 완료·배포 확인됨(단체 사진 반려 재업로드 유니크 제약 버그 수정까지). 아래 "완료 — 관리자 강제 취소(백엔드)" 절은 이 문서 갱신 시점 기준 **아직 커밋 전**.
+- 커밋·push: `87e44c0`(단체 사진 반려 재업로드 버그 수정 docs)까지 push 완료·배포 확인됨. 그 위에 관리자 강제 취소 백엔드가 `a3c5e63`(구현+테스트)/`41f7e42`(docs)로 로컬 커밋됐다(아직 push 전). 아래 "완료 — 관리자 강제 취소 — 프론트" 절의 프론트 변경은 이 문서 갱신 시점 기준 **아직 커밋 전**.
 
 ## 현재 워킹 트리
 
-**미커밋 상태** — 아래 "완료 — 관리자 강제 취소(백엔드)" 절의 소스·테스트·`docs/collab/TODO.md`/`CHANGELOG.md` 변경이 아직 커밋되지 않았다. 전체 백엔드 회귀 1045개 중 1044개 통과(무관 플레이키 1건 제외) 확인 완료. 다음 세션은 커밋부터 시작하면 된다.
+**미커밋 상태** — 아래 "완료 — 관리자 강제 취소 — 프론트" 절의 `frontend/src/services/api.ts`, `frontend/src/components/admin/applications/ApplicationDetail.tsx`, `frontend/src/pages/AdminPage/AdminPage.css`와 `docs/collab/TODO.md`/`CHANGELOG.md` 변경이 아직 커밋되지 않았다. `tsc --noEmit` 통과 확인 완료. 다음 세션은 커밋부터 시작하면 된다(백엔드 `a3c5e63`/`41f7e42`와 프론트 커밋 모두 아직 push 전).
 
-## 완료 — 관리자 강제 취소 — 백엔드 (2026-09-25, Frontend·docs/specs는 사용자가 명시적으로 범위 제외)
+## 완료 — 관리자 강제 취소 — 백엔드 (2026-09-25, 커밋 `a3c5e63`/`41f7e42`, push 전)
 
 - Codex가 `docs/collab/TODO.md`에 미리 정리해둔 "관리자 강제 취소 구현 체크리스트"(2026-09-25 확정 정책)를 사용자가 "확인해서 백엔드만 구현해줘"로 요청 → 기존 자산(`cancelByUser`/`completeCancellation` 공유 로직, `CancellationType.ADMIN`/`CancellationReason.ADMIN_DECISION` enum, `@Version`)을 실제 코드와 대조 검증한 뒤 구현.
 - **구현 중 스스로 발견한 중요한 갭**: `ApplicationStatus.canTransitionTo()`가 `NAME_EDITING`/`PRODUCTION_READY`/`PRODUCING`에서 `CANCELLED`로의 전이 자체를 막고 있었다 — 정책이 요구하는 6개 허용 상태 중 3개가 상태머신 레벨에서부터 거절당했을 것. 이 세 상태에 `CANCELLED` 이탈 경로를 추가해 해결(다른 정상 전이는 불변).
 - `Application.cancelByAdmin(cancelledAt, cancellationMemo)` 신설 — 허용 상태(`canTransitionTo` 재사용)·메모 trim 후 1~500자·`CANCELLED` 재호출 멱등을 Entity가 보장. `ApplicationService.cancelByAdmin()`은 `findApplicationForUpdate`(비관적 락)로 카드생성/다른 상태전이/입금확인과의 경쟁을 차단하고, 최초 취소에만 파일정리·슬롯반환·S3 예약삭제·감사로그를 처리. 기존 사용자 취소가 쓰는 `clearCancellationFileReferences`를 확장해 Member 카드 이미지까지 정리하도록 했다(관리자 취소는 `PRODUCTION_READY`/`PRODUCING`에서도 허용돼 카드가 이미 있을 수 있음 — 사용자 취소 경로에서는 항상 no-op이라 회귀 없음).
 - `POST /api/admin/applications/{id}/cancel` 신규, 전용 응답 `AdminApplicationCancelResponse`(상태·결제상태·환불필요 안내·취소유형/사유/메모·최초처리여부), `MyApplicationDetailResponse`(관리자 상세·마이페이지 상세 공용)에 `cancellationMemo` 필드 추가.
 - 신규 테스트 21건(Entity 6 + Service 통합 9 + Controller 6) 전부 GREEN. 전체 회귀 1045개 중 1044개 통과(나머지 1건은 무관 플레이키 `HighSchoolSeederIntegrationTest`). `cancellationMemo` nullable 컬럼이 실제 populated dev DB에 `ddl-auto=update`로 안전하게 적용되는지 재빌드해 직접 확인(2026-09-21에 겪었던 NOT NULL 컬럼 populated-table 실패와는 다른 케이스임을 확인). 재빌드된 dev 컨테이너에 실제 HTTP 호출(Playwright `fetch`)로 최초 취소·멱등 재호출까지 라이브로 재확인.
-- 상세는 `docs/collab/CHANGELOG.md` 2026-09-25 "관리자 강제 취소 — 백엔드" 항목, 체크리스트는 `docs/collab/TODO.md` "관리자 강제 취소 구현 체크리스트" 절 참고.
-- **다음에 할 일**: 위 변경(소스+테스트 한 커밋 + 문서 한 커밋, 이 세션 관례대로 분리)을 커밋(아직 안 함). 사용자가 명시적으로 "백엔드만"이라고 범위를 좁혔으므로 프론트(`ApplicationDetail.tsx` 취소 버튼·확인 모달·경고 문구)와 `docs/specs/*.md`/`docs/api/*.md` 갱신은 별도 확인 없이 착수하지 말 것.
+- 상세는 `docs/collab/CHANGELOG.md` 2026-09-25 "관리자 강제 취소 — 백엔드" 항목 참고.
+
+## 완료 — 관리자 강제 취소 — 프론트 (2026-09-25, 커밋 전)
+
+- 백엔드를 커밋한 직후 사용자가 같은 날 "프론트구현"으로 이어서 요청 → `docs/collab/TODO.md`의 "관리자 강제 취소 구현 체크리스트" Frontend 절(8개 항목)을 구현 대상으로 삼았다.
+- 관리자 신청 상세(`ApplicationDetail.tsx`)에서 `COMPLETED`/`CANCELLED`를 제외한 6개 상태에 "신청 취소" 버튼을 노출. 취소 사유는 공백 제외 1~500자 필수·글자 수 표시·무효 시 확인 버튼 비활성화가 정책이라 기존 `window.prompt` 패턴(사진 반려·배송 발송)으로는 구현 불가 — 대신 이미 있는 "카드번호 일괄 입력" 토글형 인라인 패널과 동일한 패턴으로 별도 모달 라이브러리 없이 textarea 패널(`admin-naming__cancel-panel`)을 새로 만들었다.
+- 취소 성공 후 상세를 재조회해 "신청 정보"에 취소 메모를 표시하고, `CANCELLED` 상태에서는 십이간지 디자인·단체 도구·구성원별 작명/카드 패널 전체를 안내 문구로 대체해 상태 액션·카드 생성·이름 수정을 숨긴다. 백엔드 `CardGenerationService.GENERATE_STATUS_GATE`가 `PRODUCTION_READY`/`PRODUCING`만 허용해 서버 단에서도 이미 거절되므로, 이 변경은 이중 방어 성격의 UX 개선이다(기능적으로 필수는 아니었지만 체크리스트가 명시적으로 요구해 반영).
+- `services/api.ts`에 `AdminApplicationCancelResult` 타입·`cancelApplicationByAdmin()` 추가(사용자 본인 취소용 기존 `cancelApplication`과 별도 함수, 혼용 방지), `AdminApplicationDetail.cancellationMemo` 필드 추가.
+- 자동화 단위/e2e 테스트는 추가하지 않음(관리자 패널에 Vitest/RTL 커버리지가 전혀 없고, Playwright e2e는 격리된 `docker-compose.e2e.yml` 전용 스택이라 이번 범위 밖) — 대신 `tsc --noEmit` 통과 확인 후, 로컬 dev 컨테이너(backend:8080)에 Vite dev 서버를 proxy로 띄워 실제 관리자 계정으로 로그인해 Playwright로 라이브 조작: 개인 신청 취소(빈 값/공백만 있는 메모 → 확인 버튼 비활성화, 유효 메모 → 활성화, 확정 후 토스트·상태뱃지·재진입 시 메모 노출·취소 버튼 소멸까지 확인) 및 단체 신청(구성원 10명) 취소 각각 스크린샷으로 검증. 검증 스크립트·스크린샷은 세션 스크래치패드에만 남기고 커밋하지 않았다.
+- 상세는 `docs/collab/CHANGELOG.md` 2026-09-25 "관리자 강제 취소 — 프론트" 항목 참고.
+- **다음에 할 일**: 위 프론트 변경(소스 한 커밋 + 문서 한 커밋, 이 세션 관례대로 분리)을 커밋(아직 안 함), 이후 백엔드·프론트 커밋 전부를 사용자 승인("응"/"푸시") 후 push. `docs/specs/*.md`/`docs/api/*.md` 등 정책 문서 갱신은 계속 범위 제외 상태로 남아있음 — 필요 시 별도로 확인.
 
 ## 완료 — 추천 이름 데이터와 백엔드 이름 검증 정합화 (2026-09-24, 범위 축소판 구현 완료, 커밋·push 완료)
 
