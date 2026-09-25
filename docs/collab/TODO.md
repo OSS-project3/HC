@@ -9,6 +9,19 @@
 
 ---
 
+## 단체 사진 반려 재업로드 시 유니크 제약 위반 버그 수정 (2026-09-25, 실사용자 제보)
+
+상태: ✅ 완료(Claude) — 원인 확인·재현 테스트·수정·전체 회귀 완료.
+
+- 배경: 바로 위 "마이페이지 사진 반려 재업로드 연결" 프론트를 배포한 직후, 실사용자가 단체 신청 재업로드 시 "서버 내부 오류가 발생했습니다"를 제보. 배포 서버 로그 확인 결과 `DataIntegrityViolationException`(유니크 제약 `(application_id, photo_number)` 위반)이었다.
+- 원인: `ApplicationService.reuploadPhoto()`의 단체 분기가 `applicationMemberRepository.deleteByApplicationId(applicationId)` 호출 후 바로 새 멤버를 `save()`하는데, 이 파생 삭제 메서드는 즉시 DELETE를 실행하지 않고 엔티티를 remove 마킹만 해서 flush 시점까지 미룬다. Hibernate의 flush 순서는 호출 순서와 무관하게 INSERT를 DELETE보다 먼저 처리하므로, 재업로드 엑셀이 원본과 같은 사진 번호를 쓰면(반려 후 재제출에서 흔한 시나리오 — 같은 공식 양식을 그대로 재사용) 아직 안 지워진 기존 행과 충돌한다. 기존 `ApplicationServicePhotoReuploadTest`는 픽스처가 항상 `photoNumber=null`이거나 새 번호가 원본과 달라 이 충돌을 한 번도 재현하지 못했다 — 실사용자가 처음으로 이 경로를 실제로 밟은 것.
+- 수정: `deleteByApplicationId()` 직후 `applicationMemberRepository.flush()`를 추가해 DELETE를 실제로 먼저 실행시킨다. 다른 호출부는 없어 영향 범위가 이 한 곳으로 한정된다.
+- 파일: `ApplicationService.java`(`flush()` 한 줄 추가) / `ApplicationServicePhotoReuploadTest.java`(신규 재현 테스트 `reuploadPhotoForGroupReplacesMemberWithSamePhotoNumberAsOriginal` — 원본·재업로드 모두 같은 사진 번호 "9"를 써서 재현, 수정 전 RED 확인 후 GREEN 전환).
+- 검증: 신규 테스트 RED(`DataIntegrityViolationException`, 배포 서버와 동일한 제약 위반) → 수정 후 GREEN, 전체 회귀 통과. 배포 서버의 실제 레코드(`APP-2026-000004`)는 `@Transactional` 롤백으로 손상 없이 원래 상태(`PHOTO_REJECTED`, 멤버 5명) 그대로임을 SSH로 직접 확인 — 배포되면 사용자가 재시도하면 된다.
+- 관련: `docs/collab/TODO.md` "마이페이지 사진 반려 재업로드 연결" 절에서 이어짐. 이번 건은 백엔드 로직 자체의 잠재 결함이라 "백엔드 코드는 변경하지 않는다" 원칙의 예외.
+
+---
+
 ## 마이페이지 사진 반려 재업로드 연결 (2026-09-25 정책 확정)
 
 상태: ✅ 완료(Claude) — 백엔드 변경 없음, 프론트 구현·실제 dev 컨테이너 검증 완료.

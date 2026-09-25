@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-25 — Claude — `main` (단체 사진 반려 재업로드 — 유니크 제약 위반 버그 수정)
+
+- 변경: 바로 아래 항목(마이페이지 재업로드 프론트 연결)을 배포한 직후 실사용자가 단체 신청 재업로드에서 "서버 내부 오류가 발생했습니다"를 제보 → 배포 서버 로그에서 `DataIntegrityViolationException`(유니크 제약 `(application_id, photo_number)` 위반, `Detail: Key (application_id, photo_number)=(4, 1) already exists.`) 확인. 원인은 `ApplicationService.reuploadPhoto()`의 단체 분기가 `applicationMemberRepository.deleteByApplicationId()` 호출 직후 새 멤버를 `save()`하는데, 이 파생 삭제 메서드는 엔티티를 remove 마킹만 하고 실제 DELETE는 flush 시점까지 미루며, Hibernate의 flush 순서는 호출 순서와 무관하게 INSERT를 DELETE보다 항상 먼저 처리해서, 재업로드 엑셀이 원본과 같은 사진 번호를 쓰면(반려 후 같은 공식 양식을 재사용하는 흔한 시나리오) 아직 안 지워진 기존 행과 충돌하는 것이었다. `deleteByApplicationId()` 직후 `flush()`를 추가해 DELETE를 실제로 먼저 실행시켜 해결.
+- 파일: `ApplicationService.java`(`reuploadPhoto()`에 `applicationMemberRepository.flush()` 한 줄 추가, 다른 호출부 없음) / `ApplicationServicePhotoReuploadTest.java`(신규 재현 테스트 `reuploadPhotoForGroupReplacesMemberWithSamePhotoNumberAsOriginal` — 원본·신규 멤버 모두 photo_number="9"로 만들어 재현. 기존 테스트들은 픽스처가 `photoNumber=null`이거나 신규 번호가 원본과 달라 이 충돌을 한 번도 못 잡았음이 드러남).
+- 사유: 실사용자 제보 기반 버그 수정 — 직전 커밋이 "백엔드는 변경하지 않는다"고 명시했던 것과 달리, 이번 건은 그 직전 작업이 처음으로 실사용자 트래픽을 태워 드러난 기존 백엔드 로직의 잠재 결함이라 예외적으로 백엔드를 고쳤다.
+- 테스트: 신규 테스트로 RED 재현(배포 서버와 동일한 `DataIntegrityViolationException`) 확인 후 수정 → GREEN, 전체 회귀 통과. 배포 서버의 실제 레코드(`APP-2026-000004`, `@Transactional` 롤백 덕에 손상 없음)를 SSH로 직접 조회해 상태(`PHOTO_REJECTED`, 멤버 5명)가 그대로 보존됐음도 확인.
+- 관련: `docs/collab/TODO.md` "단체 사진 반려 재업로드 시 유니크 제약 위반 버그 수정" 절.
+
+---
 ## 2026-09-25 — Claude — `main` (마이페이지 사진 반려 재업로드 연결 — 프론트)
 
 - 변경: Codex가 `docs/collab/TODO.md`에 남겨둔 확정 정책(11개 항목)을 실제 코드와 대조 검증(백엔드 `reuploadPhoto()`/`resubmitForReview()`/응답 DTO/기존 테스트가 문서 설명과 정확히 일치, 프론트 `api.ts`의 타입 누락·`MyPage.tsx`의 재업로드 UI 부재도 문서 그대로임을 확인)한 뒤 프론트만 구현했다. 마이페이지 `제작 내역 → 신청 상세`에서 `PHOTO_REJECTED` 신청에만 반려 사유(강조 박스)와 재업로드 영역(개인=사진 1장 JPG/PNG≤5MiB, 단체=ZIP≤250MiB)을 보여주는 `PhotoReupload` 컴포넌트를 신설했다. 파일 선택 즉시 업로드하지 않고 별도 "재업로드" 버튼으로 제출, 업로드 중 입력·버튼 비활성화, 성공 시 목록 행 상태를 즉시 `REVIEWING`으로 반영하고 상세를 재조회해 반려 UI를 사라지게 하며, 실패 시 선택 파일을 유지한 채 `ApiError.message`(+단체 ZIP이면 `errors[]`)를 표시한다.
