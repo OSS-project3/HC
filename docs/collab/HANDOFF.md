@@ -1,15 +1,25 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-09-24
+- 마지막 갱신: 2026-09-25
 - 작성자: Claude
 - 브랜치: main
-- 커밋·push: `68210f6`까지 push 완료(사용자 "푸시" 요청으로 그 시점에 push, 배포 워크플로 성공 확인). 아래 "완료 — 추천 이름 데이터 정합화" 절의 변경은 이 문서 갱신 시점 기준 **아직 커밋 전**.
+- 커밋·push: `87e44c0`까지 push 완료·배포 확인됨(단체 사진 반려 재업로드 유니크 제약 버그 수정까지). 아래 "완료 — 관리자 강제 취소(백엔드)" 절은 이 문서 갱신 시점 기준 **아직 커밋 전**.
 
 ## 현재 워킹 트리
 
-**미커밋 상태** — 아래 "완료 — 추천 이름 데이터 정합화" 절의 JSON 데이터·`namingRecommendations.ts`·`naming-determinism.spec.ts`·`docs/collab/TODO.md`/`CHANGELOG.md` 변경이 아직 커밋되지 않았다. `tsc --noEmit`/`npm run build`/`naming-determinism.spec.ts`(13건) 전부 통과, 백엔드 관련 테스트(`SajuNameSeederTest` 등, 코드 미수정)도 재확인 완료. 다음 세션은 커밋부터 시작하면 된다.
+**미커밋 상태** — 아래 "완료 — 관리자 강제 취소(백엔드)" 절의 소스·테스트·`docs/collab/TODO.md`/`CHANGELOG.md` 변경이 아직 커밋되지 않았다. 전체 백엔드 회귀 1045개 중 1044개 통과(무관 플레이키 1건 제외) 확인 완료. 다음 세션은 커밋부터 시작하면 된다.
 
-## 완료 — 추천 이름 데이터와 백엔드 이름 검증 정합화 (2026-09-24, 범위 축소판 구현 완료·커밋 전)
+## 완료 — 관리자 강제 취소 — 백엔드 (2026-09-25, Frontend·docs/specs는 사용자가 명시적으로 범위 제외)
+
+- Codex가 `docs/collab/TODO.md`에 미리 정리해둔 "관리자 강제 취소 구현 체크리스트"(2026-09-25 확정 정책)를 사용자가 "확인해서 백엔드만 구현해줘"로 요청 → 기존 자산(`cancelByUser`/`completeCancellation` 공유 로직, `CancellationType.ADMIN`/`CancellationReason.ADMIN_DECISION` enum, `@Version`)을 실제 코드와 대조 검증한 뒤 구현.
+- **구현 중 스스로 발견한 중요한 갭**: `ApplicationStatus.canTransitionTo()`가 `NAME_EDITING`/`PRODUCTION_READY`/`PRODUCING`에서 `CANCELLED`로의 전이 자체를 막고 있었다 — 정책이 요구하는 6개 허용 상태 중 3개가 상태머신 레벨에서부터 거절당했을 것. 이 세 상태에 `CANCELLED` 이탈 경로를 추가해 해결(다른 정상 전이는 불변).
+- `Application.cancelByAdmin(cancelledAt, cancellationMemo)` 신설 — 허용 상태(`canTransitionTo` 재사용)·메모 trim 후 1~500자·`CANCELLED` 재호출 멱등을 Entity가 보장. `ApplicationService.cancelByAdmin()`은 `findApplicationForUpdate`(비관적 락)로 카드생성/다른 상태전이/입금확인과의 경쟁을 차단하고, 최초 취소에만 파일정리·슬롯반환·S3 예약삭제·감사로그를 처리. 기존 사용자 취소가 쓰는 `clearCancellationFileReferences`를 확장해 Member 카드 이미지까지 정리하도록 했다(관리자 취소는 `PRODUCTION_READY`/`PRODUCING`에서도 허용돼 카드가 이미 있을 수 있음 — 사용자 취소 경로에서는 항상 no-op이라 회귀 없음).
+- `POST /api/admin/applications/{id}/cancel` 신규, 전용 응답 `AdminApplicationCancelResponse`(상태·결제상태·환불필요 안내·취소유형/사유/메모·최초처리여부), `MyApplicationDetailResponse`(관리자 상세·마이페이지 상세 공용)에 `cancellationMemo` 필드 추가.
+- 신규 테스트 21건(Entity 6 + Service 통합 9 + Controller 6) 전부 GREEN. 전체 회귀 1045개 중 1044개 통과(나머지 1건은 무관 플레이키 `HighSchoolSeederIntegrationTest`). `cancellationMemo` nullable 컬럼이 실제 populated dev DB에 `ddl-auto=update`로 안전하게 적용되는지 재빌드해 직접 확인(2026-09-21에 겪었던 NOT NULL 컬럼 populated-table 실패와는 다른 케이스임을 확인). 재빌드된 dev 컨테이너에 실제 HTTP 호출(Playwright `fetch`)로 최초 취소·멱등 재호출까지 라이브로 재확인.
+- 상세는 `docs/collab/CHANGELOG.md` 2026-09-25 "관리자 강제 취소 — 백엔드" 항목, 체크리스트는 `docs/collab/TODO.md` "관리자 강제 취소 구현 체크리스트" 절 참고.
+- **다음에 할 일**: 위 변경(소스+테스트 한 커밋 + 문서 한 커밋, 이 세션 관례대로 분리)을 커밋(아직 안 함). 사용자가 명시적으로 "백엔드만"이라고 범위를 좁혔으므로 프론트(`ApplicationDetail.tsx` 취소 버튼·확인 모달·경고 문구)와 `docs/specs/*.md`/`docs/api/*.md` 갱신은 별도 확인 없이 착수하지 말 것.
+
+## 완료 — 추천 이름 데이터와 백엔드 이름 검증 정합화 (2026-09-24, 범위 축소판 구현 완료, 커밋·push 완료)
 
 - Codex가 미리 `TODO.md`에 써둔 정책(기존 DB의 손상 행까지 멱등 보정하는 계획 포함)을 사용자가 "확인해주세요"로 검토 요청 → 실제 코드 대조로 문서의 모든 수치·주장(700건 중 문제 20건, 두 JSON 파일 SHA-256 동일, `SajuNameSeeder`가 `count()>0`이면 스킵 등)이 정확함을 확인해 보고. 사용자가 더 단순한 대안(검증 자체를 1~4글자로 완화)을 제안했으나, `admin-saju.md`의 "전체 한글 이름 최대 5글자"(카드 레이아웃 제약)와 `CardImageCompositor`에 오버플로우 실패 처리가 실제로는 구현돼 있지 않다는 점을 근거로 반박 → 사용자가 최종적으로 범위를 명시적으로 축소해 확정: `validateNameFormat()` 2~3자 규칙 유지, **기존 DB 보정·`SajuNameSeeder` idempotent 보정은 이번 범위에서 제외**, 추천 필터는 길이 조건만, `태산`/`현산`은 필터가 아니라 JSON 데이터 자체를 직접 수정, 카드 렌더링·이름 길이 정책은 불변.
 - 구현: `frontend/src/data/sajuNames.json` + `backend/.../seed/saju-names.json`에 동일한 Node 치환으로 `태산`(`兌示산`→`兌祘`)·`현산`(`鉉示산`→`鉉祘`) hanja·reading만 수정(SHA-256 재일치 확인). `namingRecommendations.ts`의 `recommendNames()`에 길이 기반(`isRecommendable`, 2~3 코드포인트) 필터를 점수 계산 전에 추가, 사전 index는 필터 전 원본 위치로 캡처해 §1.19 결정성(동점 tie-break) 불변. 백엔드 소스 코드는 전혀 안 건드림.

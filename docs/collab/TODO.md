@@ -1113,6 +1113,69 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] `Application.guidePayment()`/`paymentGuidedAt`/`paymentDueAt`/`ApplicationPaymentTimeoutScheduler`/`cancelForPaymentTimeout()`는 이전 정책의 구현 흔적으로 코드에 남기고 신규로 연결하지 않음(호출하는 Controller가 없어 실제로는 이미 항상 비활성 상태였음). DB 컬럼·코드 제거는 이번 범위에 포함하지 않음
 - [x] 아래 "5-A. 결제 안내 API/UI 연결"은 이 정책 폐기로 착수하지 않음(계획 기록만 유지)
 
+### 관리자 강제 취소 구현 체크리스트 (2026-09-25 확정) — Backend ✅ 완료(Claude), Frontend 대기
+
+> 이 절은 아래 3절의 과거 결정인 “관리자 직접 취소 미구현”보다 우선한다. 신청이 완전히 완료되기 전까지 관리자는 운영상 신청을 강제로 취소할 수 있다. 정책 문서 → 실패 테스트 → 최소 구현 → 관련 회귀 테스트 → 문서 갱신 순서로 진행한다.
+
+사용자가 "백엔드만 구현해줘"로 명시적으로 범위를 좁혀 프론트/`docs/specs/*.md` 갱신은 이번 범위에서 제외했다(아래 Frontend·문서 절 참고).
+
+**구현 중 발견한 중요한 갭(문서에 명시되지 않았던 부분)**: `ApplicationStatus.canTransitionTo()`가 당시 `NAME_EDITING`/`PRODUCTION_READY`/`PRODUCING`에서 `CANCELLED`로의 전이 자체를 허용하지 않고 있었다 — 즉 이 세 상태에서 관리자가 취소를 시도하면 상태머신 자체가 `INVALID_STATUS_TRANSITION`으로 거절했을 것이다. 확정 정책이 이 6개 상태 전부를 취소 가능하다고 명시하므로, `canTransitionTo`에 이 세 상태 → `CANCELLED` 이탈 경로를 추가했다(다른 정상 진행 전이는 변경 없음).
+
+#### 확정 정책
+
+- [x] 취소 가능 상태: `SUBMITTED`, `REVIEWING`, `PHOTO_REJECTED`, `NAME_EDITING`, `PRODUCTION_READY`, `PRODUCING`.
+- [x] `COMPLETED`는 관리자도 취소할 수 없다. `CANCELLED` 재호출은 기존 취소 정보와 결제 상태를 바꾸지 않는 멱등 성공이다.
+- [x] 최초 취소는 `CANCELLED + ADMIN + ADMIN_DECISION` 및 `cancelledAt=현재 시각`으로 기록한다.
+- [x] 관리자 취소 메모는 필수다. `trim` 결과 1~500자여야 하고 공백만 있는 값은 거절한다. 기존 사용자·시스템 취소 row와 호환되도록 DB 컬럼은 nullable로 두되, `ADMIN + ADMIN_DECISION`이면 Entity가 non-blank 메모를 보장한다.
+- [x] `PaymentStatus`는 변경하지 않는다. `WAITING`은 환불 불필요, `CONFIRMED`는 관리자가 시스템 밖에서 전액 환불하며 환불 완료 여부는 저장하지 않는다.
+- [x] 최초 취소만 기존 일일 신청 슬롯을 같은 DB 트랜잭션에서 반환하며, 중복 호출에서는 다시 반환하지 않는다.
+- [x] `PRODUCING`에서 `cardReadyAt`이나 일부·전체 Member 카드 이미지가 이미 생성됐어도 `COMPLETED` 전이면 취소할 수 있다.
+- [x] DB commit 후 얼굴사진·로고·직인·제출 ZIP과 생성된 Member 앞·뒷면 카드 이미지를 S3에서 즉시 삭제한다. 삭제 실패는 취소 결과를 되돌리지 않고 실패 key를 오류 로그로 남긴다. DB rollback/commit 실패 시에는 S3를 삭제하지 않는다.
+- [x] 최초 관리자 취소에만 `AdminActivityLog`를 1건 남긴다. 관리자 ID, 신청 ID, 취소 시각과 메모를 추적하며 중복 호출에는 추가 로그를 남기지 않는다.
+
+#### Backend — ✅ 구현 완료
+
+- [x] `Application`에 nullable `cancellationMemo`(최대 500자)를 추가. 운영 DB 마이그레이션은 `ddl-auto=update`가 nullable 컬럼이라 기존 populated 테이블에도 안전하게 적용됨을 실제 dev 컨테이너(기존 데이터 있는 DB)에 재빌드해 `information_schema.columns`로 직접 확인(NOT NULL 컬럼이 아니라 2026-09-21에 겪었던 populated-table 실패 케이스에 해당 안 함).
+- [x] `Application.cancelByAdmin(cancelledAt, cancellationMemo)` 추가 — 허용 상태는 `canTransitionTo(CANCELLED)` 재사용(위 상태머신 확장 참고), 메모는 trim 후 1~500자만 허용, `CANCELLED` 재호출은 `cancelByUser`와 동일한 멱등 패턴(`false` 반환, 값 불변).
+- [x] `completeCancellation`(사용자 취소가 쓰는 기존 private 공통 로직)은 그대로 두고, 관리자 전용 `completeAdminCancellation`(감사로그 추가)을 분리했다. 공유 `clearCancellationFileReferences`는 카드 이미지(`cardFrontPath`/`cardBackPath`) 정리 로직을 추가해 확장 — 사용자 취소 경로에서는 카드가 존재할 수 없어 항상 no-op이라 회귀 없음.
+- [x] Service 순서: `validateAdmin → findApplicationForUpdate(비관적 락) → cancelByAdmin(멱등 판정+상태/메모 검증) → 최초면 completeAdminCancellation(파일정리+슬롯반환+S3예약+감사로그) → commit`.
+- [x] 카드 생성·다른 상태 전이·입금 확인과의 경쟁은 `findApplicationForUpdate`의 비관적 락(`SELECT ... FOR UPDATE`)으로 방어 — 같은 row를 잠근 동안 다른 트랜잭션의 UPDATE는 커밋될 때까지 대기하므로 `@Version` 낙관적 락과 동등하거나 더 강한 수준.
+- [x] UploadFile metadata·S3 key 수집 후 `uploadFileRepository.deleteAll()` + `application.clearManagedFileReferences()` + `member.clearPhoto()/clearCardImages()`로 참조를 원자적으로 정리. Application/Applicant/Receiver/ApplicationMember row 자체는 삭제하지 않고 보존.
+- [x] 일부 Member만 카드가 생성된 단체 신청도 멤버별로 `cardFrontPath`/`cardBackPath` 존재 여부와 무관하게 전부 정리됨을 테스트로 확인.
+- [x] 기존 `registerCancellationS3CleanupAfterCommit`(TransactionSynchronization의 `afterCommit`) 그대로 재사용 — rollback/commit 실패 시 S3 미삭제, 삭제 실패는 `log.warn`만 남기고 취소 결과 유지.
+- [x] `POST /api/admin/applications/{applicationId}/cancel` 추가(`AdminApplicationController`) — `@AuthenticationPrincipal`로 관리자 ID, 요청 바디는 `{ cancellationMemo }`만.
+- [x] 응답(`AdminApplicationCancelResponse`): 신청 ID·최종 상태·결제 상태·환불 필요 안내·취소 시각·유형·사유·메모·최초 처리 여부. `MyApplicationDetailResponse`(관리자 상세·마이페이지 상세 공용)에도 `cancellationMemo` 필드를 추가해 상세 조회에서 취소 정보를 확인할 수 있다.
+- [x] `AdminActivityLog.APPLICATION_CANCEL` action 추가, 최초 취소에만 저장(`detail`은 컬럼 길이 200 제한 때문에 메모를 안전하게 잘라서 기록 — 전체 메모는 `Application.cancellationMemo`에 이미 보존됨).
+- [x] 오류 계약: 신청 없음 `404`(`APPLICATION_NOT_FOUND`), 권한 없음 `403`(`FORBIDDEN`), blank·500자 초과 메모 `400`(`INVALID_INPUT`, DTO `@NotBlank @Size(max=500)`로 1차 방어 + Entity가 trim 기준 최종 검증), `COMPLETED` 취소 `400`(`INVALID_STATUS_TRANSITION`). 낙관적 락 충돌 전용 코드는 필요 없음(비관적 락으로 경쟁 자체를 차단).
+
+#### Backend 테스트 — ✅ 완료, 전체 회귀 GREEN
+
+- [x] Entity(`ApplicationStateTransitionTest`): 허용 6개 상태 전부 성공, `COMPLETED` 거절, `CANCELLED` 멱등(재호출 시 최초 기록 불변), blank/null 메모 거절, 501자 거절, 정확히 500자 허용 — 6개 테스트.
+- [x] Service 통합(`ApplicationServiceAdminCancelTest`, 신규 파일): 최초 취소의 상태·메모·슬롯 반환·감사로그 1건, 중복 호출 시 메모·로그·슬롯 불변, `WAITING`/`CONFIRMED` 유지 및 `refundedAt` 불변, 개인/단체(카드 있는 멤버+없는 멤버 혼합) 파일 정리, rollback 시 S3 미삭제·슬롯 미반환·로그 없음, S3 삭제 실패해도 DB 커밋 유지, `FORBIDDEN`, `COMPLETED` 거절 — 9개 테스트.
+- [x] 관리자 취소와 다른 상태 전이의 "동시 요청" 자체를 멀티스레드로 재현하지는 않았다 — 비관적 락으로 경쟁을 애초에 직렬화하는 설계라, `COMPLETED`가 된 뒤 취소를 시도하면 거절되는 시나리오(순차 재현으로 동등한 보장 확인)로 대체 검증했다.
+- [x] Controller(`AdminApplicationControllerTest`에 추가): ADMIN 성공(전체 응답 필드 검증), 멱등 재호출, USER 403, blank 메모 400, 없음 404, `COMPLETED` 신청 400 — 6개 테스트.
+- [x] 실제 dev 컨테이너(기존 populated DB)에 재빌드 후 실제 HTTP 호출로 최초 취소·멱등 재호출까지 라이브로 재확인(Playwright `fetch`, curl 아님).
+- [x] 전체 백엔드 회귀 1045개 중 1044개 통과 — 실패 1건은 이 세션 내내 반복 확인된 무관한 기존 플레이키 `HighSchoolSeederIntegrationTest`(신규 테스트와 무관).
+
+#### Frontend — ⚪ 대기(사용자가 "백엔드만" 명시적으로 요청, 프론트 착수 전)
+
+- [ ] 관리자 신청 상세에서 `COMPLETED`, `CANCELLED`를 제외한 상태에만 `신청 취소` 버튼을 표시한다. 사용자 마이페이지 취소 UI와 혼용하지 않는다.
+- [ ] 확인 모달에 필수 취소 사유 textarea를 제공한다. 공백 제외 1~500자와 글자 수를 표시하고 유효하지 않으면 확인 버튼을 비활성화한다.
+- [ ] “완료 전 신청을 취소하며 생성된 사진·카드 파일이 삭제됩니다”를 안내한다. `CONFIRMED` 신청에는 별도 운영 절차로 전액 환불해야 한다는 경고를 추가한다.
+- [ ] `POST /api/admin/applications/{id}/cancel`에 `{ cancellationMemo }`를 전송하고 요청 중 중복 클릭·모달 닫기·재요청을 막는다.
+- [ ] 성공 후 상세를 재조회해 취소 상태·시각·관리자 취소·메모를 표시하고 상태 액션·카드 생성·이름 수정 버튼을 비활성화한다.
+- [ ] 선행 취소는 멱등 성공으로 처리하고, 선행 `COMPLETED` 또는 락 충돌이면 서버 메시지 표시 후 상세를 재조회한다.
+- [ ] 목록에는 취소 상태 라벨만 유지하고 긴 메모는 상세에서 확인한다.
+- [ ] API 타입에 관리자 취소 요청·응답과 상세 취소 필드를 반영하고 mock fallback 없이 실제 API만 호출한다.
+
+#### 문서 및 완료 검증
+
+- [ ] `requirements.md`에 허용 상태·필수 메모·결제/환불·멱등·파일 삭제 정책을 Source of Truth로 반영한다. — **이번 범위 제외**(사용자가 "백엔드만" 요청, 프론트 착수 시 함께 정리 예정)
+- [ ] `data-model.md`에 nullable `cancellation_memo`와 `ADMIN + ADMIN_DECISION` 불변조건을 반영한다. — **이번 범위 제외**
+- [ ] `docs/api/admin.md`, `docs/specs/application/api.md`, `docs/FRONTEND_API_INTEGRATION_SPEC.md`에 API 및 UI 계약을 반영한다. — **이번 범위 제외**
+- [x] 관련 Backend 테스트 실행(전체 회귀 포함), 대량 출력은 로그 파일로 저장하고 종료코드·개수·실패 대상만 대화에 보고. Frontend typecheck/build는 프론트 미착수라 해당 없음.
+- [x] `CHANGELOG.md`, `HANDOFF.md` 갱신 — Backend 완료 기준으로만 기록, Frontend는 대기 상태로 명시.
+
 ### 1. 정책 문서 정합성
 
 - [x] `requirements.md`의 `PAYMENT_PENDING → RECEIVED → REVIEWING` 선형 흐름을 새 상태 구조로 교체
@@ -1156,7 +1219,7 @@ LOOKUP-1 — 완료(Codex, 8d178cc)
 - [x] 이미 `CANCELLED`이면 값을 다시 변경하지 않고 멱등 성공
 - [x] `cancelForPaymentTimeout()`은 `SUBMITTED + WAITING + paymentDueAt 경과`에서만 허용하고 `PAYMENT_TIMEOUT` 기록
 - [x] 현재 모든 비취소 상태를 취소할 수 있는 범용 `cancel()`을 제거/비공개화하고 이번 범위에서는 `cancelByUser()`, `cancelForPaymentTimeout()`만 각각 허용 상태를 검증하도록 분리
-- [x] 관리자 직접 취소 API·Service 메서드는 구현하지 않고 `ADMIN`, `ADMIN_DECISION` 값만 향후 확장용으로 예약
+- [x] 관리자 직접 취소 API·Service 메서드는 구현하지 않고 `ADMIN`, `ADMIN_DECISION` 값만 향후 확장용으로 예약 — **과거 결정 기록이며 2026-09-25 정책 변경으로 폐기. 위 “관리자 강제 취소 구현 체크리스트”가 우선한다.**
 - [x] `cancellationType`과 `cancellationReason`의 허용 조합(`USER/USER_REQUEST`, `SYSTEM/PAYMENT_TIMEOUT`, `ADMIN/ADMIN_DECISION`) 불변조건 보장
 - [x] `markRefunded()`와 `refundedAt` 불변조건은 이전 정책 기준으로 구현됨 — 최신 운영 흐름에서는 Service/API에 연결하지 않음
 - [x] 자동 취소 후 늦은 입금은 재활성화하지 않고 `CANCELLED + CONFIRMED` 유지; 환불은 관리자가 시스템 밖에서 확인·처리

@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-25 — Claude — `main` (관리자 강제 취소 — 백엔드)
+
+- 변경: 사용자가 "TODO.md에 적어둔 관리자 취소 항목 확인해서 백엔드만 구현해줘"로 요청 → 실제 코드와 대조 검증(기존 `cancelByUser`/`cancelForPaymentTimeout`/`completeCancellation` 공유 로직, `@Version`, `CancellationType.ADMIN`/`CancellationReason.ADMIN_DECISION` enum 값 등 문서가 언급한 기존 자산이 실제로 있는지 확인) 후 구현. **구현 중 중요한 갭을 발견**: `ApplicationStatus.canTransitionTo()`가 `NAME_EDITING`/`PRODUCTION_READY`/`PRODUCING`에서 `CANCELLED`로의 전이 자체를 허용하지 않고 있어서, 정책이 요구하는 6개 상태 중 3개는 상태머신 자체가 막고 있었다 — 이 세 상태에 `CANCELLED` 이탈 경로를 추가해 해결(다른 정상 진행 전이는 변경 없음). `Application.cancelByAdmin(cancelledAt, cancellationMemo)`를 신설해 허용 상태·trim 후 1~500자 메모 검증·`CANCELLED` 재호출 멱등을 Entity에서 보장하고, `ApplicationService.cancelByAdmin()`이 `findApplicationForUpdate`(비관적 락) → 취소 → 최초 취소에만 파일 정리·슬롯 반환·감사로그를 처리한다. 기존 사용자 취소가 쓰는 `clearCancellationFileReferences`를 확장해 Member 카드 이미지(`cardFrontPath`/`cardBackPath`)까지 정리하도록 했다 — 관리자 취소는 `PRODUCTION_READY`/`PRODUCING`에서도 허용되어 카드가 이미 생성돼 있을 수 있기 때문(사용자 취소 경로에서는 카드가 존재할 수 없어 이 확장이 항상 no-op, 회귀 없음).
+- 파일: `ApplicationStatus.java`(상태머신 확장), `Application.java`(`cancellationMemo` 필드, `cancelByAdmin()`), `ApplicationMember.java`(`clearCardImages()`), `AdminActivityLog.java`(`APPLICATION_CANCEL` 상수), `MyApplicationDetailResponse.java`(`cancellationMemo` 필드 추가 — 관리자 상세·마이페이지 상세 공용), `AdminApplicationCancelRequest.java`/`AdminApplicationCancelResponse.java`(신규 DTO), `ApplicationService.java`(`cancelByAdmin()`, `completeAdminCancellation()`, `clearCancellationFileReferences()` 확장), `AdminApplicationController.java`(`POST /{applicationId}/cancel`) / (테스트) `ApplicationStateTransitionTest.java`(+6), `ApplicationServiceAdminCancelTest.java`(신규, +9), `AdminApplicationControllerTest.java`(+6).
+- 사유: TODO.md에 미리 정리된 확정 정책(2026-09-25) 구현. 사용자가 명시적으로 "백엔드만"이라고 범위를 좁혀, 프론트(`ApplicationDetail.tsx` 취소 버튼·모달)와 `docs/specs/*.md`/`docs/api/*.md` 갱신은 이번 범위에서 제외했다.
+- 테스트: 신규 21건(Entity 6 + Service 통합 9 + Controller 6) 전부 GREEN. 전체 백엔드 회귀 1045개 중 1044개 통과(실패 1건은 이 세션 내내 반복 확인된 무관한 기존 플레이키 `HighSchoolSeederIntegrationTest`). `cancellationMemo` nullable 컬럼이 실제 populated dev DB(기존 데이터 있는 컨테이너)에 `ddl-auto=update`로 안전하게 적용되는지 재빌드해 `information_schema.columns`로 직접 확인. 재빌드된 dev 컨테이너에 실제 HTTP 호출(Playwright `fetch`)로 최초 취소·멱등 재호출까지 라이브로 재확인.
+- 관련: `docs/collab/TODO.md` "관리자 강제 취소 구현 체크리스트" 절 — Backend ✅ 완료, Frontend·`docs/specs` 갱신은 ⚪ 대기.
+
+---
 ## 2026-09-25 — Claude — `main` (단체 사진 반려 재업로드 — 유니크 제약 위반 버그 수정)
 
 - 변경: 바로 아래 항목(마이페이지 재업로드 프론트 연결)을 배포한 직후 실사용자가 단체 신청 재업로드에서 "서버 내부 오류가 발생했습니다"를 제보 → 배포 서버 로그에서 `DataIntegrityViolationException`(유니크 제약 `(application_id, photo_number)` 위반, `Detail: Key (application_id, photo_number)=(4, 1) already exists.`) 확인. 원인은 `ApplicationService.reuploadPhoto()`의 단체 분기가 `applicationMemberRepository.deleteByApplicationId()` 호출 직후 새 멤버를 `save()`하는데, 이 파생 삭제 메서드는 엔티티를 remove 마킹만 하고 실제 DELETE는 flush 시점까지 미루며, Hibernate의 flush 순서는 호출 순서와 무관하게 INSERT를 DELETE보다 항상 먼저 처리해서, 재업로드 엑셀이 원본과 같은 사진 번호를 쓰면(반려 후 같은 공식 양식을 재사용하는 흔한 시나리오) 아직 안 지워진 기존 행과 충돌하는 것이었다. `deleteByApplicationId()` 직후 `flush()`를 추가해 DELETE를 실제로 먼저 실행시켜 해결.
