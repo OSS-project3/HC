@@ -318,6 +318,11 @@
 .admin-naming__cardbatch textarea { font-family: monospace; resize: vertical; }
 .admin-naming__cardbatch-actions { display: flex; align-items: center; gap: 10px; }
 
+/* 관리자 강제 취소(2026-09-25) — 취소 사유 메모 인라인 패널 */
+.admin-naming__cancel-panel { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.admin-naming__cancel-panel textarea { resize: vertical; }
+.admin-naming__cancel-panel-actions { display: flex; align-items: center; gap: 10px; }
+
 /* 카드 미리보기/생성 */
 .admin-card-tools { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border-soft); }
 .admin-card-tools__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

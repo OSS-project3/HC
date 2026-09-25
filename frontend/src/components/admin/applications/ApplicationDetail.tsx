@@ -28,6 +28,8 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [statusBusy, setStatusBusy] = useState(false);
   const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelMemo, setCancelMemo] = useState("");
   const [groupBusy, setGroupBusy] = useState(false);
   const [cardBatchOpen, setCardBatchOpen] = useState(false);
   const [cardBatchText, setCardBatchText] = useState("");
@@ -172,6 +174,28 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
   };
 
   const s = detail.status;
+  // 관리자 강제 취소(2026-09-25) — COMPLETED/CANCELLED를 제외한 6개 상태에서 허용. 필수 메모는
+  // "카드번호 일괄 입력"과 같은 기존 토글형 인라인 패널 패턴을 재사용(별도 모달 라이브러리 도입 없음).
+  // refundRequired는 결제 상태 자체를 서버가 건드리지 않는다는 뜻이라 확정 후 토스트로 수동 환불을 상기시킨다.
+  const trimmedCancelMemo = cancelMemo.trim();
+  const cancelMemoValid = trimmedCancelMemo.length >= 1 && trimmedCancelMemo.length <= 500;
+  const runCancel = async () => {
+    if (!cancelMemoValid) return;
+    setStatusBusy(true);
+    try {
+      const res = await api.cancelApplicationByAdmin(app.applicationId, trimmedCancelMemo);
+      showToast(res.refundRequired ? "취소 완료 — 상태: 취소됨 (결제 확인됨 — 환불은 수동으로 처리하세요)" : "취소 완료 — 상태: 취소됨");
+      setCancelOpen(false);
+      setCancelMemo("");
+      setDetail(await api.getAdminApplication(app.applicationId));
+      await onChanged?.();
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "취소에 실패했습니다.");
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+  const canCancel = (["SUBMITTED", "REVIEWING", "PHOTO_REJECTED", "NAME_EDITING", "PRODUCTION_READY", "PRODUCING"] as ApplicationStatus[]).includes(s);
   // "작명 완료 처리"/"제작 시작"은 목록에서 제거됐다(2026-09-24 확정) — 마지막 구성원의
   // 이름 확정/카드 생성 시점에 백엔드가 자동으로 전이시킨다. 아래 엔드포인트는 자동 전이가
   // 어떤 이유로든 안 걸렸을 때의 수동 복구 경로로 백엔드에 계속 남아있지만, 평소 업무 흐름에는
@@ -200,6 +224,7 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
           <Item label="이메일" value={detail.applicant.email} />
           <Item label="연락처" value={detail.applicant.phone} />
           {isGroup && <Item label="인원" value={`${detail.memberCount}명`} />}
+          {s === "CANCELLED" && <Item label="취소 메모" value={detail.cancellationMemo ?? undefined} />}
         </dl>
       </div>
 
@@ -219,8 +244,45 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
               {a.label}
             </button>
           ))}
-          {statusActions.length === 0 && <span className="admin__muted">가능한 수동 전이 없음</span>}
+          {statusActions.length === 0 && !canCancel && <span className="admin__muted">가능한 수동 전이 없음</span>}
+          {canCancel && (
+            <button
+              type="button"
+              className="admin__btn admin__btn--danger"
+              aria-expanded={cancelOpen}
+              disabled={statusBusy}
+              onClick={() => setCancelOpen((v) => !v)}
+            >
+              신청 취소
+            </button>
+          )}
         </div>
+        {canCancel && cancelOpen && (
+          <div className="admin-naming__cancel-panel">
+            <p className="admin__muted">
+              완료 전 신청을 취소하며 생성된 사진·카드 파일이 삭제됩니다.
+              {detail.paymentStatus === "CONFIRMED" && " 결제가 확인된 신청이므로 별도 운영 절차로 전액 환불해야 합니다."}
+            </p>
+            <textarea
+              className="field__input"
+              rows={4}
+              maxLength={500}
+              value={cancelMemo}
+              onChange={(e) => setCancelMemo(e.target.value)}
+              placeholder="취소 사유(메모)를 입력하세요. 공백 제외 1~500자, 필수입니다."
+              disabled={statusBusy}
+            />
+            <div className="admin-naming__cancel-panel-actions">
+              <span className="admin__muted">{trimmedCancelMemo.length}/500자</span>
+              <button type="button" className="admin__btn" disabled={statusBusy} onClick={() => { setCancelOpen(false); setCancelMemo(""); }}>
+                닫기
+              </button>
+              <button type="button" className="admin__btn admin__btn--danger" disabled={statusBusy || !cancelMemoValid} onClick={() => void runCancel()}>
+                취소 확정
+              </button>
+            </div>
+          </div>
+        )}
         <button
           type="button"
           className="admin__btn admin-naming__pipeline-toggle"
@@ -257,73 +319,79 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
         </div>
       )}
 
-      <div className="admin-naming__zodiac">
-        <span className="admin-naming__subtitle">십이간지 디자인</span>
-        <ZodiacDesignSelector value={zodiacDesignSet} onChange={setZodiacDesignSet} disabled={zodiacBusy} />
-        <button type="button" className="admin__btn" disabled={zodiacBusy || !zodiacDesignSet} onClick={saveZodiacDesignSet}>저장</button>
-        <span className="admin__muted">
-          {detail.zodiacDesignSet != null ? `현재 확정: 세트 ${detail.zodiacDesignSet}` : "미선택 — 카드 미리보기·생성이 거절됩니다"} · 카드 생성 전후 언제든 변경 가능, 저장 후 "미리보기"로 실제 카드에서 확인
-        </span>
-      </div>
+      {s === "CANCELLED" ? (
+        <p className="admin-panel__note">취소된 신청입니다 — 생성됐던 사진·카드 파일이 이미 삭제되어 작명·카드 관련 작업을 진행할 수 없습니다.</p>
+      ) : (
+        <>
+          <div className="admin-naming__zodiac">
+            <span className="admin-naming__subtitle">십이간지 디자인</span>
+            <ZodiacDesignSelector value={zodiacDesignSet} onChange={setZodiacDesignSet} disabled={zodiacBusy} />
+            <button type="button" className="admin__btn" disabled={zodiacBusy || !zodiacDesignSet} onClick={saveZodiacDesignSet}>저장</button>
+            <span className="admin__muted">
+              {detail.zodiacDesignSet != null ? `현재 확정: 세트 ${detail.zodiacDesignSet}` : "미선택 — 카드 미리보기·생성이 거절됩니다"} · 카드 생성 전후 언제든 변경 가능, 저장 후 "미리보기"로 실제 카드에서 확인
+            </span>
+          </div>
 
-      {isGroup && (
-        <div className="admin-naming__group-tools">
-          <button type="button" className="admin__btn" disabled={groupBusy} onClick={exportThisGroup}>
-            <span aria-hidden="true">⭳</span> 이 신청 엑셀 내보내기
-          </button>
-          <label className={`admin__btn admin-naming__upload${groupBusy ? " is-disabled" : ""}`}>
-            <span aria-hidden="true">⭱</span> 작명 결과 엑셀 업로드
-            <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden disabled={groupBusy} onChange={applyNamingResult} />
-          </label>
-          <button type="button" className="admin__btn" disabled={groupBusy} onClick={() => setCardBatchOpen((v) => !v)}>
-            <span aria-hidden="true">#</span> 카드번호 일괄 입력
-          </button>
-          <button type="button" className="admin__btn" disabled={groupBusy} onClick={downloadGroupCards}>
-            <span aria-hidden="true">⭳</span> 전체 카드 ZIP
-          </button>
-          <span className="admin__muted">사주 프로그램이 채운 이름 엑셀을 업로드하면 구성원 한글이름이 일괄 반영됩니다. “성씨” 열(선택, 한글 1~2자)을 추가하면 성씨도 함께 저장됩니다.</span>
-          {cardBatchOpen && (
-            <div className="admin-naming__cardbatch">
-              <textarea
-                className="field__input"
-                rows={5}
-                value={cardBatchText}
-                onChange={(e) => setCardBatchText(e.target.value)}
-                placeholder={"사진번호와 카드번호를 한 줄에 하나씩 (탭/공백 구분, 카드번호 형식 ROK-#####-####)\n예)\n001\tROK-00001-0001\n002\tROK-00002-0002"}
-              />
-              <div className="admin-naming__cardbatch-actions">
-                <button type="button" className="admin__btn admin__btn--primary" disabled={groupBusy} onClick={submitCardNumbersBatch}>일괄 저장</button>
-                <span className="admin__muted">사진번호 기준 매칭 · 전부 성공해야 저장(all-or-nothing)</span>
-              </div>
+          {isGroup && (
+            <div className="admin-naming__group-tools">
+              <button type="button" className="admin__btn" disabled={groupBusy} onClick={exportThisGroup}>
+                <span aria-hidden="true">⭳</span> 이 신청 엑셀 내보내기
+              </button>
+              <label className={`admin__btn admin-naming__upload${groupBusy ? " is-disabled" : ""}`}>
+                <span aria-hidden="true">⭱</span> 작명 결과 엑셀 업로드
+                <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden disabled={groupBusy} onChange={applyNamingResult} />
+              </label>
+              <button type="button" className="admin__btn" disabled={groupBusy} onClick={() => setCardBatchOpen((v) => !v)}>
+                <span aria-hidden="true">#</span> 카드번호 일괄 입력
+              </button>
+              <button type="button" className="admin__btn" disabled={groupBusy} onClick={downloadGroupCards}>
+                <span aria-hidden="true">⭳</span> 전체 카드 ZIP
+              </button>
+              <span className="admin__muted">사주 프로그램이 채운 이름 엑셀을 업로드하면 구성원 한글이름이 일괄 반영됩니다. “성씨” 열(선택, 한글 1~2자)을 추가하면 성씨도 함께 저장됩니다.</span>
+              {cardBatchOpen && (
+                <div className="admin-naming__cardbatch">
+                  <textarea
+                    className="field__input"
+                    rows={5}
+                    value={cardBatchText}
+                    onChange={(e) => setCardBatchText(e.target.value)}
+                    placeholder={"사진번호와 카드번호를 한 줄에 하나씩 (탭/공백 구분, 카드번호 형식 ROK-#####-####)\n예)\n001\tROK-00001-0001\n002\tROK-00002-0002"}
+                  />
+                  <div className="admin-naming__cardbatch-actions">
+                    <button type="button" className="admin__btn admin__btn--primary" disabled={groupBusy} onClick={submitCardNumbersBatch}>일괄 저장</button>
+                    <span className="admin__muted">사진번호 기준 매칭 · 전부 성공해야 저장(all-or-nothing)</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {members.map((m, i) => (
-        <NamingCard
-          key={m.memberId}
-          appId={app.applicationId}
-          cardTypeId={detail.cardTypeId}
-          applicationStatus={detail.status}
-          confirmedCardDesignId={detail.cardDesignId}
-          confirmedCardIssueDate={detail.cardIssueDate}
-          confirmedStudentFrontTextColor={detail.studentFrontTextColor}
-          confirmedStudentBackTextColor={detail.studentBackTextColor}
-          index={i}
-          member={m}
-          isGroup={isGroup}
-          counts={counts}
-          onSaved={onSaved}
-          manseryeok={{
-            status: manseryeok.status,
-            result: manseryeok.results?.get(m.memberId) ?? null,
-            loaded: manseryeok.results !== null,
-          }}
-          onManseryeokChanged={loadManseryeok}
-        />
-      ))}
-      {members.length === 0 && <p className="admin-panel__note">구성원 정보가 없습니다.</p>}
+          {members.map((m, i) => (
+            <NamingCard
+              key={m.memberId}
+              appId={app.applicationId}
+              cardTypeId={detail.cardTypeId}
+              applicationStatus={detail.status}
+              confirmedCardDesignId={detail.cardDesignId}
+              confirmedCardIssueDate={detail.cardIssueDate}
+              confirmedStudentFrontTextColor={detail.studentFrontTextColor}
+              confirmedStudentBackTextColor={detail.studentBackTextColor}
+              index={i}
+              member={m}
+              isGroup={isGroup}
+              counts={counts}
+              onSaved={onSaved}
+              manseryeok={{
+                status: manseryeok.status,
+                result: manseryeok.results?.get(m.memberId) ?? null,
+                loaded: manseryeok.results !== null,
+              }}
+              onManseryeokChanged={loadManseryeok}
+            />
+          ))}
+          {members.length === 0 && <p className="admin-panel__note">구성원 정보가 없습니다.</p>}
+        </>
+      )}
     </div>
   );
 }

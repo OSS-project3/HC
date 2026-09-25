@@ -168,6 +168,8 @@ export interface AdminApplicationDetail {
   studentFrontTextColor?: StudentTextColor; studentBackTextColor?: StudentTextColor;
   // 십이간지 캐릭터 디자인 세트(1~5, 카드종류 무관) — 미지정 시 카드 미리보기·생성이 거절된다.
   zodiacDesignSet?: number;
+  // 관리자 강제 취소(2026-09-25) 전용 메모 — CANCELLED가 아니면 항상 null.
+  cancellationMemo?: string | null;
 }
 export interface AdminApplicationMember {
   memberId: number; englishName?: string; nationality?: string; gender?: "MALE" | "FEMALE";
@@ -176,6 +178,12 @@ export interface AdminApplicationMember {
 }
 export interface NameSelectionStat { name: string; hanja: string; count: number; }
 export interface ApplicationStatusResult { applicationId: number; status: ApplicationStatus; }
+// 관리자 강제 취소(2026-09-25) 응답 — refundRequired는 안내용(결제 상태 자체는 서버가 건드리지 않음, 환불은 수동).
+export interface AdminApplicationCancelResult {
+  applicationId: number; status: ApplicationStatus; paymentStatus: PaymentStatus; refundRequired: boolean;
+  cancelledAt: string; cancellationType?: string; cancellationReason?: string; cancellationMemo?: string;
+  firstCancellation: boolean;
+}
 export interface AdminStats { totalApplications: number; individualApplications: number; groupApplications: number; totalInquiries: number; pendingInquiries: number; completedInquiries: number; }
 export interface BirthRegionCandidate { displayName: string; latitude: number; longitude: number; }
 export type ManseryeokResolutionStatus = "EXACT" | "NONEXISTENT_LOCAL_TIME" | "AMBIGUOUS_LOCAL_TIME" | "UNKNOWN_TIME";
@@ -339,6 +347,10 @@ export const api = {
   markCardReady: (id: number) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/card-ready`, { method: "POST" }),
   rejectApplicationPhoto: (id: number, reason: string) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/reject-photo`, { method: "POST", body: JSON.stringify({ reason }) }),
   dispatchApplication: (id: number, trackingNumber: string) => request<ApplicationStatusResult>(`/api/admin/applications/${id}/dispatch`, { method: "POST", body: JSON.stringify({ trackingNumber }) }),
+  // 관리자 강제 취소(2026-09-25) — COMPLETED/CANCELLED를 제외한 모든 상태에서 허용, 메모 필수(1~500자), 재호출 멱등.
+  // 주의: 사용자 본인 취소인 api.cancelApplication(위)과 별개 엔드포인트/응답이다 — 혼용 금지.
+  cancelApplicationByAdmin: (id: number, cancellationMemo: string) =>
+    request<AdminApplicationCancelResult>(`/api/admin/applications/${id}/cancel`, { method: "POST", body: JSON.stringify({ cancellationMemo }) }),
 
   // Inquiries (1:1 문의) — 관리자 목록/상세/답변/상태
   listAdminInquiries: () => request<InquiryListItem[]>("/api/admin/inquiries"),
