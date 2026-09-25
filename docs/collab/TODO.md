@@ -11,7 +11,7 @@
 
 ## 마이페이지 사진 반려 재업로드 연결 (2026-09-25 정책 확정)
 
-상태: 🔵 진행중(Claude) — 백엔드 구현 완료(변경 없음), 프론트 구현 중.
+상태: ✅ 완료(Claude) — 백엔드 변경 없음, 프론트 구현·실제 dev 컨테이너 검증 완료.
 
 ### 배경 및 현재 구조
 
@@ -46,35 +46,35 @@
 
 ### Frontend 구현 체크리스트
 
-- [ ] `MyPage.tsx`의 신청 상세 컴포넌트에 재업로드에 필요한 신청 ID·상태·신청 유형과 성공 후 갱신 콜백을 전달한다.
-- [ ] `PHOTO_REJECTED` 상세에 반려 사유를 강조해 표시하고 개인/단체 신청 유형에 맞는 파일 입력을 렌더링한다.
-- [ ] 개인 파일 입력의 `accept`를 JPG/JPEG/PNG로 제한하고 클라이언트에서 5 MiB 초과를 사전 안내한다. 서버 검증은 그대로 최종 기준으로 둔다.
-- [ ] 단체 파일 입력의 `accept`를 ZIP으로 제한하고 250 MiB 초과를 사전 안내한다. ZIP 안의 Excel/사진 정합성은 서버 응답으로 처리한다.
-- [ ] 선택한 파일명·크기를 표시하고 파일 교체가 가능하도록 한다.
-- [ ] 별도 `재업로드` 버튼에서 `FormData`를 만들고 개인은 `photo`, 단체는 `submitFile`이라는 정확한 part 이름으로 `api.reuploadPhoto()`를 호출한다.
-- [ ] 업로드 중 중복 클릭과 파일 변경을 차단하고 버튼에 처리 중 상태를 표시한다.
-- [ ] `api.reuploadPhoto()`의 반환 타입을 `{ applicationId: number; status: ApplicationStatus }`로 명시한다.
-- [ ] 성공 시 대상 목록 행의 상태를 `REVIEWING`으로 반영하고 `GET /api/my/applications/{id}`를 재호출해 상세의 반려 사유 제거를 확인한다.
-- [ ] 실패 시 `ApiError.message`를 표시하고 선택 파일을 유지한다. `ApiError.errors`가 있으면 단체 검증 오류 목록을 사람이 읽을 수 있는 형태로 표시한다.
-- [ ] 성공·실패·진행 중·파일 미선택 안내 문구의 한국어/영어 번역을 `auth.ts` 또는 적절한 기존 번역 모듈에 추가한다.
-- [ ] `MyPage.css`에 재업로드 영역을 추가하고 PC·모바일에서 파일명, 오류 목록, 버튼이 잘리거나 겹치지 않게 한다.
-- [ ] 접근성: 파일 입력에 명시적 label, 오류 영역에 `role="alert"`, 진행 상태에 `aria-live` 또는 동등한 안내를 적용한다.
-- [ ] 접근 불가능한 기존 `/mobile-card` 재업로드 코드는 이번 최소 범위에서 삭제·리팩터링하지 않는다. 이후 중복 정리 시 별도 작업으로 분리한다.
+- [x] `MyPage.tsx`의 신청 상세 컴포넌트(`ApplicationDetail`)에 재업로드 콜백(`onReuploaded`)을 전달한다 — 신청 ID·상태·신청 유형은 이미 `detail`(`AdminApplicationDetail`)에 다 있어 별도 prop으로 안 쪼갬.
+- [x] `PHOTO_REJECTED` 상세에 반려 사유를 강조 표시(`role="alert"` 박스)하고 개인/단체 신청 유형에 맞는 파일 입력을 렌더링하는 `PhotoReupload` 컴포넌트 신규 추가. 기존 일반 `dl` 행에서 "사진 반려 사유"는 제거(중복 방지).
+- [x] 개인 파일 입력의 `accept`를 `image/jpeg,image/png`로 제한하고 클라이언트에서 MIME·5 MiB 초과를 사전 차단.
+- [x] 단체 파일 입력의 `accept`를 `.zip,application/zip,application/x-zip-compressed`로 제한하고 확장자·250 MiB 초과를 사전 차단.
+- [x] 선택한 파일명·크기(`(N.NMB)`)를 표시. 파일 입력은 업로드 전까지 계속 활성 상태라 재선택(교체) 가능.
+- [x] 별도 `재업로드` 버튼에서 `FormData`를 만들고 개인은 `photo`, 단체는 `submitFile` part로 `api.reuploadPhoto()` 호출.
+- [x] 업로드 중 파일 입력·버튼 모두 `disabled`, 버튼 텍스트가 "재업로드 중…"으로 바뀜.
+- [x] `api.reuploadPhoto()` 반환 타입을 `{ applicationId: number; status: ApplicationStatus }`로 명시.
+- [x] 성공 시 `myApplications` 목록의 해당 행 상태를 즉시 `REVIEWING`으로 반영하고 `GET /api/my/applications/{id}`(`api.getMyApplication`) 재호출로 상세를 갱신 — `detail.status`가 더 이상 `PHOTO_REJECTED`가 아니므로 `PhotoReupload` 섹션 자체가 사라짐.
+- [x] 실패 시 `ApiError.message`를 표시하고 선택 파일은 그대로 유지(초기화 안 함). `ApiError.errors`가 있으면 `row/field/code/message`를 목록으로 표시.
+- [x] 안내 문구는 `auth.ts`에 추가 — 기존 `/mobile-card` 문구("제출 파일(ZIP) 재업로드"/"사진 재업로드"/"반려 사유"/성공 메시지 2종)를 그대로 재사용하고, 신규 문구(형식·크기 오류, "재업로드"/"재업로드 중…"/"선택한 파일" 등)만 새로 추가.
+- [x] `MyPage.css`에 `.mypage-reupload*` 규칙 추가, 600px 이하 모바일 브레이크포인트로 버튼 전체폭·파일명 줄바꿈 처리.
+- [x] 접근성: 파일 입력에 `<label htmlFor>` 명시적 연결, 반려사유·에러·필드에러 영역에 `role="alert"`, 버튼에 `aria-live="polite"`.
+- [x] 기존 `/mobile-card` 재업로드 코드는 손대지 않음(그대로 유지).
 
 ### 검증 체크리스트
 
-- [ ] 개인 `PHOTO_REJECTED` 신청에서만 JPG/JPEG/PNG 입력과 `사진 재업로드` 버튼이 표시된다.
-- [ ] 단체 `PHOTO_REJECTED` 신청에서만 ZIP 입력과 `Excel·사진 ZIP 재업로드` 버튼이 표시된다.
-- [ ] `SUBMITTED`, `REVIEWING`, `NAME_EDITING` 등 다른 상태에서는 재업로드 UI가 표시되지 않는다.
-- [ ] 개인 요청은 `photo`, 단체 요청은 `submitFile` part 하나만 전송한다.
-- [ ] 파일 미선택, 잘못된 확장자, 크기 초과를 제출 전에 안내한다.
-- [ ] 업로드 중 연속 클릭으로 API가 중복 호출되지 않는다.
-- [ ] 성공 응답 후 목록·상세가 `REVIEWING`으로 갱신되고 반려 사유·업로드 UI가 사라진다.
-- [ ] 일반 API 실패 시 서버 오류 메시지가 표시되고, 단체 ZIP 검증 실패 시 행·필드별 `errors[]`가 표시된다.
-- [ ] 기존 신청 취소 버튼과 상세 조회가 회귀하지 않는다.
-- [ ] 프론트 TypeScript 검사와 `npm run build`를 통과한다.
-- [ ] 가능하면 Playwright API route mocking으로 개인/단체/상태별 표시, multipart part 이름, 성공 후 UI 갱신을 검증하고 PC·모바일 viewport에서 레이아웃을 확인한다.
-- [ ] 백엔드 코드는 변경하지 않는다. 기존 `ApplicationServicePhotoReuploadTest`가 소유권, 상태 제한, 개인·단체 교체, 트랜잭션/S3 보상 처리를 이미 보장하는지 확인만 한다.
+- [x] 개인 `PHOTO_REJECTED` 신청에서만 JPG/PNG 입력과 `재업로드` 버튼이 표시된다 — 실제 dev 컨테이너에서 확인.
+- [x] 단체 `PHOTO_REJECTED` 신청에서만 ZIP 입력과 "제출 파일(ZIP) 재업로드" 라벨이 표시된다 — 실제 dev 컨테이너에서 확인(버튼 텍스트는 개인/단체 공통으로 "재업로드" 하나만 씀, 라벨로 구분).
+- [x] `SUBMITTED`, `REVIEWING`, `NAME_EDITING` 등 다른 상태에서는 재업로드 UI가 표시되지 않는다 — `detail.status === "PHOTO_REJECTED"` 가드 하나로 보장, 실제 확인.
+- [x] 개인 요청은 `photo`, 단체 요청은 `submitFile` part 하나만 전송한다.
+- [x] 파일 미선택 시 제출 차단, 잘못된 확장자·크기 초과는 선택 즉시 안내 — 실제 dev 컨테이너에서 개인(txt 거절)·단체(png 거절) 둘 다 확인.
+- [x] 업로드 중 파일 입력·버튼 모두 비활성화되어 중복 클릭이 API를 중복 호출하지 않는다.
+- [x] 성공 응답 후 목록·상세가 `REVIEWING`으로 갱신되고 반려 사유·업로드 UI가 사라진다 — 실제 dev 컨테이너에서 실제 사진 파일로 전체 흐름(선택→제출→토스트→목록 상태 갱신→상세 UI 소멸) 확인.
+- [x] 일반 API 실패 시 서버 오류 메시지가 표시되고, 단체 ZIP 검증 실패 시 행·필드별 `errors[]`가 표시된다(코드 리뷰로 확인, `ApiError.errors` 그대로 렌더링).
+- [x] 기존 신청 취소 버튼과 상세 조회가 회귀하지 않는다 — 재업로드 성공 후에도 "신청 취소" 버튼이 새 상태(`REVIEWING`)에 맞게 정상 노출됨을 확인.
+- [x] `tsc --noEmit`/`npm run build` 통과.
+- [ ] Playwright 자동화 테스트 파일 추가는 이번엔 생략 — 실제 dev 컨테이너에서 개인/단체 각각 라이브로 직접 확인(정상/오류 케이스 포함)했고, 기존 프로젝트에 이 페이지용 자동화 스펙이 없어 새로 만들지는 않음. 필요하면 후속 작업으로 분리 가능.
+- [x] 백엔드 코드는 변경하지 않음 — `ApplicationServicePhotoReuploadTest` 등 기존 테스트 그대로, 실제 재업로드 API 호출로 소유권·상태전이(`PHOTO_REJECTED→REVIEWING`)·반려사유 초기화까지 실제 동작 확인.
 
 ---
 

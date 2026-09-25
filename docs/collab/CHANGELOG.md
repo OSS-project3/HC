@@ -14,6 +14,15 @@
 ```
 
 ---
+## 2026-09-25 — Claude — `main` (마이페이지 사진 반려 재업로드 연결 — 프론트)
+
+- 변경: Codex가 `docs/collab/TODO.md`에 남겨둔 확정 정책(11개 항목)을 실제 코드와 대조 검증(백엔드 `reuploadPhoto()`/`resubmitForReview()`/응답 DTO/기존 테스트가 문서 설명과 정확히 일치, 프론트 `api.ts`의 타입 누락·`MyPage.tsx`의 재업로드 UI 부재도 문서 그대로임을 확인)한 뒤 프론트만 구현했다. 마이페이지 `제작 내역 → 신청 상세`에서 `PHOTO_REJECTED` 신청에만 반려 사유(강조 박스)와 재업로드 영역(개인=사진 1장 JPG/PNG≤5MiB, 단체=ZIP≤250MiB)을 보여주는 `PhotoReupload` 컴포넌트를 신설했다. 파일 선택 즉시 업로드하지 않고 별도 "재업로드" 버튼으로 제출, 업로드 중 입력·버튼 비활성화, 성공 시 목록 행 상태를 즉시 `REVIEWING`으로 반영하고 상세를 재조회해 반려 UI를 사라지게 하며, 실패 시 선택 파일을 유지한 채 `ApiError.message`(+단체 ZIP이면 `errors[]`)를 표시한다.
+- 파일: `services/api.ts`(`reuploadPhoto()` 반환 타입을 `{applicationId, status}`로 명시), `pages/MyPage/MyPage.tsx`(`PhotoReupload` 컴포넌트 신규, `ApplicationDetail`에서 반려 사유 중복 제거 후 연결, 성공 콜백으로 목록·상세 동기화), `pages/MyPage/MyPage.css`(`.mypage-reupload*` 규칙), `features/i18n/translations/auth.ts`(형식/크기 오류·재업로드 버튼·선택 파일 표시 등 신규 문구, 기존 `/mobile-card` 문구는 재사용).
+- 사유: 사용자가 TODO.md에 구체적 정책을 남기고 "확인해봐" → 코드 대조 검증 → "백엔드부터 구현하려는데 더 정해야할 정책있음?" 질문에 백엔드는 이미 완료(변경 불필요)임을 확인해드리고 프론트 전용 작업임을 명확히 한 뒤 "응"으로 착수 승인받아 구현.
+- 테스트: `tsc --noEmit`/`npm run build` 통과. dev 컨테이너를 재빌드해 실제 라이브 검증 — DB에 실제 `PHOTO_REJECTED` 신청 2건(개인·단체)과 password 로그인 가능한 테스트 유저를 만들어 Playwright로 실조작: ①개인 신청에 잘못된 파일(.txt) 선택 시 클라이언트 검증 문구 확인, ②실제 얼굴사진 fixture로 재업로드 → 성공 토스트, 목록 상태가 "사진반려"→"검토중"으로 즉시 갱신, 반려사유·업로드 UI 소멸까지 실제 DB 상태 변화(`PHOTO_REJECTED→REVIEWING`, `photo_reject_reason` NULL)로 확인, ③단체 신청에 이미지 파일 선택 시 "ZIP 파일만 업로드할 수 있습니다." 클라이언트 검증 확인. 백엔드는 코드 변경이 없어 기존 `ApplicationServicePhotoReuploadTest` 등은 재실행하지 않음(위 라이브 검증이 실제 API 동작을 이미 증명).
+- 관련: `docs/collab/TODO.md` "마이페이지 사진 반려 재업로드 연결" 절 — ✅ 완료.
+
+---
 ## 2026-09-25 — Claude — `main` (카드 뒷면 "한국이름풀이" 타이틀 폰트 수정)
 
 - 변경: 사용자가 "학생증 카드 뒤에 한국이름풀이 텍스트가 학생증 텍스트 글꼴이랑 많이 다르다"고 제보 → `CardImageCompositor.composeStudentBack()`을 확인해보니 타이틀만 다른 3종 카드(명예한국인증/명예시민증/방문증)와 공유하는 `batangBold`(명조 계열)를 쓰고 있었고, 학생증의 나머지 필드(영문명·학번·학과·발급일자)는 전부 `dotumBold`/`dotumMedium`(고딕 계열)이라 타이틀만 확연히 튀어 보였다. 원본 디자인 시안(`학생증_뒷면타이틀.png`)도 실제로 굵은 고딕체임을 확인. 사용자가 이어서 "한국이름풀이 글꼴은 4종류 카드가 다 동일해야 한다"고 범위를 명확히 해, 학생증만 고치지 않고 `composeBack()`(다른 3종 공용 경로)의 타이틀 폰트도 `dotumBold`로 함께 바꿔 4종 전체를 통일했다.
