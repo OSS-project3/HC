@@ -171,6 +171,8 @@ class CardImageCompositor {
 
     // 뒷면(한국이름풀이) — 배경 위에 이름·(있으면)한자·영문명·(있으면)한자뜻음·풀이를 얹는다.
     // 배경 자체(뒷면.png)는 신청자 정보와 무관한 디자인 고정 그래픽이라 필드가 없다.
+    // 타이틀("한국이름풀이") 폰트는 4종 카드 전체가 동일해야 한다는 정책(2026-09-25 확정)에 따라
+    // dotumBold를 쓴다 — composeStudentBack의 타이틀과 동일 폰트(아래 참고).
     byte[] composeBack(CardTypeCode cardType, int design, CardMemberData data) {
         if (cardType == CardTypeCode.STUDENT) {
             return composeStudentBack(data);
@@ -189,7 +191,7 @@ class CardImageCompositor {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         try {
-            drawBackText(g, titleFallbackBackText(), batangBold, 8f, Color.BLACK,
+            drawBackText(g, titleFallbackBackText(), dotumBold, 8f, Color.BLACK,
                     layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             drawBackText(g, spacedName(data.fullName()), batangBold, 7f, Color.BLACK,
                     variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
@@ -266,10 +268,12 @@ class CardImageCompositor {
 
     // 4-C: 학생증 뒷면 — 배경도 S3(templateBack). 필드 구성은 이름/한자/영문/풀이 4개뿐이라
     // 한자뜻음 줄이 없는 것 빼고는 다른 3종의 뒷면 합성과 로직이 같다(공용 drawBackText 재사용).
-    // 타이틀은 이미지가 아니라 텍스트로 — 다른 3종과 동일한 폰트·크기·색(batangBold/8f/BLACK)으로
-    // "한국이름풀이"를 그린다. 원본 시안(학생증_뒷면타이틀.png)도 학생증 뒷면 타이틀이 "한국이름풀이"임을
-    // 보여준다 — 이전엔 실수로 앞면용 titleFallbackText(STUDENT)("학 생 증")를 재사용해서 뒷면에도
-    // "학생증"이 찍히던 버그였다(실제 렌더링으로 발견, 2026-09-06).
+    // 타이틀은 이미지가 아니라 텍스트로 "한국이름풀이"를 그린다 — 이전엔 실수로 앞면용
+    // titleFallbackText(STUDENT)("학 생 증")를 재사용해서 뒷면에도 "학생증"이 찍히던 버그였다
+    // (실제 렌더링으로 발견, 2026-09-06). 폰트는 다른 3종(batangBold, 증서 느낌의 명조 계열)을
+    // 그대로 따라 썼었지만, 원본 시안(학생증_뒷면타이틀.png)을 보면 굵은 고딕 계열이고 학생증의
+    // 나머지 필드(영문명/학번/학과/발급일자)도 전부 dotumBold/dotumMedium이라 dotumBold로 수정한다
+    // (2026-09-25, 실제 렌더링 비교로 발견 — 학생증만 다른 3종과 다른 타이포그래피를 쓴다).
     private byte[] composeStudentBack(CardMemberData data) {
         // composeStudentFront와 동일한 이유(Map.of().get(null) NPE) — null 먼저 거른다.
         if (data.studentOrientation() == null) {
@@ -289,7 +293,7 @@ class CardImageCompositor {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         try {
             Color textColor = toAwtColor(data.studentBackTextColor());
-            drawBackText(g, titleFallbackBackText(), batangBold, 8f, textColor,
+            drawBackText(g, titleFallbackBackText(), dotumBold, 8f, textColor,
                     layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             drawBackText(g, spacedName(data.fullName()), batangBold, 12.11f, textColor,
                     variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
