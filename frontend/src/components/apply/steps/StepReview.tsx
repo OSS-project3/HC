@@ -10,6 +10,7 @@ import { useLanguage } from "../../../features/i18n/LanguageContext";
 
 interface StepReviewProps {
   draft: ApplicationDraft;
+  update: (patch: Partial<ApplicationDraft>) => void;
   design?: CardDesign;
   onSubmit: () => void;
   onPrev: () => void;
@@ -18,7 +19,7 @@ interface StepReviewProps {
 
 const dash = "—";
 
-export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepReviewProps) {
+export function StepReview({ draft, update, design, onSubmit, onPrev, onEdit }: StepReviewProps) {
   const { t, language } = useLanguage();
   const isPhysical = draft.issuanceMethod === "mobile_and_physical";
   const isOrg = draft.applicantType === "organization";
@@ -150,11 +151,32 @@ export function StepReview({ draft, design, onSubmit, onPrev, onEdit }: StepRevi
         )}
       </ReviewSection>
 
+      <section className="review">
+        <div className="review__head">
+          <h3 className="review__title">{t("입금자명 입력")}</h3>
+        </div>
+        <div className="field complete__depositor">
+          <span className="field__label">
+            {t("입금자명 입력")} <span aria-hidden="true">*</span>
+          </span>
+          <input
+            className="field__input"
+            placeholder={t("입금자명을 입력해 주세요")}
+            value={draft.depositorName}
+            maxLength={60}
+            required
+            aria-required="true"
+            onChange={(event) => update({ depositorName: event.target.value })}
+          />
+          <p className="field__hint">{t("입금자명과 신청자명이 다를 경우 입금 확인이 지연될 수 있습니다.")}</p>
+        </div>
+      </section>
+
       <div className="step__actions">
         <Button variant="soft" onClick={onPrev}>
           <ChevronLeft width={16} height={16} /> {t("이전")}
         </Button>
-        <Button onClick={onSubmit}>
+        <Button disabled={!draft.depositorName.trim() || draft.depositorName.trim().length > 60} onClick={onSubmit}>
           {t("신청 제출")} <ChevronRight width={16} height={16} />
         </Button>
       </div>

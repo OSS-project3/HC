@@ -94,6 +94,7 @@ class ApplicationServiceUploadCompensationTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "orientation": "LANDSCAPE",
                   "schoolType": "UNIVERSITY",
                   "schoolName": "전북대학교",
@@ -241,6 +242,7 @@ class ApplicationServiceUploadCompensationTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "organizationName": "OO기업", "name": "홍길동", "phone": "010-1234-5678" }
                 }
                 """.formatted(honorKoreanCardType.getId());

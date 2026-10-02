@@ -35,11 +35,11 @@
 
 ## 2. ✅ 완료 — 신청·문의 백엔드 연결(localStorage 제거)
 
-> **2026-08-25 재검증(코드 대조):** 아래 두 항목은 백엔드 API 연결 + 프론트 localStorage 제거가 **완료**됐다. 남은 백엔드 미구현은 §2.1의 `depositorName`(입금자명) 저장 **1건뿐**이다.
+> **2026-10-03 재검증(코드 대조):** 아래 두 항목은 백엔드 API 연결 + 프론트 localStorage 제거가 **완료**됐다. 입금자명도 신청 생성 필수값으로 연결되어 이 절에 남은 백엔드 미구현은 없다.
 
 ### 2.1 신청 내역 `admin-applications` — ✅ 완료 (`depositorName` 포함, 2026-08-25)
 - **✅ 완료**: 프론트 `saveLocalApplication`/`loadApplications`·`data/adminMock.ts` **완전 제거**(grep 0건). 신청은 `POST /api/applications`(개인)·`/bulk`(단체)에만 저장, 마이페이지는 `GET /api/my/applications`(+`/{id}` 상세), 조회는 `POST /api/applications/lookup`만 사용. 관리자 조회 `GET /api/admin/applications`(+`/{id}`·`/members`)도 연결됨.
-- **✅ `depositorName`(입금자명) 구현 완료(2026-08-25)**: `Application.depositorName` 필드(nullable) + `registerDepositorName()`(결제 확인 전 SUBMITTED·WAITING에만 허용) + `PATCH /api/applications/{id}/depositor`(본인 소유만). 완료 화면(`StepComplete`)에서 입력→`api.updateDepositor(applicationId, name)`로 저장, 응답(`MyApplicationDetailResponse`)에 포함돼 마이페이지 상세에 노출. 엔티티 규칙 준수(팩토리 인자 아님·명명 mutation·상태가드), E2E 6케이스(200/403/401/400/가드) 통과. DB 컬럼은 ddl-auto가 자동 추가.
+- **✅ `depositorName`(입금자명) 구현 완료(2026-10-03)**: 개인·단체 신청 생성 DTO의 필수값이며 `StepReview`에서 입력해 생성 요청에 포함한다. 생성 트랜잭션에서 `Application.depositorName`에 저장하므로 입금자명 없는 신청은 생성되지 않는다. 기존 PATCH는 본인이 결제 확인 전 오타를 수정하는 용도로만 유지한다.
 
 ### 2.2 1:1 문의 `customer-inquiries` — ✅ 완전 완료
 - **✅ 완료**: `data/inquiries.ts` **삭제됨**. `InquiryPage`가 `POST /api/inquiries`(privacyConsent 포함), 마이페이지/상세가 `GET /api/my/inquiries`(+`/{id}`), 관리자 답변/상태(`InquiriesSection`)까지 전부 실 API. 백엔드 추가 작업 없음. (API 테스트 7/7 통과 — `docs/API_TEST_REPORT.md` §2.5)

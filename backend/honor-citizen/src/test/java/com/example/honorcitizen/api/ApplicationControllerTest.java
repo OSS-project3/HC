@@ -27,6 +27,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -64,6 +65,25 @@ class ApplicationControllerTest {
     private CardType cardType;
 
     private static final String REQUEST_JSON = """
+            {
+              "cardTypeId": %d,
+              "issueType": "MOBILE",
+              "depositorName": "입금자 홍길동",
+              "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
+              "member": {
+                "englishName": "Hong Gildong",
+                "birthDate": "1990-05-15",
+                "nationality": "US",
+                "birthRegion": "Chicago",
+                "gender": "MALE",
+                "address": "서울특별시 종로구 세종대로 1"
+              },
+              "consultationConfirmed": true,
+              "disclaimerConfirmed": true
+            }
+            """;
+
+    private static final String REQUEST_WITHOUT_DEPOSITOR_JSON = """
             {
               "cardTypeId": %d,
               "issueType": "MOBILE",
@@ -115,6 +135,62 @@ class ApplicationControllerTest {
                 .andExpect(jsonPath("$.data.applicationNumber").value(org.hamcrest.Matchers.startsWith("APP-")))
                 .andExpect(jsonPath("$.data.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.data.paymentStatus").value("WAITING"));
+
+        assertThat(applicationRepository.findAll()).singleElement()
+                .extracting(Application::getDepositorName)
+                .isEqualTo("입금자 홍길동");
+    }
+
+    @Test
+    void createIndividualRejectsMissingDepositorNameBeforeCreatingApplication() throws Exception {
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", "application/json",
+                REQUEST_WITHOUT_DEPOSITOR_JSON.formatted(cardType.getId()).getBytes());
+        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", imageBytes());
+
+        mockMvc.perform(multipart("/api/applications")
+                        .file(requestPart)
+                        .file(photoPart)
+                        .header("Authorization", token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        assertThat(applicationRepository.count()).isZero();
+    }
+
+    @Test
+    void createIndividualRejectsBlankDepositorNameBeforeCreatingApplication() throws Exception {
+        String requestJson = REQUEST_JSON.formatted(cardType.getId()).replace("입금자 홍길동", "   ");
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", "application/json", requestJson.getBytes());
+        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", imageBytes());
+
+        mockMvc.perform(multipart("/api/applications")
+                        .file(requestPart)
+                        .file(photoPart)
+                        .header("Authorization", token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        assertThat(applicationRepository.count()).isZero();
+    }
+
+    @Test
+    void createIndividualRejectsDepositorNameLongerThanSixtyCharacters() throws Exception {
+        String requestJson = REQUEST_JSON.formatted(cardType.getId())
+                .replace("입금자 홍길동", "가".repeat(61));
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", "application/json", requestJson.getBytes());
+        MockMultipartFile photoPart = new MockMultipartFile("photo", "face.jpg", "image/jpeg", imageBytes());
+
+        mockMvc.perform(multipart("/api/applications")
+                        .file(requestPart)
+                        .file(photoPart)
+                        .header("Authorization", token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        assertThat(applicationRepository.count()).isZero();
     }
 
     @Test
@@ -233,6 +309,7 @@ class ApplicationControllerTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE_AND_PHYSICAL",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "receiver": { "sameAsApplicant": false, "name": "김수령", "phone": "010-9999-8888", "address": "서울특별시 강남구" },
                   "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "birthRegion": "Chicago", "gender": "MALE" }

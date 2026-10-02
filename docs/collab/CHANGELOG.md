@@ -14,6 +14,13 @@
 ```
 
 ---
+## 2026-10-03 — Codex — `main` (신청 생성 시 입금자명 필수 저장)
+
+- 변경: 개인·단체 생성 DTO에 `depositorName` 필수 계약(trim 후 1~60자)을 추가하고 파일 업로드 전에 검증한다. Application 생성 트랜잭션에서 함께 저장하며 기존 PATCH는 결제 확인 전 오타 수정용으로 유지했다.
+- 프론트: 입금자명 입력을 신청 완료 화면에서 최종 확인 화면으로 옮기고 생성 multipart JSON에 포함했다. 미입력 제출을 막고, 신청 생성 후 별도 PATCH 실패를 무시한 채 이동하던 경로를 제거했다.
+- 테스트: 신규 테스트가 기존 구현에서 5건 실패함을 확인한 뒤 구현했다. 관련 Backend 생성·영속화·보상 테스트 108건 및 DTO·Entity·HTTP·사용자 흐름 계약 테스트 47건 모두 통과. Frontend `npm run build` 통과. 첫 Backend 실행 1회는 Gradle 임시 test-results binary 유실로 종료됐으나 `--no-daemon` 재실행은 정상 통과했다.
+- 문서: Application requirements/data-model/api, Frontend 연동 명세·갭, Payment 정정문, TODO를 현재 계약에 맞게 갱신했다.
+
 ## 2026-10-02 — Claude — `main` (신청 완료 단계 입금자명 필수화)
 
 - 변경: 신청 완료 화면(`StepComplete.tsx`)의 입금자명을 필수로 바꿨다. 비어 있으면 "신청 내역 확인하기" 버튼을 비활성화하고, 입력칸에 필수 표시(*)와 `aria-required`를 추가했다.

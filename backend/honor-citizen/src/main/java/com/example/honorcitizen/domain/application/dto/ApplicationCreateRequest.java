@@ -31,6 +31,10 @@ public class ApplicationCreateRequest {
     @NotNull
     private IssueType issueType;
 
+    // 무통장 입금 대조용 입금자명. 신청 완료 후 별도 저장하지 않고 신청 생성 요청에서 필수로 받는다.
+    // getter에서 trim한 값을 Bean Validation과 저장 로직이 함께 사용한다.
+    private String depositorName;
+
     // 학생증(STUDENT)일 때만 사용 — 신청서 전체에 1개(개인·단체 공통). 비학생증이면 null이어야 한다.
     // 서비스 레벨에서 isStudent 기준으로 조건부 필수 검증(validateStudentFields).
     private Orientation orientation;
@@ -72,6 +76,12 @@ public class ApplicationCreateRequest {
 
     public boolean isReceiverSameAsApplicant() {
         return receiver == null || receiver.isSameAsApplicant();
+    }
+
+    @NotBlank
+    @Size(max = 60)
+    public String getDepositorName() {
+        return depositorName == null ? null : depositorName.trim();
     }
 
     // schoolName은 저장·검증 전에 항상 트림된 값으로 취급한다(정책: 앞뒤 공백 트림 후 5~20자 검사).

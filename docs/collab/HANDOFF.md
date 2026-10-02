@@ -1,13 +1,20 @@
 # HANDOFF — 현재 작업 상태
 
-- 마지막 갱신: 2026-10-01
-- 작성자: Claude
+- 마지막 갱신: 2026-10-03
+- 작성자: Codex
 - 브랜치: main
 - 커밋·push: `d569b05`(학생증 2종 Excel 양식 수정 docs)까지 로컬 커밋됨(아직 push 전). 그 이전 `781531f`(관리자 강제 취소 프론트 docs)까지는 push 완료·배포 확인됨. 아래 "완료 — 단체 신청 Excel 양식 결함 수정" 절 중 **일반카드 부분**(`일반카드_단체신청_양식_v1.2.xlsx` + 문서 갱신)은 이 문서 갱신 시점 기준 **아직 커밋 전**(코드 변경 없음).
 
 ## 현재 워킹 트리
 
-**미커밋 상태** — `outputs/bulk-excel-templates-20260818/일반카드_단체신청_양식_v1.2.xlsx`(신규 파일)와 `docs/collab/TODO.md`/`CHANGELOG.md`/`BULK_EXCEL_TEMPLATE_POLICY.md`의 일반카드 관련 갱신이 아직 커밋되지 않았다. 백엔드/프론트 소스는 안 건드렸다(xlsx 콘텐츠만 수정). 다음 세션은 커밋부터 시작하면 된다.
+**미커밋 상태** — 기존 단체 Excel/국제전화번호 관련 변경과 이번 입금자명 필수 생성 작업이 함께 존재한다. 서로 다른 작업이므로 커밋 시 hunk/파일 범위를 분리해야 한다. 이번 작업은 Application DTO·Entity·Service·Persistence, 신청 최종확인/완료 화면, 직접 관련 테스트·문서만 변경했다.
+
+## 완료 — 신청 생성 시 입금자명 필수 저장 (2026-10-03, 미커밋)
+
+- 기존 구조는 Application을 먼저 저장한 뒤 완료 화면에서 PATCH로 입금자명을 넣었고, PATCH 실패를 프론트가 토스트만 띄운 채 삼켜 입금자명 없는 신청이 남을 수 있었다.
+- 개인·단체 생성 DTO에 `depositorName`을 필수 추가(trim 후 1~60자), 파일 업로드 전 Service 검증과 Entity 검증을 적용하고 Application 생성 트랜잭션에서 함께 저장하도록 변경했다. 기존 PATCH는 결제 확인 전 오타 수정용으로 유지한다.
+- 프론트 입력은 `StepReview`로 이동하고 생성 multipart JSON에 포함했다. `StepComplete`의 별도 PATCH와 실패 무시 경로는 제거했다.
+- 검증: 관련 Backend 테스트 108건, 계약/흐름 테스트 47건, Frontend build 통과. 로그는 `logs/depositor-*.log`.
 
 ## 완료 — 단체 신청 Excel 양식 결함 수정 — 학생증 2종 + 일반카드 (2026-10-01, 학생증은 커밋 `1031a81`/`d569b05` 완료·push 전, 일반카드는 커밋 전)
 

@@ -1,6 +1,6 @@
 # Application Data Model
 
-> ⚠️ **정정(2026-08-25):** Application 테이블에 **`depositor_name VARCHAR(60)`(nullable)** 컬럼이 추가됐다(입금자명, 완료 화면에서 등록, 아래 §2.1 표에 미반영). 등록은 `registerDepositorName()`(결제 확인 전 SUBMITTED·WAITING만) + `PATCH /api/applications/{id}/depositor`. 그 외 필드·상태전이는 코드와 일치.
+> ✅ **정정(2026-10-03):** `depositor_name VARCHAR(60)`은 개인·단체 신청 생성 요청의 필수값이며 생성 트랜잭션에서 함께 저장한다. 기존 운영 row와의 스키마 호환 때문에 컬럼 자체는 nullable로 유지하지만 신규 생성 API는 blank/null을 허용하지 않는다. `PATCH /api/applications/{id}/depositor`는 결제 확인 전 오타 수정용이다.
 
 > Application 도메인의 엔티티, 컬럼, 관계 및 제약조건은 [APPLICATION.md](APPLICATION.md)의 최종 정책을 반영합니다.
 > 업무 규칙은 [requirements.md](requirements.md), 외부 계약은 [api.md](api.md)를 기준으로 합니다.
@@ -22,6 +22,7 @@
 | payment_status | ENUM | NOT NULL | WAITING, CONFIRMED |
 | payment_guided_at | DATETIME | NULL | ❌ 정책 폐기(2026-09-20) — "결제 안내" 기록 자체를 하지 않기로 결정. 컬럼과 `Application.guidePayment()`는 이전 정책의 구현 흔적으로만 남아있고 호출하는 Controller가 없어 항상 `NULL`이다 |
 | payment_due_at | DATETIME | NULL | ❌ 정책 폐기(2026-09-20) — 미입금 자동 취소 정책 자체가 폐기돼 항상 `NULL`이다. `ApplicationPaymentTimeoutScheduler`는 남아있지만 이 컬럼이 항상 `NULL`이라 매 실행마다 대상 0건 |
+| depositor_name | VARCHAR(60) | NULL(기존 row 호환), 신규 생성 필수 | 무통장 입금 대조용 입금자명. trim 후 1~60자이며 개인·단체 신청 생성 시 함께 저장한다. 결제 확인 전 PATCH로 정정 가능 |
 | cancelled_at | DATETIME | NULL | 최초 취소 완료 시각 |
 | cancellation_type | ENUM | NULL | `USER, SYSTEM, ADMIN`. 이번 구현은 USER/SYSTEM만 사용하고 ADMIN은 예약값 |
 | cancellation_reason | ENUM | NULL | `USER_REQUEST, PAYMENT_TIMEOUT, ADMIN_DECISION`. `PAYMENT_TIMEOUT`은 미입금 자동 취소 정책 폐기(2026-09-20)로 실제로는 절대 기록되지 않는다(`cancelForPaymentTimeout()`을 호출하는 경로가 없음) — 이전 정책의 구현 흔적으로만 남아있음 |

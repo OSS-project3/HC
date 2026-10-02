@@ -121,6 +121,7 @@ class ApplicationServiceBulkTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   %s
                   "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" }
                 }
@@ -141,6 +142,7 @@ class ApplicationServiceBulkTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE_AND_PHYSICAL",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
                   "receiver": { "sameAsApplicant": true, "name": "김수령", "phone": "010-9999-8888", "zipCode": "06236", "address": "서울특별시 강남구", "detailAddress": "101동" }
                 }
@@ -157,6 +159,7 @@ class ApplicationServiceBulkTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
                   "receiver": { "sameAsApplicant": true, "organizationName": "OO기업", "name": "홍길동", "phone": "010-1234-5678" }
                 }
@@ -291,6 +294,7 @@ class ApplicationServiceBulkTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678", "email": "changed@example.com" }
                 }
                 """.formatted(honorKoreanCardType.getId());

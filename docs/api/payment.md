@@ -1,6 +1,6 @@
 ## Payment 도메인
 
-> ⚠️ **정정(2026-08-25) — 이 문서의 옛 설계는 실제 구현과 다르다.** 별도 Payment 컨트롤러/도메인은 **없다**. 입금자명 저장은 Application 도메인의 실제 엔드포인트로 구현됐다:
+> ✅ **정정(2026-10-03) — 이 문서의 옛 설계는 실제 구현과 다르다.** 별도 Payment 컨트롤러/도메인은 없다. 입금자명은 개인·단체 신청 생성 DTO의 필수 필드로 생성 트랜잭션에서 저장한다. 아래 PATCH는 최초 등록이 아니라 결제 확인 전 오타 수정용이다:
 > - 실제 경로: **`PATCH /api/applications/{applicationId}/depositor`** (문서의 `.../payment` 아님)
 > - 요청: `DepositorNameUpdateRequest { depositorName }` (`@NotBlank`, `@Size(max=60)`) / 응답: **`ApiResponse<Void>`**(body 없음)
 > - 권한: 신청자 **본인만**, **결제 확인 전(SUBMITTED·WAITING)** 에만 허용
@@ -17,18 +17,19 @@
 
 | 파일 | 현재 동작 |
 |---|---|
-| `StepComplete.tsx` | 고정 계좌 정보 표시(은행/계좌번호/예금주, `bankInfo` 하드코딩) + 입금자명 입력란. ⚠️ 입력란이 `value`/`onChange` 없는 비활성 상태 — 프론트 미구현(기존 확정 TODO) |
+| `StepReview.tsx` | 입금자명 필수 입력 후 신청 생성 요청에 포함 |
+| `StepComplete.tsx` | 신청번호와 고정 계좌 정보 표시. 별도 입금자명 저장 호출 없음 |
 
 ### ③ 필요한 API 목록
 
-1. **입금자명 등록** — `StepComplete.tsx` 진입 직후(신청 생성 API 완료 후 별도 호출)
+1. **입금자명 수정** — 신규 신청에는 이미 저장되며, 사용자가 결제 확인 전 오타를 고칠 때만 호출
 
-### API 1 / 1 — 입금자명 등록/수정 ⚠️ 확인필요 — `StepComplete.tsx`에 입력란은 있으나 `value`/`onChange` 없는 비활성 상태
+### API 1 / 1 — 입금자명 오타 수정
 
 #### ④ Request/Response 설계
 
 ```
-PATCH /api/applications/{applicationId}/payment
+PATCH /api/applications/{applicationId}/depositor
 Cookie: accessToken={JWT}
 Content-Type: application/json
 ```
@@ -84,13 +85,13 @@ Content-Type: application/json
 
 | # | API | 상태 |
 |---|---|---|
-| 1 | `PATCH /api/applications/{applicationId}/payment` (입금자명 등록/수정) | 설계 완료 |
+| 1 | `PATCH /api/applications/{applicationId}/depositor` (결제 확인 전 입금자명 오타 수정) | 구현 완료 |
 
-**프론트 반영 필요 항목:**
-- `StepComplete.tsx`의 입금자명 입력란을 `value`/`onChange` 연결해서 실제로 이 API를 호출하도록 구현 필요
+**프론트 반영 상태:**
+- `StepReview.tsx`에서 입금자명을 필수로 입력하고 신청 생성 요청에 포함한다.
+- `StepComplete.tsx`는 신청번호와 계좌정보만 표시하며 별도 저장 API를 호출하지 않는다.
 
 **남은 TODO:**
-- `PAYMENT_ALREADY_CONFIRMED` 에러코드는 기존 `ErrorCode.java`에 없음 — 신규 추가 필요(구현 단계에서 처리)
 - 관리자가 입금을 확인 처리하는 API는 Admin 도메인에서 다룸
 
 ---

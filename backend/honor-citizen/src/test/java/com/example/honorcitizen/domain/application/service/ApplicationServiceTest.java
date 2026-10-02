@@ -132,6 +132,7 @@ class ApplicationServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "%s",
+                  "depositorName": "테스트 입금자",
                   %s
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   %s
@@ -235,6 +236,7 @@ class ApplicationServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678", "email": "changed@example.com" },
                   "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE", "address": "서울특별시 종로구 세종대로 1" }
                 }
@@ -285,6 +287,7 @@ class ApplicationServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE_AND_PHYSICAL",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "receiver": { "sameAsApplicant": true, "zipCode": "06236", "address": "서울특별시 강남구", "detailAddress": "101동" },
                   "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE", "address": "서울특별시 종로구 세종대로 1" }
@@ -638,6 +641,7 @@ class ApplicationServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "gender": "MALE" }
                 }
@@ -657,6 +661,7 @@ class ApplicationServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "orientation": "LANDSCAPE",
                   "schoolType": "UNIVERSITY",
                   "schoolName": "전북대학교",

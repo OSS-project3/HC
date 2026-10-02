@@ -193,7 +193,7 @@
 
 | 프론트 입력 | 위치 | 백엔드 현황 | 필요 조치 |
 |---|---|---|---|
-| **입금자명** + 입금 확인/취소 | `StepComplete`(입금 안내) | 결제·입금(Payment) 도메인 자체 없음. 현재 입금 안내는 정적 계좌(config)이고 입금자명 입력은 어디에도 전송되지 않음 | **Payment 도메인 신규**: 입금자명 저장, 입금 확인(수동/웹훅), 미입금 자동취소(§신청 정책의 3영업일)와 `paymentStatus`(WAITING/CONFIRMED) 연동 |
+| **입금자명** + 입금 확인/취소 | `StepReview`(필수 입력), `StepComplete`(입금 안내) | **구현 완료**. 개인·단체 신청 생성 시 `Application.depositorName`에 같은 트랜잭션으로 저장 | 추가 백엔드 갭 없음. 결제 확인 전 오타 수정은 기존 `PATCH /api/applications/{id}/depositor` 사용 |
 | **학교명(schoolName)** | `StepInfo`·`StepReview`(학생증) | `ApplicationCreateRequest.MemberRequest`에 학교명 필드 없음 | 발급 카드에 학교명이 필요하면 `member`(개인)·단체 파서에 `schoolName` 필드 추가. 불필요하면 정책상 "표시 전용"으로 확정 |
 | **상담확인·유의사항 동의** | `StepType`(체크박스) | 신청 시점 동의 이력을 저장하는 필드/테이블 없음(약관 동의는 `/api/auth/terms`로 계정 단위만 기록) | 신청 건별 동의(항목·시각·정책버전)를 남겨야 하면 신청 생성 시 동의 기록 저장. 단순 UX 게이트면 현행 유지 |
 

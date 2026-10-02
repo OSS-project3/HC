@@ -41,9 +41,20 @@ class ApplicationStateTransitionTest {
     void depositorNameIsRegisteredWhileWaitingForPayment() {
         Application application = individual(IssueType.MOBILE);
 
-        application.registerDepositorName("홍길동");
+        application.registerDepositorName("  홍길동  ");
 
         assertThat(application.getDepositorName()).isEqualTo("홍길동");
+    }
+
+    @Test
+    void blankOrTooLongDepositorNameIsRejected() {
+        Application application = individual(IssueType.MOBILE);
+
+        assertThatThrownBy(() -> application.registerDepositorName("   "))
+                .isInstanceOf(CustomException.class);
+        assertThatThrownBy(() -> application.registerDepositorName("가".repeat(61)))
+                .isInstanceOf(CustomException.class);
+        assertThat(application.getDepositorName()).isNull();
     }
 
     @Test

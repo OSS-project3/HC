@@ -122,7 +122,7 @@ interface PageResponse<T> {
 | 내 신청 목록·상세 | `GET /api/my/applications`, `GET /api/my/applications/{id}` |
 | 취소 | `POST /api/applications/{id}/cancel` |
 | 사진 재업로드 | `PATCH /api/applications/{id}/photo` |
-| 입금자명 | `PATCH /api/applications/{id}/depositor` |
+| 입금자명 | 개인·단체 생성 요청의 `request.depositorName`에 필수 포함(trim 후 1~60자). `PATCH /api/applications/{id}/depositor`는 결제 확인 전 오타 수정 전용 |
 | 카드 다운로드 | `GET /api/applications/{id}/cards/download` |
 | 학교 검색 | `GET /api/schools/search?query=...` |
 

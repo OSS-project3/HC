@@ -136,6 +136,7 @@ class ApplicationPersistenceServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "member": {
                     "englishName": "Hong Gildong",
@@ -179,6 +180,7 @@ class ApplicationPersistenceServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
                   "consultationConfirmed": true,
                   "disclaimerConfirmed": true
@@ -261,6 +263,7 @@ class ApplicationPersistenceServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "%s",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   %s
                   "member": {
@@ -290,6 +293,7 @@ class ApplicationPersistenceServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "member": {
                     "englishName": "Hong Gildong",
@@ -308,6 +312,7 @@ class ApplicationPersistenceServiceTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" }
                 }
                 """.formatted(cardType.getId());

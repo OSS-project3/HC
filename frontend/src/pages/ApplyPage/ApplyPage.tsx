@@ -37,12 +37,10 @@ export function ApplyPage() {
 
   const [step, setStep] = useState(0);
   const [applicationNumber, setApplicationNumber] = useState("");
-  const [applicationId, setApplicationId] = useState<number | null>(null);
 
   useEffect(() => {
     setStep(0);
     setApplicationNumber("");
-    setApplicationId(null);
   }, [pathname]);
 
   // The selected design is carried through the URL so it survives refresh.
@@ -67,6 +65,11 @@ export function ApplyPage() {
       showToast("제작 신청은 로그인 후 이용할 수 있습니다.");
       return;
     }
+    const depositorName = draft.depositorName.trim();
+    if (!depositorName || depositorName.length > 60) {
+      showToast("입금자명을 입력해 주세요");
+      return;
+    }
     try {
         const physical = draft.issuanceMethod === "mobile_and_physical";
         const isOrg = draft.applicantType === "organization";
@@ -82,12 +85,12 @@ export function ApplyPage() {
           ? { sameAsApplicant: draft.recipient.sameAsApplicant, ...(isOrg ? { organizationName: draft.recipient.organizationName, department: draft.recipient.department } : {}), name: draft.recipient.name, phone: draft.recipient.phone, zipCode: draft.recipient.postalCode, address: draft.recipient.address, detailAddress: draft.recipient.addressDetail, deliveryRequest: draft.recipient.deliveryRequest }
           : undefined;
         const request = isOrg ? {
-          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined, schoolId,
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), depositorName, orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined, schoolId,
           applicant: { organizationName: draft.applicant.organizationName, department: draft.applicant.department, name: draft.applicant.name, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
           consultationConfirmed: draft.consultationConfirmed, disclaimerConfirmed: draft.disclaimerConfirmed,
         } : {
-          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined, schoolId,
+          cardTypeId: cardTypeIds[design.cardType], issueType: toIssueType(draft.issuanceMethod), depositorName, orientation, schoolType, schoolName: isStudent ? draft.applicant.schoolName : undefined, schoolId,
           applicant: { name: draft.applicant.name || draft.applicant.englishName, phone: draft.applicant.phone, email: draft.applicant.email || undefined },
           receiver,
           consultationConfirmed: draft.consultationConfirmed, disclaimerConfirmed: draft.disclaimerConfirmed,
@@ -113,7 +116,6 @@ export function ApplyPage() {
         }
         const result = await api.createApplication(form, isOrg);
         setApplicationNumber(result.applicationNumber);
-        setApplicationId(result.applicationId);
         goTo(4);
     } catch (error) {
       if (error instanceof ApiError && error.errors?.length) {
@@ -184,6 +186,7 @@ export function ApplyPage() {
             {step === 3 && (
               <StepReview
                 draft={draft}
+                update={update}
                 design={design}
                 onSubmit={submit}
                 onPrev={() => goTo(2)}
@@ -194,11 +197,7 @@ export function ApplyPage() {
               <StepComplete
                 draft={draft}
                 applicationNumber={applicationNumber}
-                onDone={async (depositorName) => {
-                  // 입금자명을 서버에 저장(PATCH /api/applications/{id}/depositor) 후 임시 개인정보 정리.
-                  if (applicationId && depositorName) {
-                    try { await api.updateDepositor(applicationId, depositorName); } catch (e) { showToast(e instanceof ApiError ? e.message : "입금자명 저장에 실패했습니다."); }
-                  }
+                onDone={() => {
                   clear();
                 }}
               />

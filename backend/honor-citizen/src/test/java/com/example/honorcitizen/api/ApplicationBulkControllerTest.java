@@ -30,6 +30,7 @@ import java.math.BigDecimal;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -65,6 +66,17 @@ class ApplicationBulkControllerTest {
     private CardType cardType;
 
     private static final String REQUEST_JSON = """
+            {
+              "cardTypeId": %d,
+              "issueType": "MOBILE",
+              "depositorName": "입금자 홍길동",
+              "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
+              "consultationConfirmed": true,
+              "disclaimerConfirmed": true
+            }
+            """;
+
+    private static final String REQUEST_WITHOUT_DEPOSITOR_JSON = """
             {
               "cardTypeId": %d,
               "issueType": "MOBILE",
@@ -165,6 +177,31 @@ class ApplicationBulkControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.totalQuantity").value(1))
                 .andExpect(jsonPath("$.data.applicationNumber").value(org.hamcrest.Matchers.startsWith("APP-")));
+
+        assertThat(applicationRepository.findAll()).singleElement()
+                .extracting(com.example.honorcitizen.domain.application.entity.Application::getDepositorName)
+                .isEqualTo("입금자 홍길동");
+    }
+
+    @Test
+    void createGroupRejectsMissingDepositorNameBeforeCreatingApplication() throws Exception {
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", "application/json",
+                REQUEST_WITHOUT_DEPOSITOR_JSON.formatted(cardType.getId()).getBytes());
+        MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
+        MockMultipartFile seal = new MockMultipartFile("seal", "seal.png", "image/png", "seal".getBytes());
+        MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", buildZip());
+
+        mockMvc.perform(multipart("/api/applications/bulk")
+                        .file(requestPart)
+                        .file(logo)
+                        .file(seal)
+                        .file(submitFile)
+                        .header("Authorization", token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        assertThat(applicationRepository.count()).isZero();
     }
 
     @Test
@@ -189,6 +226,7 @@ class ApplicationBulkControllerTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE_AND_PHYSICAL",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "organizationName": "OO기업", "department": "인사팀", "name": "홍길동", "phone": "010-1234-5678" },
                   "receiver": { "sameAsApplicant": false, "name": "김수령", "phone": "010-9999-8888", "address": "서울특별시 강남구" }
                 }

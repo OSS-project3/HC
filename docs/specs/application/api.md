@@ -1,6 +1,6 @@
 ## Application 도메인
 
-> ⚠️ **정정(2026-08-25):** "입금자명 등록 — 이번 패스 설계 보류"는 이후 **구현됐다.** `PATCH /api/applications/{applicationId}/depositor`(요청 `DepositorNameUpdateRequest{depositorName}`, 응답 Void, 본인·결제 확인 전만). `Application.depositorName` 필드로 저장하고 `MyApplicationDetailResponse`에 노출. (별도 Payment 도메인 아님.)
+> ✅ **정정(2026-10-03):** 입금자명은 개인·단체 생성 요청 JSON의 필수 필드(`depositorName`, trim 후 1~60자)이며 Application 생성 트랜잭션에서 함께 저장한다. 누락·공백·60자 초과는 생성 API가 400으로 거절한다. `PATCH /api/applications/{applicationId}/depositor`는 본인 신청의 결제 확인 전 오타 수정용으로 유지한다.
 
 ### ① 도메인의 책임
 
@@ -16,7 +16,8 @@
 | `StepType.tsx` | 개인/법인단체 선택 + 사전상담 확인 체크(게이트용, 저장 안 함) |
 | `StepInfo.tsx` | 발급유형, 수량, 신청인 정보, (실물일 때만) 수령인 정보 — **`applicantType`에 따른 분기가 이 필드들엔 없음(신청인/수령인 정보는 개인·법인 공통 폼)** |
 | `StepFiles.tsx` | 로고/직인/제출ZIP 3개 업로드 — **`applicantType` 상관없이 항상 3개 다 보여줌** |
-| `StepComplete.tsx` | 입금자명 입력 + 신청번호 표시 |
+| `StepReview.tsx` | 최종 확인 + 입금자명 필수 입력. 값이 유효하지 않으면 신청 제출 불가 |
+| `StepComplete.tsx` | 저장 완료된 신청번호와 계좌정보 표시. 별도 입금자명 저장 요청 없음 |
 | `LookupPage.tsx` | 신청번호/카드번호 + 연락처로 조회 (비로그인도 가능, README에 `POST /api/applications/lookup`으로 이미 언급됨) |
 
 ### ③ 필요한 API 목록
@@ -24,7 +25,7 @@
 1. **개인 신청 생성** — `StepReview`→제출
 2. **단체(ZIP) 신청 생성** — 동일 흐름, `applicantType=GROUP`
 3. **신청 조회** — `LookupPage.tsx`
-4. ⚠️ TODO: **입금자명 등록** — `StepComplete.tsx`가 입금자명을 받는데, 이 값을 저장할 엔티티가 `.md`에 없음(Payment 엔티티 자체가 아직 없음, 이전에 "결제 필요함"으로만 확정되고 실제 테이블은 안 만들어짐). 이번 패스에선 설계 보류, 별도 확인 필요.
+4. **입금자명 수정** — 생성 시 필수 저장하며, 이후 결제 확인 전에는 기존 PATCH API로 오타를 수정한다.
 
 ### API 1 / 3 — 개인 신청 생성 ⚠️ 확인필요 — `StepInfo.tsx`에 생년월일·국적·출생시각·출생지역·성별·사진 입력란 없음, 서버 호출 자체도 없음
 

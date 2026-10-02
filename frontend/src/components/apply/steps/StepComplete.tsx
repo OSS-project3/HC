@@ -1,5 +1,4 @@
 // Apply step: submission-complete confirmation screen.
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ApplicationDraft } from "../../../features/apply/types";
 import { bankInfo } from "../../../config/company";
@@ -11,8 +10,8 @@ import { useLanguage } from "../../../features/i18n/LanguageContext";
 interface StepCompleteProps {
   draft: ApplicationDraft;
   applicationNumber: string;
-  /** 입금자명을 함께 넘겨 저장한다(서버 저장이 끝날 때까지 기다린 뒤 이동한다). */
-  onDone: (depositorName: string) => void | Promise<void>;
+  /** 신청은 이미 입금자명을 포함해 저장됐다. 완료 확인 후 임시 draft만 정리한다. */
+  onDone: () => void | Promise<void>;
 }
 
 /** Completion copy differs by applicant type (personal vs organization). */
@@ -26,8 +25,6 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
   const { t } = useLanguage();
   const navigate = useNavigate();
   const isOrg = draft.applicantType === "organization";
-  const [depositorName, setDepositorName] = useState(draft.depositorName ?? "");
-  const [saving, setSaving] = useState(false);
 
   const copyAccount = async () => {
     try {
@@ -69,20 +66,6 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
         </div>
       </section>
 
-      <div className="field complete__depositor">
-        <span className="field__label">
-          {t("입금자명 입력")} <span aria-hidden="true">*</span>
-        </span>
-        <input
-          className="field__input"
-          placeholder={t("입금자명을 입력해 주세요")}
-          value={depositorName}
-          required
-          aria-required="true"
-          onChange={(e) => setDepositorName(e.target.value)}
-        />
-      </div>
-
       <div className="notice">
         <p className="notice__title">{t("안내사항")}</p>
         <ul className="notice__list">
@@ -98,10 +81,8 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
 
       <div className="step__actions step__actions--end">
         <Button
-          disabled={saving || !depositorName.trim()}
           onClick={async () => {
-            setSaving(true);
-            try { await onDone(depositorName.trim()); } finally { setSaving(false); }
+            await onDone();
             // 신청/제작 내역은 마이페이지 제작내역에서 확인한다. (조회 페이지는 발급된 카드 확인 전용)
             navigate(`/mypage#production`);
           }}

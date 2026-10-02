@@ -130,6 +130,7 @@ class UserApplicationFlowTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "010-1234-5678" },
                   "member": {
                     "englishName": "Hong Gildong",

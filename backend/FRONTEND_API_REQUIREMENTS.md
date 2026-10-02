@@ -244,7 +244,7 @@
 
 현재 프론트와 백엔드 계약에서 추가로 확정할 항목:
 
-- 프론트는 신청자 이메일과 입금자명을 수집하지만 신청 DTO에는 없다.
+- 입금자명은 개인·단체 신청 생성 DTO의 필수 필드로 반영됐다(2026-10-03). 최종 확인 단계에서 입력해 생성 multipart의 `request.depositorName`으로 보내며, 기존 PATCH는 결제 확인 전 오타 수정에만 사용한다.
 - 프론트는 디자인을 선택하지만 신청 DTO에는 `cardDesignId`가 없다.
 - 프론트 관리자 상태와 백엔드 `ApplicationStatus` 값이 다르다. 서버 enum을 기준으로 UI 매핑표를 확정해야 한다 — 2026-08-17부로 서버 enum 자체가 `SUBMITTED/REVIEWING/PHOTO_REJECTED/NAME_EDITING/PRODUCTION_READY/PRODUCING/COMPLETED/CANCELLED`로 다시 바뀌었으니(위 새 섹션 참고) 기존에 봤던 매핑표가 있다면 다시 확인해야 한다.
 - 신청 완료 후 로컬 `admin-applications`에 복사하지 말고 서버 응답과 목록 조회 API를 사용해야 한다.

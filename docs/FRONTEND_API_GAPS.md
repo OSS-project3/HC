@@ -19,7 +19,7 @@ API의 상세 요청·응답 계약은 도메인 문서(`docs/api/*.md`, `docs/s
 
 ### 현재 갭이 아닌 항목
 
-- 입금자명은 `PATCH /api/applications/{id}/depositor`로 저장된다.
+- 입금자명은 개인·단체 생성 요청의 필수값으로 함께 저장된다(2026-10-03). `PATCH /api/applications/{id}/depositor`는 결제 확인 전 오타 수정용이다.
 - 관리자 통계는 `GET /api/admin/stats`를 `OverviewSection`에서 호출한다.
 - 공지 검색과 페이지 이동은 서버 `searchType`, `keyword`, `page`, `totalPages`에 연결되어 있다.
 - 단체 Excel 성씨 열은 현재 워킹 트리에서 선택 열로 구현되어 있다. 다만 `docs/collab/TODO.md` 상단의 “Excel에서 성씨를 받지 않는다” 정책과 충돌하므로, 이 저장소를 합치기 전 정책 문서와 구현 중 하나를 정합화해야 한다. 이번 구조 정리에서는 기존 작업자의 코드를 보존했다.

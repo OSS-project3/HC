@@ -22,6 +22,9 @@ public class BulkApplicationCreateRequest {
     @NotNull
     private IssueType issueType;
 
+    // 개인 신청과 동일한 신청 단위 입금자명. 엑셀 행별 값이 아니라 단체 신청 전체에 1개다.
+    private String depositorName;
+
     // 학생증(STUDENT)일 때만 사용 — 신청서 전체에 1개(개인 DTO와 동일 위치·의미).
     private Orientation orientation;
 
@@ -52,6 +55,12 @@ public class BulkApplicationCreateRequest {
     // schoolName은 저장·검증 전에 항상 트림된 값으로 취급한다(정책: 앞뒤 공백 트림 후 5~20자 검사).
     public String getSchoolName() {
         return schoolName == null ? null : schoolName.trim();
+    }
+
+    @NotBlank
+    @Size(max = 60)
+    public String getDepositorName() {
+        return depositorName == null ? null : depositorName.trim();
     }
 
     @Getter

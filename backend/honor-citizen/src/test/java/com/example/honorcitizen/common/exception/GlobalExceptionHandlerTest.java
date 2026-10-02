@@ -77,6 +77,7 @@ class GlobalExceptionHandlerTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "" },
                   "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "USA", "birthRegion": "Chicago", "gender": "MALE" },
                   "consultationConfirmed": true,
@@ -105,6 +106,7 @@ class GlobalExceptionHandlerTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "applicant": { "name": "홍길동", "phone": "" },
                   "member": { "englishName": "Hong Gildong", "birthDate": "1990-05-15", "nationality": "US", "birthRegion": "Chicago", "gender": "MALE" },
                   "consultationConfirmed": true,

@@ -238,6 +238,7 @@ public class ApplicationService {
     //   논리 검증 → 파일 검증 → 조건부 검증 순으로 빠른 실패(fail-fast)를 유도한다.
     private void validateCreateIndividual(ApplicationCreateRequest request, MultipartFile photo,
             MultipartFile schoolLogo, MultipartFile schoolSeal, boolean isStudent, ResolvedSchool resolvedSchool) {
+        validateDepositorName(request.getDepositorName());
         validateReceiverPresence(request);
         applicationPhotoValidator.validateFacePhoto(photo);
         validateStudentFields(isStudent, request.getOrientation(), resolvedSchool,
@@ -301,6 +302,7 @@ public class ApplicationService {
     public BulkApplicationCreateResponse createGroup(Long userId, BulkApplicationCreateRequest request,
             MultipartFile logo, MultipartFile seal, MultipartFile submitFile) {
         User user = findUser(userId);
+        validateDepositorName(request.getDepositorName());
         CardType cardType = findActiveCardType(request.getCardTypeId());
         boolean isStudent = cardType.isStudentCard();
 
@@ -375,6 +377,12 @@ public class ApplicationService {
             deleteUploadedFilesQuietlyReversed(uploadedKeys);
             applicationDailyLimitService.releaseSlot(userId, today);
             throw e;
+        }
+    }
+
+    private void validateDepositorName(String depositorName) {
+        if (!hasText(depositorName) || depositorName.trim().length() > 60) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
         }
     }
 

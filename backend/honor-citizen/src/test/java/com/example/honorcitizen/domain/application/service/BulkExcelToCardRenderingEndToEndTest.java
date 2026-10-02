@@ -226,6 +226,7 @@ class BulkExcelToCardRenderingEndToEndTest {
                 {
                   "cardTypeId": %d,
                   "issueType": "MOBILE",
+                  "depositorName": "테스트 입금자",
                   "orientation": "%s",
                   "schoolId": %d,
                   "applicant": { "organizationName": "\ud55c\uc138\uc885\ud569\ub300\ud559\uad50", "department": "\ud559\uc0dd\ud68c", "name": "\ub2e8\uc7a5", "phone": "010-1234-5678" }
