@@ -70,11 +70,15 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
       </section>
 
       <div className="field complete__depositor">
-        <span className="field__label">{t("입금자명 입력")}</span>
+        <span className="field__label">
+          {t("입금자명 입력")} <span aria-hidden="true">*</span>
+        </span>
         <input
           className="field__input"
           placeholder={t("입금자명을 입력해 주세요")}
           value={depositorName}
+          required
+          aria-required="true"
           onChange={(e) => setDepositorName(e.target.value)}
         />
       </div>
@@ -94,7 +98,7 @@ export function StepComplete({ draft, applicationNumber, onDone }: StepCompleteP
 
       <div className="step__actions step__actions--end">
         <Button
-          disabled={saving}
+          disabled={saving || !depositorName.trim()}
           onClick={async () => {
             setSaving(true);
             try { await onDone(depositorName.trim()); } finally { setSaving(false); }
