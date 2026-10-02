@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -431,9 +432,8 @@ class BulkExcelParser {
 
         String email = requireText(stringValue(row, 8, formatter), rowNumber, "email", errors);
         email = checkValidEmail(email, rowNumber, errors);
-        // phone 형식 검증은 보류: 국제 전화번호 정책(외국인 신청자 고려)이 아직 확정되지 않아
-        // 국내향 정규식을 임의로 적용하지 않는다(PENDING_DECISIONS.md 참고). 필수 여부만 확인한다.
         String phone = requireText(stringValue(row, 9, formatter), rowNumber, "phone", errors);
+        phone = checkValidPhone(phone, rowNumber, errors);
         // 주소는 개인 신청과 동일한 정책(admin-saju.md 확정, 2026-09-13 단체까지 통일) — 학생증은
         // 카드에 주소를 표시하지 않으므로 값이 있으면 거절하고, 그 외 카드종류는 필수로 받는다.
         String address = null;
@@ -517,6 +517,18 @@ class BulkExcelParser {
             return null;
         }
         return email;
+    }
+
+    // 국가코드 포함 E.164(+, 첫 자리 1~9, 최대 15자리). 엑셀 템플릿의 J열 검증과 같은 규칙이다.
+    private static final Pattern E164_PATTERN = Pattern.compile("\\+[1-9]\\d{1,14}");
+
+    private String checkValidPhone(String phone, int rowNumber, List<ValidationErrorDetail> errors) {
+        if (phone != null && !E164_PATTERN.matcher(phone).matches()) {
+            errors.add(new ValidationErrorDetail(rowNumber, "phone", "INVALID_FORMAT",
+                    "전화번호는 국가코드를 포함한 E.164 형식이어야 합니다. 예: +821012345678"));
+            return null;
+        }
+        return phone;
     }
 
     private String checkValidNationality(String nationality, int rowNumber, List<ValidationErrorDetail> errors) {

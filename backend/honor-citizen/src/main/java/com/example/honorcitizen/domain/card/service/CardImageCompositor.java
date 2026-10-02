@@ -86,6 +86,8 @@ class CardImageCompositor {
     private static final double CARD_WIDTH_MM = 83d;
     private static final double BACK_TITLE_DPI = 300d;
     private static final double MM_PER_INCH = 25.4d;
+    // 디자인 이미지 원본 크기 대비 실제 표시 배율(뒷면 제목을 키우기 위해 1.4배로 지정).
+    private static final double BACK_TITLE_SCALE = 1.4d;
     // 학생증 뒷면은 풀이 폰트가 더 커서(8f vs 4f) 같은 비율이면 줄 수가 더 늘어난다 — 학생증 배경은
     // 좌우 여백이 더 넓어(점무늬·물결무늬가 훨씬 가장자리에 있음, 실제 렌더링으로 확인) 폭을
     // 넓혀도 그래픽과 안 겹친다. 이 값으로 같은 최장(97자) 텍스트가 3~4줄로 카드 안에 들어간다.
@@ -380,7 +382,7 @@ class CardImageCompositor {
             return;
         }
         BufferedImage img = loadImage(titlePath);
-        double targetBaseWidth = img.getWidth() / BACK_TITLE_DPI * MM_PER_INCH * baseWidth / CARD_WIDTH_MM;
+        double targetBaseWidth = img.getWidth() / BACK_TITLE_DPI * MM_PER_INCH * baseWidth / CARD_WIDTH_MM * BACK_TITLE_SCALE;
         double w = targetBaseWidth * scaleX;
         double h = img.getHeight() * w / img.getWidth();
         double cx = (baseWidth / 2 + offset.x()) * scaleX;

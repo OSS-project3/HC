@@ -156,7 +156,7 @@ class BulkExcelToCardRenderingEndToEndTest {
         // 컬럼: 사진번호|영문명|생년월일|국적|출생시간|출생지역|성별|개별입국날짜|이메일|전화번호|주소|학번|학과
         // 학생증은 카드에 주소를 표시하지 않으므로 주소 칸은 비운다(2026-09-13 정책 통일).
         byte[] excel = buildExcel(
-                "1|Kim Testperson|2003-05-12|KR||Seoul|MALE||kim.testperson@example.com|010-1234-5678||202512345|컴퓨터공학과");
+                "1|Kim Testperson|2003-05-12|KR||Seoul|MALE||kim.testperson@example.com|+821012345678||202512345|컴퓨터공학과");
         byte[] zip = buildZip(excel, "1");
         MockMultipartFile submitFile = new MockMultipartFile("submitFile", "bulk.zip", "application/zip", zip);
         MockMultipartFile logo = new MockMultipartFile("logo", "logo.png", "image/png", "logo".getBytes());
