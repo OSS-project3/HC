@@ -238,6 +238,7 @@ public class ApplicationService {
     //   논리 검증 → 파일 검증 → 조건부 검증 순으로 빠른 실패(fail-fast)를 유도한다.
     private void validateCreateIndividual(ApplicationCreateRequest request, MultipartFile photo,
             MultipartFile schoolLogo, MultipartFile schoolSeal, boolean isStudent, ResolvedSchool resolvedSchool) {
+        validateDepositorName(request.getDepositorName());
         validateReceiverPresence(request);
         applicationPhotoValidator.validateFacePhoto(photo);
         validateStudentFields(isStudent, request.getOrientation(), resolvedSchool,
@@ -301,6 +302,7 @@ public class ApplicationService {
     public BulkApplicationCreateResponse createGroup(Long userId, BulkApplicationCreateRequest request,
             MultipartFile logo, MultipartFile seal, MultipartFile submitFile) {
         User user = findUser(userId);
+        validateDepositorName(request.getDepositorName());
         CardType cardType = findActiveCardType(request.getCardTypeId());
         boolean isStudent = cardType.isStudentCard();
 
@@ -375,6 +377,12 @@ public class ApplicationService {
             deleteUploadedFilesQuietlyReversed(uploadedKeys);
             applicationDailyLimitService.releaseSlot(userId, today);
             throw e;
+        }
+    }
+
+    private void validateDepositorName(String depositorName) {
+        if (!hasText(depositorName) || depositorName.trim().length() > 60) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
         }
     }
 
@@ -1414,10 +1422,10 @@ public class ApplicationService {
     private ApplicationCardDownloadResponse buildCardDownloadResponse(Application application) {
         Long applicationId = application.getId();
 
-        // 카드 다운로드는 발급 완료(COMPLETED) 상태에서만 허용한다.
-        // COMPLETED 미만의 상태(예: PENDING, REVIEWING)에서는 카드 이미지 자체가 아직 생성되지 않았으므로
-        // cardFrontPath, cardBackPath가 null이어서 presigned URL 생성 자체가 불가능하다.
-        if (application.getStatus() != ApplicationStatus.COMPLETED) {
+        // 모바일 카드 다운로드 기준은 카드 준비 완료(cardReadyAt)다. 실물 포함 신청은 카드가 준비돼도
+        // 택배 인계 전까지 PRODUCING에 남으므로 상태가 아니라 준비 시각으로 판정한다.
+        // cardReadyAt이 없으면 카드 이미지가 아직 생성되지 않아 presigned URL을 만들 수 없다.
+        if (application.getCardReadyAt() == null) {
             throw new CustomException(ErrorCode.CARD_NOT_READY);
         }
 

@@ -215,6 +215,30 @@ class ApplicationServiceCardDownloadTest {
     }
 
     @Test
+    void getCardDownloadByTokenAllowsPhysicalApplicationOnceCardIsReadyEvenIfStillProducing() {
+        Application application = applicationRepository.save(Application.createIndividual(
+                1L, "APP-2026-400005", cardType.getId(), IssueType.MOBILE_AND_PHYSICAL, true, null, null));
+        applicantRepository.save(Applicant.createIndividual(application.getId(), "홍길동", "owner@example.com", "010-1234-5678"));
+        ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createIndividual(
+                application.getId(), "Hong Gildong", LocalDate.of(1990, 1, 1), "US",
+                null, null, Gender.MALE, null, null, null, "photos/a.jpg"));
+        setCardPaths(member, "cards/front.png", "cards/back.png");
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application.completeNaming();
+        application.startProducing();
+        application.markCardReady(java.time.LocalDateTime.now());
+        applicationRepository.save(application);
+        String token = cardLookupTokenService.issue(application.getId());
+
+        ApplicationCardDownloadResponse response =
+                applicationService.getCardDownloadByToken(application.getId(), token);
+
+        assertThat(response.getCardFrontUrl()).isEqualTo("http://mock-storage/presigned");
+    }
+
+    @Test
     void getCardDownloadByTokenRejectsWhenApplicationNotCompletedEvenWithValidToken() {
         Application application = applicationRepository.save(Application.createIndividual(
                 1L, "APP-2026-400004", cardType.getId(), IssueType.MOBILE, true, null, null));

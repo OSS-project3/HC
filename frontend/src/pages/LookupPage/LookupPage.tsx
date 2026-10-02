@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { FlipCard } from "../../components/ui/FlipCard";
 import { showToast } from "../../components/ui/toast";
-import { api } from "../../services/api";
+import { api, ApiError } from "../../services/api";
 import { downloadCompositeCard, downloadImageFile } from "../../lib/cardDownload";
 import { useLanguage } from "../../features/i18n/LanguageContext";
 import "./LookupPage.css";
@@ -118,8 +118,8 @@ export function LookupPage() {
           // 뒷면 URL이 없으면 앞면과 매칭되는 뒷면을 유도해 사용한다.
           backUrl: download.cardBackUrl || backFromFront(download.cardFrontUrl),
         });
-      } catch {
-        setError("카드 다운로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "카드 다운로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       }
       return;
     } catch {
