@@ -25,6 +25,12 @@ public class AdminApplicationMemberResponse {
     // 개인/단체 신청 모두 이 값을 사용한다(admin-saju.md 확정 정책). 배송용 Receiver.address와는
     // 별도 값이라 이 응답에서 별도로 노출한다(2026-09-13, 개인 신청 주소 누락 검증 후속 조치).
     private final String address;
+    // 구성원 연락처 — 주문 확인용(카드 종류와 무관하게 전부 노출).
+    private final String email;
+    private final String phone;
+    // 학생증(대학교) 구성원의 학번·학과 — 그 외 카드는 항상 null.
+    private final String studentId;
+    private final String department;
     // 작명 결과(확정 한글/한자 이름) — 아직 지정 전이면 null.
     private final String surname;
     // 성씨 한자 — surname으로부터 자동 유도된 값(10대 성씨만 존재, ApplicationMember.assignKoreanName
@@ -56,6 +62,10 @@ public class AdminApplicationMemberResponse {
         this.birthTime = m.getBirthTime();
         this.birthRegion = m.getBirthRegion();
         this.address = m.getAddress();
+        this.email = m.getEmail();
+        this.phone = m.getPhone();
+        this.studentId = m.getStudentId();
+        this.department = m.getDepartment();
         this.surname = m.getSurname();
         this.surnameHanja = m.getSurnameHanja();
         this.assignedName = m.getName();

@@ -6,6 +6,7 @@ import com.example.honorcitizen.common.enums.CancellationReason;
 import com.example.honorcitizen.common.enums.CancellationType;
 import com.example.honorcitizen.common.enums.IssueType;
 import com.example.honorcitizen.common.enums.PaymentStatus;
+import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.StudentTextColor;
 import com.example.honorcitizen.domain.application.entity.Applicant;
 import com.example.honorcitizen.domain.application.entity.Application;
@@ -55,6 +56,9 @@ public class MyApplicationDetailResponse {
     // 다루지 않으므로(407행 주석 "별도 API로 분리 예정") 항상 null. 배송용 ReceiverSummary.address와는
     // 별도 값이다(2026-09-13, 개인 신청 주소 누락 검증 후속 조치로 추가).
     private final String memberAddress;
+    // 학생증 주문의 학교 구분·학교명 — 학생증이 아니면 null. 관리자가 주문 학교를 확인하는 용도.
+    private final SchoolType schoolType;
+    private final String schoolName;
     // 낙관적 락 버전 — 카드번호 일괄 저장(PUT .../card-numbers)의 applicationVersion 대조용.
     private final Long version;
 
@@ -66,7 +70,8 @@ public class MyApplicationDetailResponse {
             Integer zodiacDesignSet, Long cardDesignId, LocalDate cardIssueDate,
             StudentTextColor studentFrontTextColor, StudentTextColor studentBackTextColor,
             String photoRejectReason, ApplicantSummary applicant, ReceiverSummary receiver, long memberCount,
-            LocalDateTime createdAt, String depositorName, String memberAddress, Long version) {
+            LocalDateTime createdAt, String depositorName, String memberAddress,
+            SchoolType schoolType, String schoolName, Long version) {
         this.applicationId = applicationId;
         this.applicationNumber = applicationNumber;
         this.applicationType = applicationType;
@@ -96,6 +101,8 @@ public class MyApplicationDetailResponse {
         this.createdAt = createdAt;
         this.depositorName = depositorName;
         this.memberAddress = memberAddress;
+        this.schoolType = schoolType;
+        this.schoolName = schoolName;
         this.version = version;
     }
 
@@ -114,7 +121,8 @@ public class MyApplicationDetailResponse {
                 application.getStudentFrontTextColor(), application.getStudentBackTextColor(),
                 application.getPhotoRejectReason(), ApplicantSummary.from(applicant),
                 receiver == null ? null : ReceiverSummary.from(receiver), memberCount, application.getCreatedAt(),
-                application.getDepositorName(), memberAddress, application.getVersion());
+                application.getDepositorName(), memberAddress, application.getSchoolType(), application.getSchoolName(),
+                application.getVersion());
     }
 
     // 영어 응답용 사본 — 자유 텍스트인 photoRejectReason만 번역한다(cardTypeName·status 등은 그대로).
@@ -123,7 +131,8 @@ public class MyApplicationDetailResponse {
                 cardTypeName, issueType, totalQuantity, status, paymentStatus, paymentGuidedAt, paymentDueAt,
                 cancelledAt, cancellationType, cancellationReason, cancellationMemo, cardReadyAt, physicalDispatchedAt,
                 zodiacDesignSet, cardDesignId, cardIssueDate, studentFrontTextColor, studentBackTextColor,
-                photoRejectReason, applicant, receiver, memberCount, createdAt, depositorName, memberAddress, version);
+                photoRejectReason, applicant, receiver, memberCount, createdAt, depositorName, memberAddress,
+                schoolType, schoolName, version);
     }
 
     @Getter

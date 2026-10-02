@@ -225,8 +225,56 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
           <Item label="연락처" value={detail.applicant.phone} />
           {isGroup && <Item label="인원" value={`${detail.memberCount}명`} />}
           {s === "CANCELLED" && <Item label="취소 메모" value={detail.cancellationMemo ?? undefined} />}
+          <Item label="결제 상태" value={detail.paymentStatus === "CONFIRMED" ? "입금 확인" : "입금 대기"} />
+          <Item label="입금자명" value={detail.depositorName} />
+          <Item label="학교 구분" value={detail.schoolType ? (detail.schoolType === "UNIVERSITY" ? "대학교" : "고등학교") : undefined} />
+          <Item label="학교명" value={detail.schoolName} />
+          {detail.receiver && <Item label="수령인" value={`${detail.receiver.name} · ${detail.receiver.phone}`} />}
+          {detail.receiver?.address && (
+            <Item
+              label="배송지"
+              value={[detail.receiver.zipCode && `(${detail.receiver.zipCode})`, detail.receiver.address, detail.receiver.detailAddress]
+                .filter(Boolean)
+                .join(" ")}
+            />
+          )}
+          <Item label="배송 요청" value={detail.receiver?.deliveryRequest} />
         </dl>
       </div>
+
+      {members && members.length > 0 && (
+        <div className="admin-naming__info">
+          <b className="admin-naming__subtitle">구성원 연락처</b>
+          <div className="admin__table-wrap">
+            <table className="admin__table">
+              <thead>
+                <tr>
+                  <th>사진 번호</th>
+                  <th>영문명</th>
+                  <th>이메일</th>
+                  <th>전화번호</th>
+                  {detail.schoolType ? <th>학번 · 학과</th> : <th>카드 주소</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => (
+                  <tr key={m.memberId}>
+                    <td>{m.photoNumber ?? "-"}</td>
+                    <td>{m.englishName ?? "-"}</td>
+                    <td>{m.email ?? "-"}</td>
+                    <td>{m.phone ?? "-"}</td>
+                    <td>
+                      {detail.schoolType
+                        ? [m.studentId, m.department].filter(Boolean).join(" · ") || "-"
+                        : m.address ?? "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="admin-naming__status">
         <span className="admin-naming__subtitle">상태 관리</span>

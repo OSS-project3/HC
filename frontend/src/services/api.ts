@@ -161,6 +161,8 @@ export interface AdminApplicationDetail {
   cardReadyAt?: string; physicalDispatchedAt?: string; photoRejectReason?: string;
   applicant: AdminApplicantSummary; receiver?: AdminReceiverSummary;
   memberCount: number; createdAt: string; depositorName?: string; version?: number;
+  // 학생증 주문의 학교 구분·학교명(그 외 카드는 없음)
+  schoolType?: "UNIVERSITY" | "HIGH_SCHOOL"; schoolName?: string;
   // 카드 생성 성공 시 확정되어 이후 값이 다르면 재생성이 거절된다(CARD_DESIGN_MISMATCH/
   // CARD_ISSUE_DATE_MISMATCH). 화면 재진입 시 이 값으로 카드 제작 패널을 복원해야 한다.
   cardDesignId?: number; cardIssueDate?: string;
@@ -174,6 +176,8 @@ export interface AdminApplicationDetail {
 export interface AdminApplicationMember {
   memberId: number; englishName?: string; nationality?: string; gender?: "MALE" | "FEMALE";
   birthDate?: string; birthTime?: string; birthRegion?: string;
+  // 주문 확인용 연락처·카드 주소·학번/학과(학생증 대학교만)
+  email?: string; phone?: string; address?: string; studentId?: string; department?: string;
   surname?: string; assignedName?: string; assignedHanja?: string; photoNumber?: string; cardNumber?: string;
 }
 export interface NameSelectionStat { name: string; hanja: string; count: number; }
