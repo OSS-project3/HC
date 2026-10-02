@@ -162,7 +162,7 @@ export interface AdminApplicationDetail {
   applicant: AdminApplicantSummary; receiver?: AdminReceiverSummary;
   memberCount: number; createdAt: string; depositorName?: string; version?: number;
   // 학생증 주문의 학교 구분·학교명(그 외 카드는 없음)
-  schoolType?: "UNIVERSITY" | "HIGH_SCHOOL"; schoolName?: string;
+  schoolType?: "UNIVERSITY" | "HIGH_SCHOOL"; schoolName?: string; orientation?: "LANDSCAPE" | "PORTRAIT";
   // 카드 생성 성공 시 확정되어 이후 값이 다르면 재생성이 거절된다(CARD_DESIGN_MISMATCH/
   // CARD_ISSUE_DATE_MISMATCH). 화면 재진입 시 이 값으로 카드 제작 패널을 복원해야 한다.
   cardDesignId?: number; cardIssueDate?: string;

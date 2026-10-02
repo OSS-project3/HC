@@ -5,6 +5,7 @@ import com.example.honorcitizen.common.enums.ApplicationType;
 import com.example.honorcitizen.common.enums.CancellationReason;
 import com.example.honorcitizen.common.enums.CancellationType;
 import com.example.honorcitizen.common.enums.IssueType;
+import com.example.honorcitizen.common.enums.Orientation;
 import com.example.honorcitizen.common.enums.PaymentStatus;
 import com.example.honorcitizen.common.enums.SchoolType;
 import com.example.honorcitizen.common.enums.StudentTextColor;
@@ -59,6 +60,8 @@ public class MyApplicationDetailResponse {
     // 학생증 주문의 학교 구분·학교명 — 학생증이 아니면 null. 관리자가 주문 학교를 확인하는 용도.
     private final SchoolType schoolType;
     private final String schoolName;
+    // 학생증 카드 방향(가로형/세로형) — 학생증이 아니면 null.
+    private final Orientation orientation;
     // 낙관적 락 버전 — 카드번호 일괄 저장(PUT .../card-numbers)의 applicationVersion 대조용.
     private final Long version;
 
@@ -71,7 +74,7 @@ public class MyApplicationDetailResponse {
             StudentTextColor studentFrontTextColor, StudentTextColor studentBackTextColor,
             String photoRejectReason, ApplicantSummary applicant, ReceiverSummary receiver, long memberCount,
             LocalDateTime createdAt, String depositorName, String memberAddress,
-            SchoolType schoolType, String schoolName, Long version) {
+            SchoolType schoolType, String schoolName, Orientation orientation, Long version) {
         this.applicationId = applicationId;
         this.applicationNumber = applicationNumber;
         this.applicationType = applicationType;
@@ -103,6 +106,7 @@ public class MyApplicationDetailResponse {
         this.memberAddress = memberAddress;
         this.schoolType = schoolType;
         this.schoolName = schoolName;
+        this.orientation = orientation;
         this.version = version;
     }
 
@@ -121,7 +125,7 @@ public class MyApplicationDetailResponse {
                 application.getStudentFrontTextColor(), application.getStudentBackTextColor(),
                 application.getPhotoRejectReason(), ApplicantSummary.from(applicant),
                 receiver == null ? null : ReceiverSummary.from(receiver), memberCount, application.getCreatedAt(),
-                application.getDepositorName(), memberAddress, application.getSchoolType(), application.getSchoolName(),
+                application.getDepositorName(), memberAddress, application.getSchoolType(), application.getSchoolName(), application.getOrientation(),
                 application.getVersion());
     }
 
@@ -132,7 +136,7 @@ public class MyApplicationDetailResponse {
                 cancelledAt, cancellationType, cancellationReason, cancellationMemo, cardReadyAt, physicalDispatchedAt,
                 zodiacDesignSet, cardDesignId, cardIssueDate, studentFrontTextColor, studentBackTextColor,
                 photoRejectReason, applicant, receiver, memberCount, createdAt, depositorName, memberAddress,
-                schoolType, schoolName, version);
+                schoolType, schoolName, orientation, version);
     }
 
     @Getter

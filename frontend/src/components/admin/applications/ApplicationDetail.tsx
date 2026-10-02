@@ -9,6 +9,9 @@ import {
   type ApplicationStatus
 } from "../../../services/api";
 import { showToast } from "../../ui/toast";
+import { AdminPager } from "../AdminPager";
+
+const MEMBER_PAGE_SIZE = 5;
 import { genderLabel } from "./applicationUtils";
 
 import { NamingCard } from "./NamingCard";
@@ -28,6 +31,7 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [statusBusy, setStatusBusy] = useState(false);
   const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [memberPage, setMemberPage] = useState(0);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelMemo, setCancelMemo] = useState("");
   const [groupBusy, setGroupBusy] = useState(false);
@@ -209,6 +213,11 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
   if (s === "PRODUCING" && !detail.cardReadyAt) statusActions.push({ label: "카드 발급 완료", call: () => api.markCardReady(app.applicationId) });
   if (s === "PRODUCING" && detail.cardReadyAt && detail.issueType === "MOBILE_AND_PHYSICAL" && !detail.physicalDispatchedAt) statusActions.push({ label: "배송 발송(운송장 등록)", call: () => { const t = window.prompt("운송장 번호를 입력하세요."); return t && t.trim() ? api.dispatchApplication(app.applicationId, t.trim()) : null; } });
 
+  const memberList = members ?? [];
+  const memberTotalPages = Math.ceil(memberList.length / MEMBER_PAGE_SIZE);
+  const safeMemberPage = Math.min(memberPage, Math.max(0, memberTotalPages - 1));
+  const pagedMembers = memberList.slice(safeMemberPage * MEMBER_PAGE_SIZE, (safeMemberPage + 1) * MEMBER_PAGE_SIZE);
+
   return (
     <div className="admin-naming">
       <div className="admin-naming__info">
@@ -229,6 +238,7 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
           <Item label="입금자명" value={detail.depositorName} />
           <Item label="학교 구분" value={detail.schoolType ? (detail.schoolType === "UNIVERSITY" ? "대학교" : "고등학교") : undefined} />
           <Item label="학교명" value={detail.schoolName} />
+          <Item label="학생증 방향" value={detail.orientation ? (detail.orientation === "LANDSCAPE" ? "가로형" : "세로형") : undefined} />
           {detail.receiver && <Item label="수령인" value={`${detail.receiver.name} · ${detail.receiver.phone}`} />}
           {detail.receiver?.address && (
             <Item
@@ -257,7 +267,7 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
                 </tr>
               </thead>
               <tbody>
-                {members.map((m) => (
+                {pagedMembers.map((m) => (
                   <tr key={m.memberId}>
                     <td>{m.photoNumber ?? "-"}</td>
                     <td>{m.englishName ?? "-"}</td>
@@ -273,6 +283,7 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
               </tbody>
             </table>
           </div>
+          <AdminPager page={safeMemberPage} totalPages={memberTotalPages} onChange={setMemberPage} />
         </div>
       )}
 
