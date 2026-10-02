@@ -48,6 +48,7 @@ export function LookupPage() {
   const [cardNumber, setCardNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [card, setCard] = useState<FoundCard | null>(null);
+  const [groupZipUrl, setGroupZipUrl] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
   const changeMethod = (next: LookupMethod) => {
@@ -57,6 +58,7 @@ export function LookupPage() {
 
   const resetLookup = () => {
     setCard(null);
+    setGroupZipUrl(null);
     setError(null);
   };
 
@@ -109,6 +111,13 @@ export function LookupPage() {
       // 가리지 않고 실제 오류로 알린다 — 안 그러면 사용자가 자신의 카드가 아닌 걸 알아챌 수 없다.
       try {
         const download = await api.getPublicCardDownload(result.applicationId, result.cardDownloadToken);
+        if (download.downloadUrl) {
+          // 단체 신청은 카드 이미지 두 장 대신 구성원 전체를 묶은 ZIP 링크를 준다.
+          setError(null);
+          setCard(null);
+          setGroupZipUrl(download.downloadUrl);
+          return;
+        }
         if (!download.cardFrontUrl) {
           throw new Error("카드 이미지가 없습니다.");
         }
@@ -151,6 +160,15 @@ export function LookupPage() {
         <h1 className="subpage-hero__title">{t("모바일 카드 조회")}</h1>
         <p className="section-lead">{t("발급받은 본인의 모바일 카드를 확인할 수 있습니다.")}</p>
       </header>
+
+      {groupZipUrl && !card ? (
+        <div className="lookup__cardview">
+          <p className="section-lead">{t("단체 신청의 카드 이미지가 ZIP 파일로 준비되었습니다.")}</p>
+          <a className="lookup__download-btn" href={groupZipUrl} target="_blank" rel="noopener noreferrer">
+            {t("카드 ZIP 다운로드")}
+          </a>
+        </div>
+      ) : null}
 
       {card ? (
         <div className="lookup__cardview">
