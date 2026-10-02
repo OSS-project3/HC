@@ -81,6 +81,11 @@ class CardImageCompositor {
     // 확인했다(2026-09-05, KoPub Dotum Medium 실폰트로 직접 측정 — WrapTest 스크립트, 커밋 미포함).
     // 카드 뒷면 그래픽(좌우 도자기 문양)과 겹치지 않는 중앙 여백에 대응하는 값이다.
     private static final double INTERPRETATION_WIDTH_RATIO = 0.55;
+    // 뒷면 "한국이름풀이" 타이틀 이미지(뒷면_타이틀.png)를 실제 카드 폭(83mm)에 맞춰 줄이는 데 쓴다.
+    // 이미지는 300dpi 기준으로 만들어졌다.
+    private static final double CARD_WIDTH_MM = 83d;
+    private static final double BACK_TITLE_DPI = 300d;
+    private static final double MM_PER_INCH = 25.4d;
     // 학생증 뒷면은 풀이 폰트가 더 커서(8f vs 4f) 같은 비율이면 줄 수가 더 늘어난다 — 학생증 배경은
     // 좌우 여백이 더 넓어(점무늬·물결무늬가 훨씬 가장자리에 있음, 실제 렌더링으로 확인) 폭을
     // 넓혀도 그래픽과 안 겹친다. 이 값으로 같은 최장(97자) 텍스트가 3~4줄로 카드 안에 들어간다.
@@ -191,8 +196,7 @@ class CardImageCompositor {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         try {
-            drawBackText(g, titleFallbackBackText(), dotumBold, 8f, Color.BLACK,
-                    layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            drawBackTitle(g, cardType, layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             drawBackText(g, spacedName(data.fullName()), batangBold, 7f, Color.BLACK,
                     variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             drawBackText(g, data.englishName(), dotumMedium, 4.5f, Color.DARK_GRAY,
@@ -293,8 +297,7 @@ class CardImageCompositor {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         try {
             Color textColor = toAwtColor(data.studentBackTextColor());
-            drawBackText(g, titleFallbackBackText(), dotumBold, 8f, textColor,
-                    layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
+            drawBackTitle(g, CardTypeCode.STUDENT, layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             drawBackText(g, spacedName(data.fullName()), batangBold, 12.11f, textColor,
                     variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             drawBackText(g, data.englishName(), batangBold, 9f, textColor,
@@ -367,6 +370,22 @@ class CardImageCompositor {
         sg.drawImage(icon, 0, 0, targetW, targetH, null);
         sg.dispose();
         drawImageCenteredGeneric(g, scaled, offset, baseWidth, baseHeight, scaleX, scaleY);
+    }
+
+    private void drawBackTitle(Graphics2D g, CardTypeCode cardType, CardFieldOffset offset,
+            double baseWidth, double baseHeight, double scaleX, double scaleY) {
+        String titlePath = TEMPLATE_ROOT + cardType.name() + "/뒷면_타이틀.png";
+        if (!resourceExists(titlePath)) {
+            drawBackText(g, titleFallbackBackText(), dotumBold, 13f, Color.BLACK, offset, baseWidth, baseHeight, scaleX, scaleY);
+            return;
+        }
+        BufferedImage img = loadImage(titlePath);
+        double targetBaseWidth = img.getWidth() / BACK_TITLE_DPI * MM_PER_INCH * baseWidth / CARD_WIDTH_MM;
+        double w = targetBaseWidth * scaleX;
+        double h = img.getHeight() * w / img.getWidth();
+        double cx = (baseWidth / 2 + offset.x()) * scaleX;
+        double cy = (baseHeight / 2 + offset.y()) * scaleY;
+        g.drawImage(img, (int) Math.round(cx - w / 2), (int) Math.round(cy - h / 2), (int) Math.round(w), (int) Math.round(h), null);
     }
 
     private void drawImageCenteredGeneric(Graphics2D g, BufferedImage img, CardFieldOffset offset,
