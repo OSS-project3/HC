@@ -51,7 +51,7 @@ final class CardLayouts {
                     new CardFieldOffset(0, 29.4497),
                     new CardFieldOffset(0, -32.9611),
                     new CardFieldOffset(-35.9253, 42.0928),
-                    new CardFieldOffset(-34.0664, 58.4863),
+                    new CardFieldOffset(-34.0664, 55.5d),
                     new CardFieldOffset(-42.7554, 79.2412),
                     new CardFieldOffset(50.0527, 60.1066),
                     new CardFieldOffset(-27.4965, 102.7491),

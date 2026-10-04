@@ -55,7 +55,7 @@ class CardImageCompositor {
     private static final String TEMPLATE_ROOT = "card-templates/";
     private static final DateTimeFormatter ISSUE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy.MM.dd");
     // 방문증 주소 글자 크기(기준 캔버스 단위)와 줄바꿈 기준 글자 수(사용자 확인, 2026-10-04)
-    private static final float VISITOR_ADDRESS_SIZE = 3.9959f;
+    private static final float VISITOR_ADDRESS_SIZE = 6.9959f;
     private static final int VISITOR_ADDRESS_LINE_CHARS = 15;
 
     // 앞·뒷면 배경/사진/로고/직인 자리 파일명이 디자인마다 다르게 export되어 있어(디자이너 파일명
@@ -73,7 +73,7 @@ class CardImageCompositor {
     // 오프셋 참고) — 실제 렌더링으로 겹침 여부를 확인하며 조정했다.
     private static final double ZODIAC_BASE_WIDTH = 54d;
     // 방문증 직인은 띠 아래에 작게 그린다. 슬롯 크기 대신 이 논리 너비(pt)로 맞춘다(사용자 확인, 2026-10-04).
-    private static final double VISITOR_SEAL_BASE_WIDTH = 14d;
+    private static final double VISITOR_SEAL_BASE_WIDTH = 18d;
     // 학생증은 다른 3종과 카드 레이아웃 자체가 달라(사진·이름·영문명·학번/학과가 한 열에 조밀하게
     // 배치) 위 값을 그대로 쓰면 세로형에서 영문명 줄·학교 엠블럼 워터마크와 겹친다(실제 렌더링으로
     // 확인, 2026-09-06). 학생증 캔버스 폭(156/235) 대비 비율로 겹치지 않는 선까지 낮춘 값 — 이후
@@ -692,7 +692,7 @@ class CardImageCompositor {
         if (address == null || address.isBlank()) {
             return;
         }
-        double lineGap = VISITOR_ADDRESS_SIZE * 1.4d;
+        double lineGap = VISITOR_ADDRESS_SIZE * 1.09d;
         int lineIndex = 0;
         for (int start = 0; start < address.length(); start += VISITOR_ADDRESS_LINE_CHARS) {
             String line = address.substring(start, Math.min(address.length(), start + VISITOR_ADDRESS_LINE_CHARS));
