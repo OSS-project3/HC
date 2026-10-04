@@ -287,8 +287,15 @@ class CardImageCompositor {
                 drawTextGeneric(g, "생년월일 " + formatIssueDate(data.birthDate()), dotumMedium, 7.6f, textColor,
                         layout.birthDate(), bw, bh, scaleX, scaleY);
             }
-            drawTextGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, textColor,
-                    layout.issueDate(), bw, bh, scaleX, scaleY);
+            if (data.isUniversity()) {
+                // 대학교 학생증은 발급일자를 학번·학과 줄의 왼쪽 시작 X에 맞춘다(사용자 확인, 2026-10-04).
+                double studentIdLeftEdge = leftEdgeXGeneric(data.studentId(), dotumMedium, 7.6f, layout.studentId(), bw, scaleX);
+                drawTextAtPixelXGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, textColor,
+                        studentIdLeftEdge, layout.issueDate(), bh, scaleX, scaleY);
+            } else {
+                drawTextGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, textColor,
+                        layout.issueDate(), bw, bh, scaleX, scaleY);
+            }
             drawZodiacGeneric(g, data.zodiacBranch(), data.zodiacDesignSet(), layout.zodiac(), bw, bh, scaleX, scaleY,
                     STUDENT_ZODIAC_BASE_WIDTH);
         } finally {
