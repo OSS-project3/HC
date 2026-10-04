@@ -96,6 +96,8 @@ class CardImageCompositor {
     private static final double MM_PER_INCH = 25.4d;
     // 디자인 이미지 원본 크기 대비 실제 표시 배율(뒷면 제목을 키우기 위해 1.4배로 지정).
     private static final double BACK_TITLE_SCALE = 1.4d;
+    // 명예시민증·명예한국인증 뒷면 제목은 기준 크기 13에서 3을 줄여 10으로 맞춘다(사용자 확인, 2026-10-04).
+    private static final double HONOR_BACK_TITLE_SIZE_RATIO = 10d / 13d;
     // 학생증 뒷면은 풀이 폰트가 더 커서(8f vs 4f) 같은 비율이면 줄 수가 더 늘어난다 — 학생증 배경은
     // 좌우 여백이 더 넓어(점무늬·물결무늬가 훨씬 가장자리에 있음, 실제 렌더링으로 확인) 폭을
     // 넓혀도 그래픽과 안 겹친다. 이 값으로 같은 최장(97자) 텍스트가 3~4줄로 카드 안에 들어간다.
@@ -422,7 +424,9 @@ class CardImageCompositor {
             return;
         }
         BufferedImage img = loadImage(titlePath);
-        double targetBaseWidth = img.getWidth() / BACK_TITLE_DPI * MM_PER_INCH * baseWidth / CARD_WIDTH_MM * BACK_TITLE_SCALE;
+        boolean honorCard = cardType == CardTypeCode.HONOR_CITIZEN || cardType == CardTypeCode.HONOR_KOREAN;
+        double titleScale = honorCard ? BACK_TITLE_SCALE * HONOR_BACK_TITLE_SIZE_RATIO : BACK_TITLE_SCALE;
+        double targetBaseWidth = img.getWidth() / BACK_TITLE_DPI * MM_PER_INCH * baseWidth / CARD_WIDTH_MM * titleScale;
         double w = targetBaseWidth * scaleX;
         double h = img.getHeight() * w / img.getWidth();
         double cx = (baseWidth / 2 + offset.x()) * scaleX;
