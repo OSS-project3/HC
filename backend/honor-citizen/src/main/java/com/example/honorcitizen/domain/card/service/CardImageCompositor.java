@@ -72,6 +72,8 @@ class CardImageCompositor {
     // 2026-09-06 사용자 확인 후 40 → 54로 추가 확대(같이 아래로도 내림, CardLayouts의 zodiac
     // 오프셋 참고) — 실제 렌더링으로 겹침 여부를 확인하며 조정했다.
     private static final double ZODIAC_BASE_WIDTH = 54d;
+    // 방문증 직인은 띠 아래에 작게 그린다. 슬롯 크기 대신 이 논리 너비(pt)로 맞춘다(사용자 확인, 2026-10-04).
+    private static final double VISITOR_SEAL_BASE_WIDTH = 14d;
     // 학생증은 다른 3종과 카드 레이아웃 자체가 달라(사진·이름·영문명·학번/학과가 한 열에 조밀하게
     // 배치) 위 값을 그대로 쓰면 세로형에서 영문명 줄·학교 엠블럼 워터마크와 겹친다(실제 렌더링으로
     // 확인, 2026-09-06). 학생증 캔버스 폭(156/235) 대비 비율로 겹치지 않는 선까지 낮춘 값 — 이후
@@ -179,7 +181,11 @@ class CardImageCompositor {
             }
             drawZodiac(g, data.zodiacBranch(), data.zodiacDesignSet(), layout.zodiac(), layout, scaleX, scaleY);
             drawSlotImage(g, dir, LOGO_CANDIDATES, data.logo(), layout.issuerLogo(), layout, scaleX, scaleY);
-            drawSlotImage(g, dir, SEAL_CANDIDATES, data.seal(), layout.seal(), layout, scaleX, scaleY);
+            if (cardType == CardTypeCode.VISITOR) {
+                drawVisitorSeal(g, data.seal(), layout.seal(), layout, scaleX, scaleY);
+            } else {
+                drawSlotImage(g, dir, SEAL_CANDIDATES, data.seal(), layout.seal(), layout, scaleX, scaleY);
+            }
         } finally {
             g.dispose();
         }
@@ -513,6 +519,24 @@ class CardImageCompositor {
             CardLayout layout, double scaleX, double scaleY) {
         drawZodiacGeneric(g, zodiacBranch, zodiacDesignSet, offset, layout.baseWidth(), layout.baseHeight(), scaleX, scaleY,
                 ZODIAC_BASE_WIDTH);
+    }
+
+    // 방문증 직인: 업로드 이미지의 가로세로 비율을 유지하고 논리 너비(VISITOR_SEAL_BASE_WIDTH)로 줄여 띠 아래 위치에 그린다.
+    private void drawVisitorSeal(Graphics2D g, byte[] bytes, CardFieldOffset offset, CardLayout layout,
+            double scaleX, double scaleY) {
+        if (bytes == null || bytes.length == 0 || offset == null) {
+            return;
+        }
+        BufferedImage seal = readPhoto(bytes);
+        double scale = (VISITOR_SEAL_BASE_WIDTH * scaleX) / seal.getWidth();
+        int targetW = (int) Math.round(seal.getWidth() * scale);
+        int targetH = (int) Math.round(seal.getHeight() * scale);
+        BufferedImage scaled = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D sg = scaled.createGraphics();
+        sg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        sg.drawImage(seal, 0, 0, targetW, targetH, null);
+        sg.dispose();
+        drawImageCentered(g, scaled, offset, layout, scaleX, scaleY);
     }
 
     // 로고·직인은 신청자가 업로드한 이미지를 슬롯 크기에 coverFit해서 그린다. bytes가 null이면(정책상

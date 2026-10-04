@@ -55,7 +55,7 @@ final class CardLayouts {
                     new CardFieldOffset(-42.7554, 79.2412),
                     new CardFieldOffset(50.0527, 60.1066),
                     new CardFieldOffset(-27.4965, 102.7491),
-                    new CardFieldOffset(53.9352, 27.7603)));
+                    new CardFieldOffset(50.0527, 101d)));
 
     // "한국이름풀이" 뒷면. 한자 유무에 따라 이름/영문명/풀이 위치 자체가 미세하게 달라진다(디자이너
     // 실측값 그대로 — 한자 있을 때/없을 때 표가 서로 다른 좌표를 준다).
