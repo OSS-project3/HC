@@ -36,6 +36,8 @@ class ApplicationServiceLookupTest {
     @Autowired
     private ApplicationService applicationService;
     @Autowired
+    private CardLookupTokenService cardLookupTokenService;
+    @Autowired
     private ApplicationRepository applicationRepository;
     @Autowired
     private ApplicantRepository applicantRepository;
@@ -253,5 +255,77 @@ class ApplicationServiceLookupTest {
                 """)))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);
+    }
+
+    // 카드번호 조회: 구성원 개인 카드로 연결되어야 한다(토큰 범위 = 그 구성원).
+    @Test
+    void lookupByCardIssuesTokenScopedToThatMember() {
+        ApplicationLookupResponse response = applicationService.lookup(request("""
+                { "method": "card", "keyValue": "ROK-00001-0001" }
+                """));
+
+        CardLookupTokenService.Scope scope = cardLookupTokenService.consume(response.getCardDownloadToken()).orElseThrow();
+        assertThat(scope.applicationId()).isEqualTo(individualApplication.getId());
+        assertThat(scope.memberId()).isEqualTo(individualMember.getId());
+    }
+
+    // 신청자(담당자) 연락처 조회: 신청 전체 범위 토큰(memberId 없음).
+    @Test
+    void lookupByApplicantContactIssuesApplicationScopedToken() {
+        ApplicationLookupResponse response = applicationService.lookup(request("""
+                { "method": "contact", "keyValue": "+821011112222", "phone": "+821011112222", "email": "lee@example.com" }
+                """));
+
+        CardLookupTokenService.Scope scope = cardLookupTokenService.consume(response.getCardDownloadToken()).orElseThrow();
+        assertThat(scope.memberId()).isNull();
+    }
+
+    // 구성원 연락처 조회: 그 구성원 범위 토큰. 단체 신청이어도 신청 전체가 아니라 구성원 개인 카드로 연결된다.
+    @Test
+    void lookupByMemberContactIssuesMemberScopedTokenForGroupApplication() {
+        Application group = applicationRepository.save(Application.createGroup(
+                2L, "APP-2026-100002", individualApplication.getCardTypeId(), IssueType.MOBILE, true, 1, 10L, 11L, 12L));
+        applicantRepository.save(Applicant.createGroup(
+                group.getId(), "인사담당", "hr@example.com", "010-1111-1111", "OO기업", "인사팀"));
+        ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                group.getId(), "John Doe", LocalDate.of(1988, 1, 1), "US",
+                null, null, Gender.MALE, null, "john@example.com", "+821022221111", "Seoul", null, null, "photos/b.jpg"));
+
+        ApplicationLookupResponse response = applicationService.lookup(request("""
+                { "method": "contact", "keyValue": "+821022221111", "phone": "+821022221111", "email": "john@example.com" }
+                """));
+
+        CardLookupTokenService.Scope scope = cardLookupTokenService.consume(response.getCardDownloadToken()).orElseThrow();
+        assertThat(scope.applicationId()).isEqualTo(group.getId());
+        assertThat(scope.memberId()).isEqualTo(member.getId());
+    }
+
+    // 같은 신청에서 신청자와 구성원이 모두 맞으면 신청자로 본다(신청 전체 범위).
+    @Test
+    void lookupWhenApplicantAndMemberBothMatchUsesApplicantScope() {
+        Application group = applicationRepository.save(Application.createGroup(
+                3L, "APP-2026-100003", individualApplication.getCardTypeId(), IssueType.MOBILE, true, 1, 10L, 11L, 12L));
+        applicantRepository.save(Applicant.createGroup(
+                group.getId(), "인사담당", "same@example.com", "+821011111111", "OO기업", "인사팀"));
+        applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                group.getId(), "John Doe", LocalDate.of(1988, 1, 1), "US",
+                null, null, Gender.MALE, null, "same@example.com", "+821011111111", "Seoul", null, null, "photos/b.jpg"));
+
+        ApplicationLookupResponse response = applicationService.lookup(request("""
+                { "method": "contact", "keyValue": "+821011111111", "phone": "+821011111111", "email": "same@example.com" }
+                """));
+
+        CardLookupTokenService.Scope scope = cardLookupTokenService.consume(response.getCardDownloadToken()).orElseThrow();
+        assertThat(scope.applicationId()).isEqualTo(group.getId());
+        assertThat(scope.memberId()).isNull();
+    }
+
+    // 토큰은 1회용이다: 한 번 소비하면 같은 토큰으로 다시 소비할 수 없다.
+    @Test
+    void consumedLookupTokenCannotBeUsedAgain() {
+        String token = cardLookupTokenService.issue(individualApplication.getId(), individualMember.getId());
+
+        assertThat(cardLookupTokenService.consume(token)).isPresent();
+        assertThat(cardLookupTokenService.consume(token)).isEmpty();
     }
 }

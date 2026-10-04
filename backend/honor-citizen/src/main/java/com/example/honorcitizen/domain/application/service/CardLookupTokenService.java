@@ -10,6 +10,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Optional;
 
 /**
  * 비로그인 공개 카드 조회(lookup) 성공 시 그 조회 건에 한해 카드 다운로드를 허용하는 단기 토큰.
@@ -37,24 +38,41 @@ class CardLookupTokenService {
         this.redisTemplate = redisTemplate;
     }
 
+    /** 신청 전체 카드(단체면 ZIP) 조회용 토큰. 신청자 연락처로 조회했을 때 쓴다. */
     String issue(Long applicationId) {
+        return issue(applicationId, null);
+    }
+
+    /**
+     * memberId가 null이면 신청 단위(신청자 조회), 값이 있으면 그 구성원 개인 카드만 내려받는 토큰이다.
+     * 저장값은 "applicationId:memberId"(memberId 없으면 빈 값)로 둔다.
+     */
+    String issue(Long applicationId, Long memberId) {
         String token = generateUrlSafeToken();
-        redisTemplate.opsForValue().set(KEY_PREFIX + sha256Hex(token), applicationId.toString(), TTL);
+        String scope = applicationId + ":" + (memberId == null ? "" : memberId);
+        redisTemplate.opsForValue().set(KEY_PREFIX + sha256Hex(token), scope, TTL);
         return token;
     }
 
-    /** 성공 시 토큰을 즉시 삭제해 1회용으로 만든다. 실패(불일치/만료/미존재)면 false. */
-    boolean verifyAndConsume(Long applicationId, String token) {
+    /** 성공 시 토큰을 즉시 삭제해 1회용으로 만든다. 토큰이 없거나 만료되었으면 empty. */
+    Optional<Scope> consume(String token) {
         if (token == null || token.isBlank()) {
-            return false;
+            return Optional.empty();
         }
         String key = KEY_PREFIX + sha256Hex(token);
         String stored = redisTemplate.opsForValue().get(key);
-        if (stored == null || !stored.equals(applicationId.toString())) {
-            return false;
+        if (stored == null) {
+            return Optional.empty();
         }
         redisTemplate.delete(key);
-        return true;
+        String[] parts = stored.split(":", -1);
+        Long applicationId = Long.valueOf(parts[0]);
+        Long memberId = parts[1].isEmpty() ? null : Long.valueOf(parts[1]);
+        return Optional.of(new Scope(applicationId, memberId));
+    }
+
+    /** 토큰이 가리키는 조회 범위. memberId가 null이면 신청 단위 조회다. */
+    record Scope(Long applicationId, Long memberId) {
     }
 
     private String generateUrlSafeToken() {

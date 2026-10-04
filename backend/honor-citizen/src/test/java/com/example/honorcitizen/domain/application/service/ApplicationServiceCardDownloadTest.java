@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest
@@ -247,5 +248,81 @@ class ApplicationServiceCardDownloadTest {
         assertThatThrownBy(() -> applicationService.getCardDownloadByToken(application.getId(), token))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CARD_NOT_READY);
+    }
+
+    // 구성원 범위 토큰: 단체 신청이어도 그 구성원의 앞·뒷면만 내려준다(ZIP 없음).
+    @Test
+    void getCardDownloadByTokenWithMemberScopeReturnsOnlyThatMemberCard() {
+        Application application = applicationRepository.save(Application.createGroup(
+                1L, "APP-2026-400010", cardType.getId(), IssueType.MOBILE, true, 2, 10L, 11L, 12L));
+        applicantRepository.save(Applicant.createGroup(
+                application.getId(), "인사담당", "hr@example.com", "010-1111-1111", "OO기업", "인사팀"));
+        applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                application.getId(), "John Doe", LocalDate.of(1988, 1, 1), "US",
+                null, null, Gender.MALE, null, "john@example.com", "+821022221111", "Seoul", null, null, "photos/b.jpg"));
+        ApplicationMember target = applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                application.getId(), "Mike Kim", LocalDate.of(1992, 3, 3), "US",
+                null, null, Gender.MALE, null, "mike@example.com", "+821033334444", "Busan", null, null, "photos/c.jpg"));
+        setCardPaths(target, "cards/front3.png", "cards/back3.png");
+
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application.completeNaming();
+        application.startProducing();
+        application.markCardReady(java.time.LocalDateTime.now());
+        applicationRepository.save(application);
+
+        String token = cardLookupTokenService.issue(application.getId(), target.getId());
+        ApplicationCardDownloadResponse response =
+                applicationService.getCardDownloadByToken(application.getId(), token);
+
+        assertThat(response.getDownloadUrl()).isNull();
+        assertThat(response.getCardFrontUrl()).isEqualTo("http://mock-storage/presigned");
+        assertThat(response.getCardBackUrl()).isEqualTo("http://mock-storage/presigned");
+        verify(storageService).generatePresignedUrl("cards/front3.png", 604800L);
+        verify(storageService).generatePresignedUrl("cards/back3.png", 604800L);
+    }
+
+    // 신청 범위 토큰: 단체 신청은 기존처럼 ZIP을 준다(회귀 방지).
+    @Test
+    void getCardDownloadByTokenWithApplicationScopeStillReturnsZipForGroup() {
+        Application application = applicationRepository.save(Application.createGroup(
+                1L, "APP-2026-400011", cardType.getId(), IssueType.MOBILE, true, 1, 10L, 11L, 12L));
+        applicantRepository.save(Applicant.createGroup(
+                application.getId(), "인사담당", "hr@example.com", "010-1111-1111", "OO기업", "인사팀"));
+        ApplicationMember member = applicationMemberRepository.save(ApplicationMember.createGroupRow(
+                application.getId(), "John Doe", LocalDate.of(1988, 1, 1), "US",
+                null, null, Gender.MALE, null, "john@example.com", "+821022221111", "Seoul", null, null, "photos/b.jpg"));
+        setCardPaths(member, "cards/front2.png", "cards/back2.png");
+
+        application.confirmPayment();
+        application.startReview();
+        application.approveToNaming();
+        application.completeNaming();
+        application.startProducing();
+        application.markCardReady(java.time.LocalDateTime.now());
+        applicationRepository.save(application);
+
+        String token = cardLookupTokenService.issue(application.getId());
+        ApplicationCardDownloadResponse response =
+                applicationService.getCardDownloadByToken(application.getId(), token);
+
+        assertThat(response.getDownloadUrl()).isNotNull();
+        assertThat(response.getCardFrontUrl()).isNull();
+    }
+
+    // 다른 신청에 속한 구성원 ID로 만든 토큰은 거절한다(토큰의 신청 ID와 구성원 소속이 맞아야 한다).
+    @Test
+    void getCardDownloadByTokenRejectsMemberOfAnotherApplication() {
+        Application application = completedIndividualApplication(1L);
+        Application other = completedIndividualApplication(2L);
+        ApplicationMember otherMember = applicationMemberRepository.findByApplicationId(other.getId()).get(0);
+
+        String token = cardLookupTokenService.issue(application.getId(), otherMember.getId());
+
+        assertThatThrownBy(() -> applicationService.getCardDownloadByToken(application.getId(), token))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);
     }
 }

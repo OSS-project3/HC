@@ -3041,3 +3041,133 @@ TODO/정책 문서 감사 중 `docs/collab/result.md` P0 BLOCKER 항목("일반 
       `domain.application.*` 전체 + `ApplicationControllerTest`/`AdminApplicationControllerTest`
       재실행, 회귀 없음(로컬 Redis 임시 컨테이너로 세션 검증 의존성 해소 후 실행)
 - [ ] 3(프론트) 구현 — 프론트 담당자
+
+## 단체 신청 카드 조회 — 개인 카드 단위 조회 (2026-10-04 설계, 백엔드 착수 전)
+
+### 확정된 결정 (사용자 확인 2026-10-04)
+1. **연락처 중복 금지**: 같은 전화번호+이메일 조합이 구성원 둘 이상에 쓰이면 업로드 거절. 엑셀 3종 작성안내도 같은 규칙으로 수정 완료(커밋 `dec89b1`). 구현 완료 — 이 TODO 대상 아님.
+2. **조회 화면 이름**: 담당자(신청자) 이름을 마스킹해서 표시. 구성원 이름은 노출하지 않음. (현재 코드와 동일 — 변경 없음)
+3. **카드 범위 규칙**
+   - 신청자(담당자) 연락처 또는 신청번호+연락처로 조회 → 신청 전체 카드(단체는 ZIP). 현재 동작 유지.
+   - 구성원으로 조회(구성원 이메일+전화번호, 또는 카드번호) → **그 구성원의 개인 카드(앞·뒷면)만**. 단체여도 ZIP 금지.
+   - 같은 신청에서 신청자와 구성원이 모두 맞으면 **신청자로 본다**(신청 전체).
+   - 마이페이지(로그인) 규칙은 이 TODO의 백엔드 범위 밖 — 아래 "보류" 참고.
+
+### 현재 코드 상태 (2026-10-04 기준)
+- `CardLookupTokenService`: 토큰 값 = `applicationId` 한 개. 구성원 정보 없음.
+- `ApplicationService.lookup()`: `lookupByCard` / `lookupByContact` / `lookupByApplicationNumber` 가 `Application`만 반환 → 구성원 정보가 버려짐.
+- `getCardDownloadByToken` → `buildCardDownloadResponse` : 단체면 항상 ZIP.
+- **카드번호 조회는 구성원 단위로 찾으면서도 ZIP을 내려주고 있음 — 현재 정책 위반(개인 카드만 보여야 함).**
+- 작업 트리에 위 파일들을 일부 수정한 미커밋 흔적이 있음(토큰 `consume`/`Scope`, `LookupMatch`, `buildMemberCardDownloadResponse`, `ApplicationCardDownloadResponse.forMember`). 이 TODO 기준으로 다시 맞춰 쓰거나 되돌린 뒤 착수한다.
+
+### 백엔드 구현 계획 (순서대로) — 상태: 구현·테스트 완료 (2026-10-04)
+- B1~B4 구현 완료. B6의 `CardLookupTokenServiceTest`는 별도 클래스 대신 `ApplicationServiceLookupTest`의 `consumedLookupTokenCannotBeUsedAgain`으로 대체(토큰 1회용 검증).
+- 테스트: `ApplicationServiceLookupTest` 20개, `ApplicationServiceCardDownloadTest` 14개, `domain.application.*` 및 관련 컨트롤러 포함 481개 전부 통과.
+- 프론트(F0~F6)와 마이페이지 보류 항목은 아직 미착수.
+
+#### B1. 토큰 범위 확장 — `CardLookupTokenService`
+- `issue(Long applicationId)` 유지(기존 호출자/테스트 호환), 오버로드 `issue(Long applicationId, Long memberId)` 추가.
+- Redis 값 형식: `"{applicationId}:{memberId 또는 빈 문자열}"`. TTL 5분 유지, 키는 기존처럼 SHA-256 해시.
+- `verifyAndConsume(applicationId, token)` → `Optional<Scope> consume(token)` 로 교체. `record Scope(Long applicationId, Long memberId)`.
+- 검증 규칙: 토큰 없음/만료/이미 소비 → empty. 소비 후 즉시 삭제(1회용).
+- 값 파싱 실패(형식 깨짐)는 empty로 처리하고 로그 남기지 않음.
+
+#### B2. 조회 결과에 구성원 범위 연결 — `ApplicationService`
+- 내부 record `LookupMatch(Application application, Long memberId)` 도입.
+- `lookupByCard`: 구성원 카드번호로 찾으면 `memberId = member.getId()`.
+- `lookupByContact`:
+  - 후보 맵 `Map<Long applicationId, Long memberId>`. 신청자 매칭은 `null` 값으로 넣는다.
+  - 구성원 매칭은 `containsKey` 확인 후 넣는다(`putIfAbsent`는 null 값을 덮어쓰므로 쓰지 않음).
+  - 후보 중 `applicationId` 최대값 선택. 없으면 NOT_FOUND.
+- `lookupByApplicationNumber`: 신청자 검증 통과 → `memberId = null`.
+- `lookup()`: `issue(application.getId(), match.memberId())` 로 토큰 발급. 응답 DTO(`ApplicationLookupResponse`)는 변경 없음(담당자 이름 마스킹 유지).
+
+#### B3. 공개 다운로드 분기 — `getCardDownloadByToken`
+- `consume(token)` 결과의 `applicationId`가 path의 `applicationId`와 다르면 INVALID_LOOKUP_TOKEN (토큰 소비는 이미 된 상태).
+- `memberId == null` → 기존 `buildCardDownloadResponse` 그대로(개인은 앞·뒷면, 단체는 ZIP).
+- `memberId != null` → 새 메서드 `buildMemberCardDownloadResponse(application, memberId)`:
+  - `application.getCardReadyAt() == null` → CARD_NOT_READY
+  - 구성원 조회 후 `member.getApplicationId() == application.getId()` 검증, 아니면 NOT_FOUND
+  - `cardFrontPath`/`cardBackPath` 하나라도 없으면 CARD_NOT_READY
+  - presigned URL 앞·뒷면 생성 → 응답.
+
+#### B4. 응답 DTO — `ApplicationCardDownloadResponse`
+- `forMember(applicationId, cardFrontUrl, cardBackUrl, expiresAt)` 추가. `applicationType`은 `INDIVIDUAL`, `downloadUrl`은 null.
+- 프론트는 `cardFrontUrl` 존재 여부로 개인 카드 뷰를 그리므로 프론트 변경 불필요.
+
+#### B5. 영향 없는 것(확인만)
+- 관리자 다운로드(`getAdminMemberCardDownload`), 로그인 마이페이지 다운로드(`getCardDownload`, 소유권 검증)는 이 변경과 무관. 건드리지 않음.
+- DB 스키마 변경 없음. 마이그레이션 없음.
+- `ErrorCode`: 새 코드 추가 없음(기존 NOT_FOUND, CARD_NOT_READY, INVALID_LOOKUP_TOKEN 사용).
+
+#### B6. 테스트 계획
+- `CardLookupTokenServiceTest`(신규, 단위): 신청 단위 토큰 consume → `memberId == null`, 구성원 토큰 consume → `memberId` 값, 두 번째 consume은 empty, 깨진 값은 empty.
+- `ApplicationServiceLookupTest` 추가:
+  - 구성원 이메일+전화번호로 조회 → 토큰이 구성원 범위.
+  - 같은 신청의 신청자와 구성원이 모두 맞으면 신청자 범위(memberId null).
+  - 카드번호 조회 → 구성원 범위.
+  - 여러 신청에 걸쳐 맞으면 가장 최근 신청 + 그 신청 안의 매칭 범위.
+- `ApplicationServiceCardDownloadTest` 추가:
+  - 구성원 범위 토큰 → 단체 신청이어도 앞·뒷면 URL만 반환, `downloadUrl` 없음.
+  - 다른 구성원 ID가 섞인 경우(member.applicationId 불일치) → NOT_FOUND.
+  - 구성원 카드 경로 없음 → CARD_NOT_READY.
+  - 신청 범위 토큰 → 기존 단체 ZIP 동작 유지(회귀).
+- `ApplicationControllerTest`: 공개 다운로드 엔드포인트 응답 형태 회귀 확인.
+- 실행: `./gradlew test --tests "*ApplicationServiceLookupTest" --tests "*ApplicationServiceCardDownloadTest" --tests "*ApplicationControllerTest" --tests "*CardLookupTokenServiceTest"`. 로컬 Redis(`hc-test-redis`) 기동 필요.
+
+#### B7. 완료 기준
+- 위 테스트 전부 통과, `domain.application.*` 전체 테스트 회귀 없음.
+- 운영 배포 전 확인: 단체 신청의 구성원 연락처로 조회 → 개인 카드 1장, 신청자 연락처로 조회 → 기존 ZIP.
+
+### 프론트 (백엔드 완료 후 별도 착수)
+- `LookupPage.tsx`: 단체 ZIP 분기는 신청자 조회에서만 나오므로 그대로 두고, 구성원 조회는 기존 개인 카드 뷰로 렌더링되는지 확인만.
+- 결정 필요 없음.
+
+### 보류 — 결정 후 착수
+- **마이페이지(로그인) 단체 카드 다운로드**: 구성원이 로그인해서 자기 개인 카드만 보는 것은 현재 구조로는 안 됨. 이유: 마이페이지 목록/상세/다운로드가 `Application.userId` 소유권 기준이라 구성원은 신청 자체가 안 보임. 구현하려면 (a) 구성원 ↔ 사용자 연결 규칙(이메일+전화번호 일치 등), (b) 목록 노출 API, (c) 구성원 단위 다운로드 API 신설이 필요 → 별도 TODO로 쪼개서 설계 확정 후 진행.
+
+### 프론트엔드 계획 (백엔드 B1~B7 배포 후 착수)
+
+#### F0. 전제 — 응답 계약 (백엔드와 맞춤)
+- 신청자 조회(신청번호/신청자 연락처): 단체면 `downloadUrl`(ZIP) 유지, 개인이면 `cardFrontUrl`/`cardBackUrl`. 현재와 동일.
+- 구성원 조회(구성원 연락처 또는 카드번호): **단체여도 `cardFrontUrl`/`cardBackUrl`만** 옴, `downloadUrl` 없음. 응답 `applicationType`은 `INDIVIDUAL`.
+- 따라서 프론트 분기 기준은 `downloadUrl` 존재 여부 하나로 충분. `applicationType`으로 분기하지 않는다.
+
+#### F1. 타입 — `frontend/src/services/api.ts`
+- `CardDownload`: 변경 없음(`cardFrontUrl?`, `cardBackUrl?`, `downloadUrl?`, `applicationType`). 주석만 보강: "구성원 조회 시 `downloadUrl` 없이 개인 카드만 내려온다".
+- `LookupResult`: 변경 없음.
+- `lookupApplication` body 타입: 변경 없음(`"application" | "contact" | "card"`).
+
+#### F2. 조회 로직 — `frontend/src/pages/LookupPage/LookupPage.tsx`
+- `submit` 의 다운로드 분기는 현재 코드 그대로 두고, 동작만 검증:
+  - `downloadUrl` → `groupZipUrl` 링크 화면(신청자 조회 전용).
+  - `cardFrontUrl` → `FlipCard` 개인 카드 화면(구성원 조회 포함).
+- 구성원 조회 시 안내 문구 추가 여부 결정 필요(아래 Q1). 기본안: 문구 없이 기존 개인 카드 화면.
+- 전화번호 입력 안내(E.164, `+821012345678`)는 이미 반영됨(커밋 `cb69a78`). 변경 없음.
+
+#### F3. 데모 경로 — 정리 여부 결정 필요(아래 Q2)
+- `submit` 에 데모 카드 fallback(`DEMO_PHONE`/`DEMO_EMAIL`/`DEMO_CARD_NUMBER`, `TEST_CARD_NUMBER`=`ADMIN-TEST`)이 남아 있다.
+- 조회 API가 실패하면 데모 자격과 일치할 때 **실제 카드가 아닌 샘플 카드**를 보여준다. 운영에서 실제 신청자가 이 경로로 샘플을 보는 위험이 있음.
+- 계획: 운영 빌드에서는 데모 fallback을 제거(환경변수 또는 `import.meta.env.DEV` 가드). 개발 확인용으로만 유지.
+
+#### F4. 오류 메시지
+- 구성원 조회에서 `CARD_NOT_READY`가 나오면 "카드가 아직 준비되지 않았습니다" 계열 메시지가 `ApiError.message`로 그대로 표시되는지 확인. 현재는 `ApiError` 메시지를 그대로 쓴다(변경 없음).
+- 같은 연락처가 여러 신청에 걸쳐 있을 때 가장 최근 신청만 보이는 현재 동작은 그대로 두고 화면에 별도 안내하지 않는다(정책 결정 전까지).
+
+#### F5. 검증
+- `npx tsc --noEmit` 통과.
+- 개발 스택(localhost:5173)에서 세 시나리오 수동 확인:
+  1. 단체 신청의 **신청자** 연락처 조회 → ZIP 링크 화면.
+  2. 단체 신청의 **구성원** 연락처 조회 → 본인 개인 카드(앞·뒷면) 화면, ZIP 링크 없음.
+  3. 단체 신청의 **구성원** 카드번호 조회 → 개인 카드 화면, ZIP 링크 없음.
+- 개인 신청 조회 회귀 없음.
+- 실물 `CARD_NOT_READY` 케이스: 카드 생성 전 신청으로 조회 → 오류 메시지 표시.
+
+#### F6. 완료 기준
+- 위 F5 시나리오 3개 통과, 데모 fallback 정리 결정이 반영됨, `tsc` 통과.
+
+#### 확정 결정 (프론트, 2026-10-04 사용자 확인)
+- **Q1 (확정): 구성원 조회 화면에 안내 문구를 넣지 않는다.** 개인 카드 화면을 그대로 쓴다.
+- **Q2 (확정): 데모 fallback은 운영에서 제거한다.** 조회 API 실패 시 샘플 카드로 대체하는 경로를 없앤다. 실패하면 조회 오류 메시지만 보여준다.
+  - 제거 대상: `LookupPage.tsx` 의 `DEMO_PHONE`/`DEMO_EMAIL`/`DEMO_CARD_NUMBER`/`TEST_CARD_NUMBER`(=ADMIN-TEST) 상수와 해당 분기 전체.
+  - 개발 확인용 샘플 카드도 남기지 않는다(기본안 그대로 적용). 필요하면 나중에 별도 결정.

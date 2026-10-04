@@ -33,6 +33,13 @@ public class ApplicationCardDownloadResponse {
                 applicationId, ApplicationType.INDIVIDUAL, cardFrontUrl, cardBackUrl, null, expiresAt);
     }
 
+    // 단체 신청 안에서 구성원 한 명만 조회했을 때의 개인 카드 응답(ZIP 없이 앞·뒷면 URL만 제공)
+    public static ApplicationCardDownloadResponse forMember(Long applicationId, String cardFrontUrl,
+            String cardBackUrl, LocalDateTime expiresAt) {
+        return new ApplicationCardDownloadResponse(
+                applicationId, ApplicationType.INDIVIDUAL, cardFrontUrl, cardBackUrl, null, expiresAt);
+    }
+
     public static ApplicationCardDownloadResponse forGroup(Long applicationId, String downloadUrl, LocalDateTime expiresAt) {
         return new ApplicationCardDownloadResponse(
                 applicationId, ApplicationType.GROUP, null, null, downloadUrl, expiresAt);

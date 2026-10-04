@@ -75,6 +75,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1412,13 +1413,34 @@ public class ApplicationService {
      */
     @Transactional(readOnly = true)
     public ApplicationCardDownloadResponse getCardDownloadByToken(Long applicationId, String token) {
-        if (!cardLookupTokenService.verifyAndConsume(applicationId, token)) {
-            throw new CustomException(ErrorCode.INVALID_LOOKUP_TOKEN);
-        }
+        CardLookupTokenService.Scope scope = cardLookupTokenService.consume(token)
+                .filter(s -> s.applicationId().equals(applicationId))
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_LOOKUP_TOKEN));
         Application application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new CustomException(ErrorCode.APPLICATION_NOT_FOUND));
 
-        return buildCardDownloadResponse(application);
+        // 구성원으로 조회한 토큰이면 그 구성원의 개인 카드만, 신청자로 조회한 토큰이면 신청 전체(단체는 ZIP)를 내려준다.
+        if (scope.memberId() == null) {
+            return buildCardDownloadResponse(application);
+        }
+        return buildMemberCardDownloadResponse(application, scope.memberId());
+    }
+
+    // 구성원 한 명의 앞·뒷면 카드만 presigned URL로 내려준다(단체 신청이라도 ZIP 없이 개인 카드).
+    private ApplicationCardDownloadResponse buildMemberCardDownloadResponse(Application application, Long memberId) {
+        if (application.getCardReadyAt() == null) {
+            throw new CustomException(ErrorCode.CARD_NOT_READY);
+        }
+        ApplicationMember member = applicationMemberRepository.findById(memberId)
+                .filter(m -> m.getApplicationId().equals(application.getId()))
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        if (member.getCardFrontPath() == null || member.getCardBackPath() == null) {
+            throw new CustomException(ErrorCode.CARD_NOT_READY);
+        }
+        LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+        String cardFrontUrl = storageService.generatePresignedUrl(member.getCardFrontPath(), CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+        String cardBackUrl = storageService.generatePresignedUrl(member.getCardBackPath(), CARD_DOWNLOAD_URL_EXPIRY_SECONDS);
+        return ApplicationCardDownloadResponse.forMember(application.getId(), cardFrontUrl, cardBackUrl, expiresAt);
     }
 
     // getCardDownload(로그인 소유권 검증)와 getCardDownloadByToken(공개 토큰 검증)이 공유하는 본체 —
@@ -1610,11 +1632,12 @@ public class ApplicationService {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
-        Application application = switch (request.getMethod()) {
+        LookupMatch match = switch (request.getMethod()) {
             case CARD -> lookupByCard(request);
             case CONTACT -> lookupByContact(request);
             case APPLICATION -> lookupByApplicationNumber(request);
         };
+        Application application = match.application();
 
         Applicant applicant = applicantRepository.findByApplicationId(application.getId())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
@@ -1630,40 +1653,54 @@ public class ApplicationService {
                 application.getStatus(),
                 application.getPhotoRejectReason(),
                 application.getCreatedAt(),
-                cardLookupTokenService.issue(application.getId()));
+                cardLookupTokenService.issue(application.getId(), match.memberId()));
     }
 
-    // 카드번호로 ApplicationMember를 찾고, 해당 멤버가 속한 상위 Application을 반환한다.
-    // 카드번호는 ApplicationMember에 저장되므로 Application을 바로 찾을 수 없어 2단계 조회가 필요하다.
-    private Application lookupByCard(ApplicationLookupRequest request) {
+    // 조회로 찾은 신청과, 그 신청에서 본인으로 확인된 구성원(없으면 신청자 조회).
+    // memberId가 null이면 신청 전체 카드(단체는 ZIP), 값이 있으면 그 구성원의 개인 카드만 내려준다.
+    private record LookupMatch(Application application, Long memberId) {
+    }
+
+    // 카드번호로 ApplicationMember를 찾는다. 카드번호는 구성원 단위이므로 항상 그 구성원의 개인 카드로 연결된다.
+    private LookupMatch lookupByCard(ApplicationLookupRequest request) {
         ApplicationMember member = applicationMemberRepository.findByCardNumber(request.getKeyValue())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
-        return applicationRepository.findById(member.getApplicationId())
+        Application application = applicationRepository.findById(member.getApplicationId())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+        return new LookupMatch(application, member.getId());
     }
 
     // 전화번호+이메일로 신청을 찾는다. 신청자(applicant)와 구성원(member) 어느 쪽이든 두 값이 모두 맞으면 후보가 된다.
     // 후보가 여럿이면 가장 최근 신청(id 최대)을 반환한다.
     // 전화번호는 국가코드를 포함한 E.164(+821012345678)로만 받는다(국외 번호 조회를 위함).
     // 저장값은 엑셀 업로드(E.164)와 개인 신청(국내 형식 010-…)이 섞여 있으므로 양쪽을 E.164로 맞춰 비교한다.
-    private Application lookupByContact(ApplicationLookupRequest request) {
+    // 같은 신청에서 신청자와 구성원이 모두 맞으면 신청자로 본다(신청 전체 카드 조회).
+    // 구성원으로만 맞으면 그 구성원의 개인 카드로 연결한다(단체 신청이라도 ZIP을 주지 않는다).
+    private LookupMatch lookupByContact(ApplicationLookupRequest request) {
         String email = request.getEmail().trim();
         String phone = request.getPhone().trim();
         if (!E164_PHONE_PATTERN.matcher(phone).matches()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
-        Set<Long> candidateIds = new HashSet<>();
+        // key: 신청 ID, value: 구성원 ID(신청자 매칭이면 null)
+        Map<Long, Long> candidates = new HashMap<>();
         applicantRepository.findByEmailIgnoreCase(email).stream()
                 .filter(a -> phone.equals(toE164(a.getPhone())))
-                .forEach(a -> candidateIds.add(a.getApplicationId()));
+                .forEach(a -> candidates.put(a.getApplicationId(), null));
         applicationMemberRepository.findByEmailIgnoreCase(email).stream()
                 .filter(m -> phone.equals(toE164(m.getPhone())))
-                .forEach(m -> candidateIds.add(m.getApplicationId()));
+                .forEach(m -> {
+                    // putIfAbsent는 null 값(신청자 매칭)을 덮어쓰므로 containsKey로 막는다.
+                    if (!candidates.containsKey(m.getApplicationId())) {
+                        candidates.put(m.getApplicationId(), m.getId());
+                    }
+                });
 
-        return candidateIds.stream()
+        return candidates.keySet().stream()
                 .max(Long::compare)
-                .flatMap(applicationRepository::findById)
+                .flatMap(applicationId -> applicationRepository.findById(applicationId)
+                        .map(application -> new LookupMatch(application, candidates.get(applicationId))))
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
     }
 
@@ -1686,7 +1723,7 @@ public class ApplicationService {
 
     // 신청번호로 Application을 찾고, 전화번호·이메일이 모두 일치하는지 확인한다.
     // 불일치 시 FORBIDDEN이 아닌 NOT_FOUND를 반환해 신청번호 존재 여부가 노출되지 않도록 한다.
-    private Application lookupByApplicationNumber(ApplicationLookupRequest request) {
+    private LookupMatch lookupByApplicationNumber(ApplicationLookupRequest request) {
         Application application = applicationRepository.findByApplicationNumber(request.getKeyValue())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
         Applicant applicant = applicantRepository.findByApplicationId(application.getId())
@@ -1696,7 +1733,7 @@ public class ApplicationService {
             // 존재 자체를 알리지 않기 위해 NOT_FOUND 반환 (정보 열거 공격 방지)
             throw new CustomException(ErrorCode.NOT_FOUND);
         }
-        return application;
+        return new LookupMatch(application, null); // 신청자 본인 조회 → 신청 전체 카드
     }
 
     // 전화번호: 완전 일치 (공백·대소문자 그대로 비교)
