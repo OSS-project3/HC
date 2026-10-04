@@ -93,13 +93,19 @@ class CardRenderPreparation {
         byte[] logo = downloadUploadFile(application.getLogoFileId());
         byte[] seal = downloadUploadFile(application.getSealFileId());
 
+        StudentTextColor visitorFrontTextColor = cardType.getCode() == CardTypeCode.VISITOR
+                ? resolveStudentTextColor(application.getStudentFrontTextColor(), request.getStudentFrontTextColor())
+                : null;
+        StudentTextColor visitorBackTextColor = cardType.getCode() == CardTypeCode.VISITOR
+                ? resolveStudentTextColor(application.getStudentBackTextColor(), request.getStudentBackTextColor())
+                : null;
         CardMemberData data = cardType.getCode() == CardTypeCode.STUDENT
                 ? studentMemberData(application, member, design, request, photo, zodiacBranch, zodiacDesignSet)
                 : new CardMemberData(
                         member.getSurname(), member.getName(), member.getEnglishName(), combinedChineseName(member),
                         member.getNameMeaning(), member.getNameInterpretation(), photo, member.getCardNumber(),
                         member.getAddress(), request.getIssueDate(), zodiacBranch, logo, seal, null, null, null,
-                        null, null, null, null, zodiacDesignSet);
+                        null, null, null, null, zodiacDesignSet, visitorFrontTextColor, visitorBackTextColor);
 
         CardTypeCode code = cardType.getCode();
         byte[] front = compositor.composeFront(code, design.getDesignNumber(), data);
@@ -142,7 +148,7 @@ class CardRenderPreparation {
     // 비학생증이 색상 필드를 보내면 조합 자체가 잘못된 요청이라 기존 INVALID_INPUT을 재사용한다
     // (새 ErrorCode 신설 안 함 — 이 문서·정책의 "재사용 가능하면 재사용" 원칙).
     private void validateStudentTextColorRequest(CardPreviewRequest request, CardTypeCode cardType) {
-        if (cardType != CardTypeCode.STUDENT
+        if (cardType != CardTypeCode.STUDENT && cardType != CardTypeCode.VISITOR
                 && (request.getStudentFrontTextColor() != null || request.getStudentBackTextColor() != null)) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }

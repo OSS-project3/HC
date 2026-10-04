@@ -39,6 +39,7 @@ export function CardProductionPanel({
   onGenerated: () => Promise<void>;
 }) {
   const isStudentCard = cardTypeById[cardTypeId] === "student";
+  const hasTextColorOption = isStudentCard || cardTypeById[cardTypeId] === "visitor";
   const [designs, setDesigns] = useState<CardDesignOption[]>([]);
   const [designId, setDesignId] = useState(confirmedCardDesignId ? String(confirmedCardDesignId) : "");
   const [issueDate, setIssueDate] = useState(confirmedCardIssueDate ?? todayIso());
@@ -87,7 +88,7 @@ export function CardProductionPanel({
       return null;
     }
     // 비학생증 카드는 색상 필드를 아예 보내면 안 된다(서버가 INVALID_INPUT으로 거절).
-    if (!isStudentCard) return { cardDesignId: id, issueDate };
+    if (!hasTextColorOption) return { cardDesignId: id, issueDate };
     return { cardDesignId: id, issueDate, studentFrontTextColor: frontTextColor, studentBackTextColor: backTextColor };
   };
 
@@ -197,7 +198,7 @@ export function CardProductionPanel({
           locked={Boolean(confirmedCardDesignId)}
         />
         <input className="field__input admin-card-tools__date" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} disabled={busy || Boolean(confirmedCardIssueDate)} />
-        {isStudentCard && (
+        {hasTextColorOption && (
           <>
             <select
               className="field__select"
@@ -230,7 +231,7 @@ export function CardProductionPanel({
       {(confirmedCardDesignId || confirmedCardIssueDate) && (
         <p className="admin__muted">이미 카드가 생성되어 디자인·발급일자가 확정됐습니다 — 같은 값으로만 재생성할 수 있습니다.</p>
       )}
-      {isStudentCard && (confirmedFrontTextColor || confirmedBackTextColor) && (
+      {hasTextColorOption && (confirmedFrontTextColor || confirmedBackTextColor) && (
         <p className="admin__muted">이미 카드가 생성되어 글씨색이 확정됐습니다 — 같은 색으로만 재생성할 수 있습니다.</p>
       )}
       {!usesGeneratedImage && !nameConfirmed && (

@@ -130,9 +130,11 @@ class CardImageCompositor {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         try {
+            Color frontText = cardType == CardTypeCode.VISITOR ? toAwtColor(data.studentFrontTextColor()) : Color.DARK_GRAY;
+            Color frontName = cardType == CardTypeCode.VISITOR ? frontText : Color.BLACK;
             drawTitle(g, cardType, layout, scaleX, scaleY);
             drawPhoto(g, dir, data.photo(), layout, scaleX, scaleY);
-            drawText(g, spacedName(data.fullName()), batangBold, 12.047f, Color.BLACK, layout.name(), layout, scaleX, scaleY);
+            drawText(g, spacedName(data.fullName()), batangBold, 12.047f, frontName, layout.name(), layout, scaleX, scaleY);
             // HONOR_CITIZEN/HONOR_KOREAN 위치값 표는 영문명/카드번호/주소를 각자 다른 x에서 중앙
             // 정렬하는 걸 전제로 한 듯한데, 문자열 길이가 서로 달라(특히 주소) 실제 렌더링해보면
             // 왼쪽 시작점이 들쭉날쭉했다(사용자 확인, 두 카드종류 모두 동일 원칙 적용 요청). 이름의
@@ -140,16 +142,16 @@ class CardImageCompositor {
             // 그대로 쓴다. VISITOR는 요청 범위 밖이라 기존 중앙 정렬 유지.
             if (cardType == CardTypeCode.HONOR_CITIZEN || cardType == CardTypeCode.HONOR_KOREAN) {
                 double nameLeftEdge = leftEdgeX(spacedName(data.fullName()), batangBold, 12.047f, layout.name(), layout, scaleX);
-                drawTextAtPixelX(g, data.englishName(), dotumBold, 6.631f, Color.DARK_GRAY, nameLeftEdge,
+                drawTextAtPixelX(g, data.englishName(), dotumBold, 6.631f, frontText, nameLeftEdge,
                         layout.englishName(), layout, scaleX, scaleY);
-                drawTextAtPixelX(g, data.cardNumber(), dotumMedium, 7.959f, Color.DARK_GRAY, nameLeftEdge,
+                drawTextAtPixelX(g, data.cardNumber(), dotumMedium, 7.959f, frontText, nameLeftEdge,
                         layout.cardNumber(), layout, scaleX, scaleY);
-                drawTextAtPixelX(g, data.address(), dotumMedium, 7.9959f, Color.DARK_GRAY, nameLeftEdge,
+                drawTextAtPixelX(g, data.address(), dotumMedium, 7.9959f, frontText, nameLeftEdge,
                         layout.address(), layout, scaleX, scaleY);
             } else {
-                drawText(g, data.englishName(), dotumBold, 6.631f, Color.DARK_GRAY, layout.englishName(), layout, scaleX, scaleY);
-                drawText(g, data.cardNumber(), dotumMedium, 7.959f, Color.DARK_GRAY, layout.cardNumber(), layout, scaleX, scaleY);
-                drawText(g, data.address(), dotumMedium, 7.9959f, Color.DARK_GRAY, layout.address(), layout, scaleX, scaleY);
+                drawText(g, data.englishName(), dotumBold, 6.631f, frontText, layout.englishName(), layout, scaleX, scaleY);
+                drawText(g, data.cardNumber(), dotumMedium, 7.959f, frontText, layout.cardNumber(), layout, scaleX, scaleY);
+                drawText(g, data.address(), dotumMedium, 7.9959f, frontText, layout.address(), layout, scaleX, scaleY);
             }
             // 발급일자는 HONOR_CITIZEN은 이름 왼쪽 끝 기준선에 맞춘다(이름도 왼쪽 열에 속함).
             // VISITOR는 이름/영문명이 카드 중앙 정렬이라 이름 기준으로 맞추면 오히려 카드번호/주소
@@ -157,14 +159,14 @@ class CardImageCompositor {
             // (사용자 확인). HONOR_KOREAN은 카드 우측(x=+79.96)에 별도 배치되는 디자인이라 중앙 정렬 유지.
             if (cardType == CardTypeCode.HONOR_CITIZEN) {
                 double nameLeftEdge = leftEdgeX(spacedName(data.fullName()), batangBold, 12.047f, layout.name(), layout, scaleX);
-                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, Color.DARK_GRAY,
+                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, frontText,
                         nameLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
             } else if (cardType == CardTypeCode.VISITOR) {
                 double cardNumberLeftEdge = leftEdgeX(data.cardNumber(), dotumMedium, 7.959f, layout.cardNumber(), layout, scaleX);
-                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, Color.DARK_GRAY,
+                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, frontText,
                         cardNumberLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
             } else {
-                drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, Color.DARK_GRAY,
+                drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, frontText,
                         layout.issueDate(), layout, scaleX, scaleY);
             }
             drawZodiac(g, data.zodiacBranch(), data.zodiacDesignSet(), layout.zodiac(), layout, scaleX, scaleY);
@@ -198,18 +200,20 @@ class CardImageCompositor {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         try {
+            Color backText = cardType == CardTypeCode.VISITOR ? toAwtColor(data.studentBackTextColor()) : Color.DARK_GRAY;
+            Color backName = cardType == CardTypeCode.VISITOR ? backText : Color.BLACK;
             drawBackTitle(g, cardType, layout.title(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
-            drawBackText(g, spacedName(data.fullName()), batangBold, 12.047f, Color.BLACK,
+            drawBackText(g, spacedName(data.fullName()), batangBold, 12.047f, backName,
                     variant.name(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
-            drawBackText(g, data.englishName(), batangBold, 9.201f, Color.DARK_GRAY,
+            drawBackText(g, data.englishName(), batangBold, 9.201f, backText,
                     variant.englishName(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             if (data.hasHanja()) {
-                drawBackText(g, "(" + data.chineseName() + ")", batangBold, 9.2008f, Color.DARK_GRAY,
+                drawBackText(g, "(" + data.chineseName() + ")", batangBold, 9.2008f, backText,
                         variant.hanja(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
-                drawBackText(g, data.nameMeaning(), dotumMedium, 8f, Color.DARK_GRAY,
+                drawBackText(g, data.nameMeaning(), dotumMedium, 8f, backText,
                         variant.hanjaMeaning(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY);
             }
-            drawBackTextWrapped(g, data.nameInterpretation(), dotumMedium, 8f, Color.DARK_GRAY,
+            drawBackTextWrapped(g, data.nameInterpretation(), dotumMedium, 8f, backText,
                     variant.interpretation(), layout.baseWidth(), layout.baseHeight(), scaleX, scaleY,
                     layout.baseWidth() * INTERPRETATION_WIDTH_RATIO);
         } finally {

@@ -191,6 +191,37 @@ class StudentTextColorTest {
     }
 
     @Test
+    void previewAcceptsTextColorForVisitorCard() throws Exception {
+        CardType visitor = cardTypeRepository.save(
+                CardType.create(CardTypeCode.VISITOR, "방문증-textcolor", null, BigDecimal.ZERO));
+        CardDesign visitorDesign = cardDesignRepository.save(CardDesign.create(
+                visitor.getId(), "방문증디자인2", 2, CardDesignOrientation.LANDSCAPE, null, null, true));
+        Application application = Application.createIndividual(
+                userId, "APP-2026-TC004", visitor.getId(), IssueType.MOBILE, true, null, null);
+        ReflectionTestUtils.setField(application, "status", ApplicationStatus.PRODUCTION_READY);
+        application.assignZodiacDesignSet(1);
+        application = applicationRepository.save(application);
+        ApplicationMember member = ApplicationMember.createIndividual(application.getId(), "Kim Hak-saeng",
+                LocalDate.of(1995, 2, 7), "KR", LocalTime.of(10, 0), "Seoul", Gender.MALE, null, null, null,
+                "photos/x.jpg", "대한민국 전라북도 전주시");
+        member.assignKoreanName("김", "학생", "學生", "배울 학(學) 날 생(生)", "배우고 익히며 성장한다.");
+        member.assignCardNumber("ROK-12345-0002");
+        member = applicationMemberRepository.save(member);
+        manseryeokResultRepository.save(ManseryeokResult.create(member.getId(), "hash-vc", "Asia/Seoul", 127.0,
+                "+09:00", Instant.parse("1995-02-07T01:00:00Z"), TimeAccuracy.EXACT,
+                "{\"year\":{\"stem\":\"갑\",\"branch\":\"술\"}}", "[]", "{}",
+                "2026b", "test-v1", LocalDateTime.now(), adminId));
+        CardPreviewRequest req = new CardPreviewRequest();
+        ReflectionTestUtils.setField(req, "cardDesignId", visitorDesign.getId());
+        ReflectionTestUtils.setField(req, "issueDate", LocalDate.now());
+        ReflectionTestUtils.setField(req, "studentFrontTextColor", StudentTextColor.WHITE);
+        Long applicationId = application.getId();
+        Long memberId = member.getId();
+
+        assertThatCodeDoesNotThrow(() -> cardPreviewService.preview(adminId, applicationId, memberId, req));
+    }
+
+    @Test
     void previewRejectsColorFieldsForNonStudentCard() throws Exception {
         Application application = Application.createIndividual(
                 userId, "APP-2026-TC003", honorKoreanTypeId, IssueType.MOBILE, true, null, null);
