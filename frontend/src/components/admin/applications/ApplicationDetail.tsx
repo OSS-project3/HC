@@ -209,7 +209,7 @@ export function ApplicationDetail({ app, onChanged }: { app: AdminApplicationLis
   if (s === "SUBMITTED" && detail.paymentStatus !== "CONFIRMED") statusActions.push({ label: "결제 확인", call: () => api.confirmApplicationPayment(app.applicationId) });
   if (s === "SUBMITTED" && detail.paymentStatus === "CONFIRMED") statusActions.push({ label: "검토 시작", call: () => api.startApplicationReview(app.applicationId) });
   if (s === "REVIEWING") statusActions.push({ label: "작명 승인(작명중으로)", call: () => api.approveApplicationNaming(app.applicationId) });
-  if (s === "REVIEWING") statusActions.push({ label: "반려 사유 작성", danger: true, call: () => { const r = window.prompt("사진 반려 사유를 입력하세요."); return r && r.trim() ? api.rejectApplicationPhoto(app.applicationId, r.trim()) : null; } });
+  if (s === "REVIEWING") statusActions.push({ label: "반려 사유 작성", danger: true, call: () => { const r = window.prompt("반려 사유를 입력하세요."); return r && r.trim() ? api.rejectApplicationPhoto(app.applicationId, r.trim()) : null; } });
   if (s === "PRODUCING" && !detail.cardReadyAt) statusActions.push({ label: "카드 발급 완료", call: () => api.markCardReady(app.applicationId) });
   if (s === "PRODUCING" && detail.cardReadyAt && detail.issueType === "MOBILE_AND_PHYSICAL" && !detail.physicalDispatchedAt) statusActions.push({ label: "배송 발송(운송장 등록)", call: () => { const t = window.prompt("운송장 번호를 입력하세요."); return t && t.trim() ? api.dispatchApplication(app.applicationId, t.trim()) : null; } });
 
