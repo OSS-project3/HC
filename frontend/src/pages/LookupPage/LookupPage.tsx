@@ -11,27 +11,9 @@ import "./LookupPage.css";
 
 type LookupMethod = "contact" | "card";
 
-const DEMO_PHONE = "01012345678";
-const DEMO_EMAIL = "qwer@gmail.com";
-const DEMO_CARD_NUMBER = "ROK-12345-6789";
-
-// 테스트용: 카드번호에 admin-test 를 입력하면 실제 발급 여부와 무관하게 데모 카드가 뜬다.
-// (실제 서비스에서는 API 조회 결과로 대체된다.)
-const TEST_CARD_NUMBER = "ADMIN-TEST";
-const DEMO_CARD_FRONT = "/images/cards/width/kor-mouse-front.webp";
-const DEMO_CARD_BACK = "/images/cards/width/kor-mouse-back.webp";
-
 interface FoundCard {
   frontUrl: string;
   backUrl: string;
-}
-
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, "");
-}
-
-function normalizeCardNumber(value: string) {
-  return value.trim().toUpperCase().replace(/\s/g, "");
 }
 
 // 앞면 이미지 파일명(...-front.jpg)에서 매칭되는 뒷면(...-back.jpg) 경로를 유도한다.
@@ -92,14 +74,8 @@ export function LookupPage() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    // 1) 테스트 카드번호(admin-test)는 항상 데모 카드를 보여준다.
-    if (method === "card" && normalizeCardNumber(cardNumber) === TEST_CARD_NUMBER) {
-      setError(null);
-      setCard({ frontUrl: DEMO_CARD_FRONT, backUrl: DEMO_CARD_BACK });
-      return;
-    }
-
-    // 2) 실제 조회는 API로 처리한다. 발급 카드 이미지를 받아 그대로 표시한다.
+    // 실제 조회는 API로만 처리한다. 발급 카드 이미지를 받아 그대로 표시한다.
+    // 샘플(데모) 카드로 대체하지 않는다 — 조회 실패는 오류 메시지로만 알린다.
     try {
       const result = await api.lookupApplication({
         method: method === "card" ? "card" : "contact",
@@ -107,8 +83,7 @@ export function LookupPage() {
         phone: phone || undefined,
         email: email || undefined,
       });
-      // 조회는 성공했으니 다운로드 실패(권한 만료·카드 미생성·서버 오류 등)를 데모 카드로
-      // 가리지 않고 실제 오류로 알린다 — 안 그러면 사용자가 자신의 카드가 아닌 걸 알아챌 수 없다.
+      // 조회는 성공했으니 다운로드 실패(권한 만료·카드 미생성·서버 오류 등)는 실제 오류로 알린다.
       try {
         const download = await api.getPublicCardDownload(result.applicationId, result.cardDownloadToken);
         if (download.downloadUrl) {
@@ -132,25 +107,12 @@ export function LookupPage() {
       }
       return;
     } catch {
-      // 조회 API 실패(백엔드 미기동·미발급 등) 시에만 아래 데모 카드 경로로 넘어간다.
+      setError(
+        method === "contact"
+          ? "입력하신 전화번호와 이메일에 해당하는 발급 카드를 찾을 수 없습니다."
+          : "입력하신 카드번호에 해당하는 발급 카드를 찾을 수 없습니다.",
+      );
     }
-
-    // 3) 데모 전용 자격(안내용 고정 번호·연락처)과 일치할 때만 데모 카드를 보여 준다.
-    const contactMatches =
-      normalizePhone(phone) === DEMO_PHONE && email.trim().toLowerCase() === DEMO_EMAIL;
-    const cardMatches = normalizeCardNumber(cardNumber) === normalizeCardNumber(DEMO_CARD_NUMBER);
-
-    if ((method === "contact" && contactMatches) || (method === "card" && cardMatches)) {
-      setError(null);
-      setCard({ frontUrl: DEMO_CARD_FRONT, backUrl: DEMO_CARD_BACK });
-      return;
-    }
-
-    setError(
-      method === "contact"
-        ? "입력하신 전화번호와 이메일에 해당하는 발급 카드를 찾을 수 없습니다."
-        : "입력하신 카드번호에 해당하는 발급 카드를 찾을 수 없습니다.",
-    );
   };
 
   return (

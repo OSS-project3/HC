@@ -77,7 +77,9 @@ export interface ApiUser { id: number; name: string; email: string; role: "USER"
 export interface ApplicationResult { applicationId: number; applicationNumber: string; status: string; paymentStatus?: string; createdAt: string; totalQuantity?: number; }
 // cardDownloadToken: 이 조회 건에 한해 로그인 없이 카드 다운로드를 허용하는 1회용 단기 토큰
 // (5분 TTL). getPublicCardDownload에만 쓰고, 카드 준비 여부와 무관하게 조회가 성공하면 항상 내려온다.
+// 신청자 조회는 신청 전체 범위(단체면 downloadUrl ZIP), 구성원 조회는 그 구성원 범위(cardFrontUrl/cardBackUrl만)다.
 export interface LookupResult { applicationId: number; applicationNumber: string; applicationType: "INDIVIDUAL" | "GROUP"; applicantNameMasked: string; cardType: string; status: string; photoRejectReason?: string; submittedAt: string; cardDownloadToken: string; }
+// 구성원 조회 시에는 단체 신청이어도 downloadUrl 없이 cardFrontUrl/cardBackUrl만 내려온다(개인 카드).
 export interface CardDownload { applicationId: number; applicationType: "INDIVIDUAL" | "GROUP"; cardFrontUrl?: string; cardBackUrl?: string; downloadUrl?: string; expiresAt: string; }
 
 /** Common paginated envelope for list endpoints. */
