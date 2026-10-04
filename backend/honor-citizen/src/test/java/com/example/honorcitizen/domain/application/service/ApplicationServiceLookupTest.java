@@ -136,7 +136,7 @@ class ApplicationServiceLookupTest {
     @Test
     void lookupByContactFindsApplicationByApplicantPhoneAndEmail() {
         ApplicationLookupResponse response = applicationService.lookup(request("""
-                { "method": "contact", "keyValue": "010-1111-2222", "phone": "010-1111-2222", "email": "LEE@example.com" }
+                { "method": "contact", "keyValue": "+821011112222", "phone": "+821011112222", "email": "LEE@example.com" }
                 """));
 
         assertThat(response.getApplicationId()).isEqualTo(individualApplication.getId());
@@ -144,18 +144,18 @@ class ApplicationServiceLookupTest {
     }
 
     @Test
-    void lookupByContactIgnoresPhoneFormatting() {
-        ApplicationLookupResponse response = applicationService.lookup(request("""
-                { "method": "contact", "keyValue": "01011112222", "phone": "01011112222", "email": "lee@example.com" }
-                """));
-
-        assertThat(response.getApplicationId()).isEqualTo(individualApplication.getId());
+    void lookupByContactRejectsDomesticFormatPhone() {
+        assertThatThrownBy(() -> applicationService.lookup(request("""
+                { "method": "contact", "keyValue": "010-1111-2222", "phone": "010-1111-2222", "email": "lee@example.com" }
+                """)))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }
 
     @Test
     void lookupByContactWithWrongPhoneFailsWithNotFound() {
         assertThatThrownBy(() -> applicationService.lookup(request("""
-                { "method": "contact", "keyValue": "010-0000-0000", "phone": "010-0000-0000", "email": "lee@example.com" }
+                { "method": "contact", "keyValue": "+821000000000", "phone": "+821000000000", "email": "lee@example.com" }
                 """)))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);

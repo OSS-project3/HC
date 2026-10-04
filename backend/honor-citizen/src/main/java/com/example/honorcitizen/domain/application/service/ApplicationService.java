@@ -125,6 +125,10 @@ public class ApplicationService {
     // 마이페이지 신청 목록(api.md API 6) 페이지 크기 상한 — Board/Event와 동일한 관례.
     private static final int MAX_PAGE_SIZE = 100;
 
+    // 연락처 조회 입력값: 국가코드 포함 E.164 (예: +821012345678)
+    private static final java.util.regex.Pattern E164_PHONE_PATTERN =
+            java.util.regex.Pattern.compile("\\+[1-9]\\d{1,14}");
+
     private final ApplicationRepository applicationRepository;
     private final ApplicantRepository applicantRepository;
     private final ApplicationMemberRepository applicationMemberRepository;
@@ -1640,20 +1644,21 @@ public class ApplicationService {
 
     // 전화번호+이메일로 신청을 찾는다. 신청자(applicant)와 구성원(member) 어느 쪽이든 두 값이 모두 맞으면 후보가 된다.
     // 후보가 여럿이면 가장 최근 신청(id 최대)을 반환한다.
-    // 전화번호는 숫자만 남겨 비교한다(010-1234-5678 과 01012345678 을 같다고 본다).
+    // 전화번호는 국가코드를 포함한 E.164(+821012345678)로만 받는다(국외 번호 조회를 위함).
+    // 저장값은 엑셀 업로드(E.164)와 개인 신청(국내 형식 010-…)이 섞여 있으므로 양쪽을 E.164로 맞춰 비교한다.
     private Application lookupByContact(ApplicationLookupRequest request) {
         String email = request.getEmail().trim();
-        String phoneDigits = digitsOnly(request.getPhone());
-        if (phoneDigits.isEmpty()) {
+        String phone = request.getPhone().trim();
+        if (!E164_PHONE_PATTERN.matcher(phone).matches()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
         Set<Long> candidateIds = new HashSet<>();
         applicantRepository.findByEmailIgnoreCase(email).stream()
-                .filter(a -> phoneDigits.equals(digitsOnly(a.getPhone())))
+                .filter(a -> phone.equals(toE164(a.getPhone())))
                 .forEach(a -> candidateIds.add(a.getApplicationId()));
         applicationMemberRepository.findByEmailIgnoreCase(email).stream()
-                .filter(m -> phoneDigits.equals(digitsOnly(m.getPhone())))
+                .filter(m -> phone.equals(toE164(m.getPhone())))
                 .forEach(m -> candidateIds.add(m.getApplicationId()));
 
         return candidateIds.stream()
@@ -1662,8 +1667,21 @@ public class ApplicationService {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
     }
 
-    private static String digitsOnly(String value) {
-        return value == null ? "" : value.replaceAll("\\D", "");
+    // 저장된 전화번호를 E.164로 맞춘다. 이미 +로 시작하면 숫자만 남기고,
+    // 국내 형식(0으로 시작)이면 0을 떼고 +82를 붙인다. 그 밖의 값은 null(매칭 불가)로 본다.
+    private static String toE164(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String trimmed = value.trim();
+        String digits = trimmed.replaceAll("\\D", "");
+        if (trimmed.startsWith("+")) {
+            return "+" + digits;
+        }
+        if (digits.startsWith("0")) {
+            return "+82" + digits.substring(1);
+        }
+        return null;
     }
 
     // 신청번호로 Application을 찾고, 전화번호·이메일이 모두 일치하는지 확인한다.

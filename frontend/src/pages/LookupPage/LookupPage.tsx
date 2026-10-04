@@ -226,7 +226,7 @@ export function LookupPage() {
                     type="tel"
                     inputMode="tel"
                     autoComplete="tel"
-                    placeholder="010-1234-5678"
+                    placeholder="+821012345678"
                     required
                   />
                 </label>
@@ -262,7 +262,7 @@ export function LookupPage() {
             <Button type="submit" block>{t("모바일 카드 확인")}</Button>
             <p className="lookup__note">
               {method === "contact"
-                ? t("발급 시 등록한 전화번호와 이메일을 모두 입력해 주세요.")
+                ? t("발급 시 등록한 전화번호와 이메일을 모두 입력해 주세요. 전화번호는 국가번호를 포함해 입력해 주세요 (예: +821012345678).")
                 : t("발급받은 카드에 표시된 카드번호를 입력해 주세요.")}
             </p>
           </form>
