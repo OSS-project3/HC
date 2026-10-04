@@ -54,6 +54,9 @@ class CardImageCompositor {
 
     private static final String TEMPLATE_ROOT = "card-templates/";
     private static final DateTimeFormatter ISSUE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+    // 방문증 주소 글자 크기(기준 캔버스 단위)와 줄바꿈 기준 글자 수(사용자 확인, 2026-10-04)
+    private static final float VISITOR_ADDRESS_SIZE = 3.9959f;
+    private static final int VISITOR_ADDRESS_LINE_CHARS = 15;
 
     // 앞·뒷면 배경/사진/로고/직인 자리 파일명이 디자인마다 다르게 export되어 있어(디자이너 파일명
     // 비표준) 후보를 순서대로 시도한다. TODO.md "카드 이미지 합성"/2-B 섹션의 파일명 불일치 조사 결과.
@@ -151,7 +154,10 @@ class CardImageCompositor {
             } else {
                 drawText(g, data.englishName(), dotumBold, 6.631f, frontText, layout.englishName(), layout, scaleX, scaleY);
                 drawText(g, data.cardNumber(), dotumMedium, 7.959f, frontText, layout.cardNumber(), layout, scaleX, scaleY);
-                drawText(g, data.address(), dotumMedium, 7.9959f, frontText, layout.address(), layout, scaleX, scaleY);
+                // 방문증 주소는 발급일자와 같은 왼쪽 기준선에서 따로 그린다(아래 발급일자 분기 참고).
+                if (cardType != CardTypeCode.VISITOR) {
+                    drawText(g, data.address(), dotumMedium, 7.9959f, frontText, layout.address(), layout, scaleX, scaleY);
+                }
             }
             // 발급일자는 HONOR_CITIZEN은 이름 왼쪽 끝 기준선에 맞춘다(이름도 왼쪽 열에 속함).
             // VISITOR는 이름/영문명이 카드 중앙 정렬이라 이름 기준으로 맞추면 오히려 카드번호/주소
@@ -165,6 +171,8 @@ class CardImageCompositor {
                 double cardNumberLeftEdge = leftEdgeX(data.cardNumber(), dotumMedium, 7.959f, layout.cardNumber(), layout, scaleX);
                 drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, frontText,
                         cardNumberLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
+                // 주소도 발급일자 "발"과 같은 왼쪽 기준선에 맞춘다(사용자 확인, 2026-10-04).
+                drawVisitorAddress(g, data.address(), frontText, cardNumberLeftEdge, layout.address(), layout, scaleX, scaleY);
             } else {
                 drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, frontText,
                         layout.issueDate(), layout, scaleX, scaleY);
@@ -651,6 +659,23 @@ class CardImageCompositor {
     private double leftEdgeX(String text, Font baseFont, float sizeAtBaseScale, CardFieldOffset offset,
             CardLayout layout, double scaleX) {
         return leftEdgeXGeneric(text, baseFont, sizeAtBaseScale, offset, layout.baseWidth(), scaleX);
+    }
+
+    // 방문증 주소: 글자 크기는 기존 7.9959에서 4 줄인 값이고, 15자마다 끊어서 다음 줄은 아래로 내린다.
+    // 기준선은 발급일자와 같은 왼쪽 끝(leftX)이다. 줄 간격은 글자 크기 비율로 잡는다.
+    private void drawVisitorAddress(Graphics2D g, String address, Color color, double leftX,
+            CardFieldOffset offset, CardLayout layout, double scaleX, double scaleY) {
+        if (address == null || address.isBlank()) {
+            return;
+        }
+        double lineGap = VISITOR_ADDRESS_SIZE * 1.4d;
+        int lineIndex = 0;
+        for (int start = 0; start < address.length(); start += VISITOR_ADDRESS_LINE_CHARS) {
+            String line = address.substring(start, Math.min(address.length(), start + VISITOR_ADDRESS_LINE_CHARS));
+            CardFieldOffset lineOffset = new CardFieldOffset(offset.x(), offset.y() + lineIndex * lineGap);
+            drawTextAtPixelX(g, line, dotumMedium, VISITOR_ADDRESS_SIZE, color, leftX, lineOffset, layout, scaleX, scaleY);
+            lineIndex++;
+        }
     }
 
     // 짝을 이루는 위 줄(이름)의 왼쪽 끝에 맞춰 왼쪽 정렬로 그린다. y좌표·폰트 크기는 이 필드 자신의
