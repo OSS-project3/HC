@@ -74,6 +74,8 @@ class CardImageCompositor {
     private static final double ZODIAC_BASE_WIDTH = 54d;
     // 방문증 직인은 띠 아래에 작게 그린다. 슬롯 크기 대신 이 논리 너비(pt)로 맞춘다(사용자 확인, 2026-10-04).
     private static final double VISITOR_SEAL_BASE_WIDTH = 18d;
+    // 명예시민증 앞면 왼쪽 글자 기준선을 오른쪽으로 띄우는 양(기준 캔버스 단위, 사용자 확인 2026-10-04)
+    private static final double HONOR_CITIZEN_NAME_SHIFT_X = 2d;
     // 학생증은 다른 3종과 카드 레이아웃 자체가 달라(사진·이름·영문명·학번/학과가 한 열에 조밀하게
     // 배치) 위 값을 그대로 쓰면 세로형에서 영문명 줄·학교 엠블럼 워터마크와 겹친다(실제 렌더링으로
     // 확인, 2026-09-06). 학생증 캔버스 폭(156/235) 대비 비율로 겹치지 않는 선까지 낮춘 값 — 이후
@@ -139,14 +141,19 @@ class CardImageCompositor {
             Color frontName = cardType == CardTypeCode.VISITOR ? frontText : Color.BLACK;
             drawTitle(g, cardType, layout, scaleX, scaleY);
             drawPhoto(g, dir, data.photo(), layout, scaleX, scaleY);
-            drawText(g, spacedName(data.fullName()), batangBold, 12.047f, frontName, layout.name(), layout, scaleX, scaleY);
+            // 명예시민증은 카드 왼쪽 가장자리에 글자가 붙어 보여서, 이름 기준선(이름·영문명·발급번호·주소·발급일자가
+            // 같이 쓰는 왼쪽 끝)을 오른쪽으로 2만큼 띄운다(사용자 확인, 2026-10-04).
+            CardFieldOffset nameOffset = cardType == CardTypeCode.HONOR_CITIZEN
+                    ? new CardFieldOffset(layout.name().x() + HONOR_CITIZEN_NAME_SHIFT_X, layout.name().y())
+                    : layout.name();
+            drawText(g, spacedName(data.fullName()), batangBold, 12.047f, frontName, nameOffset, layout, scaleX, scaleY);
             // HONOR_CITIZEN/HONOR_KOREAN 위치값 표는 영문명/카드번호/주소를 각자 다른 x에서 중앙
             // 정렬하는 걸 전제로 한 듯한데, 문자열 길이가 서로 달라(특히 주소) 실제 렌더링해보면
             // 왼쪽 시작점이 들쭉날쭉했다(사용자 확인, 두 카드종류 모두 동일 원칙 적용 요청). 이름의
             // 왼쪽 끝을 기준선으로 계산해 그 지점에 왼쪽 정렬한다. 각 필드 자신의 y좌표·폰트 크기는
             // 그대로 쓴다. VISITOR는 요청 범위 밖이라 기존 중앙 정렬 유지.
             if (cardType == CardTypeCode.HONOR_CITIZEN || cardType == CardTypeCode.HONOR_KOREAN) {
-                double nameLeftEdge = leftEdgeX(spacedName(data.fullName()), batangBold, 12.047f, layout.name(), layout, scaleX);
+                double nameLeftEdge = leftEdgeX(spacedName(data.fullName()), batangBold, 12.047f, nameOffset, layout, scaleX);
                 drawTextAtPixelX(g, data.englishName(), dotumBold, 6.631f, frontText, nameLeftEdge,
                         layout.englishName(), layout, scaleX, scaleY);
                 drawTextAtPixelX(g, data.cardNumber(), dotumMedium, 7.959f, frontText, nameLeftEdge,
@@ -166,7 +173,7 @@ class CardImageCompositor {
             // 왼쪽 그룹에서 어긋난다(실제 렌더링 후 발견) — 대신 카드번호의 왼쪽 끝을 기준으로 맞춘다
             // (사용자 확인). HONOR_KOREAN은 카드 우측(x=+79.96)에 별도 배치되는 디자인이라 중앙 정렬 유지.
             if (cardType == CardTypeCode.HONOR_CITIZEN) {
-                double nameLeftEdge = leftEdgeX(spacedName(data.fullName()), batangBold, 12.047f, layout.name(), layout, scaleX);
+                double nameLeftEdge = leftEdgeX(spacedName(data.fullName()), batangBold, 12.047f, nameOffset, layout, scaleX);
                 drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, frontText,
                         nameLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
             } else if (cardType == CardTypeCode.VISITOR) {
