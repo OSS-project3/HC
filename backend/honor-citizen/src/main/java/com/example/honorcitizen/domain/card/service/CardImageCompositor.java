@@ -1,5 +1,6 @@
 package com.example.honorcitizen.domain.card.service;
 
+import com.example.honorcitizen.common.enums.CardDesignOrientation;
 import com.example.honorcitizen.common.enums.CardTypeCode;
 import com.example.honorcitizen.common.enums.StudentTextColor;
 import com.example.honorcitizen.common.exception.CustomException;
@@ -278,20 +279,27 @@ class CardImageCompositor {
             double nameLeftEdge = leftEdgeXGeneric(spacedName(data.fullName()), batangBold, 12.11f, layout.name(), bw, scaleX);
             drawTextAtPixelXGeneric(g, data.englishName(), dotumBold, 6.7f, textColor, nameLeftEdge,
                     layout.englishName(), bh, scaleX, scaleY);
+            // 학번·학과·발급일자 줄의 왼쪽 시작 X. 가로형은 이름·영문명과 같은 기준선(nameLeftEdge)에 맞추고,
+            // 세로형은 기존처럼 학번 가운데 정렬 기준의 왼쪽 끝을 쓴다(사용자 확인, 2026-10-04).
+            double infoLeftEdge = nameLeftEdge;
             if (data.isUniversity()) {
-                drawTextGeneric(g, data.studentId(), dotumMedium, 7.6f, textColor, layout.studentId(), bw, bh, scaleX, scaleY);
-                double studentIdLeftEdge = leftEdgeXGeneric(data.studentId(), dotumMedium, 7.6f, layout.studentId(), bw, scaleX);
-                drawTextAtPixelXGeneric(g, data.department(), dotumMedium, 7.6f, textColor, studentIdLeftEdge,
+                if (data.studentOrientation() == CardDesignOrientation.LANDSCAPE) {
+                    drawTextAtPixelXGeneric(g, data.studentId(), dotumMedium, 7.6f, textColor, infoLeftEdge,
+                            layout.studentId(), bh, scaleX, scaleY);
+                } else {
+                    drawTextGeneric(g, data.studentId(), dotumMedium, 7.6f, textColor, layout.studentId(), bw, bh, scaleX, scaleY);
+                    infoLeftEdge = leftEdgeXGeneric(data.studentId(), dotumMedium, 7.6f, layout.studentId(), bw, scaleX);
+                }
+                drawTextAtPixelXGeneric(g, data.department(), dotumMedium, 7.6f, textColor, infoLeftEdge,
                         layout.department(), bh, scaleX, scaleY);
             } else {
                 drawTextGeneric(g, "생년월일 " + formatIssueDate(data.birthDate()), dotumMedium, 7.6f, textColor,
                         layout.birthDate(), bw, bh, scaleX, scaleY);
             }
             if (data.isUniversity()) {
-                // 대학교 학생증은 발급일자를 학번·학과 줄의 왼쪽 시작 X에 맞춘다(사용자 확인, 2026-10-04).
-                double studentIdLeftEdge = leftEdgeXGeneric(data.studentId(), dotumMedium, 7.6f, layout.studentId(), bw, scaleX);
+                // 대학교 학생증은 발급일자를 학번·학과 줄과 같은 왼쪽 시작 X에 맞춘다.
                 drawTextAtPixelXGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, textColor,
-                        studentIdLeftEdge, layout.issueDate(), bh, scaleX, scaleY);
+                        infoLeftEdge, layout.issueDate(), bh, scaleX, scaleY);
             } else {
                 drawTextGeneric(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 7f, textColor,
                         layout.issueDate(), bw, bh, scaleX, scaleY);
