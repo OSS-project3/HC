@@ -12,4 +12,7 @@ public interface ApplicantRepository extends JpaRepository<Applicant, Long> {
 
     // 후기 자격검증(같은 이메일로 여러 번 신청했을 수 있음) — ReviewEligibilityService에서 사용.
     List<Applicant> findByEmail(String email);
+
+    // 연락처 조회(LookupMethod.CONTACT) — 이메일은 대소문자 무시로 찾는다.
+    List<Applicant> findByEmailIgnoreCase(String email);
 }

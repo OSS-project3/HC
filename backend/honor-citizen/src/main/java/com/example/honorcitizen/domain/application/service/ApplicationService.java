@@ -1598,17 +1598,19 @@ public class ApplicationService {
      */
     @Transactional(readOnly = true)
     public ApplicationLookupResponse lookup(ApplicationLookupRequest request) {
-        // APPLICATION 방식은 전화·이메일 모두 입력해야 한다.
+        // APPLICATION·CONTACT 방식은 전화·이메일 모두 입력해야 한다.
         // 하나라도 없으면 본인 확인을 우회할 수 있으므로 즉시 차단한다.
-        if (request.getMethod() == LookupMethod.APPLICATION
+        if (request.getMethod() != LookupMethod.CARD
                 && ((request.getPhone() == null || request.getPhone().isBlank())
                         || (request.getEmail() == null || request.getEmail().isBlank()))) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
-        Application application = request.getMethod() == LookupMethod.CARD
-                ? lookupByCard(request)
-                : lookupByApplicationNumber(request);
+        Application application = switch (request.getMethod()) {
+            case CARD -> lookupByCard(request);
+            case CONTACT -> lookupByContact(request);
+            case APPLICATION -> lookupByApplicationNumber(request);
+        };
 
         Applicant applicant = applicantRepository.findByApplicationId(application.getId())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
@@ -1634,6 +1636,34 @@ public class ApplicationService {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
         return applicationRepository.findById(member.getApplicationId())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+    }
+
+    // 전화번호+이메일로 신청을 찾는다. 신청자(applicant)와 구성원(member) 어느 쪽이든 두 값이 모두 맞으면 후보가 된다.
+    // 후보가 여럿이면 가장 최근 신청(id 최대)을 반환한다.
+    // 전화번호는 숫자만 남겨 비교한다(010-1234-5678 과 01012345678 을 같다고 본다).
+    private Application lookupByContact(ApplicationLookupRequest request) {
+        String email = request.getEmail().trim();
+        String phoneDigits = digitsOnly(request.getPhone());
+        if (phoneDigits.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        Set<Long> candidateIds = new HashSet<>();
+        applicantRepository.findByEmailIgnoreCase(email).stream()
+                .filter(a -> phoneDigits.equals(digitsOnly(a.getPhone())))
+                .forEach(a -> candidateIds.add(a.getApplicationId()));
+        applicationMemberRepository.findByEmailIgnoreCase(email).stream()
+                .filter(m -> phoneDigits.equals(digitsOnly(m.getPhone())))
+                .forEach(m -> candidateIds.add(m.getApplicationId()));
+
+        return candidateIds.stream()
+                .max(Long::compare)
+                .flatMap(applicationRepository::findById)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND));
+    }
+
+    private static String digitsOnly(String value) {
+        return value == null ? "" : value.replaceAll("\\D", "");
     }
 
     // 신청번호로 Application을 찾고, 전화번호·이메일이 모두 일치하는지 확인한다.

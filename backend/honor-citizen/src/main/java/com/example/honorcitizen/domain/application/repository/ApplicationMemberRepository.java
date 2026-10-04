@@ -31,5 +31,8 @@ public interface ApplicationMemberRepository extends JpaRepository<ApplicationMe
     // 후기 자격검증(단체 신청의 실제 카드 수령자) — ReviewEligibilityService에서 사용.
     List<ApplicationMember> findByEmail(String email);
 
+    // 연락처 조회(LookupMethod.CONTACT) — 구성원 본인 이메일도 대소문자 무시로 찾는다.
+    List<ApplicationMember> findByEmailIgnoreCase(String email);
+
     void deleteByApplicationId(Long applicationId);
 }

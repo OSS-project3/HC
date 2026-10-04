@@ -102,7 +102,7 @@ export function LookupPage() {
     // 2) 실제 조회는 API로 처리한다. 발급 카드 이미지를 받아 그대로 표시한다.
     try {
       const result = await api.lookupApplication({
-        method: method === "card" ? "card" : "application",
+        method: method === "card" ? "card" : "contact",
         keyValue: method === "card" ? cardNumber : phone,
         phone: phone || undefined,
         email: email || undefined,

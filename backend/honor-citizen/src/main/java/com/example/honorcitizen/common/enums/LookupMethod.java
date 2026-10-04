@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum LookupMethod {
     APPLICATION("application"),
+    CONTACT("contact"),
     CARD("card");
 
     private final String value;

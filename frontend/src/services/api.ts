@@ -265,7 +265,7 @@ export const api = {
   // 학생증 신청 폼의 학교 검색select — 비로그인 공개 API. 서버 검색이라 query 없이 부르면 빈 배열을
   // 받는다(학교 수가 약 2,800개라 전체 목록을 한 번에 안 준다). 결과는 관련도순 정렬, 최대 20건.
   searchSchools: (query?: string) => request<SchoolOption[]>(`/api/schools/search${qs({ query })}`),
-  lookupApplication: (body: { method: "application" | "card"; keyValue: string; phone?: string; email?: string }) => request<LookupResult>("/api/applications/lookup", { method: "POST", body: JSON.stringify(body) }),
+  lookupApplication: (body: { method: "application" | "contact" | "card"; keyValue: string; phone?: string; email?: string }) => request<LookupResult>("/api/applications/lookup", { method: "POST", body: JSON.stringify(body) }),
   reuploadPhoto: (id: number, form: FormData) =>
     request<{ applicationId: number; status: ApplicationStatus }>(`/api/applications/${id}/photo`, { method: "PATCH", body: form }),
   getCardDownload: (id: number) => request<CardDownload>(`/api/applications/${id}/cards/download`),
