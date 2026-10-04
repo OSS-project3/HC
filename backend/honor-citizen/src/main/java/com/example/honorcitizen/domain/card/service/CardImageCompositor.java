@@ -75,7 +75,7 @@ class CardImageCompositor {
     // 방문증 직인은 띠 아래에 작게 그린다. 슬롯 크기 대신 이 논리 너비(pt)로 맞춘다(사용자 확인, 2026-10-04).
     private static final double VISITOR_SEAL_BASE_WIDTH = 18d;
     // 명예시민증 앞면 왼쪽 글자 기준선을 오른쪽으로 띄우는 양(기준 캔버스 단위, 사용자 확인 2026-10-04)
-    private static final double HONOR_CITIZEN_NAME_SHIFT_X = 2d;
+    private static final double HONOR_CITIZEN_NAME_SHIFT_X = 4d;
     // 학생증은 다른 3종과 카드 레이아웃 자체가 달라(사진·이름·영문명·학번/학과가 한 열에 조밀하게
     // 배치) 위 값을 그대로 쓰면 세로형에서 영문명 줄·학교 엠블럼 워터마크와 겹친다(실제 렌더링으로
     // 확인, 2026-09-06). 학생증 캔버스 폭(156/235) 대비 비율로 겹치지 않는 선까지 낮춘 값 — 이후
