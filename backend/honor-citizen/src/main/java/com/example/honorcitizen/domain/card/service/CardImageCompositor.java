@@ -174,16 +174,16 @@ class CardImageCompositor {
             // (사용자 확인). HONOR_KOREAN은 카드 우측(x=+79.96)에 별도 배치되는 디자인이라 중앙 정렬 유지.
             if (cardType == CardTypeCode.HONOR_CITIZEN) {
                 double nameLeftEdge = leftEdgeX(spacedName(data.fullName()), batangBold, 12.047f, nameOffset, layout, scaleX);
-                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, frontText,
+                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 6.4663f, frontText,
                         nameLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
             } else if (cardType == CardTypeCode.VISITOR) {
                 double cardNumberLeftEdge = leftEdgeX(data.cardNumber(), dotumMedium, 7.959f, layout.cardNumber(), layout, scaleX);
-                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, frontText,
+                drawTextAtPixelX(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 6.4663f, frontText,
                         cardNumberLeftEdge, layout.issueDate(), layout, scaleX, scaleY);
                 // 주소도 발급일자 "발"과 같은 왼쪽 기준선에 맞춘다(사용자 확인, 2026-10-04).
                 drawVisitorAddress(g, data.address(), frontText, cardNumberLeftEdge, layout.address(), layout, scaleX, scaleY);
             } else {
-                drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumMedium, 6.4663f, frontText,
+                drawText(g, "발급일자 " + formatIssueDate(data.issueDate()), dotumBold, 6.4663f, frontText,
                         layout.issueDate(), layout, scaleX, scaleY);
             }
             drawZodiac(g, data.zodiacBranch(), data.zodiacDesignSet(), layout.zodiac(), layout, scaleX, scaleY);
