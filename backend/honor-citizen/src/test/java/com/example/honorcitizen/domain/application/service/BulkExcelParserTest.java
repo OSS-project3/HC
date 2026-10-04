@@ -327,6 +327,26 @@ class BulkExcelParserTest {
     }
 
     @Test
+    void parseRejectsSameEmailAndPhoneAcrossMembers() throws Exception {
+        byte[] excel = buildExcel(ROW_1, "2|Jane Doe|1991-02-02|US||Chicago|FEMALE||JOHN@example.com|+821011112222|Busan");
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg", "2.jpg");
+
+        assertThatThrownBy(() -> parser.parse(zip, false, null))
+                .isInstanceOf(BulkValidationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BULK_APPLICATION_VALIDATION_FAILED)
+                .satisfies(e -> assertThat(((BulkValidationException) e).getErrors())
+                        .extracting("code").contains("DUPLICATE_CONTACT"));
+    }
+
+    @Test
+    void parseAllowsSamePhoneWithDifferentEmail() throws Exception {
+        byte[] excel = buildExcel(ROW_1, "2|Jane Doe|1991-02-02|US||Chicago|FEMALE||jane@example.com|+821011112222|Busan");
+        MockMultipartFile zip = zipOf(excel, "members.xlsx", "1.jpg", "2.jpg");
+
+        assertThat(parser.parse(zip, false, null)).hasSize(2);
+    }
+
+    @Test
     void parseIgnoresPhotoInsideSubfolderAndTreatsItAsMissing() throws Exception {
         byte[] excel = buildExcel(ROW_1);
         MockMultipartFile zip = zipOf(excel, "members.xlsx", "photos/1.jpg");

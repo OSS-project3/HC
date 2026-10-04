@@ -263,6 +263,7 @@ class BulkExcelParser {
             List<BulkMemberRow> rows = new ArrayList<>();
             List<ValidationErrorDetail> errors = new ArrayList<>();
             Set<String> seenIds = new HashSet<>();
+            Map<String, Integer> seenContacts = new HashMap<>();
             int applicantRowCount = 0;
             boolean memberCountExceeded = false;
 
@@ -307,6 +308,14 @@ class BulkExcelParser {
                 BulkMemberRow parsed = parseRow(
                         row, photoNumber, commonEntryDate, photosById, isStudent, schoolType, formatter, errors);
                 if (parsed != null) {
+                    // 구성원마다 연락처(전화번호+이메일 쌍)가 달라야 한다 — 같은 쌍이 여러 구성원에 쓰이면
+                    // 연락처 조회 시 어느 카드를 보여줄지 정할 수 없으므로 업로드 자체를 막는다.
+                    String contactKey = parsed.email().toLowerCase() + "|" + parsed.phone();
+                    Integer firstRowNumber = seenContacts.putIfAbsent(contactKey, rowIndex + 1);
+                    if (firstRowNumber != null) {
+                        errors.add(new ValidationErrorDetail(rowIndex + 1, "phone", "DUPLICATE_CONTACT",
+                                firstRowNumber + "행과 전화번호·이메일이 같습니다. 구성원마다 서로 다른 연락처를 입력해야 합니다."));
+                    }
                     rows.add(parsed);
                 }
             }
